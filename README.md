@@ -1,84 +1,146 @@
-# Turborepo starter
+# Earkart Frontend Monorepo 🚀
 
-This Turborepo starter is maintained by the Turborepo core team.
+Welcome to the Earkart Frontend Monorepo! This repository houses our suite of modern frontend applications, providing a unified development experience across multiple platforms.
 
-## Using this example
+![System Diagram](assets/fe_sd.png)
 
-Run the following command:
+## 📱 Applications
 
-```sh
-npx create-turbo@latest
-```
+### Next.js Dashboard
 
-## What's inside?
+A powerful and intuitive admin dashboard built with Next.js, providing comprehensive management and analytics capabilities.
 
-This Turborepo includes the following packages/apps:
+### Flutter Applications
 
-### Apps and Packages
+#### 1. Earkart Omni
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+Our flagship Flutter application designed for omnichannel operations, offering seamless integration across various sales channels.
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+#### 2. Earkart MDM
 
-### Utilities
+Master Data Management application built with Flutter, enabling efficient management of product data and business information.
 
-This Turborepo has some additional tools already setup for you:
+## 🛠️ Tech Stack
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+- **Next.js**: For our web dashboard application
+- **Flutter**: For cross-platform mobile applications
+- **TypeScript**: For type-safe development in web applications
+- **Dart**: For Flutter application development
 
-### Build
-
-To build all apps and packages, run the following command:
+## 📦 Project Structure
 
 ```
-cd my-turborepo
+earkart-frontend/
+├── apps/
+│   ├── dashboard/        # Next.js admin dashboard
+│   ├── earkart_omni/    # Flutter omnichannel app
+│   └── earkart_mdm/     # Flutter MDM app
+├── packages/            # Shared packages and components
+└── assets/             # Shared assets and resources
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js (v18 or later)
+- Flutter (latest stable version)
+- pnpm
+- Git
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone [repository-url]
+```
+
+2. Install dependencies:
+
+```bash
+pnpm install
+```
+
+3. Set up Flutter projects:
+
+```bash
+cd apps/earkart_omni
+flutter pub get
+
+cd ../earkart_mdm
+flutter pub get
+```
+
+## 💻 Development
+
+### Running the Dashboard
+
+```bash
+pnpm dev:dashboard
+```
+
+### Running Flutter Apps
+
+```bash
+# For Omni app
+cd apps/earkart_omni
+flutter run
+
+# For MDM app
+cd apps/earkart_mdm
+flutter run
+```
+
+## 🏗️ Building
+
+To build all applications:
+
+```bash
 pnpm build
 ```
 
-### Develop
+For individual Flutter apps:
 
-To develop all apps and packages, run the following command:
+```bash
+# Omni app
+cd apps/earkart_omni
+flutter build apk  # For Android
+flutter build ios  # For iOS
 
-```
-cd my-turborepo
-pnpm dev
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-npx turbo login
+# MDM app
+cd apps/earkart_mdm
+flutter build apk  # For Android
+flutter build ios  # For iOS
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+## 🔄 CI/CD
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+This repository uses Turborepo for efficient builds and caching. Our CI/CD pipeline ensures:
 
-```
-npx turbo link
-```
+- Automated testing
+- Code quality checks
+- Build verification
+- Deployment to respective environments
 
-## Useful Links
+## 📚 Documentation
 
-Learn more about the power of Turborepo:
+- [Dashboard Documentation](apps/dashboard/README.md)
+- [Omni App Documentation](apps/earkart_omni/README.md)
+- [MDM App Documentation](apps/earkart_mdm/README.md)
 
-- [Tasks](https://turbo.build/repo/docs/core-concepts/monorepos/running-tasks)
-- [Caching](https://turbo.build/repo/docs/core-concepts/caching)
-- [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching)
-- [Filtering](https://turbo.build/repo/docs/core-concepts/monorepos/filtering)
-- [Configuration Options](https://turbo.build/repo/docs/reference/configuration)
-- [CLI Usage](https://turbo.build/repo/docs/reference/command-line-reference)
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+Built with ❤️ by the Earkart Team
