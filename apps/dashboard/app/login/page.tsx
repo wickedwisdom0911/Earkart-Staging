@@ -12,6 +12,7 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,7 +25,9 @@ export default function LoginPage() {
 
   const formSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(8),
+    password: z
+      .string()
+      .min(8, { message: "Password must be at least 8 characters long" }),
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -94,6 +97,7 @@ export default function LoginPage() {
                         disabled={loading}
                       />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -115,7 +119,7 @@ export default function LoginPage() {
                         <button
                           type="button"
                           tabIndex={-1}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                          className="absolute cursor-pointer right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
                           onClick={() => setShowPass((v) => !v)}
                           aria-label={
                             showPass ? "Hide password" : "Show password"
@@ -125,6 +129,7 @@ export default function LoginPage() {
                         </button>
                       </div>
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
