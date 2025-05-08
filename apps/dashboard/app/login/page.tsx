@@ -18,9 +18,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff } from "lucide-react";
 import CircularText from "@/components/ui/circular-text";
-
+import useLoginUser from "@/hooks/auth/use-login-user";
+import { toast } from "sonner";
 export default function LoginPage() {
-  const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
 
   const formSchema = z.object({
@@ -38,10 +38,31 @@ export default function LoginPage() {
     },
   });
 
+  const { mutate: loginUser, isPending } = useLoginUser();
+
   const handleSubmit = async (data: z.infer<typeof formSchema>) => {
-    setLoading(true);
-    // Simulate login
-    setTimeout(() => setLoading(false), 1500);
+    const formData = new FormData();
+    formData.append("email", data.email);
+    formData.append("password", data.password);
+    loginUser(formData, {
+      onSuccess: (data) => {
+        if (data.success) {
+          toast.success("Login successful", {
+            description: "You have been logged in successfully",
+          });
+        } else {
+          toast.error("Login failed", {
+            description: data.message,
+          });
+        }
+      },
+      onError: (error) => {
+        console.log(error);
+        toast.error("Login failed", {
+          description: error.message,
+        });
+      },
+    });
   };
 
   return (
@@ -94,7 +115,7 @@ export default function LoginPage() {
                         type="email"
                         placeholder="you@example.com"
                         autoComplete="email"
-                        disabled={loading}
+                        disabled={isPending}
                       />
                     </FormControl>
                     <FormMessage />
@@ -114,7 +135,7 @@ export default function LoginPage() {
                           type={showPass ? "text" : "password"}
                           placeholder="••••••••"
                           autoComplete="current-password"
-                          disabled={loading}
+                          disabled={isPending}
                         />
                         <button
                           type="button"
@@ -153,9 +174,9 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full mt-2 bg-primary-600 hover:bg-primary-700 hover:scale-[1.04] transition-all duration-200 cursor-pointer"
-                disabled={loading}
+                disabled={isPending}
               >
-                {loading ? "Logging in..." : "Login"}
+                {isPending ? "Logging in..." : "Login"}
               </Button>
             </form>
           </Form>
