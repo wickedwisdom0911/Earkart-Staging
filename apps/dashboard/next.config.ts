@@ -3,7 +3,6 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const nextConfig: NextConfig = {
-  /* config options here */
   env: {
     IS_PRODUCTION: process.env.IS_PRODUCTION,
     BASE_API_URL_PROD: process.env.BASE_API_URL_PROD,

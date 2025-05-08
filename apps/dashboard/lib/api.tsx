@@ -12,14 +12,14 @@ export async function apiRequest<T>(
   try {
     const response = await fetch(url, options);
 
-    if (!response.ok) {
-      // Handle non-200 HTTP status
-      const errorData = await response.json();
+    // if (!response.ok) {
+    //   // Handle non-200 HTTP status
+    //   const errorData = await response.json();
 
-      throw new Error(
-        errorData?.message || "An error occurred while fetching data."
-      );
-    }
+    //   throw new Error(
+    //     errorData?.message || "An error occurred while fetching data."
+    //   );
+    // }
 
     const result = await response.json();
     // Validate using the provided schema
