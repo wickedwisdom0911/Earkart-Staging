@@ -57,7 +57,6 @@ export default function LoginPage() {
         }
       },
       onError: (error) => {
-        console.log(error);
         toast.error("Login failed", {
           description: error.message,
         });

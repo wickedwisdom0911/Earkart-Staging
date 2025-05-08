@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import SplashCursor from "@/components/ui/splash-cursor";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 import CustomQueryClientProvider from "@/providers/QueryClientProvider";
 
 const geistSans = Geist({
@@ -31,18 +31,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-full w-full`}
       >
-        <Toaster
-          toastOptions={{
-            classNames: {
-              success: "bg-green-400",
-              error: "bg-red-400",
-              warning: "bg-yellow-400",
-              info: "bg-blue-400",
-            },
-          }}
-        />
+        <Toaster />
         <CustomQueryClientProvider>{children}</CustomQueryClientProvider>
-        <SplashCursor />
+        {/* <SplashCursor /> */}
       </body>
     </html>
   );
