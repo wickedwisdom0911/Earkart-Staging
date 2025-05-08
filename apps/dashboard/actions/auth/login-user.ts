@@ -22,9 +22,11 @@ export default async function loginUser(
       },
       userModelSchema
     );
+    console.log(response);
     if (response.success && response.data) {
       await createSession(response.data);
     }
+
     return response;
   } catch (error) {
     console.log(error);

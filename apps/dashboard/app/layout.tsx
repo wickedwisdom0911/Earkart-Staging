@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import SplashCursor from "@/components/ui/splash-cursor";
 import { Toaster } from "@/components/ui/sonner";
 import CustomQueryClientProvider from "@/providers/QueryClientProvider";
 
@@ -33,7 +32,6 @@ export default function RootLayout({
       >
         <Toaster />
         <CustomQueryClientProvider>{children}</CustomQueryClientProvider>
-        {/* <SplashCursor /> */}
       </body>
     </html>
   );
