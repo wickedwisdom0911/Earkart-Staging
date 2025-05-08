@@ -20,8 +20,10 @@ import { Eye, EyeOff } from "lucide-react";
 import CircularText from "@/components/ui/circular-text";
 import useLoginUser from "@/hooks/auth/use-login-user";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
+  const router = useRouter();
 
   const formSchema = z.object({
     email: z.string().email(),
@@ -50,6 +52,7 @@ export default function LoginPage() {
           toast.success("Login successful", {
             description: "You have been logged in successfully",
           });
+          router.replace("/dashboard");
         } else {
           toast.error("Login failed", {
             description: data.message,
