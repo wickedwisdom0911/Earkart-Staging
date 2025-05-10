@@ -6,81 +6,92 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuBadge,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "./button";
 import {
-  ChevronDown,
+  BarChartIcon,
+  Building2Icon,
+  FileIcon,
   HomeIcon,
   LogOut,
-  MessageSquareIcon,
-  PackageIcon,
-  SquareMenuIcon,
-  MailIcon,
+  SettingsIcon,
+  UserIcon,
+  ChevronLeft,
 } from "lucide-react";
-import { ReactNode } from "react";
-import Link from "next/link";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "./collapsible";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { ReactNode, useMemo } from "react";
+import { motion } from "framer-motion";
+import { useGetUser } from "@/hooks/auth/use-get-user";
+import AppSidebarBody from "./AppSidebarBody";
 
-interface SidebarItem {
+export interface SidebarItem {
   name: string;
   icon?: ReactNode;
   url?: string;
   subItems?: SidebarItem[];
 }
 
-const sidebarItems: SidebarItem[] = [
+const adminSidebarItems: SidebarItem[] = [
   {
-    name: "Dashboard",
+    name: "Active Consultations",
     icon: <HomeIcon className="text-slate-600" />,
     url: "/dashboard",
   },
   {
-    name: "Enquiries",
-    icon: <MessageSquareIcon className="text-slate-600" />,
-    url: "/dashboard/enquiries",
+    name: "Analytics",
+    icon: <BarChartIcon className="text-slate-600" />,
+    url: "/analytics",
   },
   {
-    name: "Subscribed Emails",
-    icon: <MailIcon className="text-slate-600" />,
-    url: "/dashboard/subscribed-emails",
-  },
-  {
-    name: "Categories",
-    icon: <SquareMenuIcon className="text-slate-600" />,
+    name: "Reports",
+    icon: <FileIcon className="text-slate-600" />,
     subItems: [
-      { name: "Add New", url: "/dashboard/categories/new" },
-      { name: "All", url: "/dashboard/categories/all" },
+      { name: "Consultation Reports", url: "/dashboard/reports/consultation" },
     ],
   },
   {
-    name: "Products",
-    icon: <PackageIcon className="text-slate-600" />,
-    subItems: [
-      { name: "Add New", url: "/dashboard/products/new" },
-      { name: "All", url: "/dashboard/products/all" },
-    ],
+    name: "Audiologists",
+    icon: <UserIcon className="text-slate-600" />,
+    url: "/audiologists",
+  },
+  {
+    name: "Centres",
+    icon: <Building2Icon className="text-slate-600" />,
+    url: "/centres",
+  },
+  {
+    name: "Settings",
+    icon: <SettingsIcon className="text-slate-600" />,
+    url: "/settings",
   },
 ];
-
+const audiologistSidebarItems: SidebarItem[] = [
+  {
+    name: "Active Consultations",
+    icon: <HomeIcon className="text-slate-600" />,
+    url: "/dashboard",
+  },
+  {
+    name: "Analytics",
+    icon: <BarChartIcon className="text-slate-600" />,
+    url: "/analytics",
+  },
+  {
+    name: "Reports",
+    icon: <FileIcon className="text-slate-600" />,
+    subItems: [
+      { name: "Consultation Reports", url: "/dashboard/reports/consultation" },
+    ],
+  },
+  {
+    name: "Settings",
+    icon: <SettingsIcon className="text-slate-600" />,
+    url: "/settings",
+  },
+];
 export function AppSidebar() {
-  const { open } = useSidebar();
-  //   const { data: user } = useGetUser();
-  const pathname = usePathname();
+  const { open, toggleSidebar } = useSidebar();
+  const { data: user } = useGetUser();
   //   const { mutate: logout, isPending: isLoading, isError } = useLogoutUser();
   // const router = useRouter();
   //   const { toast } = useToast();
@@ -104,11 +115,10 @@ export function AppSidebar() {
     // });
   };
 
-  //   const userInitial = useMemo(
-  //     () => user?.name?.[0]?.toUpperCase(),
-  //     [user?.name]
-  //   );
-  const userInitial = "A";
+  const userInitial = useMemo(
+    () => user?.name?.[0]?.toUpperCase(),
+    [user?.name]
+  );
   return (
     <Sidebar variant="floating" collapsible="icon">
       <motion.div
@@ -116,12 +126,41 @@ export function AppSidebar() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <SidebarHeader className="flex justify-center items-center bg-gradient-to-r from-slate-50 to-slate-100 p-6">
+        <SidebarHeader className="flex justify-center items-center bg-gradient-to-r from-primary-50 to-primary-100 p-6">
+          <Button
+            variant="outline"
+            className="w-full cursor-pointer flex items-center justify-center gap-2 bg-white hover:bg-slate-100 border-slate-300 shadow"
+            onClick={toggleSidebar}
+          >
+            <span className="sr-only">Toggle Sidebar</span>
+            <ChevronLeft
+              className={`transition-transform duration-300 ${
+                open ? "" : "rotate-180"
+              }`}
+              size={20}
+            />
+            {open ? (
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2, duration: 0.3 }}
+              >
+                Collapse Sidebar
+              </motion.span>
+            ) : null}
+          </Button>
           <motion.div
             whileHover={{ scale: 1.05 }}
-            className="text-slate-700 font-bold text-lg text-center p-3"
+            className="text-slate-700 font-bold text-center p-3"
           >
-            {open ? "Admin" : userInitial}
+            <div className="flex flex-col items-center text-xl">
+              {open ? user?.name : userInitial}
+              {open && (
+                <span className="text-xs text-slate-500">
+                  {user?.role?.toLowerCase()}
+                </span>
+              )}
+            </div>
           </motion.div>
         </SidebarHeader>
       </motion.div>
@@ -129,89 +168,27 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            {sidebarItems.map((item: SidebarItem) => (
-              <SidebarMenu key={item.name}>
-                <Collapsible className={`group/${item.name}`}>
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <Link href={item.url || "#"}>
-                        <motion.div
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          className="w-full"
-                        >
-                          <SidebarMenuButton
-                            isActive={pathname === item.url}
-                            className={cn(
-                              "h-full w-full py-4 hover:text-slate-50 hover:bg-slate-700/90 transition-all duration-200"
-                            )}
-                          >
-                            {item.icon}
-                            <span className="ml-3 flex-1 flex items-start font-medium">
-                              {item.name}
-                            </span>
-                          </SidebarMenuButton>
-                          <SidebarMenuBadge className="top-1/2 translate-y-1/2">
-                            {item.subItems && (
-                              <ChevronDown
-                                className={cn(
-                                  "stroke-1 transition-transform duration-300",
-                                  "group-[&[data-state=open]]/data-[state=open]:-rotate-180"
-                                )}
-                              />
-                            )}
-                          </SidebarMenuBadge>
-                        </motion.div>
-                      </Link>
-                    </CollapsibleTrigger>
-                    <AnimatePresence>
-                      {item.subItems && (
-                        <CollapsibleContent>
-                          <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            {item.subItems.map((subItem: SidebarItem) => (
-                              <SidebarMenuSub key={subItem.name}>
-                                <SidebarMenuSubItem>
-                                  <Link href={subItem.url || "#"}>
-                                    <motion.div
-                                      whileHover={{ x: 4 }}
-                                      transition={{ duration: 0.2 }}
-                                    >
-                                      <SidebarMenuSubButton
-                                        isActive={pathname === subItem.url}
-                                        className={cn(
-                                          "hover:bg-slate-100 rounded-md transition-all duration-200",
-                                          pathname === subItem.url &&
-                                            "bg-slate-100 font-medium"
-                                        )}
-                                      >
-                                        <span className="ml-2">
-                                          {subItem.name}
-                                        </span>
-                                      </SidebarMenuSubButton>
-                                    </motion.div>
-                                  </Link>
-                                </SidebarMenuSubItem>
-                              </SidebarMenuSub>
-                            ))}
-                          </motion.div>
-                        </CollapsibleContent>
-                      )}
-                    </AnimatePresence>
-                  </SidebarMenuItem>
-                </Collapsible>
-              </SidebarMenu>
-            ))}
+            {user?.role?.toLowerCase() === "admin" ||
+            user?.role?.toLowerCase() === "super_admin"
+              ? adminSidebarItems.map((item: SidebarItem) => (
+                  <AppSidebarBody key={item.name} item={item} />
+                ))
+              : audiologistSidebarItems.map((item: SidebarItem) => (
+                  <AppSidebarBody key={item.name} item={item} />
+                ))}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter autoFocus={false}>
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+      <SidebarFooter
+        autoFocus={false}
+        className="flex flex-col gap-2 items-center w-full"
+      >
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="w-full"
+        >
           <Button
             onClick={handleLogout}
             // disabled={isLoading}
