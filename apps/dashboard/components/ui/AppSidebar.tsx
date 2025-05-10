@@ -19,23 +19,20 @@ import { Button } from "./button";
 import {
   ChevronDown,
   HomeIcon,
-  Globe,
   LogOut,
   MessageSquareIcon,
   PackageIcon,
-  Phone,
   SquareMenuIcon,
   MailIcon,
-  Loader2,
 } from "lucide-react";
-import { ReactNode, useMemo } from "react";
+import { ReactNode } from "react";
 import Link from "next/link";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "./collapsible";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -51,16 +48,6 @@ const sidebarItems: SidebarItem[] = [
     name: "Dashboard",
     icon: <HomeIcon className="text-slate-600" />,
     url: "/dashboard",
-  },
-  {
-    name: "Contact",
-    icon: <Phone className="text-slate-600" />,
-    url: "/dashboard/contact",
-  },
-  {
-    name: "Languages",
-    icon: <Globe className="text-slate-600" />,
-    url: "/dashboard/languages",
   },
   {
     name: "Enquiries",
@@ -95,7 +82,7 @@ export function AppSidebar() {
   //   const { data: user } = useGetUser();
   const pathname = usePathname();
   //   const { mutate: logout, isPending: isLoading, isError } = useLogoutUser();
-  const router = useRouter();
+  // const router = useRouter();
   //   const { toast } = useToast();
   const handleLogout = () => {
     // logout(undefined, {
