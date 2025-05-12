@@ -32,7 +32,6 @@ export default function DeleteLocationDialog({
     if (isCountry) {
       deleteCountry(country.id || "", {
         onSuccess: (response) => {
-          console.log(response);
           if (response.success) {
             toast.success(response.message);
             toggleDialog();
