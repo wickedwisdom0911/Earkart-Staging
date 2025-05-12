@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/ui/AppSidebar";
+import { DashboardHeader } from "@/components/ui/dashboard-header";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 export default function DashboardLayout({
@@ -8,9 +9,12 @@ export default function DashboardLayout({
 }) {
   return (
     <div>
-      <SidebarProvider className="flex gap-2">
-        <AppSidebar />
-        <main className="w-full">{children}</main>
+      <SidebarProvider className="flex flex-col gap-2 p-2">
+        <DashboardHeader />
+        <div className="flex gap-x-2">
+          <AppSidebar />
+          <main className="w-full ">{children}</main>
+        </div>
       </SidebarProvider>
     </div>
   );

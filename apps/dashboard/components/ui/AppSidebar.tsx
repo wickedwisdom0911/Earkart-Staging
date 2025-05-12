@@ -17,7 +17,6 @@ import {
   LogOut,
   SettingsIcon,
   UserIcon,
-  ChevronLeft,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -90,7 +89,7 @@ const audiologistSidebarItems: SidebarItem[] = [
   },
 ];
 export function AppSidebar() {
-  const { open, toggleSidebar } = useSidebar();
+  const { open } = useSidebar();
   const { data: user } = useGetUser();
   //   const { mutate: logout, isPending: isLoading, isError } = useLogoutUser();
   // const router = useRouter();
@@ -120,35 +119,17 @@ export function AppSidebar() {
     [user?.name]
   );
   return (
-    <Sidebar variant="floating" collapsible="icon">
+    <Sidebar
+      variant="floating"
+      collapsible="icon"
+      className="mt-16 max-h-[calc(100svh-4rem)] overflow-hidden rounded-lg  pr-0 "
+    >
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <SidebarHeader className="flex justify-center items-center bg-gradient-to-r from-primary-50 to-primary-100 p-6">
-          <Button
-            variant="outline"
-            className="w-full cursor-pointer flex items-center justify-center gap-2 bg-white hover:bg-slate-100 border-slate-300 shadow"
-            onClick={toggleSidebar}
-          >
-            <span className="sr-only">Toggle Sidebar</span>
-            <ChevronLeft
-              className={`transition-transform duration-300 ${
-                open ? "" : "rotate-180"
-              }`}
-              size={20}
-            />
-            {open ? (
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2, duration: 0.3 }}
-              >
-                Collapse Sidebar
-              </motion.span>
-            ) : null}
-          </Button>
+        <SidebarHeader className="flex  justify-center items-center bg-primary-300 border-b p-6 rounded-t-lg">
           <motion.div
             whileHover={{ scale: 1.05 }}
             className="text-slate-700 font-bold text-center p-3"
@@ -192,8 +173,8 @@ export function AppSidebar() {
           <Button
             onClick={handleLogout}
             // disabled={isLoading}
-            className="mt-auto w-full font-bold bg-gradient-to-r from-slate-600 to-slate-700 text-white
-              hover:from-slate-700 hover:to-slate-800 transition-all duration-300 shadow-md"
+            className="mt-auto w-full cursor-pointer font-bold bg-gradient-to-r from-primary-600 to-primary-700 text-white
+              hover:from-primary-700 hover:to-primary-800 transition-all duration-300 shadow-md"
           >
             {/* {isLoading ? (
               <Loader2 className="animate-spin" />
