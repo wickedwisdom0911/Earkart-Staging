@@ -1,19 +1,19 @@
 import { Button } from "@/components/ui/button";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
-import { Plus } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 
-export default function Audiologists() {
+export default function LocationsPage() {
   return (
     <DashboardBodyWrapper
-      pageTitle="All Audiologists"
+      pageTitle="Locations"
       button={
         <Button className="bg-primary-500 cursor-pointer text-white">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Audiologist
+          <PlusIcon />
+          Add Country
         </Button>
       }
     >
-      body
+      <div>LocationsPage</div>
     </DashboardBodyWrapper>
   );
 }
