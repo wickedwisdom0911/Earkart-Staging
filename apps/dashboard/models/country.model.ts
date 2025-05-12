@@ -9,11 +9,17 @@ export const CountryModelDataSchema = z.object({
   createdAt: z.string().optional().nullable(),
   updatedAt: z.string().optional().nullable(),
 });
-
-export const CountryModelSchema = z.object({
+export const CreateCountryModelSchema = z.object({
   success: z.boolean(),
   message: z.string(),
   data: CountryModelDataSchema,
 });
+
+export const CountryModelSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  data: z.array(CountryModelDataSchema),
+});
 export type CountryModel = z.infer<typeof CountryModelSchema>;
 export type CountryModelData = z.infer<typeof CountryModelDataSchema>;
+export type CreateCountryModel = z.infer<typeof CreateCountryModelSchema>;

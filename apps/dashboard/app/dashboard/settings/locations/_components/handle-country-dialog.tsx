@@ -16,7 +16,10 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import StatusToggle from "@/components/ui/status-toggle";
-import { CountryModelDataSchema } from "@/models/country.model";
+import {
+  CountryModelData,
+  CountryModelDataSchema,
+} from "@/models/country.model";
 import { StatusEnum } from "@/models/enums";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ReactNode, useState } from "react";
@@ -24,16 +27,19 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 export default function HandleCountryDialog({
   trigger,
+  country,
 }: {
   trigger: ReactNode;
+  country?: CountryModelData;
 }) {
+  const isEdit = !!country;
   const [isOpen, setIsOpen] = useState(false);
   const form = useForm<z.infer<typeof CountryModelDataSchema>>({
     resolver: zodResolver(CountryModelDataSchema),
     defaultValues: {
-      name: "",
-      code: "",
-      status: StatusEnum.ACTIVE,
+      name: country?.name || "",
+      code: country?.code || "",
+      status: country?.status || StatusEnum.ACTIVE,
     },
   });
   function onSubmit(data: z.infer<typeof CountryModelDataSchema>) {
@@ -47,7 +53,7 @@ export default function HandleCountryDialog({
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="flex flex-col gap-8">
         <DialogHeader>
-          <DialogTitle>Add Country</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit Country" : "Add Country"}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -99,7 +105,7 @@ export default function HandleCountryDialog({
                   form.handleSubmit(onSubmit);
                 }}
               >
-                Add Country
+                {isEdit ? "Update Country" : "Add Country"}
               </Button>
               <Button
                 type="button"
