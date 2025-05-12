@@ -32,7 +32,11 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
                 className="w-full"
               >
                 <SidebarMenuButton
-                  isActive={pathname === item.url}
+                  isActive={
+                    item.url === "/dashboard"
+                      ? pathname === "/dashboard"
+                      : pathname.startsWith(item.url!)
+                  }
                   className={cn(
                     "h-full w-full py-4 cursor-pointer  hover:bg-primary-400/90 transition-all duration-200"
                   )}
@@ -73,10 +77,10 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
                             transition={{ duration: 0.2 }}
                           >
                             <SidebarMenuSubButton
-                              isActive={pathname === subItem.url}
+                              isActive={pathname.includes(subItem.url!)}
                               className={cn(
                                 "hover:bg-primary-100 rounded-md transition-all duration-200",
-                                pathname === subItem.url &&
+                                pathname.includes(subItem.url!) &&
                                   "bg-primary-100 font-medium"
                               )}
                             >
