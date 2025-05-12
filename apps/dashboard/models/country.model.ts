@@ -12,7 +12,7 @@ export const CountryModelDataSchema = z.object({
 export const CreateCountryModelSchema = z.object({
   success: z.boolean(),
   message: z.string(),
-  data: CountryModelDataSchema,
+  data: CountryModelDataSchema.nullable().optional(),
 });
 
 export const CountryModelSchema = z.object({

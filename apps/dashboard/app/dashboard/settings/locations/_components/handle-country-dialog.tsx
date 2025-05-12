@@ -16,14 +16,18 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import StatusToggle from "@/components/ui/status-toggle";
+import useCreateCountry from "@/hooks/locations/use-create-country";
+import useUpdateCountry from "@/hooks/locations/use-update-country";
 import {
   CountryModelData,
   CountryModelDataSchema,
 } from "@/models/country.model";
 import { StatusEnum } from "@/models/enums";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Loader2 } from "lucide-react";
 import { ReactNode, useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 export default function HandleCountryDialog({
   trigger,
@@ -34,16 +38,43 @@ export default function HandleCountryDialog({
 }) {
   const isEdit = !!country;
   const [isOpen, setIsOpen] = useState(false);
+  const { mutate: createCountry, isPending: isCreating } = useCreateCountry();
+  const { mutate: updateCountry, isPending: isUpdating } = useUpdateCountry();
   const form = useForm<z.infer<typeof CountryModelDataSchema>>({
     resolver: zodResolver(CountryModelDataSchema),
     defaultValues: {
+      id: country?.id || "",
       name: country?.name || "",
       code: country?.code || "",
       status: country?.status || StatusEnum.ACTIVE,
     },
   });
   function onSubmit(data: z.infer<typeof CountryModelDataSchema>) {
-    console.log(data);
+    if (isEdit) {
+      updateCountry(data, {
+        onSuccess: (response) => {
+          if (response.success) {
+            toast.success(response.message);
+            toggleDialog();
+          }
+        },
+        onError: (error) => {
+          toast.error(error.message);
+        },
+      });
+    } else {
+      createCountry(data, {
+        onSuccess: (response) => {
+          if (response.success) {
+            toast.success(response.message);
+            toggleDialog();
+          }
+        },
+        onError: (error) => {
+          toast.error(error.message);
+        },
+      });
+    }
   }
   const toggleDialog = () => {
     setIsOpen(!isOpen);
@@ -104,8 +135,11 @@ export default function HandleCountryDialog({
                 onClick={() => {
                   form.handleSubmit(onSubmit);
                 }}
+                disabled={isCreating || isUpdating}
               >
                 {isEdit ? "Update Country" : "Add Country"}
+                {isCreating ||
+                  (isUpdating && <Loader2 className="w-4 h-4 ml-2" />)}
               </Button>
               <Button
                 type="button"
