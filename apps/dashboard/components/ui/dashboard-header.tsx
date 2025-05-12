@@ -12,7 +12,7 @@ export const DashboardHeader = () => {
   return (
     <div className="flex h-14 gap-2 w-full ">
       <Button
-        className={`h-14 rounded-lg  cursor-pointer shadow  flex items-center justify-center gap-2 bg-primary-300  hover:bg-primary-400 text-black ${
+        className={`h-14 rounded-lg  cursor-pointer shadow  flex items-center justify-center gap-2 bg-neutral-100  hover:bg-neutral-300 text-black ${
           open ? "w-62" : "w-14"
         }`}
         onClick={toggleSidebar}
@@ -33,7 +33,7 @@ export const DashboardHeader = () => {
           </motion.span>
         ) : null}
       </Button>
-      <div className="flex rounded-lg items-center justify-center bg-primary-300 w-full">
+      <div className="flex rounded-lg items-center justify-start p-4 bg-neutral-100 w-full">
         <h1>Dashboard header</h1>
       </div>
     </div>

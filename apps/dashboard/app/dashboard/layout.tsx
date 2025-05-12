@@ -8,12 +8,12 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <SidebarProvider className="flex flex-col gap-2 p-2">
+    <div className="w-full h-full">
+      <SidebarProvider className="flex flex-col gap-2 p-2 w-full h-full">
         <DashboardHeader />
-        <div className="flex gap-x-2">
+        <div className="flex w-full h-full">
           <AppSidebar />
-          <main className="w-full ">{children}</main>
+          <main className="w-full h-full">{children}</main>
         </div>
       </SidebarProvider>
     </div>

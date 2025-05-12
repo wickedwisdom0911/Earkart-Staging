@@ -1,3 +1,9 @@
+import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
+
 export default function DashboardPage() {
-  return <div>Dashboard</div>;
+  return (
+    <DashboardBodyWrapper>
+      <div>Dashboard</div>
+    </DashboardBodyWrapper>
+  );
 }

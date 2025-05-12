@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="en" className="antialiased h-full w-full">
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased h-full w-full`}
+        className={`${geistSans.variable} ${geistMono.variable}  antialiased h-full w-full`}
       >
         <Toaster />
         <CustomQueryClientProvider>{children}</CustomQueryClientProvider>

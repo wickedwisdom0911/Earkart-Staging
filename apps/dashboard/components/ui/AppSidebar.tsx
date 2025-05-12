@@ -122,14 +122,14 @@ export function AppSidebar() {
     <Sidebar
       variant="floating"
       collapsible="icon"
-      className="mt-16 max-h-[calc(100svh-4rem)] overflow-hidden rounded-lg  pr-0 "
+      className="mt-16 max-h-[calc(100svh-4rem)] overflow-hidden rounded-lg border-none  pr-0 "
     >
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <SidebarHeader className="flex  justify-center items-center bg-primary-300 border-b p-6 rounded-t-lg">
+        <SidebarHeader className="flex  justify-center items-center  border-b p-4 rounded-t-lg">
           <motion.div
             whileHover={{ scale: 1.05 }}
             className="text-slate-700 font-bold text-center p-3"
