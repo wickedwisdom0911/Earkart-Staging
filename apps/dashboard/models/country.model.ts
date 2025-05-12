@@ -1,12 +1,13 @@
+import { StatusEnum } from "@/models/enums";
 import { z } from "zod";
 
 export const CountryModelDataSchema = z.object({
-  id: z.string(),
+  id: z.string().optional().nullable(),
   name: z.string(),
   code: z.string(),
-  status: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  status: z.nativeEnum(StatusEnum),
+  createdAt: z.string().optional().nullable(),
+  updatedAt: z.string().optional().nullable(),
 });
 
 export const CountryModelSchema = z.object({

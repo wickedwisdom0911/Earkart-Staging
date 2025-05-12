@@ -1,3 +1,4 @@
+import { StatusEnum } from "@/models/enums";
 import { z } from "zod";
 
 export const userModelDataSchema = z.object({
@@ -5,7 +6,7 @@ export const userModelDataSchema = z.object({
   email: z.string(),
   name: z.string(),
   role: z.string(),
-  status: z.string(),
+  status: z.nativeEnum(StatusEnum),
   gender: z.string(),
   dob: z.string(),
   createdAt: z.string(),
