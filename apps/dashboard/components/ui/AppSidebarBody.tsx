@@ -34,7 +34,7 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
                 <SidebarMenuButton
                   isActive={pathname === item.url}
                   className={cn(
-                    "h-full w-full py-4 cursor-pointer hover:text-slate-50 hover:bg-slate-700/90 transition-all duration-200"
+                    "h-full w-full py-4 cursor-pointer  hover:bg-primary-400/90 transition-all duration-200"
                   )}
                 >
                   {item.icon}
@@ -75,9 +75,9 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
                             <SidebarMenuSubButton
                               isActive={pathname === subItem.url}
                               className={cn(
-                                "hover:bg-slate-100 rounded-md transition-all duration-200",
+                                "hover:bg-primary-100 rounded-md transition-all duration-200",
                                 pathname === subItem.url &&
-                                  "bg-slate-100 font-medium"
+                                  "bg-primary-100 font-medium"
                               )}
                             >
                               <span className="ml-2">{subItem.name}</span>
