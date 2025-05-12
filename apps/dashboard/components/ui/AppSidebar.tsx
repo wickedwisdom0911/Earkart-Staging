@@ -39,7 +39,7 @@ const adminSidebarItems: SidebarItem[] = [
   {
     name: "Analytics",
     icon: <BarChartIcon className="text-slate-600" />,
-    url: "/analytics",
+    url: "/dashboard/analytics",
   },
   {
     name: "Reports",
@@ -51,17 +51,17 @@ const adminSidebarItems: SidebarItem[] = [
   {
     name: "Audiologists",
     icon: <UserIcon className="text-slate-600" />,
-    url: "/audiologists",
+    url: "/dashboard/audiologists",
   },
   {
     name: "Centres",
     icon: <Building2Icon className="text-slate-600" />,
-    url: "/centres",
+    url: "/dashboard/centres",
   },
   {
     name: "Settings",
     icon: <SettingsIcon className="text-slate-600" />,
-    url: "/settings",
+    url: "/dashboard/settings",
   },
 ];
 const audiologistSidebarItems: SidebarItem[] = [
@@ -73,7 +73,7 @@ const audiologistSidebarItems: SidebarItem[] = [
   {
     name: "Analytics",
     icon: <BarChartIcon className="text-slate-600" />,
-    url: "/analytics",
+    url: "/dashboard/analytics",
   },
   {
     name: "Reports",
@@ -85,7 +85,7 @@ const audiologistSidebarItems: SidebarItem[] = [
   {
     name: "Settings",
     icon: <SettingsIcon className="text-slate-600" />,
-    url: "/settings",
+    url: "/dashboard/settings",
   },
 ];
 export function AppSidebar() {
@@ -132,7 +132,7 @@ export function AppSidebar() {
         <SidebarHeader className="flex  justify-center items-center  border-b p-4 rounded-t-lg">
           <motion.div
             whileHover={{ scale: 1.05 }}
-            className="text-slate-700 font-bold text-center p-3"
+            className="text-primary-700 cursor-pointer font-bold text-center p-3"
           >
             <div className="flex flex-col items-center text-xl">
               {open ? user?.name : userInitial}

@@ -4,8 +4,11 @@ import { useSidebar } from "./sidebar";
 
 import { motion } from "framer-motion";
 import { Button } from "./button";
+import { Input } from "./input";
+import { Search } from "lucide-react";
 
 import { ChevronLeft } from "lucide-react";
+import Image from "next/image";
 
 export const DashboardHeader = () => {
   const { open, toggleSidebar } = useSidebar();
@@ -33,8 +36,20 @@ export const DashboardHeader = () => {
           </motion.span>
         ) : null}
       </Button>
-      <div className="flex rounded-lg items-center justify-start p-4 bg-neutral-100 w-full">
-        <h1>Dashboard header</h1>
+      <div className="flex rounded-lg items-center justify-start p-4 bg-neutral-100 w-full gap-4">
+        <Image src="/logo.webp" alt="logo" width={120} height={120} />
+
+        <div className="relative w-full max-w-md bg-white rounded-md">
+          <Input
+            type="text"
+            placeholder="Search This Page..."
+            className="pl-10 pr-4 py-2 rounded-lg border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+          />
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
+            size={18}
+          />
+        </div>
       </div>
     </div>
   );
