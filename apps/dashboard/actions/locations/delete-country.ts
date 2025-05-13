@@ -19,6 +19,7 @@ export default async function deleteCountry(
       method: "DELETE",
       body: JSON.stringify({ id }),
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${user.token}`,
       },
     },

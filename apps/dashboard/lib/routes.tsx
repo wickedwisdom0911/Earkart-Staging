@@ -3,4 +3,5 @@ export const ROUTES = {
   LOGIN: "/login",
   LOCATIONS: "/dashboard/settings/locations",
   LANGUAGES: "/dashboard/settings/languages",
+  DEVICES: "/dashboard/settings/devices",
 };
