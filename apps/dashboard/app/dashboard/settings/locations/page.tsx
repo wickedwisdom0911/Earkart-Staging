@@ -5,6 +5,8 @@ import { Edit, PlusIcon, Trash } from "lucide-react";
 import HandleCountryDialog from "./_components/handle-country-dialog";
 import useGetAllCountries from "@/hooks/locations/use-get-all-countries";
 import DeleteLocationDialog from "./_components/delete-location-dialog";
+import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
 
 export default function LocationsPage() {
   const { data, isLoading, isError } = useGetAllCountries();
@@ -27,7 +29,11 @@ export default function LocationsPage() {
       <div className="grid grid-cols-3 gap-4">
         {data &&
           data.data?.map((country) => (
-            <div key={country.id} className="p-4 bg-primary-100 rounded-md">
+            <Link
+              href={ROUTES.STATES(country.id || "")}
+              key={country.id}
+              className="p-4 bg-primary-100 rounded-md hover:bg-primary-200 transition-all duration-200 hover:shadow-md hover:border-primary-500 hover:border"
+            >
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold">{country.name}</h3>
                 <div className="flex items-center gap-2">
@@ -47,7 +53,7 @@ export default function LocationsPage() {
               </div>
               <p className="text-sm text-gray-500">{country.code}</p>
               <p className="text-sm text-gray-500">{country.status}</p>
-            </div>
+            </Link>
           ))}
       </div>
     </DashboardBodyWrapper>
