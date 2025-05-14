@@ -20,7 +20,7 @@ export default async function updateDistrict(district: DistrictModelData) {
   const response = await apiRequest<CreateDistrictModel>(
     url,
     {
-      method: "POST",
+      method: "PUT",
       body: JSON.stringify({ cityId, name, status, id }),
       headers: {
         "Content-Type": "application/json",
