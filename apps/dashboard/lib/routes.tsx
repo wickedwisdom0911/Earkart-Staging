@@ -7,4 +7,6 @@ export const ROUTES = {
   STATES: (code: string) => `/dashboard/settings/locations/${code}/states`,
   CITIES: (code: string, stateCode: string) =>
     `/dashboard/settings/locations/${code}/states/${stateCode}/cities`,
+  DISTRICTS: (code: string, stateCode: string, cityCode: string) =>
+    `/dashboard/settings/locations/${code}/states/${stateCode}/cities/${cityCode}/districts`,
 };

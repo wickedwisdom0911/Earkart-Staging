@@ -1,11 +1,11 @@
-import { StatusEnum } from "@/models/enums";
+import { StatusEnum, Role } from "@/models/enums";
 import { z } from "zod";
 
 export const userModelDataSchema = z.object({
   id: z.string(),
   email: z.string(),
   name: z.string(),
-  role: z.string(),
+  role: z.nativeEnum(Role),
   status: z.nativeEnum(StatusEnum),
   gender: z.string(),
   dob: z.string(),

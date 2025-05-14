@@ -2,3 +2,11 @@ export enum StatusEnum {
   ACTIVE = "ACTIVE",
   INACTIVE = "INACTIVE",
 }
+export enum Role {
+  ADMIN = "ADMIN",
+  SUPER_ADMIN = "SUPER_ADMIN",
+  HEAD_AUDIOLOGIST = "HEAD_AUDIOLOGIST",
+  AUDIOLOGIST = "AUDIOLOGIST",
+  PATIENT = "PATIENT",
+  CLINIC = "CLINIC",
+}
