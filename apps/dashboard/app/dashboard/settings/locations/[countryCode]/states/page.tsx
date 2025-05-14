@@ -21,6 +21,7 @@ export default function StatesPage() {
       pageTitle="States"
       button={
         <HandleStateDialog
+          countryId={countryCode as string}
           trigger={
             <Button className="bg-primary-500 cursor-pointer text-white">
               <PlusIcon />
@@ -44,6 +45,7 @@ export default function StatesPage() {
               <h3 className="text-lg font-bold">{state.name}</h3>
               <div className="flex items-center gap-2">
                 <HandleStateDialog
+                  countryId={countryCode as string}
                   trigger={<Edit className="w-4 h-4 cursor-pointer stroke-1" />}
                   state={state}
                 />

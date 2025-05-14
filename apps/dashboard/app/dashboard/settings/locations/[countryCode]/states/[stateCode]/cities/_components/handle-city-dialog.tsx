@@ -30,9 +30,11 @@ import useUpdateCity from "@/hooks/locations/cities/use-update-city";
 export default function HandleCityDialog({
   trigger,
   city,
+  stateId,
 }: {
   trigger: ReactNode;
   city?: CityModelData;
+  stateId: string;
 }) {
   const isEdit = !!city;
   const [isOpen, setIsOpen] = useState(false);
@@ -44,12 +46,13 @@ export default function HandleCityDialog({
       id: city?.id || "",
       name: city?.name || "",
       status: city?.status || StatusEnum.ACTIVE,
-      stateId: city?.stateId || "",
+      stateId: stateId,
     },
   });
   function onSubmit(data: z.infer<typeof CityModelDataSchema>) {
+    const payload = { ...data, stateId };
     if (isEdit) {
-      updateCity(data, {
+      updateCity(payload, {
         onSuccess: (response) => {
           if (response.success) {
             toast.success(response.message);
@@ -61,7 +64,7 @@ export default function HandleCityDialog({
         },
       });
     } else {
-      createCity(data, {
+      createCity(payload, {
         onSuccess: (response) => {
           if (response.success) {
             toast.success(response.message);
@@ -94,18 +97,6 @@ export default function HandleCityDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="stateId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>State</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>

@@ -1,6 +1,5 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import CountrySelector from "@/components/ui/country-selector";
 import {
   Dialog,
   DialogContent,
@@ -31,9 +30,11 @@ import { z } from "zod";
 export default function HandleStateDialog({
   trigger,
   state,
+  countryId,
 }: {
   trigger: ReactNode;
   state?: StateModelData;
+  countryId: string;
 }) {
   const isEdit = !!state;
   const [isOpen, setIsOpen] = useState(false);
@@ -45,12 +46,14 @@ export default function HandleStateDialog({
       id: state?.id || "",
       name: state?.name || "",
       status: state?.status || StatusEnum.ACTIVE,
-      countryId: state?.countryId || "",
+      countryId: countryId,
     },
   });
   function onSubmit(data: z.infer<typeof StateModelDataSchema>) {
+    const payload = { ...data, countryId };
+    console.log(payload);
     if (isEdit) {
-      updateState(data, {
+      updateState(payload, {
         onSuccess: (response) => {
           if (response.success) {
             toast.success(response.message);
@@ -62,7 +65,7 @@ export default function HandleStateDialog({
         },
       });
     } else {
-      createState(data, {
+      createState(payload, {
         onSuccess: (response) => {
           if (response.success) {
             toast.success(response.message);
@@ -101,22 +104,7 @@ export default function HandleStateDialog({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="countryId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Country</FormLabel>
-                    <FormControl>
-                      <CountrySelector
-                        initialValue={isEdit ? state?.countryId : null}
-                        value={field.value}
-                        onChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+
               <FormField
                 control={form.control}
                 name="status"

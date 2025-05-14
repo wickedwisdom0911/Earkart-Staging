@@ -20,6 +20,7 @@ export default function DistrictsPage() {
       pageTitle="Districts"
       button={
         <HandleDistrictDialog
+          cityId={cityCode as string}
           trigger={
             <Button className="flex items-center gap-2 bg-primary-500 text-white cursor-pointer">
               <Plus className="w-4 h-4" />
@@ -38,6 +39,7 @@ export default function DistrictsPage() {
               <h3 className="text-lg font-bold">{district.name}</h3>
               <div className="flex items-center gap-2">
                 <HandleDistrictDialog
+                  cityId={cityCode as string}
                   trigger={<Edit className="w-4 h-4 cursor-pointer stroke-1" />}
                   district={district}
                 />

@@ -19,6 +19,7 @@ export default function CitiesPage() {
       pageTitle="Cities"
       button={
         <HandleCityDialog
+          stateId={stateCode as string}
           trigger={
             <Button className="flex items-center gap-2 bg-primary-500 text-white cursor-pointer">
               <Plus className="w-4 h-4 " />
@@ -43,6 +44,7 @@ export default function CitiesPage() {
               <h3 className="text-lg font-bold">{city.name}</h3>
               <div className="flex items-center gap-2">
                 <HandleCityDialog
+                  stateId={stateCode as string}
                   trigger={<Edit className="w-4 h-4 cursor-pointer stroke-1" />}
                   city={city}
                 />

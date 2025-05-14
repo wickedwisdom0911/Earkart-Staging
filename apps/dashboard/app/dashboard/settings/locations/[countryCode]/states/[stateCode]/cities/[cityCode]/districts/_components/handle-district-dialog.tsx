@@ -30,9 +30,11 @@ import useUpdateDistrict from "@/hooks/locations/districts/use-update-district";
 export default function HandleDistrictDialog({
   trigger,
   district,
+  cityId,
 }: {
   trigger: ReactNode;
   district?: DistrictModelData;
+  cityId: string;
 }) {
   const isEdit = !!district;
   const [isOpen, setIsOpen] = useState(false);
@@ -44,12 +46,13 @@ export default function HandleDistrictDialog({
       id: district?.id || "",
       name: district?.name || "",
       status: district?.status || StatusEnum.ACTIVE,
-      cityId: district?.cityId || "",
+      cityId: cityId,
     },
   });
   function onSubmit(data: z.infer<typeof DistrictModelDataSchema>) {
+    const payload = { ...data, cityId };
     if (isEdit) {
-      updateDistrict(data, {
+      updateDistrict(payload, {
         onSuccess: (response) => {
           if (response.success) {
             toast.success(response.message);
@@ -61,7 +64,7 @@ export default function HandleDistrictDialog({
         },
       });
     } else {
-      createDistrict(data, {
+      createDistrict(payload, {
         onSuccess: (response) => {
           if (response.success) {
             toast.success(response.message);
@@ -100,18 +103,7 @@ export default function HandleDistrictDialog({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="cityId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>City</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+
               <FormField
                 control={form.control}
                 name="status"
@@ -135,7 +127,7 @@ export default function HandleDistrictDialog({
                 }}
                 disabled={isCreating || isUpdating}
               >
-                {isEdit ? "Update City" : "Add City"}
+                {isEdit ? "Update District" : "Add District"}
                 {isCreating ||
                   (isUpdating && <Loader2 className="w-4 h-4 ml-2" />)}
               </Button>
