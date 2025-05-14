@@ -7,9 +7,11 @@ import { Button } from "./button";
 
 import { ChevronLeft } from "lucide-react";
 import Image from "next/image";
-
+import { Breadcrumb } from "./breadcrumbs";
+import { usePathname } from "next/navigation";
 export const DashboardHeader = () => {
   const { open, toggleSidebar } = useSidebar();
+  const pathname = usePathname();
   return (
     <div className="flex h-14 gap-2 w-full ">
       <Button
@@ -36,6 +38,8 @@ export const DashboardHeader = () => {
       </Button>
       <div className="flex rounded-lg items-center justify-start p-4 bg-neutral-100 w-full gap-4">
         <Image src="/logo.webp" alt="logo" width={120} height={120} />
+        <div className="h-full w-[1px] bg-neutral-800" />
+        <Breadcrumb pathname={pathname} />
       </div>
     </div>
   );
