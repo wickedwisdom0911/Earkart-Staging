@@ -1,5 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/button";
+import CountrySelector from "@/components/ui/country-selector";
 import {
   Dialog,
   DialogContent,
@@ -107,7 +108,11 @@ export default function HandleStateDialog({
                   <FormItem>
                     <FormLabel>Country</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <CountrySelector
+                        initialValue={isEdit ? state?.countryId : null}
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
