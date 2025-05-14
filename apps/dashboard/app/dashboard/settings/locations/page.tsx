@@ -29,11 +29,7 @@ export default function LocationsPage() {
       <div className="grid grid-cols-3 gap-4">
         {data &&
           data.data?.map((country) => (
-            <Link
-              href={ROUTES.STATES(country.id || "")}
-              key={country.id}
-              className="p-4 bg-primary-100 rounded-md hover:bg-primary-200 transition-all duration-200 hover:shadow-md hover:border-primary-500 hover:border"
-            >
+            <div key={country.id} className="p-4 bg-primary-100 rounded-md ">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold">{country.name}</h3>
                 <div className="flex items-center gap-2">
@@ -52,8 +48,16 @@ export default function LocationsPage() {
                 </div>
               </div>
               <p className="text-sm text-gray-500">{country.code}</p>
-              <p className="text-sm text-gray-500">{country.status}</p>
-            </Link>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-gray-500">{country.status}</p>
+                <Link
+                  href={ROUTES.STATES(country.id || "")}
+                  className="text-sm  bg-primary-500 text-white px-2 py-1 rounded-md hover:bg-primary-600 transition-all duration-200"
+                >
+                  View States
+                </Link>
+              </div>
+            </div>
           ))}
       </div>
     </DashboardBodyWrapper>
