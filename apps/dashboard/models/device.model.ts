@@ -19,7 +19,7 @@ export const DeviceModelDataSchema = z.object({
 export const CreateDeviceModelSchema = z.object({
   success: z.boolean(),
   message: z.string(),
-  data: DeviceModelDataSchema,
+  data: DeviceModelDataSchema.nullable().optional(),
 });
 
 export const DeviceModelSchema = z.object({
