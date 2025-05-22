@@ -10,3 +10,12 @@ export enum Role {
   PATIENT = "PATIENT",
   CLINIC = "CLINIC",
 }
+export enum WeekDays {
+  MONDAY = "MONDAY",
+  TUESDAY = "TUESDAY",
+  WEDNESDAY = "WEDNESDAY",
+  THURSDAY = "THURSDAY",
+  FRIDAY = "FRIDAY",
+  SATURDAY = "SATURDAY",
+  SUNDAY = "SUNDAY",
+}
