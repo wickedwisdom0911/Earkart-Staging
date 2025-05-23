@@ -5,6 +5,7 @@ export const userModelDataSchema = z.object({
   id: z.string(),
   email: z.string(),
   name: z.string(),
+  password: z.string().optional(),
   role: z.nativeEnum(Role),
   status: z.nativeEnum(StatusEnum),
   gender: z.string(),

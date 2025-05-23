@@ -38,7 +38,11 @@ export const CentreModelSchema = z.object({
   message: z.string(),
   data: z.array(CentreModelDataSchema),
 });
-
+export const CreateCenterProfileSchema = z.object({
+  user: userModelDataSchema,
+  centre: CentreModelDataSchema,
+});
 export type CentreModel = z.infer<typeof CentreModelSchema>;
 export type CreateCentreModel = z.infer<typeof CreateCentreModelSchema>;
 export type CentreModelData = z.infer<typeof CentreModelDataSchema>;
+export type CreateCenterProfile = z.infer<typeof CreateCenterProfileSchema>;
