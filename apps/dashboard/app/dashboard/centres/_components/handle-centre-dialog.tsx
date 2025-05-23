@@ -100,7 +100,7 @@ export default function HandleCentreDialog({
 
   // Step 1: User fields (customize as needed)
   const renderUserFields = () => (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col overflow-y-scroll p-2 gap-6">
       <FormField
         control={form.control}
         name="user.name"
@@ -153,7 +153,7 @@ export default function HandleCentreDialog({
 
   // Step 2: Centre fields (customize as needed)
   const renderCentreFields = () => (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col overflow-y-scroll p-2 gap-6">
       <FormField
         control={form.control}
         name="centre.code"
@@ -185,8 +185,8 @@ export default function HandleCentreDialog({
   return (
     <Dialog open={isOpen} onOpenChange={toggleDialog}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-w-fit overflow-y-scroll h-[90%] w-full p-0 bg-gray-50 rounded-2xl shadow-2xl">
-        <div className="p-8">
+      <DialogContent className="max-w-fit  h-[90%] w-full p-0 bg-gray-50 rounded-2xl shadow-2xl">
+        <div className="p-6">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold mb-2">
               {isEdit ? "Edit Centre" : "Add Centre"}
@@ -199,7 +199,7 @@ export default function HandleCentreDialog({
               className="space-y-10"
               onSubmit={form.handleSubmit(handleSubmit)}
             >
-              <div className="bg-white rounded-xl p-8 shadow flex flex-col gap-8 transition-all duration-300 min-h-[220px]">
+              <div className="bg-white rounded-xl p-4 shadow flex flex-col gap-8 transition-all duration-300 min-h-[220px]">
                 {step === 0 && renderUserFields()}
                 {step === 1 && renderCentreFields()}
               </div>
