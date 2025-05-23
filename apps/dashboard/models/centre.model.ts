@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { WeekDays } from "./enums";
 import { DistrictModelDataSchema } from "./district.model";
+import { userModelDataSchema } from "./user.model";
 
 export const CentreModelDataSchema = z.object({
   id: z.string(),
   userId: z.string(),
+  user: userModelDataSchema.optional(),
   code: z.string(),
   address: z.string(),
   districtId: z.string(),

@@ -14,6 +14,7 @@ import {
   Building2Icon,
   FileIcon,
   HomeIcon,
+  Loader2,
   LogOut,
   SettingsIcon,
   UserIcon,
@@ -22,6 +23,9 @@ import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import AppSidebarBody from "./AppSidebarBody";
+import useLogoutUser from "@/hooks/auth/use-logout-user";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export interface SidebarItem {
   name: string;
@@ -91,27 +95,20 @@ const audiologistSidebarItems: SidebarItem[] = [
 export function AppSidebar() {
   const { open } = useSidebar();
   const { data: user } = useGetUser();
-  //   const { mutate: logout, isPending: isLoading, isError } = useLogoutUser();
-  // const router = useRouter();
-  //   const { toast } = useToast();
+  const { mutate: logout, isPending: isLoading } = useLogoutUser();
+  const router = useRouter();
   const handleLogout = () => {
-    // logout(undefined, {
-    //   onSuccess: (data) => {
-    //     if (data) {
-    //       router.push("/login");
-    //       toast({
-    //         title: "Logged out successfully",
-    //         description: "You are now logged out",
-    //       });
-    //     }
-    //   },
-    //   onError: (error) => {
-    //     toast({
-    //       title: "Error",
-    //       description: error.message,
-    //     });
-    //   },
-    // });
+    logout(undefined, {
+      onSuccess: (data) => {
+        if (data) {
+          router.replace("/login");
+          toast.success("Logged out successfully");
+        }
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    });
   };
 
   const userInitial = useMemo(
@@ -176,7 +173,7 @@ export function AppSidebar() {
             className="mt-auto w-full cursor-pointer font-bold bg-gradient-to-r from-primary-600 to-primary-700 text-white
               hover:from-primary-700 hover:to-primary-800 transition-all duration-300 shadow-md"
           >
-            {/* {isLoading ? (
+            {isLoading ? (
               <Loader2 className="animate-spin" />
             ) : open ? (
               <span className="flex items-center gap-2">
@@ -184,8 +181,7 @@ export function AppSidebar() {
               </span>
             ) : (
               <LogOut size={20} />
-            )} */}
-            <LogOut size={20} />
+            )}
           </Button>
         </motion.div>
       </SidebarFooter>
