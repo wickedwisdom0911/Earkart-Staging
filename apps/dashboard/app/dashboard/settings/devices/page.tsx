@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Edit, Eye, Plus, Trash } from "lucide-react";
 import useGetDevices from "@/hooks/device/use-get-devices";
 import DeleteDeviceDialog from "./_components/delete-device-dialog";
+import { ROUTES } from "@/lib/routes";
+import { useRouter } from "next/navigation";
 export default function DevicesPage() {
+  const router = useRouter();
   const { data: devices, error, isLoading, isError } = useGetDevices();
 
   return (
@@ -62,7 +65,14 @@ export default function DevicesPage() {
                 }
                 device={device}
               />
-              <Button variant="outline" size="sm" className="cursor-pointer">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer"
+                onClick={() => {
+                  router.push(ROUTES.DEVICE(device.deviceCode));
+                }}
+              >
                 <Eye /> View
               </Button>
             </div>

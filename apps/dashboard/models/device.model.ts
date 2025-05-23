@@ -3,9 +3,7 @@ import { CentreModelDataSchema } from "./centre.model";
 import { StatusEnum } from "./enums";
 export const DeviceModelDataSchema = z.object({
   id: z.string().optional(),
-  deviceCode: z
-    .string()
-    .min(11, { message: "Device code must be at least 3 characters" }),
+  deviceCode: z.string(),
   tabletID: z.string().optional().nullable(),
   deviceID: z.string().optional().nullable(),
   tabletAppVersion: z.string().optional().nullable(),

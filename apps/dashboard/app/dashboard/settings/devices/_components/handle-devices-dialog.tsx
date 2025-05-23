@@ -95,7 +95,7 @@ export default function HandleDevicesDialog({
                 control={form.control}
                 name="deviceCode"
                 render={({ field }) => {
-                  const prefix = "EARKART-";
+                  const prefix = "ERKRTOMNI-";
                   const valueWithoutPrefix = field.value.startsWith(prefix)
                     ? field.value.slice(prefix.length)
                     : field.value;

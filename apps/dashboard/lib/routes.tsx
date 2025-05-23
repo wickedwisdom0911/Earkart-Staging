@@ -9,4 +9,5 @@ export const ROUTES = {
     `/dashboard/settings/locations/${code}/states/${stateCode}/cities`,
   DISTRICTS: (code: string, stateCode: string, cityCode: string) =>
     `/dashboard/settings/locations/${code}/states/${stateCode}/cities/${cityCode}/districts`,
+  DEVICE: (deviceCode: string) => `/dashboard/settings/devices/${deviceCode}`,
 };
