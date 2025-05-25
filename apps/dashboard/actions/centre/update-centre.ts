@@ -4,15 +4,13 @@ import { apiRequest } from "@/lib/api";
 import getBaseUrl from "@/lib/environment";
 import { verifySession } from "@/lib/session";
 import {
-  CentreModelData,
   CreateCentreModel,
   CreateCentreModelSchema,
+  CreateCenterProfile,
 } from "@/models/centre.model";
-import { UserModelData } from "@/models/user.model";
 
 export async function updateCentre(
-  userData: UserModelData,
-  centreData: CentreModelData
+  data: CreateCenterProfile
 ): Promise<CreateCentreModel> {
   const baseUrl = await getBaseUrl();
   const url = `${baseUrl}centre/update`;
@@ -25,8 +23,7 @@ export async function updateCentre(
     {
       method: "POST",
       body: JSON.stringify({
-        userData,
-        centreData,
+        data,
       }),
       headers: {
         "Content-Type": "application/json",

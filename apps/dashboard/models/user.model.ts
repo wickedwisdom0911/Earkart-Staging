@@ -12,7 +12,7 @@ export const userModelDataSchema = z.object({
   dob: z.string(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
-  token: z.string().optional(),
+  token: z.string().optional().nullable(),
 });
 export const userModelSchema = z.object({
   success: z.boolean(),

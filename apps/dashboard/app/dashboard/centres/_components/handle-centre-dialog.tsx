@@ -35,6 +35,10 @@ import CitySelector from "@/components/ui/selector/city-selector";
 import DistrictSelector from "@/components/ui/selector/district-selector";
 import PaymentCycleSelector from "@/components/ui/selector/payment-cycle-selector";
 import WorkingDaysSelector from "@/components/ui/selector/working-days-selector";
+import useCreateCentre from "@/hooks/centre/use-create-centre";
+import useUpdateCentre from "@/hooks/centre/use-update-centre";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const steps = [
   {
@@ -81,6 +85,16 @@ export default function HandleCentreDialog({
     },
   });
 
+  const {
+    mutate: createCentre,
+    isPending: isCreating,
+    isError: isCreateError,
+  } = useCreateCentre();
+  const {
+    mutate: updateCentre,
+    isPending: isUpdating,
+    isError: isUpdateError,
+  } = useUpdateCentre();
   // Reset state/city/district when parent changes
   useEffect(() => {
     setStateId("");
@@ -100,8 +114,29 @@ export default function HandleCentreDialog({
     setStep(0);
   };
   const handleSubmit = (data: CreateCenterProfile) => {
-    console.log("data submitted");
-    console.log(data);
+    if (isEdit) {
+      updateCentre(data, {
+        onSuccess: () => {
+          toast.success("Centre updated successfully");
+        },
+        onError: () => {
+          toast.error("Failed to update centre");
+        },
+      });
+    } else {
+      createCentre(data, {
+        onSuccess: (response) => {
+          if (response.success) {
+            toast.success("Centre created successfully");
+          } else {
+            toast.error("Failed to create centre " + response.message);
+          }
+        },
+        onError: (error) => {
+          toast.error("Failed to create centre " + error.message);
+        },
+      });
+    }
   };
   // Stepper UI
   const Stepper = () => (
@@ -495,6 +530,7 @@ export default function HandleCentreDialog({
                   type="button"
                   className="px-8 py-3 text-lg bg-primary-500 hover:bg-black cursor-pointer text-white"
                   onClick={() => setStep(step + 1)}
+                  disabled={isCreating || isUpdating}
                 >
                   Next
                 </Button>
@@ -502,15 +538,23 @@ export default function HandleCentreDialog({
               {step === steps.length - 1 && (
                 <Button
                   type="submit"
+                  disabled={isCreating || isUpdating}
                   className="px-8 py-3 text-lg bg-primary-500 hover:bg-black cursor-pointer text-white"
                 >
-                  {isEdit ? "Update Centre" : "Add Centre"}
+                  {isCreateError || isUpdateError
+                    ? "Retry"
+                    : isEdit
+                      ? "Update Centre"
+                      : "Add Centre"}
+                  {isCreating ||
+                    (isUpdating && <Loader2 className="w-4 h-4 ml-2" />)}
                 </Button>
               )}
               <Button
                 type="button"
                 variant="outline"
                 className="px-8 py-3 text-lg"
+                disabled={isCreating || isUpdating}
                 onClick={() => {
                   form.reset();
                   toggleDialog();
