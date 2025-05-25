@@ -16,39 +16,39 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { useEffect, useMemo } from "react";
-import { StateModelData } from "@/models/state.model";
-import useGetStatesByCountryId from "@/hooks/locations/states/use-get-states-by-country-id";
+import { DistrictModelData } from "@/models/district.model";
+import useGetDistrictsByCity from "@/hooks/locations/districts/use-get-districts-by-city";
 
-interface StateSelectorProps {
+interface DistrictSelectorProps {
   value?: string | null;
-  onChange: (stateId: string | null) => void;
+  onChange: (districtId: string | null) => void;
   initialValue?: string | null;
-  countryId: string;
+  cityId: string;
 }
 
-export default function StateSelector({
+export default function DistrictSelector({
   value,
   onChange,
   initialValue,
-  countryId,
-}: StateSelectorProps) {
+  cityId,
+}: DistrictSelectorProps) {
   const [open, setOpen] = React.useState(false);
-  const { data, isLoading } = useGetStatesByCountryId(countryId);
+  const { data, isLoading } = useGetDistrictsByCity(cityId);
 
-  const [selectedState, setSelectedState] =
-    React.useState<StateModelData | null>(null);
+  const [selectedDistrict, setSelectedDistrict] =
+    React.useState<DistrictModelData | null>(null);
 
-  const states = useMemo(() => {
+  const districts = useMemo(() => {
     return data?.data || [];
   }, [data]);
 
   useEffect(() => {
     if (initialValue) {
-      setSelectedState(states.find((s) => s.id === initialValue) || null);
+      setSelectedDistrict(districts.find((d) => d.id === initialValue) || null);
     } else {
-      setSelectedState(null);
+      setSelectedDistrict(null);
     }
-  }, [initialValue, states]);
+  }, [initialValue, districts]);
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal>
@@ -59,36 +59,36 @@ export default function StateSelector({
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {selectedState ? selectedState.name : "Select state..."}
+          {selectedDistrict ? selectedDistrict.name : "Select district..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full p-0">
         <Command>
-          <CommandInput placeholder="Search country..." />
+          <CommandInput placeholder="Search district..." />
           <CommandList>
             <CommandEmpty>
-              {isLoading ? "Loading..." : "No country found."}
+              {isLoading ? "Loading..." : "No district found."}
             </CommandEmpty>
             <CommandGroup>
-              {states.map((state) => (
+              {districts.map((district) => (
                 <CommandItem
-                  key={state.id}
-                  value={state.id ?? ""}
+                  key={district.id}
+                  value={district.id ?? ""}
                   className="cursor-pointer"
                   onSelect={() => {
-                    onChange(state.id ?? null);
-                    setSelectedState(state);
+                    onChange(district.id ?? null);
+                    setSelectedDistrict(district);
                     setOpen(false);
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === state.id ? "opacity-100" : "opacity-0"
+                      value === district.id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {state.name}
+                  {district.name}
                 </CommandItem>
               ))}
             </CommandGroup>

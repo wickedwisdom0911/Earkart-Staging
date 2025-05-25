@@ -2,13 +2,24 @@ export enum StatusEnum {
   ACTIVE = "ACTIVE",
   INACTIVE = "INACTIVE",
 }
+export enum Gender {
+  MALE = "MALE",
+  FEMALE = "FEMALE",
+  OTHER = "OTHER",
+}
 export enum Role {
   ADMIN = "ADMIN",
   SUPER_ADMIN = "SUPER_ADMIN",
   HEAD_AUDIOLOGIST = "HEAD_AUDIOLOGIST",
   AUDIOLOGIST = "AUDIOLOGIST",
   PATIENT = "PATIENT",
-  CLINIC = "CLINIC",
+  CENTRE = "CENTRE",
+}
+export enum PaymentCycle {
+  WEEKLY = "WEEKLY",
+  MONTHLY = "MONTHLY",
+  QUARTERLY = "QUARTERLY",
+  YEARLY = "YEARLY",
 }
 export enum WeekDays {
   MONDAY = "MONDAY",

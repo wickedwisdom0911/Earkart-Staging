@@ -15,40 +15,42 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command";
-import { useEffect, useMemo } from "react";
-import { StateModelData } from "@/models/state.model";
-import useGetStatesByCountryId from "@/hooks/locations/states/use-get-states-by-country-id";
+import { useEffect } from "react";
+import { PaymentCycle } from "@/models/enums";
 
-interface StateSelectorProps {
-  value?: string | null;
-  onChange: (stateId: string | null) => void;
-  initialValue?: string | null;
-  countryId: string;
+interface PaymentCycleSelectorProps {
+  value?: PaymentCycle | null;
+  onChange: (cycle: PaymentCycle | null) => void;
+  initialValue?: PaymentCycle | null;
 }
 
-export default function StateSelector({
+const paymentCycleOptions = [
+  { value: PaymentCycle.WEEKLY, label: "Weekly" },
+  { value: PaymentCycle.MONTHLY, label: "Monthly" },
+  { value: PaymentCycle.QUARTERLY, label: "Quarterly" },
+  { value: PaymentCycle.YEARLY, label: "Yearly" },
+];
+
+export default function PaymentCycleSelector({
   value,
   onChange,
   initialValue,
-  countryId,
-}: StateSelectorProps) {
+}: PaymentCycleSelectorProps) {
   const [open, setOpen] = React.useState(false);
-  const { data, isLoading } = useGetStatesByCountryId(countryId);
-
-  const [selectedState, setSelectedState] =
-    React.useState<StateModelData | null>(null);
-
-  const states = useMemo(() => {
-    return data?.data || [];
-  }, [data]);
+  const [selectedCycle, setSelectedCycle] = React.useState<{
+    value: PaymentCycle;
+    label: string;
+  } | null>(null);
 
   useEffect(() => {
     if (initialValue) {
-      setSelectedState(states.find((s) => s.id === initialValue) || null);
+      setSelectedCycle(
+        paymentCycleOptions.find((g) => g.value === initialValue) || null
+      );
     } else {
-      setSelectedState(null);
+      setSelectedCycle(null);
     }
-  }, [initialValue, states]);
+  }, [initialValue]);
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal>
@@ -59,36 +61,34 @@ export default function StateSelector({
           aria-expanded={open}
           className="w-full justify-between"
         >
-          {selectedState ? selectedState.name : "Select state..."}
+          {selectedCycle ? selectedCycle.label : "Select payment cycle..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full p-0">
         <Command>
-          <CommandInput placeholder="Search country..." />
+          <CommandInput placeholder="Search payment cycle..." />
           <CommandList>
-            <CommandEmpty>
-              {isLoading ? "Loading..." : "No country found."}
-            </CommandEmpty>
+            <CommandEmpty>No payment cycle found.</CommandEmpty>
             <CommandGroup>
-              {states.map((state) => (
+              {paymentCycleOptions.map((cycle) => (
                 <CommandItem
-                  key={state.id}
-                  value={state.id ?? ""}
+                  key={cycle.value}
+                  value={cycle.value}
                   className="cursor-pointer"
                   onSelect={() => {
-                    onChange(state.id ?? null);
-                    setSelectedState(state);
+                    onChange(cycle.value);
+                    setSelectedCycle(cycle);
                     setOpen(false);
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === state.id ? "opacity-100" : "opacity-0"
+                      value === cycle.value ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {state.name}
+                  {cycle.label}
                 </CommandItem>
               ))}
             </CommandGroup>

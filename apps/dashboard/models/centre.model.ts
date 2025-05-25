@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { WeekDays } from "./enums";
+import { PaymentCycle, WeekDays } from "./enums";
 import { DistrictModelDataSchema } from "./district.model";
 import { userModelDataSchema } from "./user.model";
 
 export const CentreModelDataSchema = z.object({
-  id: z.string(),
-  userId: z.string(),
+  id: z.string().optional(),
+  userId: z.string().optional(),
   user: userModelDataSchema.optional(),
   code: z.string(),
   address: z.string(),
@@ -15,16 +15,16 @@ export const CentreModelDataSchema = z.object({
   entName: z.string(),
   assistantName: z.string(),
   assistantContactNumber: z.string(),
-  paymentCycle: z.string(),
-  createdBy: z.string(),
-  updatedBy: z.string(),
+  paymentCycle: z.nativeEnum(PaymentCycle),
+  createdBy: z.string().optional(),
+  updatedBy: z.string().optional(),
   workingDays: z.array(z.nativeEnum(WeekDays)),
   workingTimeStart: z.string(),
   workingTimeEnd: z.string(),
   breakTimeStart: z.string(),
   breakTimeEnd: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
   district: DistrictModelDataSchema.optional(),
 });
 

@@ -1,18 +1,18 @@
-import { StatusEnum, Role } from "@/models/enums";
+import { StatusEnum, Role, Gender } from "@/models/enums";
 import { z } from "zod";
 
 export const userModelDataSchema = z.object({
-  id: z.string(),
+  id: z.string().optional(),
   email: z.string(),
   name: z.string(),
   password: z.string().optional(),
   role: z.nativeEnum(Role),
   status: z.nativeEnum(StatusEnum),
-  gender: z.string(),
+  gender: z.nativeEnum(Gender),
   dob: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  token: z.string(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  token: z.string().optional(),
 });
 export const userModelSchema = z.object({
   success: z.boolean(),
