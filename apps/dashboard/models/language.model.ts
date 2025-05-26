@@ -2,18 +2,18 @@ import { z } from "zod";
 import { StatusEnum } from "./enums";
 
 export const LanguageModelDataSchema = z.object({
-  id: z.string(),
+  id: z.string().optional(),
   name: z.string(),
   code: z.string(),
   status: z.nativeEnum(StatusEnum),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
 });
 
 export const CreateLanguageModelSchema = z.object({
   success: z.boolean(),
   message: z.string(),
-  data: LanguageModelDataSchema,
+  data: LanguageModelDataSchema.optional().nullable(),
 });
 
 export const LanguageModelSchema = z.object({
