@@ -4,6 +4,8 @@ import HandleCentreDialog from "./_components/handle-centre-dialog";
 import { Button } from "@/components/ui/button";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import useGetAllCentres from "@/hooks/centre/use-get-all-centres";
+import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
 
 export default function CentresPage() {
   const { data, isLoading, error } = useGetAllCentres();
@@ -102,13 +104,12 @@ export default function CentresPage() {
                   {centre.assistantContactNumber}
                 </span>
               </div>
-              <Button
-                variant="secondary"
-                className="mt-4 w-full"
-                onClick={() => alert(`View details for ${centre.entName}`)}
+              <Link
+                href={ROUTES.CENTRE(centre.id || "")}
+                className="mt-4 w-full bg-primary-500 text-white py-2 rounded-md text-center"
               >
                 View Details
-              </Button>
+              </Link>
             </div>
           ))}
         </div>

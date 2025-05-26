@@ -3,16 +3,21 @@
 import { apiRequest } from "@/lib/api";
 import getBaseUrl from "@/lib/environment";
 import { verifySession } from "@/lib/session";
-import { CentreModel, CentreModelSchema } from "@/models/centre.model";
+import {
+  CreateCentreModel,
+  CreateCentreModelSchema,
+} from "@/models/centre.model";
 
-export default async function getCentre(id: string): Promise<CentreModel> {
+export default async function getCentre(
+  id: string
+): Promise<CreateCentreModel> {
   const baseUrl = await getBaseUrl();
   const url = `${baseUrl}centre/get/${id}`;
   const user = await verifySession();
   if (!user?.token) {
     throw new Error("Unauthorized");
   }
-  const response = await apiRequest<CentreModel>(
+  const response = await apiRequest<CreateCentreModel>(
     url,
     {
       method: "GET",
@@ -21,7 +26,7 @@ export default async function getCentre(id: string): Promise<CentreModel> {
         Authorization: `Bearer ${user.token}`,
       },
     },
-    CentreModelSchema
+    CreateCentreModelSchema
   );
   return response;
 }

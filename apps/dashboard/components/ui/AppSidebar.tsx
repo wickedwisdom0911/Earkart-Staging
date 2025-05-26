@@ -50,6 +50,7 @@ const adminSidebarItems: SidebarItem[] = [
     icon: <FileIcon className="text-slate-600" />,
     subItems: [
       { name: "Consultation Reports", url: "/dashboard/reports/consultation" },
+      { name: "Activity Logs", url: "/dashboard/reports/activity-logs" },
     ],
   },
   {
@@ -77,7 +78,7 @@ const audiologistSidebarItems: SidebarItem[] = [
   {
     name: "Analytics",
     icon: <BarChartIcon className="text-slate-600" />,
-    url: "/dashboard/analytics",
+    url: "/dashboard/analytics/{audilogistId}",
   },
   {
     name: "Reports",

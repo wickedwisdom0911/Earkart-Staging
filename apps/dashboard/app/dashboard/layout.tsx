@@ -9,9 +9,9 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="w-full h-full">
-      <SidebarProvider className="flex flex-col gap-2 p-2 w-full h-full">
+      <SidebarProvider className="flex flex-col gap-2 p-2 w-full h-full  max-h-screen">
         <DashboardHeader />
-        <div className="flex w-full h-full">
+        <div className="flex w-full h-full overflow-hidden flex-1 ">
           <AppSidebar />
           <main className="w-full h-full">{children}</main>
         </div>
