@@ -8,6 +8,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { StatusEnum } from "@/models/enums";
+import HandleDeviceAssigningDialog from "../_components/handle-device-assigning-dialog";
+import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
 
 export default function DevicePage() {
   const { deviceCode } = useParams();
@@ -15,6 +18,7 @@ export default function DevicePage() {
     deviceCode as string
   );
   const device = data?.data;
+  console.log(device);
   return (
     <DashboardBodyWrapper
       pageTitle={`Device Information`}
@@ -22,12 +26,17 @@ export default function DevicePage() {
         device && (
           <div className="flex items-center gap-2">
             {!device.centreId ? (
-              <Button
-                variant="outline"
-                className="bg-primary-500 text-white hover:bg-black hover:text-white"
-              >
-                <Edit /> Assign to Centre
-              </Button>
+              <HandleDeviceAssigningDialog
+                device={device}
+                trigger={
+                  <Button
+                    variant="outline"
+                    className="bg-primary-500 text-white hover:bg-black hover:text-white"
+                  >
+                    <Edit /> Assign to Centre
+                  </Button>
+                }
+              />
             ) : (
               <Button
                 variant="outline"
@@ -141,8 +150,14 @@ export default function DevicePage() {
               <div className="flex flex-col gap-1 bg-primary-50 border border-primary-100 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-lg font-semibold text-primary-700">
                   <MapPin className="w-5 h-5 text-primary-400" />
-                  {device.centre.entName}
+                  {device.centre.user?.name} {device.centre.code}
                 </div>
+                <Link
+                  href={ROUTES.CENTRE(device.centre?.id || "")}
+                  className="text-sm text-primary-500 hover:text-primary-600"
+                >
+                  Visit Centre Page
+                </Link>
                 <div className="text-sm text-neutral-600">
                   {device.centre.address}
                 </div>
@@ -154,6 +169,51 @@ export default function DevicePage() {
             ) : (
               <div className="text-neutral-400 italic">
                 Not assigned to any centre
+              </div>
+            )}
+          </div>
+          {/* History Section */}
+          <Separator />
+          <div className="flex flex-col gap-2">
+            <Label className="text-neutral-500">History</Label>
+            {Array.isArray(device.deviceActivities) &&
+            device.deviceActivities.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {device.deviceActivities.map((activity, idx) => (
+                  <div
+                    key={activity.id || idx}
+                    className="flex flex-col md:flex-row md:items-center md:justify-between bg-neutral-50 border border-neutral-100 rounded-lg p-3 gap-2"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 text-base text-neutral-800">
+                        <span className="font-semibold capitalize">
+                          {activity.deviceActivityType?.toLowerCase() ||
+                            "Activity"}
+                        </span>
+                        <span className="text-neutral-400">by</span>
+                        <span className="font-medium text-primary-700">
+                          {activity.actionByUser?.name ||
+                            activity.actionBy ||
+                            "Unknown"}
+                        </span>
+                      </div>
+                      <span className="text-xs text-neutral-500">
+                        {activity.centre?.user?.name ||
+                          activity.centre?.code ||
+                          "Unknown"}
+                      </span>
+                    </div>
+                    <div className="text-xs text-neutral-500 md:text-right">
+                      {activity.createdAt
+                        ? new Date(activity.createdAt).toLocaleString()
+                        : "—"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-neutral-400 italic">
+                No history available
               </div>
             )}
           </div>

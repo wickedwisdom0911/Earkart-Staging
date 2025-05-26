@@ -1,6 +1,18 @@
 import { z } from "zod";
 import { CentreModelDataSchema } from "./centre.model";
-import { StatusEnum } from "./enums";
+import { DeviceActivityType, StatusEnum } from "./enums";
+import { userModelDataSchema } from "./user.model";
+const DeviceActivityModelDataSchema = z.object({
+  id: z.string().optional(),
+  deviceId: z.string(),
+  deviceActivityType: z.nativeEnum(DeviceActivityType),
+  centreId: z.string().optional().nullable(),
+  actionBy: z.string().optional().nullable(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  actionByUser: userModelDataSchema.optional().nullable(),
+  centre: CentreModelDataSchema.optional().nullable(),
+});
 export const DeviceModelDataSchema = z.object({
   id: z.string().optional(),
   deviceCode: z.string(),
@@ -11,6 +23,10 @@ export const DeviceModelDataSchema = z.object({
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   centreId: z.string().optional().nullable(),
+  deviceActivities: z
+    .array(DeviceActivityModelDataSchema)
+    .optional()
+    .nullable(),
   centre: CentreModelDataSchema.optional().nullable(),
 });
 

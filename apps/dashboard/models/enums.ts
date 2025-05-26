@@ -30,3 +30,9 @@ export enum WeekDays {
   SATURDAY = "SATURDAY",
   SUNDAY = "SUNDAY",
 }
+export enum DeviceActivityType {
+  ASSIGNED = "ASSIGNED",
+  UNASSIGNED = "UNASSIGNED",
+  ENABLED = "ENABLED",
+  DISABLED = "DISABLED",
+}
