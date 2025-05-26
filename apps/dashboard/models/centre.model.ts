@@ -1,8 +1,16 @@
 import { z } from "zod";
-import { PaymentCycle, WeekDays } from "./enums";
+import { PaymentCycle, StatusEnum, WeekDays } from "./enums";
 import { DistrictModelDataSchema } from "./district.model";
 import { userModelDataSchema } from "./user.model";
 
+export const DeviceModelDataSchema = z.object({
+  id: z.string().optional(),
+  deviceCode: z.string(),
+  tabletID: z.string().optional().nullable(),
+  deviceID: z.string().optional().nullable(),
+  tabletAppVersion: z.string().optional().nullable(),
+  status: z.nativeEnum(StatusEnum),
+});
 export const CentreModelDataSchema = z.object({
   id: z.string().optional(),
   userId: z.string().optional(),
@@ -28,6 +36,7 @@ export const CentreModelDataSchema = z.object({
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   district: DistrictModelDataSchema.optional(),
+  device: DeviceModelDataSchema.optional().nullable(),
 });
 
 export const CreateCentreModelSchema = z.object({

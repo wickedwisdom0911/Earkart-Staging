@@ -7,6 +7,7 @@ import useGetAllCentres from "@/hooks/centre/use-get-all-centres";
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
 import DeleteCentreDialog from "./_components/delete-centre-dialog";
+import { CentreModelData } from "@/models/centre.model";
 
 export default function CentresPage() {
   const { data, isLoading, error } = useGetAllCentres();
@@ -28,7 +29,7 @@ export default function CentresPage() {
       {error && <div>Error: {error.message}</div>}
       {data && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-          {data.data.map((centre) => (
+          {data.data.map((centre: CentreModelData) => (
             <div
               key={centre.id}
               className="relative bg-white dark:bg-neutral-900 rounded-xl shadow-md p-6 flex flex-col gap-3 border border-gray-100 dark:border-neutral-800 hover:shadow-lg transition-shadow min-h-[220px]"
@@ -67,8 +68,17 @@ export default function CentresPage() {
                 <div className="text-gray-500 dark:text-gray-400 text-sm  truncate">
                   {centre?.entName || "ENT Name"}
                 </div>
-                <div className="text-gray-500 dark:text-gray-400 text-sm truncate">
+                <div className="text-gray-500 flex gap-4 items-center dark:text-gray-400 text-sm truncate">
                   {centre?.code || "Centre Code"}
+                  {centre?.device ? (
+                    <>
+                      <span className="text-xs text-neutral-500">
+                        {centre?.device?.deviceCode}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-neutral-500">(NDA)</span>
+                  )}
                 </div>
               </div>
 

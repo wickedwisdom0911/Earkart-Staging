@@ -1,6 +1,9 @@
 "use client";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import useGetCentre from "@/hooks/centre/use-get-centre";
+import { ROUTES } from "@/lib/routes";
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 
 export default function CentrePage() {
@@ -31,6 +34,13 @@ export default function CentrePage() {
                 <div className="text-sm text-gray-400 dark:text-gray-500 mb-1">
                   {centre.code || "Centre Code"}
                 </div>
+                <Link
+                  href={ROUTES.DEVICE(centre.device?.deviceCode || "")}
+                  className="text-sm text-primary-600 flex gap-2 items-center dark:text-gray-500 mb-1"
+                >
+                  Assigned Device: {centre.device?.deviceCode || "NDA"}
+                  <ArrowRight className="w-4 stroke-primary-600 h-4" />
+                </Link>
               </div>
               <div className="flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
                 <span className="bg-gray-100 dark:bg-neutral-800 rounded px-2 py-0.5">
