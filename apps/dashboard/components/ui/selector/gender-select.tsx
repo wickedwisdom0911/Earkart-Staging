@@ -15,13 +15,11 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command";
-import { useEffect } from "react";
 import { Gender } from "@/models/enums";
 
 interface GenderSelectProps {
   value?: Gender | null;
   onChange: (gender: Gender | null) => void;
-  initialValue?: Gender | null;
 }
 
 const genderOptions = [
@@ -30,26 +28,10 @@ const genderOptions = [
   { value: Gender.OTHER, label: "Other" },
 ];
 
-export default function GenderSelect({
-  value,
-  onChange,
-  initialValue,
-}: GenderSelectProps) {
+export default function GenderSelect({ value, onChange }: GenderSelectProps) {
   const [open, setOpen] = React.useState(false);
-  const [selectedGender, setSelectedGender] = React.useState<{
-    value: Gender;
-    label: string;
-  } | null>(null);
 
-  useEffect(() => {
-    if (initialValue) {
-      setSelectedGender(
-        genderOptions.find((g) => g.value === initialValue) || null
-      );
-    } else {
-      setSelectedGender(null);
-    }
-  }, [initialValue]);
+  const selectedGender = genderOptions.find((g) => g.value === value) || null;
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal>
@@ -77,7 +59,6 @@ export default function GenderSelect({
                   className="cursor-pointer"
                   onSelect={() => {
                     onChange(gender.value);
-                    setSelectedGender(gender);
                     setOpen(false);
                   }}
                 >

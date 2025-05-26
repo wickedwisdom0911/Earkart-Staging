@@ -7,6 +7,8 @@ export const CentreModelDataSchema = z.object({
   id: z.string().optional(),
   userId: z.string().optional(),
   user: userModelDataSchema.optional(),
+  creator: userModelDataSchema.optional(),
+  updater: userModelDataSchema.optional(),
   code: z.string(),
   address: z.string(),
   districtId: z.string(),

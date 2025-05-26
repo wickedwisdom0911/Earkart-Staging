@@ -2,8 +2,6 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import Image from "next/image";
 import { z } from "zod";
 import {
@@ -157,12 +155,6 @@ export default function LoginPage() {
                 )}
               />
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="remember" className="cursor-pointer" />
-                  <Label htmlFor="remember" className="text-sm">
-                    Remember me
-                  </Label>
-                </div>
                 <Button
                   type="button"
                   variant="link"

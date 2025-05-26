@@ -15,13 +15,11 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command";
-import { useEffect } from "react";
 import { PaymentCycle } from "@/models/enums";
 
 interface PaymentCycleSelectorProps {
   value?: PaymentCycle | null;
   onChange: (cycle: PaymentCycle | null) => void;
-  initialValue?: PaymentCycle | null;
 }
 
 const paymentCycleOptions = [
@@ -34,23 +32,10 @@ const paymentCycleOptions = [
 export default function PaymentCycleSelector({
   value,
   onChange,
-  initialValue,
 }: PaymentCycleSelectorProps) {
   const [open, setOpen] = React.useState(false);
-  const [selectedCycle, setSelectedCycle] = React.useState<{
-    value: PaymentCycle;
-    label: string;
-  } | null>(null);
-
-  useEffect(() => {
-    if (initialValue) {
-      setSelectedCycle(
-        paymentCycleOptions.find((g) => g.value === initialValue) || null
-      );
-    } else {
-      setSelectedCycle(null);
-    }
-  }, [initialValue]);
+  const selectedCycle =
+    paymentCycleOptions.find((g) => g.value === value) || null;
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal>
@@ -59,13 +44,13 @@ export default function PaymentCycleSelector({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className="w-[250px] justify-between"
         >
           {selectedCycle ? selectedCycle.label : "Select payment cycle..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0">
+      <PopoverContent className="w-[250px] p-0">
         <Command>
           <CommandInput placeholder="Search payment cycle..." />
           <CommandList>
@@ -78,7 +63,6 @@ export default function PaymentCycleSelector({
                   className="cursor-pointer"
                   onSelect={() => {
                     onChange(cycle.value);
-                    setSelectedCycle(cycle);
                     setOpen(false);
                   }}
                 >

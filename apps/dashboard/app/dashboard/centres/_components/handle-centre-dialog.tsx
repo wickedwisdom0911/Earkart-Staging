@@ -217,7 +217,10 @@ export default function HandleCentreDialog({
                 onChange={(date) =>
                   field.onChange(date ? date.toISOString() : "")
                 }
-                format={[[], ["hours", "minutes", "seconds", "am/pm"]]}
+                format={[
+                  ["days", "months", "years"],
+                  ["hours", "minutes", "seconds", "am/pm"],
+                ]}
               />
             </FormControl>
             <FormMessage />
