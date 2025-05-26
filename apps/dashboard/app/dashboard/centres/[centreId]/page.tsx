@@ -86,15 +86,41 @@ export default function CentrePage() {
                   Working Time
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-2">
-                  {centre.workingTimeStart?.slice(11, 16)} -{" "}
-                  {centre.workingTimeEnd?.slice(11, 16)}
+                  {centre.workingTimeStart
+                    ? new Date(centre.workingTimeStart).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
+                      })
+                    : "-"}
+                  {" - "}
+                  {centre.workingTimeEnd
+                    ? new Date(centre.workingTimeEnd).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
+                      })
+                    : "-"}
                 </div>
                 <div className="font-semibold text-gray-700 dark:text-gray-200 mb-1">
                   Break Time
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-2">
-                  {centre.breakTimeStart?.slice(11, 16)} -{" "}
-                  {centre.breakTimeEnd?.slice(11, 16)}
+                  {centre.breakTimeStart
+                    ? new Date(centre.breakTimeStart).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
+                      })
+                    : "-"}
+                  {" - "}
+                  {centre.breakTimeEnd
+                    ? new Date(centre.breakTimeEnd).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
+                      })
+                    : "-"}
                 </div>
               </div>
             </div>

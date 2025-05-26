@@ -51,6 +51,8 @@ const steps = [
   },
 ];
 
+const CENTRE_CODE_PREFIX = "ERKRTCNTR-";
+
 export default function HandleCentreDialog({
   centre,
   centreUser,
@@ -81,7 +83,13 @@ export default function HandleCentreDialog({
         role: Role.CENTRE,
         dob: centreUser?.dob,
       },
-      centre: centre,
+      centre: {
+        ...centre,
+        code:
+          centre?.code && centre?.code.startsWith(CENTRE_CODE_PREFIX)
+            ? centre.code.slice(CENTRE_CODE_PREFIX.length)
+            : "",
+      },
     },
   });
 
@@ -114,15 +122,32 @@ export default function HandleCentreDialog({
     setStep(0);
   };
   const handleSubmit = (data: CreateCenterProfile) => {
+    // Combine prefix and suffix for centre code
+    const fullCode = CENTRE_CODE_PREFIX + (data.centre.code || "");
+    data.centre.code = fullCode;
     if (isEdit) {
-      updateCentre(data, {
-        onSuccess: () => {
-          toast.success("Centre updated successfully");
+      if (data.centre.districtId === "") {
+        data.centre.districtId = data.centre.district?.id || "";
+      }
+      updateCentre(
+        {
+          ...data,
+          centre: { ...data.centre, id: centre?.id },
+          user: { ...data.user, id: centreUser?.id },
         },
-        onError: () => {
-          toast.error("Failed to update centre");
-        },
-      });
+        {
+          onSuccess: (response) => {
+            if (response.success) {
+              toast.success("Centre updated successfully");
+            } else {
+              toast.error("Failed to update centre " + response.message);
+            }
+          },
+          onError: (error) => {
+            toast.error("Failed to update centre " + error.message);
+          },
+        }
+      );
     } else {
       createCentre(data, {
         onSuccess: (response) => {
@@ -300,7 +325,20 @@ export default function HandleCentreDialog({
           <FormItem>
             <FormLabel>Centre Code</FormLabel>
             <FormControl>
-              <Input {...field} placeholder="Enter centre code" />
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 bg-gray-200 rounded text-gray-700 select-none">
+                  {CENTRE_CODE_PREFIX}
+                </span>
+                <Input
+                  {...field}
+                  placeholder="Enter centre code"
+                  value={field.value || ""}
+                  onChange={(e) =>
+                    field.onChange(e.target.value.replace(/\s/g, ""))
+                  }
+                  className="flex-1"
+                />
+              </div>
             </FormControl>
             <FormMessage />
           </FormItem>
