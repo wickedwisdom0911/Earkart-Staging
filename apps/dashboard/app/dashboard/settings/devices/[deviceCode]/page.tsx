@@ -11,6 +11,7 @@ import { StatusEnum } from "@/models/enums";
 import HandleDeviceAssigningDialog from "../_components/handle-device-assigning-dialog";
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
+import UnassignDeviceDialog from "../_components/unassign-device-dialog";
 
 export default function DevicePage() {
   const { deviceCode } = useParams();
@@ -18,7 +19,6 @@ export default function DevicePage() {
     deviceCode as string
   );
   const device = data?.data;
-  console.log(device);
   return (
     <DashboardBodyWrapper
       pageTitle={`Device Information`}
@@ -38,12 +38,17 @@ export default function DevicePage() {
                 }
               />
             ) : (
-              <Button
-                variant="outline"
-                className="bg-primary-500 text-white hover:bg-black hover:text-white"
-              >
-                <Edit /> Unassign from Centre
-              </Button>
+              <UnassignDeviceDialog
+                deviceId={device.id || ""}
+                trigger={
+                  <Button
+                    variant="outline"
+                    className="bg-red-500 cursor-pointer text-white hover:bg-black hover:text-white"
+                  >
+                    <Edit /> Unassign from Centre
+                  </Button>
+                }
+              />
             )}
           </div>
         )
