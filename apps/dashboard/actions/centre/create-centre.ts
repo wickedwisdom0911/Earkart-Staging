@@ -18,6 +18,7 @@ export async function createCentre(
   if (!user?.token) {
     throw new Error("Unauthorized");
   }
+  console.log(data);
   const response = await apiRequest<CreateCentreModel>(
     url,
     {
