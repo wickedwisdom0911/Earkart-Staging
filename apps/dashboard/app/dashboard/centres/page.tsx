@@ -119,6 +119,17 @@ export default function CentresPage() {
                   {centre.assistantContactNumber}
                 </span>
               </div>
+              {centre.user?.status && (
+                <span
+                  className={` px-2 py-0.5 w-fit rounded text-xs font-semibold ${
+                    centre.user.status === "ACTIVE"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                  }`}
+                >
+                  {centre.user.status}
+                </span>
+              )}
               <Link
                 href={ROUTES.CENTRE(centre.id || "")}
                 className="mt-4 w-full bg-primary-500 text-white py-2 rounded-md text-center"
