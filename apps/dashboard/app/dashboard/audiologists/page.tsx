@@ -5,6 +5,9 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import HandleAudiologistDialog from "./_components/handle-audiologist-dialog";
 import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import { AudiologistModelData } from "@/models/audiologist.model";
+import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
+import DeleteAudiologistDialog from "./_components/delete-audiologist-dialog";
 
 export default function Audiologists() {
   const { data, isLoading, isError } = useGetAllAudiologists();
@@ -47,14 +50,18 @@ export default function Audiologists() {
                       </Button>
                     }
                   />
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="text-red-500 hover:bg-red-100 dark:hover:bg-red-900 cursor-pointer"
-                    onClick={() => alert("Delete functionality coming soon")}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <DeleteAudiologistDialog
+                    trigger={
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-red-500 hover:bg-red-100 dark:hover:bg-red-900 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    }
+                    audiologist={audiologist}
+                  />
                 </div>
                 {/* Audiologist Info */}
                 <div className="text-xl font-bold text-primary-700 dark:text-primary-300  truncate flex items-center gap-2">
@@ -94,9 +101,12 @@ export default function Audiologists() {
                     {audiologist.user.status}
                   </span>
                 )}
-                <div className="mt-4 w-full bg-primary-500 text-white py-2 rounded-md text-center">
+                <Link
+                  href={ROUTES.AUDIOLOGIST(audiologist.rciNumber || "")}
+                  className="mt-4 w-full bg-primary-500 text-white py-2 rounded-md text-center"
+                >
                   View Profile
-                </div>
+                </Link>
               </div>
             ))}
         </div>

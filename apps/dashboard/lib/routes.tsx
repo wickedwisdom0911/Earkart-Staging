@@ -11,4 +11,6 @@ export const ROUTES = {
     `/dashboard/settings/locations/${code}/states/${stateCode}/cities/${cityCode}/districts`,
   DEVICE: (deviceCode: string) => `/dashboard/settings/devices/${deviceCode}`,
   CENTRE: (centreId: string) => `/dashboard/centres/${centreId}`,
+  AUDIOLOGIST: (audiologistId: string) =>
+    `/dashboard/audiologists/${audiologistId}`,
 };

@@ -1,32 +1,29 @@
 "use client";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
-import useGetCentre from "@/hooks/centre/use-get-centre";
-import { ROUTES } from "@/lib/routes";
-import { ArrowRight } from "lucide-react";
-import Link from "next/link";
+import useGetAudiologist from "@/hooks/audiologist/use-get-audiologist";
 import { useParams } from "next/navigation";
 
-export default function CentrePage() {
-  const { centreId } = useParams();
-  const { data, isLoading, error } = useGetCentre(centreId as string);
-  const centre = data?.data;
-  const user = centre?.user;
-  const district = centre?.district;
+export default function AudiologistProfile() {
+  const { audiologistId } = useParams();
+  const { data, isLoading, error } = useGetAudiologist(audiologistId as string);
+  const audiologist = data?.data;
+  const user = audiologist?.user;
+  const district = audiologist?.district;
   const city = district?.city;
   const state = city?.state;
   const country = state?.country;
 
   return (
-    <DashboardBodyWrapper pageTitle="Centre Details">
+    <DashboardBodyWrapper pageTitle="Audiologist Profile">
       <div className="w-full">
         {isLoading && <div>Loading...</div>}
         {error && <div>Error: {error.message}</div>}
-        {centre && (
+        {audiologist && (
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-xl p-8 flex flex-col gap-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
               <div>
                 <div className="text-3xl font-extrabold flex items-center gap-3 text-primary-700 dark:text-primary-300 mb-1">
-                  {user?.name || "Centre Name"}
+                  {user?.name || "Audiologist Name"}
                   {user?.status && (
                     <span
                       className={`px-2 py-0.5 rounded text-xs font-semibold ${
@@ -40,25 +37,18 @@ export default function CentrePage() {
                   )}
                 </div>
                 <div className="text-lg text-gray-500 dark:text-gray-400 mb-1">
-                  {centre.entName || "ENT Name"}
+                  RCI: {audiologist.rciNumber}
                 </div>
                 <div className="text-sm text-gray-400 dark:text-gray-500 mb-1">
-                  {centre.code || "Centre Code"}
+                  Grade: {audiologist.grade}
                 </div>
-                <Link
-                  href={ROUTES.DEVICE(centre.device?.deviceCode || "")}
-                  className="text-sm text-primary-600 flex gap-2 items-center dark:text-gray-500 mb-1"
-                >
-                  Assigned Device: {centre.device?.deviceCode || "NDA"}
-                  <ArrowRight className="w-4 stroke-primary-600 h-4" />
-                </Link>
               </div>
               <div className="flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
                 <span className="bg-gray-100 dark:bg-neutral-800 rounded px-2 py-0.5">
-                  {centre.paymentCycle}
+                  {audiologist.paymentCycle}
                 </span>
                 <span className="bg-gray-100 dark:bg-neutral-800 rounded px-2 py-0.5">
-                  {centre.pincode}
+                  {audiologist.pincode}
                 </span>
               </div>
             </div>
@@ -68,7 +58,7 @@ export default function CentrePage() {
                   Address
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-2">
-                  {centre.address}
+                  {audiologist.address}
                 </div>
                 <div className="font-semibold text-gray-700 dark:text-gray-200 mb-1">
                   Location
@@ -80,13 +70,19 @@ export default function CentrePage() {
                   Contact
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-2">
-                  {centre.contactNumber}
+                  {audiologist.contactNumber}
                 </div>
                 <div className="font-semibold text-gray-700 dark:text-gray-200 mb-1">
-                  Assistant
+                  Qualifications
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-2">
-                  {centre.assistantName} ({centre.assistantContactNumber})
+                  {audiologist.qualifications?.join(", ")}
+                </div>
+                <div className="font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                  Languages
+                </div>
+                <div className="text-gray-500 dark:text-gray-400 mb-2">
+                  {audiologist.languages?.map((l) => l.name).join(", ")}
                 </div>
               </div>
               <div>
@@ -94,7 +90,7 @@ export default function CentrePage() {
                   Working Days
                 </div>
                 <div className="flex flex-wrap gap-1 mb-2">
-                  {centre.workingDays?.map((d) => (
+                  {audiologist.workingDays?.map((d) => (
                     <span
                       key={d}
                       className="inline-block bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-200 rounded px-2 py-0.5 font-semibold"
@@ -107,40 +103,70 @@ export default function CentrePage() {
                   Working Time
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-2">
-                  {centre.workingTimeStart
-                    ? new Date(centre.workingTimeStart).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: true,
-                      })
+                  {audiologist.workingTimeStart
+                    ? new Date(audiologist.workingTimeStart).toLocaleTimeString(
+                        [],
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        }
+                      )
                     : "-"}
                   {" - "}
-                  {centre.workingTimeEnd
-                    ? new Date(centre.workingTimeEnd).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: true,
-                      })
+                  {audiologist.workingTimeEnd
+                    ? new Date(audiologist.workingTimeEnd).toLocaleTimeString(
+                        [],
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        }
+                      )
                     : "-"}
                 </div>
                 <div className="font-semibold text-gray-700 dark:text-gray-200 mb-1">
                   Break Time
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-2">
-                  {centre.breakTimeStart
-                    ? new Date(centre.breakTimeStart).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: true,
-                      })
+                  {audiologist.breakTimeStart
+                    ? new Date(audiologist.breakTimeStart).toLocaleTimeString(
+                        [],
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        }
+                      )
                     : "-"}
                   {" - "}
-                  {centre.breakTimeEnd
-                    ? new Date(centre.breakTimeEnd).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: true,
-                      })
+                  {audiologist.breakTimeEnd
+                    ? new Date(audiologist.breakTimeEnd).toLocaleTimeString(
+                        [],
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        }
+                      )
+                    : "-"}
+                </div>
+                <div className="font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                  Agreement Sign Date
+                </div>
+                <div className="text-gray-500 dark:text-gray-400 mb-2">
+                  {audiologist.agreementSignDate
+                    ? new Date(
+                        audiologist.agreementSignDate
+                      ).toLocaleDateString()
+                    : "-"}
+                </div>
+                <div className="font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                  Reporting Date
+                </div>
+                <div className="text-gray-500 dark:text-gray-400 mb-2">
+                  {audiologist.reportingDate
+                    ? new Date(audiologist.reportingDate).toLocaleDateString()
                     : "-"}
                 </div>
               </div>
@@ -176,26 +202,26 @@ export default function CentrePage() {
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-1">
                   <span className="font-medium">Created At:</span>{" "}
-                  {centre.createdAt
-                    ? new Date(centre.createdAt).toLocaleString()
+                  {audiologist.createdAt
+                    ? new Date(audiologist.createdAt).toLocaleString()
                     : "-"}
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-1">
                   <span className="font-medium">Updated At:</span>{" "}
-                  {centre.updatedAt
-                    ? new Date(centre.updatedAt).toLocaleString()
+                  {audiologist.updatedAt
+                    ? new Date(audiologist.updatedAt).toLocaleString()
                     : "-"}
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-1">
                   <span className="font-medium">Created By:</span>{" "}
-                  {centre.createdBy
-                    ? `${centre?.creator?.name} (${centre?.creator?.role})`
+                  {audiologist.createdBy
+                    ? `${audiologist?.creator?.name} (${audiologist?.creator?.role})`
                     : "-"}
                 </div>
                 <div className="text-gray-500 dark:text-gray-400 mb-1">
                   <span className="font-medium">Updated By:</span>{" "}
-                  {centre.updatedBy
-                    ? `${centre?.updater?.name} (${centre?.updater?.role})`
+                  {audiologist.updatedBy
+                    ? `${audiologist?.updater?.name} (${audiologist?.updater?.role})`
                     : "-"}
                 </div>
               </div>

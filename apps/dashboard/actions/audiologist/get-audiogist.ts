@@ -12,7 +12,7 @@ export default async function getAudiologist(
   id: string
 ): Promise<CreateAudiologistModel> {
   const baseUrl = await getBaseUrl();
-  const url = `${baseUrl}audiologist/get-audiologist-profileget-audiologist-profile/${id}`;
+  const url = `${baseUrl}audiologist/get-audiologist-profile/${id}`;
   const user = await verifySession();
   if (!user?.token) {
     throw new Error("Unauthorized");
