@@ -80,7 +80,7 @@ export default function HandleAudiologistDialog({
         password: audiologistUser?.password,
         status: audiologistUser?.status || StatusEnum.ACTIVE,
         gender: audiologistUser?.gender,
-        role: Role.AUDIOLOGIST,
+        role: audiologistUser?.role || Role.AUDIOLOGIST,
         dob: audiologistUser?.dob,
       },
       audiologist: {
@@ -263,11 +263,34 @@ export default function HandleAudiologistDialog({
       />
       <FormField
         control={form.control}
+        name="user.role"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Role</FormLabel>
+            <FormControl>
+              <select
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                name={field.name}
+                ref={field.ref}
+                className="w-full border rounded px-3 py-2 bg-white dark:bg-neutral-900"
+              >
+                <option value={Role.AUDIOLOGIST}>Audiologist</option>
+                <option value={Role.HEAD_AUDIOLOGIST}>Head Audiologist</option>
+              </select>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
         name="user.status"
         render={({ field }) => (
           <FormItem>
             <FormControl>
-              <StatusToggle {...field} />
+              <StatusToggle value={field.value} onChange={field.onChange} />
             </FormControl>
             <FormMessage />
           </FormItem>

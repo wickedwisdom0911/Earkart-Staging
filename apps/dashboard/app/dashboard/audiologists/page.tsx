@@ -90,17 +90,22 @@ export default function Audiologists() {
                     Address: {audiologist.address}
                   </div>
                 </div>
-                {audiologist.user?.status && (
-                  <span
-                    className={`px-2 py-0.5 w-fit rounded text-xs font-semibold ${
-                      audiologist.user.status === "ACTIVE"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {audiologist.user.status}
+                <div className="flex gap-2 items-start">
+                  {audiologist.user?.status && (
+                    <span
+                      className={`px-2 py-0.5 w-fit rounded text-xs font-semibold ${
+                        audiologist.user.status === "ACTIVE"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {audiologist.user.status}
+                    </span>
+                  )}
+                  <span className="text-gray-500 dark:text-gray-400 text-sm mb-2 truncate">
+                    {audiologist.user?.role}
                   </span>
-                )}
+                </div>
                 <Link
                   href={ROUTES.AUDIOLOGIST(audiologist.rciNumber || "")}
                   className="mt-4 w-full bg-primary-500 text-white py-2 rounded-md text-center"
