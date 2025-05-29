@@ -10,4 +10,5 @@ class Constants {
 
   static const userDb = "user_db";
   static final baseUrl = dotenv.env['BASE_URL'];
+  static final loginUrl = "${baseUrl}auth/login";
 }

@@ -5,8 +5,11 @@ import 'package:earkart_omni/config/widgets/helpers.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/utils/text_styles.dart';
 import 'package:earkart_omni/config/utils/dimensions.dart';
+import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,10 +21,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  bool _isLoading = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -47,13 +48,7 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  void _onLogin() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() => _isLoading = true);
-      await Future.delayed(const Duration(seconds: 2)); // Simulate login
-      setState(() => _isLoading = false);
-    }
-  }
+  void _onLogin() async {}
 
   @override
   Widget build(BuildContext context) {
@@ -110,76 +105,86 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ],
                     ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Welcome Back',
-                            style: CustomStyles.largeHeadingTextStyle.copyWith(
-                              color: Constants.primaryColor,
-                            ),
-                            textAlign: TextAlign.center,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Welcome Back',
+                          style: CustomStyles.largeHeadingTextStyle.copyWith(
+                            color: Constants.primaryColor,
                           ),
-                          Text(
-                            'Login to your centre\'s account',
-                            style: CustomStyles.mediumBodyTextStyle.copyWith(
-                              color: Colors.grey[700],
-                            ),
-                            textAlign: TextAlign.center,
+                          textAlign: TextAlign.center,
+                        ),
+                        Text(
+                          'Login to your centre\'s account',
+                          style: CustomStyles.mediumBodyTextStyle.copyWith(
+                            color: Colors.grey[700],
                           ),
-                          addVerticalSpace(Dimensions.height5 * 10),
-                          CustomTextField(
-                            controller: _emailController,
-                            hint: 'Email',
-                            keyboardType: TextInputType.emailAddress,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
-                              }
-                              if (!RegExp(
-                                r"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}",
-                              ).hasMatch(value)) {
-                                return 'Enter a valid email';
-                              }
-                              return null;
-                            },
-                            prefix: const Icon(Icons.email_outlined),
-                          ),
-                          addVerticalSpace(Dimensions.height5 * 6),
-                          CustomTextField(
-                            controller: _passwordController,
-                            hint: 'Password',
-                            obsecure: true,
-                            label: 'Password',
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your password';
-                              }
-                              if (value.length < 6) {
-                                return 'Password must be at least 6 characters';
-                              }
-                              return null;
-                            },
-                            prefix: const Icon(Icons.lock_outline),
-                          ),
-                          addVerticalSpace(Dimensions.height5 * 10),
-                          GradientButton(
-                            onPressed: _isLoading ? () {} : _onLogin,
-                            child:
-                                _isLoading
-                                    ? buttonLoading()
-                                    : Text(
-                                      'Login',
-                                      style: CustomStyles.buttonTextStyle
-                                          .copyWith(color: Colors.white),
-                                    ),
-                          ),
-                        ],
-                      ),
+                          textAlign: TextAlign.center,
+                        ),
+                        addVerticalSpace(Dimensions.height5 * 10),
+                        CustomTextField(
+                          controller: _emailController,
+                          hint: 'Email',
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your email';
+                            }
+                            if (!RegExp(
+                              r"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}",
+                            ).hasMatch(value)) {
+                              return 'Enter a valid email';
+                            }
+                            return null;
+                          },
+                          prefix: const Icon(Icons.email_outlined),
+                        ),
+                        addVerticalSpace(Dimensions.height5 * 6),
+                        CustomTextField(
+                          controller: _passwordController,
+                          hint: 'Password',
+                          obsecure: true,
+                          label: 'Password',
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your password';
+                            }
+                            if (value.length < 6) {
+                              return 'Password must be at least 6 characters';
+                            }
+                            return null;
+                          },
+                          prefix: const Icon(Icons.lock_outline),
+                        ),
+                        addVerticalSpace(Dimensions.height5 * 10),
+                        BlocConsumer<AuthCubit, AuthState>(
+                          listener: (context, state) {
+                            if (state is AuthSuccess) {
+                              Fluttertoast.showToast(msg: "Login successful");
+                            }
+                            if (state is AuthError) {
+                              Fluttertoast.showToast(msg: state.message);
+                            }
+                          },
+                          builder: (context, state) {
+                            return GradientButton(
+                              onPressed:
+                                  state is AuthLoading ? () {} : _onLogin,
+                              child:
+                                  state is AuthLoading
+                                      ? buttonLoading()
+                                      : Text(
+                                        state is AuthError ? "Retry" : 'Login',
+                                        style: CustomStyles.buttonTextStyle
+                                            .copyWith(color: Colors.white),
+                                      ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ),

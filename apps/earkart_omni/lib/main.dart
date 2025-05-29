@@ -1,7 +1,9 @@
 import 'package:earkart_omni/config/routes/router.dart';
 import 'package:earkart_omni/config/theme/theme_manager.dart';
 import 'package:earkart_omni/di.dart';
+import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/models/user/user.entity.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +19,8 @@ void main() async {
   // FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   await setupDI();
   await Hive.initFlutter();
+  Hive.registerAdapter(UserEntityAdapter());
+  await UserEntityDataSource().init();
   runApp(
     GetMaterialApp(
       title: "EarKart Omni",
@@ -27,7 +31,7 @@ void main() async {
     ),
   );
   SystemChrome.setEnabledSystemUIMode(
-    SystemUiMode.manual,
+    SystemUiMode.immersive,
     overlays: [SystemUiOverlay.top],
   );
   SystemChrome.setSystemUIOverlayStyle(
