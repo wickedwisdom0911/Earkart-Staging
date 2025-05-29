@@ -48,7 +48,16 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  void _onLogin() async {}
+  void _onLogin() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      Fluttertoast.showToast(msg: "Please enter email and password");
+      return;
+    }
+    context.read<AuthCubit>().login(
+      _emailController.text,
+      _passwordController.text,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
