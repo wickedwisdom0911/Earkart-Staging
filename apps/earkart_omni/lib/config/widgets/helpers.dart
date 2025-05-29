@@ -26,11 +26,15 @@ bool validateMobile(String value) {
 
 Widget buttonLoading() {
   return SizedBox(
-    width: Dimensions.width5 * 6,
-    height: Dimensions.height5 * 6,
-    child: const Center(
-      child: CircularProgressIndicator.adaptive(
-        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+    width: Dimensions.height5 * 8,
+    height: Dimensions.height5 * 8,
+    child: AspectRatio(
+      aspectRatio: 1,
+      child: const Center(
+        child: CircularProgressIndicator.adaptive(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          strokeWidth: 2,
+        ),
       ),
     ),
   );

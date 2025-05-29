@@ -5,6 +5,7 @@ import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart'
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
+import 'package:get/route_manager.dart';
 // import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -17,7 +18,7 @@ void main() async {
   await setupDI();
   await Hive.initFlutter();
   runApp(
-    MaterialApp(
+    GetMaterialApp(
       title: "EarKart Omni",
       debugShowCheckedModeBanner: false,
       theme: theme,
@@ -25,9 +26,6 @@ void main() async {
       onGenerateRoute: (settings) => generateRoute(settings),
     ),
   );
-  SystemChrome.setEnabledSystemUIMode(
-    SystemUiMode.manual,
-    overlays: [SystemUiOverlay.bottom, SystemUiOverlay.top],
-  );
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
   // FlutterNativeSplash.remove();
 }

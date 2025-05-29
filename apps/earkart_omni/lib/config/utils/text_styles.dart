@@ -22,7 +22,7 @@ class CustomStyles {
 
   static final headingTextStyle = GoogleFonts.montserrat(
     textStyle: TextStyle(
-      fontSize: Dimensions.height2 * 13,
+      fontSize: Dimensions.height2 * 20,
       fontWeight: FontWeight.w600,
     ),
   );
@@ -41,13 +41,13 @@ class CustomStyles {
   );
   static final mediumBodyTextStyle = GoogleFonts.montserrat(
     textStyle: TextStyle(
-      fontSize: Dimensions.height2 * 7,
+      fontSize: Dimensions.height2 * 10,
       fontWeight: FontWeight.w500,
     ),
   );
   static final regularBodyTextStyle = GoogleFonts.montserrat(
     textStyle: TextStyle(
-      fontSize: Dimensions.height2 * 7,
+      fontSize: Dimensions.height2 * 9,
       fontWeight: FontWeight.w400,
     ),
   );
@@ -59,13 +59,13 @@ class CustomStyles {
   );
   static final buttonTextStyle = GoogleFonts.montserrat(
     textStyle: TextStyle(
-      fontSize: Dimensions.height2 * 8,
+      fontSize: Dimensions.height2 * 11,
       fontWeight: FontWeight.w600,
     ),
   );
   static final smallbuttonTextStyle = GoogleFonts.montserrat(
     textStyle: TextStyle(
-      fontSize: Dimensions.height2 * 7,
+      fontSize: Dimensions.height2 * 9,
       fontWeight: FontWeight.w500,
     ),
   );
