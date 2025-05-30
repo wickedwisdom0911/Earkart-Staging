@@ -22,17 +22,18 @@ class DeviceEntityAdapter extends TypeAdapter<DeviceEntity> {
       tabletID: fields[2] as String?,
       deviceID: fields[3] as String?,
       tabletAppVersion: fields[4] as String?,
-      centreId: fields[5] as String?,
-      status: fields[6] as Status,
+      tabletAndroidVersion: fields[5] as String?,
+      centreId: fields[6] as String?,
       createdAt: fields[7] as DateTime,
       updatedAt: fields[8] as DateTime,
+      status: fields[9] as Status,
     );
   }
 
   @override
   void write(BinaryWriter writer, DeviceEntity obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -44,13 +45,15 @@ class DeviceEntityAdapter extends TypeAdapter<DeviceEntity> {
       ..writeByte(4)
       ..write(obj.tabletAppVersion)
       ..writeByte(5)
-      ..write(obj.centreId)
+      ..write(obj.tabletAndroidVersion)
       ..writeByte(6)
-      ..write(obj.status)
+      ..write(obj.centreId)
       ..writeByte(7)
       ..write(obj.createdAt)
       ..writeByte(8)
-      ..write(obj.updatedAt);
+      ..write(obj.updatedAt)
+      ..writeByte(9)
+      ..write(obj.status);
   }
 
   @override

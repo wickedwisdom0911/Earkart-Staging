@@ -18,13 +18,15 @@ class DeviceEntity extends Equatable {
   @HiveField(4)
   final String? tabletAppVersion;
   @HiveField(5)
-  final String? centreId;
+  final String? tabletAndroidVersion;
   @HiveField(6)
-  final Status status;
+  final String? centreId;
   @HiveField(7)
   final DateTime createdAt;
   @HiveField(8)
   final DateTime updatedAt;
+  @HiveField(9)
+  final Status status;
 
   const DeviceEntity({
     required this.id,
@@ -32,10 +34,11 @@ class DeviceEntity extends Equatable {
     this.tabletID,
     this.deviceID,
     this.tabletAppVersion,
+    this.tabletAndroidVersion,
     this.centreId,
-    required this.status,
     required this.createdAt,
     required this.updatedAt,
+    required this.status,
   });
 
   factory DeviceEntity.fromJson(Map<String, dynamic> json) {
@@ -45,6 +48,7 @@ class DeviceEntity extends Equatable {
       tabletID: json['tabletID'],
       deviceID: json['deviceID'],
       tabletAppVersion: json['tabletAppVersion'],
+      tabletAndroidVersion: json['tabletAndroidVersion'],
       centreId: json['centreId'],
       status: statusFromApi(json['status']),
       createdAt: DateTime.parse(json['createdAt']),
@@ -59,6 +63,7 @@ class DeviceEntity extends Equatable {
       'tabletID': tabletID,
       'deviceID': deviceID,
       'tabletAppVersion': tabletAppVersion,
+      'tabletAndroidVersion': tabletAndroidVersion,
       'centreId': centreId,
       'status': status.name.toUpperCase(),
     };
@@ -70,6 +75,7 @@ class DeviceEntity extends Equatable {
     String? tabletID,
     String? deviceID,
     String? tabletAppVersion,
+    String? tabletAndroidVersion,
     String? centreId,
     Status? status,
     DateTime? createdAt,
@@ -81,6 +87,7 @@ class DeviceEntity extends Equatable {
       tabletID: tabletID ?? this.tabletID,
       deviceID: deviceID ?? this.deviceID,
       tabletAppVersion: tabletAppVersion ?? this.tabletAppVersion,
+      tabletAndroidVersion: tabletAndroidVersion ?? this.tabletAndroidVersion,
       centreId: centreId ?? this.centreId,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
@@ -95,6 +102,7 @@ class DeviceEntity extends Equatable {
     tabletID,
     deviceID,
     tabletAppVersion,
+    tabletAndroidVersion,
     centreId,
     status,
     createdAt,

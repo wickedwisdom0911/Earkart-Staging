@@ -19,6 +19,7 @@ export const DeviceModelDataSchema = z.object({
   tabletID: z.string().optional().nullable(),
   deviceID: z.string().optional().nullable(),
   tabletAppVersion: z.string().optional().nullable(),
+  tabletAndroidVersion: z.string().optional().nullable(),
   status: z.nativeEnum(StatusEnum),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),

@@ -33,6 +33,7 @@ class DeviceData extends DeviceEntity {
   final String? tabletID;
   final String? deviceID;
   final String? tabletAppVersion;
+  final String? tabletAndroidVersion;
   final String? centreId;
   final Status status;
   final DateTime createdAt;
@@ -47,6 +48,7 @@ class DeviceData extends DeviceEntity {
     this.tabletID,
     this.deviceID,
     this.tabletAppVersion,
+    this.tabletAndroidVersion,
     this.centreId,
     required this.status,
     required this.createdAt,
@@ -60,6 +62,7 @@ class DeviceData extends DeviceEntity {
          tabletID: tabletID,
          deviceID: deviceID,
          tabletAppVersion: tabletAppVersion,
+         tabletAndroidVersion: tabletAndroidVersion,
          centreId: centreId,
          status: status,
          createdAt: createdAt,
@@ -73,6 +76,7 @@ class DeviceData extends DeviceEntity {
       tabletID: json['tabletID'],
       deviceID: json['deviceID'],
       tabletAppVersion: json['tabletAppVersion'],
+      tabletAndroidVersion: json['tabletAndroidVersion'],
       centreId: json['centreId'],
       status: statusFromApi(json['status']),
       createdAt: DateTime.parse(json['createdAt']),
@@ -94,6 +98,7 @@ class DeviceData extends DeviceEntity {
       'tabletID': tabletID,
       'deviceID': deviceID,
       'tabletAppVersion': tabletAppVersion,
+      'tabletAndroidVersion': tabletAndroidVersion,
       'centreId': centreId,
       'status': status.name.toUpperCase(),
       'createdAt': createdAt.toIso8601String(),
