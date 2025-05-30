@@ -1,10 +1,21 @@
+import 'package:earkart_mdm/config/utils/hive_types.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+part 'enums.g.dart';
+
 enum Ear { left, right }
 
 enum Gender { male, female, other }
 
 enum Role { superAdmin, admin, headAudiologist, audiologist, centre, patient }
 
-enum Status { active, inactive }
+@HiveType(typeId: HiveTypes.statusEnum)
+enum Status {
+  @HiveField(0)
+  active,
+  @HiveField(1)
+  inactive,
+}
 
 Status statusFromApi(String value) {
   return Status.values.firstWhere(

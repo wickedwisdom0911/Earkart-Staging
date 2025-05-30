@@ -25,6 +25,10 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   TextEditingController deviceCodeController = TextEditingController();
   PackageInfo? packageInfo;
   DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+  AndroidDeviceInfo? androidInfo;
+  String? tabletID;
+  String? tabletAndroidVersion;
+  String? tabletAppVersion;
 
   @override
   void initState() {
@@ -34,19 +38,17 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   }
 
   void getPackageInfo() async {
-    PermissionStatus status = await Permission.phone.request();
-    if (status.isGranted) {
-      print("Permission granted");
-    } else if (status == PermissionStatus.denied ||
-        status == PermissionStatus.permanentlyDenied) {
-      print("Permission denied or permanently denied");
-      // Handle the case where permission is denied or permanently denied
-    } else {
-      print("Permission not granted");
+    packageInfo = await PackageInfo.fromPlatform();
+    androidInfo = await deviceInfo.androidInfo;
+    setState(() {
+      tabletID = androidInfo?.serialNumber;
+      tabletAndroidVersion = androidInfo?.version.release;
+      tabletAppVersion = packageInfo?.version;
+    });
+    if (device != null) {
+      context.read<DeviceCubit>().getDeviceByValue(device!.deviceCode);
     }
-    AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-
-    log("androidinfo.data: ${androidInfo.data}");
+    // log("androidinfo.data: ${androidInfo?.data}");
   }
 
   @override
@@ -57,44 +59,166 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
 
   Widget _deviceSetupForm(DeviceState state) {
     return Center(
-      child: Container(
-        width: Dimensions.screenWidth * 0.6,
-        padding: EdgeInsets.all(20),
-        child: Column(
-          children: [
-            addVerticalSpace(30),
-            CustomTextField(
-              hint: "Enter the Device Code",
-              controller: deviceCodeController,
-            ),
-            addVerticalSpace(30),
-            GradientButton(
-              child:
-                  state is DeviceLoading
-                      ? buttonLoading()
-                      : Text(
-                        "Start Setup",
-                        style: TextStyle(color: Colors.white),
-                      ),
-              onPressed: () {
-                context.read<DeviceCubit>().getDeviceByValue(
-                  deviceCodeController.text,
-                );
-              },
-            ),
-          ],
+      child: Card(
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        margin: EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                "Device Setup",
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              addVerticalSpace(24),
+              CustomTextField(
+                hint: "Enter the Device Code",
+                controller: deviceCodeController,
+                prefix: Icon(Icons.qr_code, color: Colors.grey[600]),
+              ),
+              addVerticalSpace(32),
+              GradientButton(
+                child:
+                    state is DeviceLoading
+                        ? buttonLoading()
+                        : Text(
+                          "Start Setup",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                onPressed: () {
+                  context.read<DeviceCubit>().getDeviceByValue(
+                    deviceCodeController.text,
+                  );
+                },
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _deviceDetails(DeviceState state) {
+    return Center(
+      child: Card(
+        elevation: 10,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        margin: EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                "Device Details",
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              addVerticalSpace(24),
+              _buildDetailTile("Device Code", device?.deviceCode),
+              _buildDetailTile("Tablet ID", device?.tabletID),
+              _buildDetailTile("Device ID", device?.deviceID),
+              _buildDetailTile("Tablet App Version", device?.tabletAppVersion),
+              _buildDetailTile(
+                "Tablet Android Version",
+                device?.tabletAndroidVersion,
+              ),
+              _buildDetailTile("Centre ID", device?.centreId),
+              _buildDetailTile("Status", device?.status.name.toUpperCase()),
+              Divider(height: 32, thickness: 1.2),
+              _buildDetailTile("This Tablet ID", tabletID),
+              _buildDetailTile(
+                "This Tablet Android Version",
+                tabletAndroidVersion,
+              ),
+              _buildDetailTile("This Tablet App Version", tabletAppVersion),
+              addVerticalSpace(32),
+              GradientButton(
+                child:
+                    state is DeviceLoading
+                        ? buttonLoading()
+                        : Text(
+                          "Setup Device",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                onPressed: () {
+                  if (device != null) {
+                    DeviceEntity newDevice = device!.copyWith(
+                      tabletID: androidInfo?.serialNumber,
+                      tabletAndroidVersion: androidInfo?.version.release,
+                      tabletAppVersion: packageInfo?.version,
+                    );
+                    context.read<DeviceCubit>().setupDevice(newDevice);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailTile(String title, String? value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              title,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                color: Colors.grey[800],
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value ?? '-',
+              style: TextStyle(fontSize: 16, color: Colors.black87),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    print(device?.props);
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: Text("Device Setup"),
         automaticallyImplyLeading: false,
+        elevation: 0,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).primaryColor,
       ),
       body: BlocConsumer<DeviceCubit, DeviceState>(
         listener: (context, state) {
@@ -102,13 +226,24 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
             Fluttertoast.showToast(msg: state.message);
           }
           if (state is DeviceSuccess) {
-            device = state.device;
+            setState(() {
+              device = state.device;
+            });
           }
         },
         builder: (context, state) {
-          return device == null
-              ? _deviceSetupForm(state)
-              : Text("Device Setup");
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 10.0,
+                horizontal: 80.0,
+              ),
+              child:
+                  device == null
+                      ? _deviceSetupForm(state)
+                      : _deviceDetails(state),
+            ),
+          );
         },
       ),
     );
