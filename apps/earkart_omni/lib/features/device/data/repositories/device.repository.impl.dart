@@ -14,4 +14,9 @@ class DeviceRepositoryImpl extends IDeviceRepository {
   Future<DeviceEntity?> setupDevice(DeviceEntity deviceEntity) async {
     return await deviceDataSource.setupDevice(deviceEntity);
   }
+
+  @override
+  Future<DeviceEntity?> getCurrentDevice() async {
+    return await deviceDataSource.getCurrentDevice();
+  }
 }
