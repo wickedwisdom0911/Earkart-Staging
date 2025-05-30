@@ -1,6 +1,3 @@
-import 'dart:developer';
-
-import 'package:earkart_mdm/config/utils/dimensions.dart';
 import 'package:earkart_mdm/config/widgets/custom_text_field.dart';
 import 'package:earkart_mdm/config/widgets/gradient_button.dart';
 import 'package:earkart_mdm/config/widgets/helpers.dart';
@@ -11,7 +8,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 class DeviceSetupScreen extends StatefulWidget {
   const DeviceSetupScreen({super.key});
