@@ -140,7 +140,13 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
                 "Tablet Android Version",
                 device?.tabletAndroidVersion,
               ),
-              _buildDetailTile("Centre ID", device?.centreId),
+              _buildDetailTile(
+                "Is Assigned to a Centre",
+                device?.centre != null ? "Yes" : "No",
+              ),
+              device?.centre != null
+                  ? _buildDetailTile("Centre Code", device?.centre?.code)
+                  : SizedBox(),
               _buildDetailTile("Status", device?.status.name.toUpperCase()),
               Divider(height: 32, thickness: 1.2),
               _buildDetailTile("This Tablet ID", tabletID),
@@ -211,6 +217,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    print("device: ${device?.centre}");
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(

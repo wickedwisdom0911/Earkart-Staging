@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:earkart_mdm/models/centre/centre.entity.dart';
 import 'package:earkart_mdm/models/device/device.entity.dart';
 import 'package:earkart_mdm/models/enums.dart';
 
@@ -38,6 +39,7 @@ class DeviceData extends DeviceEntity {
   final Status status;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final CentreEntity? centre;
   // final Centre? centre; // Uncomment and import if you have a Centre model
   // final List<DeviceActivity> deviceActivities; // Define if needed
   // final List<ActivityLog> activityLogs; // Define if needed
@@ -53,7 +55,7 @@ class DeviceData extends DeviceEntity {
     required this.status,
     required this.createdAt,
     required this.updatedAt,
-    // this.centre,
+    this.centre,
     // this.deviceActivities = const [],
     // this.activityLogs = const [],
   }) : super(
@@ -67,6 +69,7 @@ class DeviceData extends DeviceEntity {
          status: status,
          createdAt: createdAt,
          updatedAt: updatedAt,
+         centre: centre,
        );
 
   factory DeviceData.fromJson(Map<String, dynamic> json) {
@@ -81,7 +84,8 @@ class DeviceData extends DeviceEntity {
       status: statusFromApi(json['status']),
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
-      // centre: json['centre'] != null ? Centre.fromJson(json['centre']) : null,
+      centre:
+          json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
       // deviceActivities: (json['deviceActivities'] as List<dynamic>?)
       //     ?.map((e) => DeviceActivity.fromJson(e))
       //     .toList() ?? [],
@@ -103,7 +107,7 @@ class DeviceData extends DeviceEntity {
       'status': status.name.toUpperCase(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
-      // 'centre': centre?.toJson(),
+      'centre': centre?.toJson(),
       // 'deviceActivities': deviceActivities.map((e) => e.toJson()).toList(),
       // 'activityLogs': activityLogs.map((e) => e.toJson()).toList(),
     };

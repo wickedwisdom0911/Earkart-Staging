@@ -1,4 +1,5 @@
 import 'package:earkart_mdm/config/utils/hive_types.dart';
+import 'package:earkart_mdm/models/centre/centre.entity.dart';
 import 'package:earkart_mdm/models/enums.dart';
 import 'package:equatable/equatable.dart';
 import 'package:hive/hive.dart';
@@ -27,6 +28,8 @@ class DeviceEntity extends Equatable {
   final DateTime updatedAt;
   @HiveField(9)
   final Status status;
+  @HiveField(10)
+  final CentreEntity? centre;
 
   const DeviceEntity({
     required this.id,
@@ -39,6 +42,7 @@ class DeviceEntity extends Equatable {
     required this.createdAt,
     required this.updatedAt,
     required this.status,
+    this.centre,
   });
 
   factory DeviceEntity.fromJson(Map<String, dynamic> json) {
@@ -53,6 +57,8 @@ class DeviceEntity extends Equatable {
       status: statusFromApi(json['status']),
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
+      centre:
+          json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
     );
   }
 

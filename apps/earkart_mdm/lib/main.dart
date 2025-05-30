@@ -3,6 +3,7 @@ import 'package:earkart_mdm/config/theme/theme_manager.dart';
 import 'package:earkart_mdm/di.dart';
 import 'package:earkart_mdm/features/device/data/source/local/device.entity.source.dart';
 import 'package:earkart_mdm/features/device/presentation/pages/device.setup.screen.dart';
+import 'package:earkart_mdm/models/centre/centre.entity.dart';
 import 'package:earkart_mdm/models/device/device.entity.dart';
 import 'package:earkart_mdm/models/enums.dart';
 import 'package:flutter/services.dart';
@@ -22,6 +23,7 @@ void main() async {
 
   await Hive.initFlutter();
   Hive.registerAdapter(StatusAdapter());
+  Hive.registerAdapter(CentreEntityAdapter());
   Hive.registerAdapter(DeviceEntityAdapter());
   await di<DeviceEntityDataSource>().init();
 
