@@ -9,6 +9,9 @@ class Constants {
   static const bg = Color(0xFFF5F5F6);
 
   static const userDb = "user_db";
+  static const deviceDb = "device_db";
   static final baseUrl = dotenv.env['BASE_URL'];
   static final loginUrl = "${baseUrl}auth/login";
+  static final deviceUrl = "${baseUrl}device/find-by-value";
+  static final setupDeviceUrl = "${baseUrl}device/setup";
 }

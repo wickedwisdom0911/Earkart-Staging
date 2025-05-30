@@ -1,6 +1,7 @@
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/features/device/presentation/pages/device.setup.screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -16,6 +17,8 @@ Route<dynamic> generateRoute(RouteSettings settings) {
   }
 
   switch (settings.name) {
+    case DeviceSetupScreen.routeName:
+      return router(const DeviceSetupScreen());
     case LoginScreen.routeName:
       return router(
         Builder(
