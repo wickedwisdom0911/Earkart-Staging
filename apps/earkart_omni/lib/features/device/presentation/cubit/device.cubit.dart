@@ -1,4 +1,3 @@
-import 'package:earkart_omni/features/device/data/source/local/device.entity.source.dart';
 import 'package:earkart_omni/features/device/domain/usecases/get_current_device.usecase.dart';
 import 'package:earkart_omni/features/device/domain/usecases/get_device_by_value.usecase.dart';
 import 'package:earkart_omni/features/device/domain/usecases/setup_device.usecase.dart';
@@ -20,32 +19,44 @@ class DeviceCubit extends Cubit<DeviceState> {
   }) : super(DeviceInitial());
 
   Future<void> getCurrentDevice() async {
-    emit(DeviceLoading());
-    final device = await getCurrentDeviceUsecase();
-    if (device != null) {
-      emit(DeviceSuccess(device: device));
-    } else {
-      emit(DeviceError(message: "Device not found"));
+    try {
+      emit(DeviceLoading());
+      final device = await getCurrentDeviceUsecase();
+      if (device != null) {
+        emit(DeviceSuccess(device: device));
+      } else {
+        emit(DeviceError(message: "Device not found"));
+      }
+    } catch (e) {
+      emit(DeviceError(message: e.toString()));
     }
   }
 
   Future<void> getDeviceByValue(String value) async {
     emit(DeviceLoading());
-    final device = await getDeviceByValueUsecase(value);
-    if (device != null) {
-      emit(DeviceSuccess(device: device));
-    } else {
-      emit(DeviceError(message: "Device not found"));
+    try {
+      final device = await getDeviceByValueUsecase(value);
+      if (device != null) {
+        emit(DeviceSuccess(device: device));
+      } else {
+        emit(DeviceError(message: "Device not found"));
+      }
+    } catch (e) {
+      emit(DeviceError(message: e.toString()));
     }
   }
 
   Future<void> setupDevice(DeviceEntity deviceData) async {
-    emit(DeviceLoading());
-    final device = await setupDeviceUsecase(deviceData);
-    if (device != null) {
-      emit(DeviceSuccess(device: device));
-    } else {
-      emit(DeviceError(message: "Device Setup Failed"));
+    try {
+      emit(DeviceLoading());
+      final device = await setupDeviceUsecase(deviceData);
+      if (device != null) {
+        emit(DeviceSuccess(device: device));
+      } else {
+        emit(DeviceError(message: "Device Setup Failed"));
+      }
+    } catch (e) {
+      emit(DeviceError(message: e.toString()));
     }
   }
 }

@@ -21,11 +21,12 @@ void main() async {
   SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]);
   // FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   await setupDI();
+
   await Hive.initFlutter();
   Hive.registerAdapter(UserEntityAdapter());
   Hive.registerAdapter(DeviceEntityAdapter());
   await UserEntityDataSource().init();
-  await DeviceEntityDataSource().init();
+  await di<DeviceEntityDataSource>().init();
 
   runApp(
     GetMaterialApp(

@@ -8,7 +8,7 @@ ThemeData theme = ThemeData.light().copyWith(
   primaryColorDark: Colors.white,
   splashColor: Colors.transparent,
   highlightColor: Colors.transparent,
-  scaffoldBackgroundColor: Constants.bg,
+  scaffoldBackgroundColor: Colors.white,
   cardTheme: CardTheme(
     color: Colors.white,
     shape: RoundedRectangleBorder(
