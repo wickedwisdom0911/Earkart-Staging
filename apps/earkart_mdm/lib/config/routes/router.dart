@@ -1,6 +1,6 @@
-import 'package:earkart_omni/di.dart';
-import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
-import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_mdm/di.dart';
+import 'package:earkart_mdm/features/device/presentation/cubit/device.cubit.dart';
+import 'package:earkart_mdm/features/device/presentation/pages/device.setup.screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -16,17 +16,14 @@ Route<dynamic> generateRoute(RouteSettings settings) {
   }
 
   switch (settings.name) {
-    case LoginScreen.routeName:
+    case DeviceSetupScreen.routeName:
       return router(
-        Builder(
-          builder: (context) {
-            return BlocProvider<AuthCubit>(
-              create: (context) => di.call<AuthCubit>(),
-              child: const LoginScreen(),
-            );
-          },
+        BlocProvider<DeviceCubit>(
+          create: (context) => di.call<DeviceCubit>(),
+          child: const DeviceSetupScreen(),
         ),
       );
+
     default:
       return CupertinoPageRoute(
         settings: settings,

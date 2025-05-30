@@ -3,8 +3,6 @@ import 'package:earkart_omni/config/theme/theme_manager.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
-import 'package:earkart_omni/features/device/data/source/local/device.entity.source.dart';
-import 'package:earkart_omni/features/device/presentation/pages/device.setup.screen.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 import 'package:flutter/services.dart';
@@ -26,14 +24,13 @@ void main() async {
   Hive.registerAdapter(UserEntityAdapter());
   Hive.registerAdapter(DeviceEntityAdapter());
   await UserEntityDataSource().init();
-  await di<DeviceEntityDataSource>().init();
 
   runApp(
     GetMaterialApp(
       title: "EarKart Omni",
       debugShowCheckedModeBanner: false,
       theme: theme,
-      initialRoute: DeviceSetupScreen.routeName,
+      initialRoute: LoginScreen.routeName,
       onGenerateRoute: (settings) => generateRoute(settings),
     ),
   );
