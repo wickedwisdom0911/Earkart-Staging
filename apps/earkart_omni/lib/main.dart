@@ -1,6 +1,7 @@
 import 'package:earkart_omni/config/routes/router.dart';
 import 'package:earkart_omni/config/theme/theme_manager.dart';
 import 'package:earkart_omni/di.dart';
+import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
@@ -22,13 +23,14 @@ void main() async {
   await setupDI();
 
   await Hive.initFlutter();
+
   Hive.registerAdapter(GenderAdapter());
   Hive.registerAdapter(RoleAdapter());
   Hive.registerAdapter(StatusAdapter());
   Hive.registerAdapter(UserEntityAdapter());
   Hive.registerAdapter(DeviceEntityAdapter());
-
-  await UserEntityDataSource().init();
+  await di<UserEntityDataSource>().init();
+  await di<CentreEntityDataSource>().init();
 
   runApp(
     GetMaterialApp(

@@ -113,9 +113,11 @@ class CentreModelData extends CentreEntity {
     return CentreModelData(
       id: json['id'],
       userId: json['userId'],
-      user: UserEntity.fromJson(json['user']),
-      creator: UserEntity.fromJson(json['creator']),
-      updater: UserEntity.fromJson(json['updater']),
+      user: json['user'] != null ? UserEntity.fromJson(json['user']) : null,
+      creator:
+          json['creator'] != null ? UserEntity.fromJson(json['creator']) : null,
+      updater:
+          json['updater'] != null ? UserEntity.fromJson(json['updater']) : null,
       code: json['code'],
       address: json['address'],
       districtId: json['districtId'],
@@ -145,7 +147,8 @@ class CentreModelData extends CentreEntity {
               : null,
       district:
           json['district'], // Replace with District.fromJson(json['district']) if available
-      device: DeviceEntity.fromJson(json['device']),
+      device:
+          json['device'] != null ? DeviceEntity.fromJson(json['device']) : null,
     );
   }
 

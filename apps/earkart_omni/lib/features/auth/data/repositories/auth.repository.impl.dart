@@ -12,8 +12,8 @@ class AuthRepositoryImpl extends AuthRepository {
   }
 
   @override
-  Future<CentreEntity?> getCentre(String id) async {
-    return await remoteSource.getCentre(id);
+  Future<CentreEntity?> getCentre() async {
+    return await remoteSource.getCentre();
   }
 
   @override

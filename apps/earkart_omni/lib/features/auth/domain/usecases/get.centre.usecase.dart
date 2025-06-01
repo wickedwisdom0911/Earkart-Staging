@@ -6,7 +6,7 @@ class GetCentreUsecase {
 
   GetCentreUsecase({required this.authRepository});
 
-  Future<CentreEntity?> call(String id) async {
-    return await authRepository.getCentre(id);
+  Future<CentreEntity?> call() async {
+    return await authRepository.getCentre();
   }
 }

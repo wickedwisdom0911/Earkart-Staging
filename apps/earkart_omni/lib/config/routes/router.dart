@@ -2,6 +2,7 @@ import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
+import 'package:earkart_omni/models/enums.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -34,8 +35,22 @@ Route<dynamic> generateRoute(RouteSettings settings) {
         Builder(
           builder: (context) {
             return BlocProvider<AuthCubit>(
-              create: (context) => di.call<AuthCubit>(),
-              child: const LoginScreen(),
+              create: (context) => di.call<AuthCubit>()..getCurrentUser(),
+
+              child: BlocBuilder<AuthCubit, AuthState>(
+                builder: (context, state) {
+                  if (state is AuthInitial) {
+                    return const LoginScreen();
+                  }
+                  if (state is AuthSuccess) {
+                    if (state.user.role == Role.centre) {
+                      return const HomeScreen();
+                    }
+                    return const LoginScreen();
+                  }
+                  return const LoginScreen();
+                },
+              ),
             );
           },
         ),

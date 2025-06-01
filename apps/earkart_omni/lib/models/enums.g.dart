@@ -147,3 +147,116 @@ class StatusAdapter extends TypeAdapter<Status> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+class PaymentCycleAdapter extends TypeAdapter<PaymentCycle> {
+  @override
+  final int typeId = 7;
+
+  @override
+  PaymentCycle read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return PaymentCycle.monthly;
+      case 1:
+        return PaymentCycle.quarterly;
+      case 2:
+        return PaymentCycle.halfYearly;
+      case 3:
+        return PaymentCycle.yearly;
+      default:
+        return PaymentCycle.monthly;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, PaymentCycle obj) {
+    switch (obj) {
+      case PaymentCycle.monthly:
+        writer.writeByte(0);
+        break;
+      case PaymentCycle.quarterly:
+        writer.writeByte(1);
+        break;
+      case PaymentCycle.halfYearly:
+        writer.writeByte(2);
+        break;
+      case PaymentCycle.yearly:
+        writer.writeByte(3);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PaymentCycleAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class WeekDaysAdapter extends TypeAdapter<WeekDays> {
+  @override
+  final int typeId = 8;
+
+  @override
+  WeekDays read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return WeekDays.monday;
+      case 1:
+        return WeekDays.tuesday;
+      case 2:
+        return WeekDays.wednesday;
+      case 3:
+        return WeekDays.thursday;
+      case 4:
+        return WeekDays.friday;
+      case 5:
+        return WeekDays.saturday;
+      case 6:
+        return WeekDays.sunday;
+      default:
+        return WeekDays.monday;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, WeekDays obj) {
+    switch (obj) {
+      case WeekDays.monday:
+        writer.writeByte(0);
+        break;
+      case WeekDays.tuesday:
+        writer.writeByte(1);
+        break;
+      case WeekDays.wednesday:
+        writer.writeByte(2);
+        break;
+      case WeekDays.thursday:
+        writer.writeByte(3);
+        break;
+      case WeekDays.friday:
+        writer.writeByte(4);
+        break;
+      case WeekDays.saturday:
+        writer.writeByte(5);
+        break;
+      case WeekDays.sunday:
+        writer.writeByte(6);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is WeekDaysAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}

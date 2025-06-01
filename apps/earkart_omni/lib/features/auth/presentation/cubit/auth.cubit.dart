@@ -35,10 +35,10 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  void getCentre(String id) async {
+  void getCentre() async {
     try {
       emit(AuthLoading());
-      final centre = await getCentreUsecase(id);
+      final centre = await getCentreUsecase();
       if (centre != null) {
         emit(AuthCentreSuccess(centre: centre));
       } else {
