@@ -14,4 +14,5 @@ class Constants {
   static final loginUrl = "${baseUrl}auth/login";
   static final deviceUrl = "${baseUrl}device/find-by-value";
   static final setupDeviceUrl = "${baseUrl}device/setup";
+  static final getCentreUrl = "${baseUrl}centre/get";
 }

@@ -1,5 +1,6 @@
 import 'package:earkart_omni/config/services/dio_exceptions.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
+import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/remote/auth.remote.source.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 import 'package:dio/dio.dart';
@@ -8,7 +9,8 @@ import 'package:fluttertoast/fluttertoast.dart';
 
 class AuthRemoteSourceImpl extends AuthRemoteSource {
   final Dio dio;
-  AuthRemoteSourceImpl({required this.dio});
+  final UserEntityDataSource userEntityDataSource;
+  AuthRemoteSourceImpl({required this.dio, required this.userEntityDataSource});
   @override
   Future<UserEntity?> login(String email, String password) async {
     try {
@@ -18,6 +20,9 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
       );
       final result = UserModel.fromJson(response.data);
       if (result.success) {
+        if (result.data != null) {
+          await userEntityDataSource.addUserEntity(result.data!);
+        }
         return result.data;
       }
       return null;
@@ -26,5 +31,22 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
       Fluttertoast.showToast(msg: error);
       rethrow;
     }
+  }
+
+  @override
+  Future<UserEntity?> getCurrentUser() async {
+    final user = userEntityDataSource.getUserEntity();
+    if (user != null) {
+      return user;
+    }
+    return null;
+  }
+
+  @override
+  Future<UserEntity?> getCentre(String id) async {
+    final response = await dio.get(
+      Constants.getCentreUrl,
+      queryParameters: {"id": id},
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:earkart_omni/config/services/api_client.dart';
+import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/remote/auth.remote.source.dart';
 import 'package:earkart_omni/features/auth/data/source/remote/auth.remote.source.impl.dart';
 import 'package:earkart_omni/features/auth/data/repositories/auth.repository.impl.dart';
@@ -14,9 +15,11 @@ Future<void> setupDI() async {
   final api = API().getDio;
   di.registerLazySingleton(() => api);
 
+  di.registerLazySingleton<UserEntityDataSource>(() => UserEntityDataSource());
+
   //auth
   di.registerLazySingleton<AuthRemoteSource>(
-    () => AuthRemoteSourceImpl(dio: di.call()),
+    () => AuthRemoteSourceImpl(dio: di.call(), userEntityDataSource: di.call()),
   );
   di.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(remoteSource: di.call()),
