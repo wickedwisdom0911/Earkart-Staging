@@ -6,6 +6,7 @@ import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/utils/text_styles.dart';
 import 'package:earkart_omni/config/utils/dimensions.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
+import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -173,6 +174,10 @@ class _LoginScreenState extends State<LoginScreen>
                           listener: (context, state) {
                             if (state is AuthSuccess) {
                               Fluttertoast.showToast(msg: "Login successful");
+                              Navigator.pushReplacementNamed(
+                                context,
+                                HomeScreen.routeName,
+                              );
                             }
                             if (state is AuthError) {
                               Fluttertoast.showToast(msg: state.message);
