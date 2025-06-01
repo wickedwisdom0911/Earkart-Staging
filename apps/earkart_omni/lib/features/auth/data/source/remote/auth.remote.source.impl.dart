@@ -65,7 +65,8 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
           '${Constants.getCentreUrl}/${user.id}',
           options: Options(headers: {"Authorization": "Bearer ${user.token}"}),
         );
-        final result = centreFromJson(response.data);
+        final result = CentreModel.fromJson(response.data);
+
         if (result.success) {
           if (result.data != null) {
             await centreEntityDataSource.addCentreEntity(result.data!);
@@ -77,6 +78,7 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
       return null;
     } on DioException catch (e) {
       final error = DioExceptions.fromDioError(e).toString();
+      print("error ${error}");
       Fluttertoast.showToast(msg: error);
       rethrow;
     }

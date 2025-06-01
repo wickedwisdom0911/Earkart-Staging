@@ -4,6 +4,7 @@ import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
@@ -27,8 +28,11 @@ void main() async {
   Hive.registerAdapter(GenderAdapter());
   Hive.registerAdapter(RoleAdapter());
   Hive.registerAdapter(StatusAdapter());
+  Hive.registerAdapter(PaymentCycleAdapter());
+  Hive.registerAdapter(WeekDaysAdapter());
   Hive.registerAdapter(UserEntityAdapter());
   Hive.registerAdapter(DeviceEntityAdapter());
+  Hive.registerAdapter(CentreEntityAdapter());
   await di<UserEntityDataSource>().init();
   await di<CentreEntityDataSource>().init();
 

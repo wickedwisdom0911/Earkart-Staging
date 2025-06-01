@@ -54,7 +54,7 @@ class CentreModelData extends CentreEntity {
   final String breakTimeEnd;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  final dynamic district; // Replace with your District model if available
+  // final dynamic district; // Replace with your District model if available
   final DeviceEntity? device; // Replace with your DeviceModelData if available
 
   const CentreModelData({
@@ -81,7 +81,7 @@ class CentreModelData extends CentreEntity {
     required this.breakTimeEnd,
     this.createdAt,
     this.updatedAt,
-    this.district,
+    // this.district,
     this.device,
   }) : super(
          id: id,
@@ -105,7 +105,7 @@ class CentreModelData extends CentreEntity {
          breakTimeEnd: breakTimeEnd,
          createdAt: createdAt,
          updatedAt: updatedAt,
-         district: district,
+         // district: district,
          device: device,
        );
 
@@ -145,8 +145,8 @@ class CentreModelData extends CentreEntity {
           json['updatedAt'] != null
               ? DateTime.tryParse(json['updatedAt'])
               : null,
-      district:
-          json['district'], // Replace with District.fromJson(json['district']) if available
+      // district:
+      //     json['district'], // Replace with District.fromJson(json['district']) if available
       device:
           json['device'] != null ? DeviceEntity.fromJson(json['device']) : null,
     );

@@ -37,15 +37,18 @@ class AuthCubit extends Cubit<AuthState> {
 
   void getCentre() async {
     try {
-      emit(AuthLoading());
+      if (!isClosed) emit(AuthLoading());
       final centre = await getCentreUsecase();
-      if (centre != null) {
-        emit(AuthCentreSuccess(centre: centre));
-      } else {
-        emit(AuthError(message: "Centre not found"));
+      if (!isClosed) {
+        if (centre != null) {
+          emit(AuthCentreSuccess(centre: centre));
+        } else {
+          emit(AuthError(message: "Centre not found"));
+        }
       }
     } catch (e) {
-      emit(AuthError(message: e.toString()));
+      print("error $e");
+      if (!isClosed) emit(AuthError(message: e.toString()));
     }
   }
 
