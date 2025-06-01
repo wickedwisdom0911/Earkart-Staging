@@ -1,3 +1,5 @@
+import 'package:earkart_omni/config/widgets/gradient_button.dart';
+import 'package:earkart_omni/config/widgets/helpers.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -20,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        elevation: 1,
         automaticallyImplyLeading: false,
         title: Builder(
           builder: (context) {
@@ -37,7 +40,54 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
-      body: Column(children: [Text("Home")]),
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          children: [
+            addVerticalSpace(30),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Expanded(
+                  child: GradientButton(
+                    colors: [Colors.green, Colors.green.shade300],
+                    onPressed: () {},
+                    child: Text(
+                      "View All Patients",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+                addHorizontalSpace(30),
+                Expanded(
+                  child: GradientButton(
+                    child: Text(
+                      " Request New Consultation",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    onPressed: () {},
+                  ),
+                ),
+              ],
+            ),
+            addVerticalSpace(30),
+            Text(
+              "Past Consultations List",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: 10,
+                shrinkWrap: true,
+                itemBuilder: (context, index) {
+                  return Container(child: Text("Consultation $index"));
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
