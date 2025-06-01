@@ -40,9 +40,33 @@ enum Status {
   inactive,
 }
 
-enum PaymentCycle { monthly, quarterly, halfYearly, yearly }
+@HiveType(typeId: HiveTypes.paymentCycleEnum)
+enum PaymentCycle { 
+  @HiveField(0)
+  monthly, 
+  @HiveField(1)
+  quarterly, 
+  @HiveField(2)
+  halfYearly, 
+  @HiveField(3)
+  yearly }
 
-enum WeekDays { monday, tuesday, wednesday, thursday, friday, saturday, sunday }
+@HiveType(typeId: HiveTypes.weekdaysEnum)
+enum WeekDays { 
+  @HiveField(0)
+  monday, 
+  @HiveField(1)
+  tuesday, 
+  @HiveField(2)
+  wednesday, 
+  @HiveField(3)
+  thursday, 
+  @HiveField(4)
+  friday, 
+  @HiveField(5)
+  saturday, 
+  @HiveField(6)
+  sunday }
 
 Status statusFromApi(String value) {
   return Status.values.firstWhere(

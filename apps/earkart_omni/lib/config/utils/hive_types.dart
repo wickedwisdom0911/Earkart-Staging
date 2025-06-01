@@ -6,4 +6,6 @@ class HiveTypes {
   static const int genderEnum = 4;
   static const int roleEnum = 5;
   static const int statusEnum = 6;
+  static const int paymentCycleEnum = 7;
+  static const int weekdaysEnum = 8;
 }

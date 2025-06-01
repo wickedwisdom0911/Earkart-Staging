@@ -1,12 +1,34 @@
+import 'dart:convert';
+
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 
-// Enums matching your TS model
+CentreModel centreFromJson(String str) =>
+    CentreModel.fromJson(json.decode(str));
+String centreToJson(CentreModel data) => json.encode(data.toJson());
 
-// You can define User, District, and DeviceModelData classes as needed
-// For now, they are left as dynamic or commented for future expansion
+class CentreModel {
+  final bool success;
+  final String message;
+  final CentreModelData? data;
+
+  CentreModel({required this.success, required this.message, this.data});
+
+  factory CentreModel.fromJson(Map<String, dynamic> json) {
+    return CentreModel(
+      success: json['success'],
+      message: json['message'],
+      data:
+          json['data'] != null ? CentreModelData.fromJson(json['data']) : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'success': success, 'message': message, 'data': data?.toJson()};
+  }
+}
 
 class CentreModelData extends CentreEntity {
   final String? id;

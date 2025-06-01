@@ -17,6 +17,13 @@ class AuthSuccess extends AuthState {
   List<Object?> get props => [user];
 }
 
+class AuthCentreSuccess extends AuthState {
+  final CentreEntity centre;
+  const AuthCentreSuccess({required this.centre});
+  @override
+  List<Object?> get props => [centre];
+}
+
 class AuthError extends AuthState {
   final String message;
   const AuthError({required this.message});
