@@ -9,7 +9,7 @@ String countryModelToJson(CountryModel data) => json.encode(data.toJson());
 class CountryModel {
   final bool success;
   final String message;
-  final CountryModelData? data;
+  final List<CountryModelData>? data;
 
   CountryModel({required this.success, required this.message, this.data});
 
@@ -18,12 +18,20 @@ class CountryModel {
       success: json['success'],
       message: json['message'],
       data:
-          json['data'] != null ? CountryModelData.fromJson(json['data']) : null,
+          json['data'] != null
+              ? List<CountryModelData>.from(
+                json['data'].map((x) => CountryModelData.fromJson(x)),
+              )
+              : null,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'success': success, 'message': message, 'data': data?.toJson()};
+    return {
+      'success': success,
+      'message': message,
+      'data': data?.map((x) => x.toJson()).toList(),
+    };
   }
 }
 
@@ -84,7 +92,7 @@ String stateModelToJson(StateModel data) => json.encode(data.toJson());
 class StateModel {
   final bool success;
   final String message;
-  final StateModelData? data;
+  final List<StateModelData>? data;
 
   StateModel({required this.success, required this.message, this.data});
 
@@ -92,12 +100,21 @@ class StateModel {
     return StateModel(
       success: json['success'],
       message: json['message'],
-      data: json['data'] != null ? StateModelData.fromJson(json['data']) : null,
+      data:
+          json['data'] != null
+              ? List<StateModelData>.from(
+                json['data'].map((x) => StateModelData.fromJson(x)),
+              )
+              : null,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'success': success, 'message': message, 'data': data?.toJson()};
+    return {
+      'success': success,
+      'message': message,
+      'data': data?.map((x) => x.toJson()).toList(),
+    };
   }
 }
 
@@ -164,7 +181,7 @@ String cityModelToJson(CityModel data) => json.encode(data.toJson());
 class CityModel {
   final bool success;
   final String message;
-  final CityModelData? data;
+  final List<CityModelData>? data;
 
   CityModel({required this.success, required this.message, this.data});
 
@@ -172,12 +189,21 @@ class CityModel {
     return CityModel(
       success: json['success'],
       message: json['message'],
-      data: json['data'] != null ? CityModelData.fromJson(json['data']) : null,
+      data:
+          json['data'] != null
+              ? List<CityModelData>.from(
+                json['data'].map((x) => CityModelData.fromJson(x)),
+              )
+              : null,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'success': success, 'message': message, 'data': data?.toJson()};
+    return {
+      'success': success,
+      'message': message,
+      'data': data?.map((x) => x.toJson()).toList(),
+    };
   }
 }
 
@@ -244,7 +270,7 @@ String districtModelToJson(DistrictModel data) => json.encode(data.toJson());
 class DistrictModel {
   final bool success;
   final String message;
-  final DistrictModelData? data;
+  final List<DistrictModelData>? data;
 
   DistrictModel({required this.success, required this.message, this.data});
 
@@ -254,13 +280,19 @@ class DistrictModel {
       message: json['message'],
       data:
           json['data'] != null
-              ? DistrictModelData.fromJson(json['data'])
+              ? List<DistrictModelData>.from(
+                json['data'].map((x) => DistrictModelData.fromJson(x)),
+              )
               : null,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'success': success, 'message': message, 'data': data?.toJson()};
+    return {
+      'success': success,
+      'message': message,
+      'data': data?.map((x) => x.toJson()).toList(),
+    };
   }
 }
 

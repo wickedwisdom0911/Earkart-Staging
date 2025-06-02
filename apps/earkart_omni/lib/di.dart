@@ -11,6 +11,21 @@ import 'package:earkart_omni/features/auth/domain/usecases/get.centre.usecase.da
 import 'package:earkart_omni/features/auth/domain/usecases/get.current.user.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/login.usecase.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
+import 'package:earkart_omni/features/lookup/data/reositories/lookup.repository.impl.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/city.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/countries.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/district.entty.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/language.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/state.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/remote/lookup.remote.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/remote/lookup.remote.source.impl.dart';
+import 'package:earkart_omni/features/lookup/domain/repositories/lookup.repository.interface.dart';
+import 'package:earkart_omni/features/lookup/domain/usecases/get_cities.usecase.dart';
+import 'package:earkart_omni/features/lookup/domain/usecases/get_countries.usecase.dart';
+import 'package:earkart_omni/features/lookup/domain/usecases/get_districts.usecase.dart';
+import 'package:earkart_omni/features/lookup/domain/usecases/get_languages.usecase.dart';
+import 'package:earkart_omni/features/lookup/domain/usecases/get_states.usecase.dart';
+import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/data/source/patient.remote.source.dart';
 import 'package:earkart_omni/features/patients/data/source/patient.remote.source.impl.dart';
@@ -50,6 +65,20 @@ Future<void> setupDI() async {
   di.registerLazySingleton<PatientEntityDataSource>(
     () => PatientEntityDataSource(),
   );
+  di.registerLazySingleton<LanguageEntityDataSource>(
+    () => LanguageEntityDataSource(),
+  );
+  di.registerLazySingleton<CountryEntityDataSource>(
+    () => CountryEntityDataSource(),
+  );
+  di.registerLazySingleton<StateEntityDataSource>(
+    () => StateEntityDataSource(),
+  );
+  di.registerLazySingleton<CityEntityDataSource>(() => CityEntityDataSource());
+  di.registerLazySingleton<DistrictEntityDataSource>(
+    () => DistrictEntityDataSource(),
+  );
+
   //auth
   di.registerLazySingleton<AuthRemoteSource>(
     () => AuthRemoteSourceImpl(
@@ -103,6 +132,38 @@ Future<void> setupDI() async {
       createPatientUsecase: di.call(),
       getCurrentPatientUsecase: di.call(),
       deletePatientSessionUsecase: di.call(),
+    ),
+  );
+
+  //lookup
+  di.registerLazySingleton<ILookupRepository>(
+    () => LookupRepositoryImpl(remoteSource: di.call()),
+  );
+  di.registerLazySingleton<ILookupRemoteSource>(
+    () => LookupRemoteSourceImpl(dio: di.call()),
+  );
+  di.registerLazySingleton<GetLanguagesUsecase>(
+    () => GetLanguagesUsecase(repository: di.call()),
+  );
+  di.registerLazySingleton<GetCountriesUsecase>(
+    () => GetCountriesUsecase(repository: di.call()),
+  );
+  di.registerLazySingleton<GetStatesUsecase>(
+    () => GetStatesUsecase(repository: di.call()),
+  );
+  di.registerLazySingleton<GetCitiesUsecase>(
+    () => GetCitiesUsecase(repository: di.call()),
+  );
+  di.registerLazySingleton<GetDistrictsUsecase>(
+    () => GetDistrictsUsecase(repository: di.call()),
+  );
+  di.registerLazySingleton<LookupCubit>(
+    () => LookupCubit(
+      getLanguagesUsecase: di.call(),
+      getCountriesUsecase: di.call(),
+      getStatesUsecase: di.call(),
+      getCitiesUsecase: di.call(),
+      getDistrictsUsecase: di.call(),
     ),
   );
 }

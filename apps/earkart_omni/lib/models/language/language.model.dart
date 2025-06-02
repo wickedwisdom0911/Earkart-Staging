@@ -9,7 +9,7 @@ String languageModelToJson(LanguageModel data) => json.encode(data.toJson());
 class LanguageModel {
   final bool success;
   final String message;
-  final LanguageModelData? data;
+  final List<LanguageModelData>? data;
 
   LanguageModel({required this.success, required this.message, this.data});
 
@@ -19,13 +19,19 @@ class LanguageModel {
       message: json['message'],
       data:
           json['data'] != null
-              ? LanguageModelData.fromJson(json['data'])
+              ? List<LanguageModelData>.from(
+                json['data'].map((x) => LanguageModelData.fromJson(x)),
+              )
               : null,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'success': success, 'message': message, 'data': data?.toJson()};
+    return {
+      'success': success,
+      'message': message,
+      'data': data?.map((x) => x.toJson()).toList(),
+    };
   }
 }
 

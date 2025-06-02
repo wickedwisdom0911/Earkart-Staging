@@ -12,10 +12,20 @@ class Constants {
   static const deviceDb = "device_db";
   static const centreDb = "centre_db";
   static const patientDb = "patient_db";
+  static const countryDb = "country_db";
+  static const stateDb = "state_db";
+  static const cityDb = "city_db";
+  static const districtDb = "district_db";
+  static const languageDb = "language_db";
   static final baseUrl = dotenv.env['BASE_URL'];
   static final loginUrl = "${baseUrl}auth/login";
   static final deviceUrl = "${baseUrl}device/find-by-value";
   static final setupDeviceUrl = "${baseUrl}device/setup";
   static final getCentreUrl = "${baseUrl}centre/get";
   static final patientUrl = "${baseUrl}patient/create";
+  static final languagesUrl = "${baseUrl}language/get-all";
+  static final countriesUrl = "${baseUrl}country/get-all-countries";
+  static final statesUrl = "${baseUrl}states/get-states-by-country-id";
+  static final citiesUrl = "${baseUrl}city/get-cities-by-state-id";
+  static final districtsUrl = "${baseUrl}district/get-districts-by-city-id";
 }
