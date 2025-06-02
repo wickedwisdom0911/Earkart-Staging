@@ -37,7 +37,7 @@ class GradientButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(Dimensions.height2 * 6),
           ),
-          textStyle: CustomStyles.buttonTextStyle,
+          textStyle: CustomStyles.buttonTextStyle.copyWith(color: Colors.white),
         ),
         onPressed: onPressed,
         child: child,

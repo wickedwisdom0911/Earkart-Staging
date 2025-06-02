@@ -1,5 +1,5 @@
+import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
-import 'package:earkart_omni/models/user/user.entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
@@ -19,15 +19,15 @@ class RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<RootScreen> {
-  bool checkedUser = false;
+  bool checkedCentre = false;
   bool checkedPatient = false;
-  UserEntity? user;
+  CentreEntity? centre;
   PatientEntity? patient;
 
   @override
   void initState() {
     super.initState();
-    context.read<AuthCubit>().getCurrentUser();
+    context.read<AuthCubit>().getCentreData();
     context.read<PatientCubit>().getCurrentPatient();
   }
 
@@ -37,15 +37,15 @@ class _RootScreenState extends State<RootScreen> {
       listeners: [
         BlocListener<AuthCubit, AuthState>(
           listener: (context, state) {
-            if (state is AuthSuccess && state.user != null) {
+            if (state is AuthCentreSuccess) {
               setState(() {
-                checkedUser = true;
-                user = state.user;
+                checkedCentre = true;
+                centre = state.centre;
               });
             } else if (state is AuthError || state is AuthInitial) {
               setState(() {
-                checkedUser = true;
-                user = null;
+                checkedCentre = true;
+                centre = null;
               });
             }
           },
@@ -68,13 +68,13 @@ class _RootScreenState extends State<RootScreen> {
       ],
       child: Builder(
         builder: (context) {
-          if (!checkedUser || !checkedPatient) {
+          if (!checkedCentre || !checkedPatient) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (user != null) {
+          if (centre != null && patient == null) {
             return const HomeScreen();
           }
-          if (patient != null) {
+          if (centre != null && patient != null) {
             return const ConsultationRequestScreen();
           }
           return const LoginScreen();

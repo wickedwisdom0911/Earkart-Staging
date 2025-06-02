@@ -43,6 +43,7 @@ dependencies:
   modal_bottom_sheet: ^3.0.0
   flutter_animate: ^4.5.2
   fluttertoast: ^8.2.1
+  camera: ^0.11.1
 
 dev_dependencies:
   flutter_test:

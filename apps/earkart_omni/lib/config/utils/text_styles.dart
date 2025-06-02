@@ -59,13 +59,13 @@ class CustomStyles {
   );
   static final buttonTextStyle = GoogleFonts.montserrat(
     textStyle: TextStyle(
-      fontSize: Dimensions.height2 * 11,
+      fontSize: Dimensions.height2 * 12,
       fontWeight: FontWeight.w600,
     ),
   );
-  static final smallbuttonTextStyle = GoogleFonts.montserrat(
+  static final smallButtonTextStyle = GoogleFonts.montserrat(
     textStyle: TextStyle(
-      fontSize: Dimensions.height2 * 9,
+      fontSize: Dimensions.height2 * 10,
       fontWeight: FontWeight.w500,
     ),
   );
