@@ -3,6 +3,7 @@ import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
+import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
 import 'package:earkart_omni/models/enums.dart';
@@ -24,7 +25,20 @@ Route<dynamic> generateRoute(RouteSettings settings) {
     case AllPatientsScreen.routeName:
       return router(const AllPatientsScreen());
     case PatientFormScreen.routeName:
-      return router(const PatientFormScreen());
+      return router(
+        Builder(
+          builder: (context) {
+            return BlocProvider<LookupCubit>(
+              create:
+                  (context) =>
+                      di.call<LookupCubit>()
+                        ..getLanguages()
+                        ..getCountries(),
+              child: const PatientFormScreen(),
+            );
+          },
+        ),
+      );
     case HomeScreen.routeName:
       return router(
         Builder(
