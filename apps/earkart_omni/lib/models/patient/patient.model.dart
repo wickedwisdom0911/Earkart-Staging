@@ -53,6 +53,7 @@ class PatientModelData extends PatientEntity {
     UserEntity? creator,
     UserEntity? updater,
     LanguageEntity? language,
+    String? centreId,
   }) : super(
          id: id,
          contactNumber: contactNumber,
@@ -75,6 +76,7 @@ class PatientModelData extends PatientEntity {
          updater: updater,
          language: language,
          district: district,
+         centreId: centreId,
        );
 
   factory PatientModelData.fromJson(Map<String, dynamic> json) {
@@ -108,6 +110,7 @@ class PatientModelData extends PatientEntity {
           json['language'] != null
               ? LanguageEntity.fromJson(json['language'])
               : null,
+      centreId: json['centreId'],
     );
   }
 
@@ -134,6 +137,7 @@ class PatientModelData extends PatientEntity {
       'updater': updater?.toJson(),
       'language': language?.toJson(),
       'district': district?.toJson(),
+      'centreId': centreId,
     };
   }
 }

@@ -5,9 +5,11 @@ import 'package:earkart_omni/config/widgets/gender_selector.dart';
 import 'package:earkart_omni/config/widgets/gradient_button.dart';
 import 'package:earkart_omni/config/widgets/helpers.dart';
 import 'package:earkart_omni/di.dart';
+import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.state.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
+import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/language/language.entity.dart';
 import 'package:earkart_omni/models/locations/locations.entity.dart';
@@ -256,15 +258,30 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
               },
             ),
             addVerticalSpace(20),
-            GradientButton(
-              child: Text(
-                "Next",
-                style: CustomStyles.titleTextStyle.copyWith(
-                  color: Colors.white,
-                ),
-              ),
-              onPressed: () {
-                submitPatient();
+            BlocConsumer<PatientCubit, PatientState>(
+              listener: (context, state) {
+                if (state is PatientSuccess) {
+                  Navigator.pushNamed(
+                    context,
+                    ConsultationRequestScreen.routeName,
+                  );
+                }
+              },
+              builder: (context, state) {
+                return GradientButton(
+                  child:
+                      state is PatientLoading
+                          ? buttonLoading()
+                          : Text(
+                            state is PatientError ? "Retry" : "Next",
+                            style: CustomStyles.titleTextStyle.copyWith(
+                              color: Colors.white,
+                            ),
+                          ),
+                  onPressed: () {
+                    submitPatient();
+                  },
+                );
               },
             ),
             addVerticalSpace(20),

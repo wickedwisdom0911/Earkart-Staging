@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:earkart_omni/config/services/dio_exceptions.dart';
 import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
+import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/data/source/patient.remote.source.dart';
@@ -13,11 +14,13 @@ class PatientRemoteSourceImpl implements IPatientSource {
   final Dio dio;
   final PatientEntityDataSource patientEntityDataSource;
   final UserEntityDataSource userEntityDataSource;
+  final CentreEntityDataSource centreEntityDataSource;
 
   PatientRemoteSourceImpl({
     required this.dio,
     required this.patientEntityDataSource,
     required this.userEntityDataSource,
+    required this.centreEntityDataSource,
   });
 
   @override
@@ -25,10 +28,12 @@ class PatientRemoteSourceImpl implements IPatientSource {
     PatientEntity patient,
   ) async {
     try {
-      print("About to send request to create patient ${patient.toJson()}");
+      final patientData = patient.copyWith(
+        centreId: centreEntityDataSource.getCentreEntity()?.id,
+      );
       final response = await dio.post(
         Constants.patientUrl,
-        data: patient.toJson(),
+        data: patientData.toJson(),
         options: Options(
           headers: {
             "Authorization":
@@ -36,7 +41,6 @@ class PatientRemoteSourceImpl implements IPatientSource {
           },
         ),
       );
-      print("Response: ${response.data}");
       final result = PatientModel.fromJson(response.data);
       if (result.success) {
         return right(result.data!);

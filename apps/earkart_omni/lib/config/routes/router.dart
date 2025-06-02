@@ -2,6 +2,8 @@ import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
+import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
@@ -85,6 +87,10 @@ Route<dynamic> generateRoute(RouteSettings settings) {
           },
         ),
       );
+    case ConsultationRequestScreen.routeName:
+      return router(const ConsultationRequestScreen());
+    case ConsultationScreen.routeName:
+      return router(const ConsultationScreen());
     default:
       return CupertinoPageRoute(
         settings: settings,

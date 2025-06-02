@@ -114,6 +114,7 @@ Future<void> setupDI() async {
       dio: di.call(),
       patientEntityDataSource: di.call(),
       userEntityDataSource: di.call(),
+      centreEntityDataSource: di.call(),
     ),
   );
   di.registerLazySingleton<IPatientRepository>(
