@@ -7,7 +7,6 @@ import 'package:earkart_omni/features/patients/data/source/local/patient.entity.
 import 'package:earkart_omni/features/patients/data/source/patient.remote.source.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/patient/patient.model.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 
 class PatientRemoteSourceImpl implements IPatientSource {
   final Dio dio;
