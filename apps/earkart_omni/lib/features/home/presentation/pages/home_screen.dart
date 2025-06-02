@@ -1,6 +1,8 @@
 import 'package:earkart_omni/config/widgets/gradient_button.dart';
 import 'package:earkart_omni/config/widgets/helpers.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
+import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
+import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -61,7 +63,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: GradientButton(
                     colors: [Colors.green, Colors.green.shade300],
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.pushNamed(context, AllPatientsScreen.routeName);
+                    },
                     child: Text(
                       "View All Patients",
                       style: TextStyle(color: Colors.white),
@@ -72,10 +76,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: GradientButton(
                     child: Text(
-                      " Request New Consultation",
+                      "Request New Consultation",
                       style: TextStyle(color: Colors.white),
                     ),
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.pushNamed(context, PatientFormScreen.routeName);
+                    },
                   ),
                 ),
               ],

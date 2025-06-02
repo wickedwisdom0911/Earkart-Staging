@@ -70,7 +70,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
             padding: const EdgeInsets.only(bottom: 4.0),
             child: Text(
               widget.title.toString(),
-              style: CustomStyles.smallTitleTextStyle.copyWith(
+              style: CustomStyles.titleTextStyle.copyWith(
                 color: widget.titleColor,
               ),
             ),

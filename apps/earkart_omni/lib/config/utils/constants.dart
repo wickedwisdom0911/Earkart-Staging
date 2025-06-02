@@ -16,4 +16,5 @@ class Constants {
   static final deviceUrl = "${baseUrl}device/find-by-value";
   static final setupDeviceUrl = "${baseUrl}device/setup";
   static final getCentreUrl = "${baseUrl}centre/get";
+  static final patientUrl = "${baseUrl}patient/create";
 }
