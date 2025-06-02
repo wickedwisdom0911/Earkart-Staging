@@ -23,7 +23,7 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       name: fields[3] as String,
       email: fields[4] as String?,
       gender: fields[5] as Gender,
-      dob: fields[6] as DateTime,
+      dob: fields[6] as String,
       password: fields[7] as String?,
       address: fields[8] as String,
       districtId: fields[9] as String,

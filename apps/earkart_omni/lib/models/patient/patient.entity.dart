@@ -23,7 +23,7 @@ class PatientEntity extends Equatable {
   @HiveField(5)
   final Gender gender;
   @HiveField(6)
-  final DateTime dob;
+  final String dob;
   @HiveField(7)
   final String? password;
   @HiveField(8)
@@ -146,7 +146,7 @@ class PatientEntity extends Equatable {
     String? name,
     String? email,
     Gender? gender,
-    DateTime? dob,
+    String? dob,
     String? password,
     String? address,
     String? districtId,

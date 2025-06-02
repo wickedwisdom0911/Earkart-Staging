@@ -55,7 +55,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       code: "AAAAAA",
       name: nameController.text,
       gender: selectedGender,
-      dob: DateTime.parse(dobController.text),
+      dob: dobController.text,
       password: "",
       address: addressController.text,
       districtId: selectedDistrict?.id ?? "",
@@ -163,7 +163,8 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                       ).then((value) {
                         if (value != null) {
                           setState(() {
-                            dobController.text = value.toIso8601String();
+                            dobController.text =
+                                value.toUtc().toIso8601String();
                           });
                         }
                       });
