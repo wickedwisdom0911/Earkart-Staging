@@ -23,6 +23,8 @@ class Constants {
   static final setupDeviceUrl = "${baseUrl}device/setup";
   static final getCentreUrl = "${baseUrl}centre/get";
   static final patientUrl = "${baseUrl}patient/create";
+  static final getAllPatientsByCentreCodeUrl =
+      "${baseUrl}patient/get-by-centre-code";
   static final languagesUrl = "${baseUrl}languages/get-all";
   static final countriesUrl = "${baseUrl}country/get-all-countries";
   static final statesUrl = "${baseUrl}states/get-states-by-country-id";

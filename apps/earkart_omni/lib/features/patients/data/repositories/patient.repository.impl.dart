@@ -25,4 +25,10 @@ class PatientRepositoryImpl implements IPatientRepository {
   Future<Either<Failure, void>> clearPatientSession() async {
     return await patientRemoteSource.clearPatientSession();
   }
+
+  @override
+  Future<Either<Failure, List<PatientEntity>>>
+  getAllPatientsByCentreCode() async {
+    return await patientRemoteSource.getAllPatientsByCentreCode();
+  }
 }

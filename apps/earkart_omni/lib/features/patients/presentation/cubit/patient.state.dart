@@ -12,6 +12,9 @@ abstract class PatientState with _$PatientState {
   const factory PatientState.currentPatientSuccess({
     required PatientEntity patient,
   }) = CurrentPatientSuccess;
+  const factory PatientState.allPatientsSuccess({
+    required List<PatientEntity> patients,
+  }) = AllPatientsSuccess;
   const factory PatientState.deletePatientSessionSuccess() =
       DeletePatientSessionSuccess;
   const factory PatientState.error({required String message}) = PatientError;

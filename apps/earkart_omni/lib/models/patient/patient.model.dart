@@ -12,21 +12,36 @@ String patientModelToJson(PatientModel data) => json.encode(data.toJson());
 class PatientModel {
   final bool success;
   final String message;
-  final PatientModelData? data;
+  final dynamic data; // Can be PatientModelData or List<PatientModelData>
 
   PatientModel({required this.success, required this.message, this.data});
 
   factory PatientModel.fromJson(Map<String, dynamic> json) {
+    var dataJson = json['data'];
+    dynamic data;
+    if (dataJson is List) {
+      data = dataJson.map((e) => PatientModelData.fromJson(e)).toList();
+    } else if (dataJson is Map<String, dynamic>) {
+      data = PatientModelData.fromJson(dataJson);
+    } else {
+      data = null;
+    }
     return PatientModel(
       success: json['success'],
       message: json['message'],
-      data:
-          json['data'] != null ? PatientModelData.fromJson(json['data']) : null,
+      data: data,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'success': success, 'message': message, 'data': data?.toJson()};
+    return {
+      'success': success,
+      'message': message,
+      'data':
+          data is List
+              ? (data as List).map((e) => e.toJson()).toList()
+              : data?.toJson(),
+    };
   }
 }
 
@@ -53,7 +68,6 @@ class PatientModelData extends PatientEntity {
     UserEntity? creator,
     UserEntity? updater,
     LanguageEntity? language,
-    String? centreId,
   }) : super(
          id: id,
          contactNumber: contactNumber,
@@ -76,7 +90,6 @@ class PatientModelData extends PatientEntity {
          updater: updater,
          language: language,
          district: district,
-         centreId: centreId,
        );
 
   factory PatientModelData.fromJson(Map<String, dynamic> json) {
@@ -110,7 +123,6 @@ class PatientModelData extends PatientEntity {
           json['language'] != null
               ? LanguageEntity.fromJson(json['language'])
               : null,
-      centreId: json['centreId'],
     );
   }
 
@@ -137,7 +149,6 @@ class PatientModelData extends PatientEntity {
       'updater': updater?.toJson(),
       'language': language?.toJson(),
       'district': district?.toJson(),
-      'centreId': centreId,
     };
   }
 }

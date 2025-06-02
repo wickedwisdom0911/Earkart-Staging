@@ -134,6 +134,7 @@ Future<void> setupDI() async {
       createPatientUsecase: di.call(),
       getCurrentPatientUsecase: di.call(),
       deletePatientSessionUsecase: di.call(),
+      getAllPatientByCentreCodeUsecase: di.call(),
     ),
   );
 

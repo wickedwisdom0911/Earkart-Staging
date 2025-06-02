@@ -4,6 +4,7 @@ import 'package:earkart_omni/models/patient/patient.entity.dart';
 
 abstract class IPatientSource {
   Future<Either<Failure, PatientEntity>> createPatient(PatientEntity patient);
+  Future<Either<Failure, List<PatientEntity>>> getAllPatientsByCentreCode();
   Future<Either<Failure, PatientEntity>> getCurrentPatient();
   Future<Either<Failure, void>> clearPatientSession();
 }

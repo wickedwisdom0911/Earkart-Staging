@@ -44,8 +44,6 @@ class PatientEntity extends Equatable {
   final String languageId;
   @HiveField(16)
   final Status? status;
-  @HiveField(17)
-  final String? centreId;
 
   // Relations (use dynamic or Object? as placeholder)
   @HiveField(18)
@@ -79,7 +77,6 @@ class PatientEntity extends Equatable {
     this.creator,
     this.updater,
     this.language,
-    this.centreId,
   });
 
   factory PatientEntity.fromJson(Map<String, dynamic> json) {
@@ -113,7 +110,6 @@ class PatientEntity extends Equatable {
           json['language'] != null
               ? LanguageEntity.fromJson(json['language'])
               : null,
-      centreId: json['centreId'],
     );
   }
 
@@ -140,7 +136,6 @@ class PatientEntity extends Equatable {
       'creator': creator?.toJson(),
       'updater': updater?.toJson(),
       'language': language?.toJson(),
-      'centreId': centreId,
     };
   }
 
@@ -166,7 +161,6 @@ class PatientEntity extends Equatable {
     UserEntity? creator,
     UserEntity? updater,
     LanguageEntity? language,
-    String? centreId,
   }) {
     return PatientEntity(
       id: id ?? this.id,
@@ -190,7 +184,6 @@ class PatientEntity extends Equatable {
       creator: creator ?? this.creator,
       updater: updater ?? this.updater,
       language: language ?? this.language,
-      centreId: centreId ?? this.centreId,
     );
   }
 
@@ -217,6 +210,5 @@ class PatientEntity extends Equatable {
     creator,
     updater,
     language,
-    centreId,
   ];
 }

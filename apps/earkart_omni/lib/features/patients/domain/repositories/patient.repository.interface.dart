@@ -6,4 +6,5 @@ abstract class IPatientRepository {
   Future<Either<Failure, PatientEntity>> createPatient(PatientEntity patient);
   Future<Either<Failure, PatientEntity>> getCurrentPatient();
   Future<Either<Failure, void>> clearPatientSession();
+  Future<Either<Failure, List<PatientEntity>>> getAllPatientsByCentreCode();
 }
