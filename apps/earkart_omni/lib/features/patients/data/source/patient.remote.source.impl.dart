@@ -41,6 +41,7 @@ class PatientRemoteSourceImpl implements IPatientSource {
       );
       final result = PatientModel.fromJson(response.data);
       if (result.success) {
+        patientEntityDataSource.addPatientEntity(result.data!);
         return right(result.data!);
       } else {
         return left(UnKnownFailure(error: result.message));

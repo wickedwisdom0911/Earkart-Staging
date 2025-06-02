@@ -3,7 +3,7 @@ import 'package:earkart_omni/config/theme/theme_manager.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
-import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
@@ -52,7 +52,7 @@ void main() async {
       title: "EarKart Omni",
       debugShowCheckedModeBanner: false,
       theme: theme,
-      initialRoute: LoginScreen.routeName,
+      initialRoute: RootScreen.routeName,
       onGenerateRoute: (settings) => generateRoute(settings),
     ),
   );

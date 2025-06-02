@@ -1,15 +1,14 @@
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
-import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
+import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
-import 'package:earkart_omni/models/enums.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -58,39 +57,38 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       );
 
     case LoginScreen.routeName:
+      return router(const LoginScreen());
+    case ConsultationRequestScreen.routeName:
       return router(
         Builder(
           builder: (context) {
-            return BlocProvider<AuthCubit>(
-              create: (context) => di.call<AuthCubit>()..getCurrentUser(),
-
-              child: BlocBuilder<AuthCubit, AuthState>(
-                builder: (context, state) {
-                  if (state is AuthInitial) {
-                    return const LoginScreen();
-                  }
-                  if (state is AuthLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (state is AuthSuccess) {
-                    if (state.user?.role == Role.centre) {
-                      return const HomeScreen();
-                    }
-                    return const LoginScreen();
-                  } else if (state is AuthCentreSuccess) {
-                    return const HomeScreen();
-                  }
-                  return const LoginScreen();
-                },
-              ),
+            return BlocProvider<PatientCubit>(
+              create: (context) => di.call<PatientCubit>(),
+              child: const ConsultationRequestScreen(),
             );
           },
         ),
       );
-    case ConsultationRequestScreen.routeName:
-      return router(const ConsultationRequestScreen());
     case ConsultationScreen.routeName:
       return router(const ConsultationScreen());
+    case RootScreen.routeName:
+      return router(
+        Builder(
+          builder: (context) {
+            return MultiBlocProvider(
+              providers: [
+                BlocProvider<AuthCubit>(
+                  create: (context) => di.call<AuthCubit>(),
+                ),
+                BlocProvider<PatientCubit>(
+                  create: (context) => di.call<PatientCubit>(),
+                ),
+              ],
+              child: const RootScreen(),
+            );
+          },
+        ),
+      );
     default:
       return CupertinoPageRoute(
         settings: settings,
