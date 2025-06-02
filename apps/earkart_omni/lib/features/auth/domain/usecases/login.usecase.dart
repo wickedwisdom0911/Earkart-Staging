@@ -1,3 +1,5 @@
+import 'package:dartz/dartz.dart';
+import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/features/auth/domain/repositories/auth.repository.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 
@@ -6,7 +8,10 @@ class LoginUseCase {
 
   LoginUseCase(this._authRepository);
 
-  Future<UserEntity?> call(String email, String password) async {
+  Future<Either<Failure, UserEntity>> call(
+    String email,
+    String password,
+  ) async {
     return await _authRepository.login(email, password);
   }
 }

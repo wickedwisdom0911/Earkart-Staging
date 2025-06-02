@@ -22,61 +22,38 @@ class AuthCubit extends Cubit<AuthState> {
   }) : super(AuthInitial());
 
   void login(String email, String password) async {
-    try {
-      emit(AuthLoading());
-      final user = await loginUseCase(email, password);
-      if (user != null) {
-        emit(AuthSuccess(user: user));
-      } else {
-        emit(AuthError(message: "Login failed"));
-      }
-    } catch (e) {
-      emit(AuthError(message: e.toString()));
-    }
+    emit(AuthLoading());
+    final user = await loginUseCase(email, password);
+    user.fold(
+      (failure) => emit(AuthError(message: failure.message)),
+      (user) => emit(AuthSuccess(user: user)),
+    );
   }
 
   void getCentre() async {
-    try {
-      if (!isClosed) emit(AuthLoading());
-      final centre = await getCentreUsecase();
-      if (!isClosed) {
-        if (centre != null) {
-          emit(AuthCentreSuccess(centre: centre));
-        } else {
-          emit(AuthError(message: "Centre not found"));
-        }
-      }
-    } catch (e) {
-      print("error $e");
-      if (!isClosed) emit(AuthError(message: e.toString()));
-    }
+    if (!isClosed) emit(AuthLoading());
+    final centre = await getCentreUsecase();
+    centre.fold(
+      (failure) => emit(AuthError(message: failure.message)),
+      (centre) => emit(AuthCentreSuccess(centre: centre)),
+    );
   }
 
   void getCentreData() async {
-    try {
-      emit(AuthLoading());
-      final centreData = await getCentreDataUsecase();
-      if (centreData != null) {
-        emit(AuthCentreSuccess(centre: centreData));
-      } else {
-        emit(AuthError(message: "Centre data not found"));
-      }
-    } catch (e) {
-      emit(AuthError(message: e.toString()));
-    }
+    emit(AuthLoading());
+    final centreData = await getCentreDataUsecase();
+    centreData.fold(
+      (failure) => emit(AuthError(message: failure.message)),
+      (centreData) => emit(AuthCentreSuccess(centre: centreData)),
+    );
   }
 
   void getCurrentUser() async {
-    try {
-      emit(AuthLoading());
-      final currentUser = await getCurrentUserUsecase();
-      if (currentUser != null) {
-        emit(AuthSuccess(user: currentUser));
-      } else {
-        emit(AuthError(message: "Current user not found"));
-      }
-    } catch (e) {
-      emit(AuthError(message: e.toString()));
-    }
+    emit(AuthLoading());
+    final currentUser = await getCurrentUserUsecase();
+    currentUser.fold(
+      (failure) => emit(AuthError(message: failure.message)),
+      (currentUser) => emit(AuthSuccess(user: currentUser)),
+    );
   }
 }
