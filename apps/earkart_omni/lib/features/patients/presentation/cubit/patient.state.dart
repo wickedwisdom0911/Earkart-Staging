@@ -1,32 +1,18 @@
-part of 'patient.cubit.dart';
+import 'package:earkart_omni/models/patient/patient.entity.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-abstract class PatientState extends Equatable {
-  const PatientState();
-  @override
-  List<Object?> get props => [];
-}
+part 'patient.state.freezed.dart';
 
-class PatientInitial extends PatientState {}
-
-class PatientLoading extends PatientState {}
-
-class PatientSuccess extends PatientState {
-  final PatientEntity patient;
-  const PatientSuccess({required this.patient});
-  @override
-  List<Object?> get props => [patient];
-}
-
-class CurrentPatientSuccess extends PatientState {
-  final PatientEntity patient;
-  const CurrentPatientSuccess({required this.patient});
-  @override
-  List<Object?> get props => [patient];
-}
-
-class DeletePatientSessionSuccess extends PatientState {}
-
-class PatientError extends PatientState {
-  final String message;
-  const PatientError({required this.message});
+@freezed
+abstract class PatientState with _$PatientState {
+  const factory PatientState.initial() = PatientInitial;
+  const factory PatientState.loading() = PatientLoading;
+  const factory PatientState.success({required PatientEntity patient}) =
+      PatientSuccess;
+  const factory PatientState.currentPatientSuccess({
+    required PatientEntity patient,
+  }) = CurrentPatientSuccess;
+  const factory PatientState.deletePatientSessionSuccess() =
+      DeletePatientSessionSuccess;
+  const factory PatientState.error({required String message}) = PatientError;
 }

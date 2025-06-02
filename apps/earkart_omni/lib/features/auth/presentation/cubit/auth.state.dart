@@ -1,32 +1,15 @@
-part of "auth.cubit.dart";
+import 'package:earkart_omni/models/user/user.entity.dart';
+import 'package:earkart_omni/models/centre/centre.entity.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-abstract class AuthState extends Equatable {
-  const AuthState();
-  @override
-  List<Object?> get props => [];
-}
+part 'auth.state.freezed.dart';
 
-class AuthInitial extends AuthState {}
-
-class AuthLoading extends AuthState {}
-
-class AuthSuccess extends AuthState {
-  final UserEntity user;
-  const AuthSuccess({required this.user});
-  @override
-  List<Object?> get props => [user];
-}
-
-class AuthCentreSuccess extends AuthState {
-  final CentreEntity centre;
-  const AuthCentreSuccess({required this.centre});
-  @override
-  List<Object?> get props => [centre];
-}
-
-class AuthError extends AuthState {
-  final String message;
-  const AuthError({required this.message});
-  @override
-  List<Object?> get props => [message];
+@freezed
+class AuthState with _$AuthState {
+  const factory AuthState.initial() = AuthInitial;
+  const factory AuthState.loading() = AuthLoading;
+  const factory AuthState.success({required UserEntity user}) = AuthSuccess;
+  const factory AuthState.centreSuccess({required CentreEntity centre}) =
+      AuthCentreSuccess;
+  const factory AuthState.error({required String message}) = AuthError;
 }

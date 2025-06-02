@@ -1,11 +1,9 @@
 import 'package:earkart_omni/features/patients/domain/usecases/create_patient.usecase.dart';
 import 'package:earkart_omni/features/patients/domain/usecases/delete_patient_session.usecase.dart';
 import 'package:earkart_omni/features/patients/domain/usecases/get_current_patient.usecase.dart';
+import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
-import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-part 'patient.state.dart';
 
 class PatientCubit extends Cubit<PatientState> {
   final CreatePatientUsecase createPatientUsecase;

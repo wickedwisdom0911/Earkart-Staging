@@ -36,6 +36,7 @@ dependencies:
   package_info_plus: any
   device_info_plus: ^11.4.0
   dartz: ^0.10.1
+  freezed_annotation: ^2.4.1
 
   #ui
   figma_squircle: ^0.6.3
@@ -49,7 +50,8 @@ dev_dependencies:
 
   flutter_lints: ^5.0.0
   build_runner: ^2.3.3
-  hive_generator: ^2.0.0
+  hive_generator: ^2.0.1
+  freezed: ^2.4.5
 
 flutter:
   uses-material-design: true

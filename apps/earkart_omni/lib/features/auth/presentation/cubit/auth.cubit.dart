@@ -2,12 +2,8 @@ import 'package:earkart_omni/features/auth/domain/usecases/get.centre.usecase.da
 import 'package:earkart_omni/features/auth/domain/usecases/get.centre.data.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/get.current.user.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/login.usecase.dart';
+import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:equatable/equatable.dart';
-import 'package:earkart_omni/models/user/user.entity.dart';
-import 'package:earkart_omni/models/centre/centre.entity.dart';
-
-part 'auth.state.dart';
 
 class AuthCubit extends Cubit<AuthState> {
   final LoginUseCase loginUseCase;
