@@ -1,5 +1,7 @@
+import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:earkart_omni/config/services/dio_exceptions.dart';
+import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/data/source/patient.remote.source.dart';
@@ -17,7 +19,9 @@ class PatientRemoteSourceImpl implements IPatientSource {
   });
 
   @override
-  Future<PatientEntity?> createPatient(PatientEntity patient) async {
+  Future<Either<Failure, PatientEntity>> createPatient(
+    PatientEntity patient,
+  ) async {
     try {
       final response = await dio.post(
         Constants.patientUrl,
@@ -25,24 +29,34 @@ class PatientRemoteSourceImpl implements IPatientSource {
       );
       final result = PatientModel.fromJson(response.data);
       if (result.success) {
-        return result.data;
+        return right(result.data!);
       } else {
-        return null;
+        return left(UnKnownFailure(error: result.message));
       }
     } on DioException catch (e) {
-      final error = DioExceptions.fromDioError(e).toString();
-      Fluttertoast.showToast(msg: error);
-      rethrow;
+      final error = DioExceptions.fromDioError(e).toFailure();
+      return left(error);
+    } catch (e) {
+      return left(UnKnownFailure(error: e.toString()));
     }
   }
 
   @override
-  Future<PatientEntity?> getCurrentPatient() async {
-    return patientEntityDataSource.getPatientEntity();
+  Future<Either<Failure, PatientEntity>> getCurrentPatient() async {
+    final patient = patientEntityDataSource.getPatientEntity();
+    if (patient != null) {
+      return right(patient);
+    }
+    return left(UnKnownFailure(error: "Failed to get current patient"));
   }
 
   @override
-  Future<void> clearPatientSession() async {
-    await patientEntityDataSource.clearBox();
+  Future<Either<Failure, void>> clearPatientSession() async {
+    try {
+      await patientEntityDataSource.clearBox();
+      return right(null);
+    } catch (e) {
+      return left(UnKnownFailure(error: e.toString()));
+    }
   }
 }

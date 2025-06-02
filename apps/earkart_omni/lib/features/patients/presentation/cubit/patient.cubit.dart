@@ -19,39 +19,28 @@ class PatientCubit extends Cubit<PatientState> {
 
   void createPatient(PatientEntity patient) async {
     emit(PatientLoading());
-    try {
-      final result = await createPatientUsecase(patient);
-      if (result != null) {
-        emit(PatientSuccess(patient: result));
-      } else {
-        emit(PatientError(message: "Failed to create patient"));
-      }
-    } catch (e) {
-      emit(PatientError(message: e.toString()));
-    }
+    final result = await createPatientUsecase(patient);
+    result.fold(
+      (failure) => emit(PatientError(message: failure.message)),
+      (patient) => emit(PatientSuccess(patient: patient)),
+    );
   }
 
   void getCurrentPatient() async {
     emit(PatientLoading());
-    try {
-      final result = await getCurrentPatientUsecase();
-      if (result != null) {
-        emit(CurrentPatientSuccess(patient: result));
-      } else {
-        emit(PatientError(message: "Failed to get current patient"));
-      }
-    } catch (e) {
-      emit(PatientError(message: e.toString()));
-    }
+    final result = await getCurrentPatientUsecase();
+    result.fold(
+      (failure) => emit(PatientError(message: failure.message)),
+      (patient) => emit(CurrentPatientSuccess(patient: patient)),
+    );
   }
 
   void deletePatientSession() async {
     emit(PatientLoading());
-    try {
-      await deletePatientSessionUsecase();
-      emit(DeletePatientSessionSuccess());
-    } catch (e) {
-      emit(PatientError(message: e.toString()));
-    }
+    final result = await deletePatientSessionUsecase();
+    result.fold(
+      (failure) => emit(PatientError(message: failure.message)),
+      (patient) => emit(DeletePatientSessionSuccess()),
+    );
   }
 }
