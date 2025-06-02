@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
+import 'package:earkart_omni/models/locations/locations.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 
 CentreModel centreFromJson(String str) =>
@@ -54,7 +55,8 @@ class CentreModelData extends CentreEntity {
   final String breakTimeEnd;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  // final dynamic district; // Replace with your District model if available
+  final DistrictEntity?
+  district; // Replace with your District model if available
   final DeviceEntity? device; // Replace with your DeviceModelData if available
 
   const CentreModelData({
@@ -81,7 +83,7 @@ class CentreModelData extends CentreEntity {
     required this.breakTimeEnd,
     this.createdAt,
     this.updatedAt,
-    // this.district,
+    this.district,
     this.device,
   }) : super(
          id: id,
@@ -105,7 +107,7 @@ class CentreModelData extends CentreEntity {
          breakTimeEnd: breakTimeEnd,
          createdAt: createdAt,
          updatedAt: updatedAt,
-         // district: district,
+         district: district,
          device: device,
        );
 
@@ -145,8 +147,10 @@ class CentreModelData extends CentreEntity {
           json['updatedAt'] != null
               ? DateTime.tryParse(json['updatedAt'])
               : null,
-      // district:
-      //     json['district'], // Replace with District.fromJson(json['district']) if available
+      district:
+          json['district'] != null
+              ? DistrictEntity.fromJson(json['district'])
+              : null,
       device:
           json['device'] != null ? DeviceEntity.fromJson(json['device']) : null,
     );
@@ -175,6 +179,8 @@ class CentreModelData extends CentreEntity {
       'workingTimeEnd': workingTimeEnd,
       'breakTimeStart': breakTimeStart,
       'breakTimeEnd': breakTimeEnd,
+      'district': district?.toJson(),
+      'device': device?.toJson(),
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };

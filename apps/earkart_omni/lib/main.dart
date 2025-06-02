@@ -7,6 +7,9 @@ import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart'
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
+import 'package:earkart_omni/models/language/language.entity.dart';
+import 'package:earkart_omni/models/locations/locations.entity.dart';
+import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -33,6 +36,13 @@ void main() async {
   Hive.registerAdapter(UserEntityAdapter());
   Hive.registerAdapter(DeviceEntityAdapter());
   Hive.registerAdapter(CentreEntityAdapter());
+  Hive.registerAdapter(LanguageEntityAdapter());
+  Hive.registerAdapter(StateEntityAdapter());
+  Hive.registerAdapter(CityEntityAdapter());
+  Hive.registerAdapter(DistrictEntityAdapter());
+  Hive.registerAdapter(PatientEntityAdapter());
+  Hive.registerAdapter(CountryEntityAdapter());
+
   await di<UserEntityDataSource>().init();
   await di<CentreEntityDataSource>().init();
 

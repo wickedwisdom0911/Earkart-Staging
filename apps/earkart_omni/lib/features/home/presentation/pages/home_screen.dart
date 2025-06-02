@@ -16,6 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     context.read<AuthCubit>().getCentre();
+    context.read<AuthCubit>().getCentreData();
   }
 
   @override
@@ -32,7 +33,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   return Text(state.message);
                 }
                 if (state is AuthCentreSuccess) {
-                  return Text(state.centre.user?.name ?? "Centre Dashboard");
+                  return Column(
+                    children: [
+                      Text(state.centre.user?.name ?? "Centre Dashboard"),
+                      Text(
+                        state.centre.code,
+                        style: TextStyle(fontSize: 10, color: Colors.grey),
+                      ),
+                    ],
+                  );
                 }
                 return Text("Centre Dashboard");
               },
