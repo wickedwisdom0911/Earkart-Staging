@@ -86,6 +86,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                       showDatePicker(
                         context: context,
                         firstDate: DateTime(1900),
+                        initialEntryMode: DatePickerEntryMode.input,
                         lastDate: DateTime.now(),
                       ).then((value) {
                         if (value != null) {}
