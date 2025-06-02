@@ -1,6 +1,21 @@
+"use client";
+import { io } from "socket.io-client";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
+import { useEffect } from "react";
+const socket = io(process.env.BASE_SOCKET_URL_DEV);
 
 export default function DashboardPage() {
+  useEffect(() => {
+    socket.on("connect", () => {
+      console.log("Connected to socket");
+    });
+    socket.emit("join_consultation", {
+      consultationId: "123",
+    });
+    socket.on("joined", (data) => {
+      console.log("joined", data);
+    });
+  }, []);
   return (
     <DashboardBodyWrapper>
       <div className="w-full mb-8">

@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
     JWT_SECRET: process.env.JWT_SECRET,
     JWT_EXPIRE: process.env.JWT_EXPIRE,
     COOKIE_EXPIRE: process.env.COOKIE_EXPIRE,
+    BASE_SOCKET_URL_PROD: process.env.BASE_SOCKET_URL_PROD,
+    BASE_SOCKET_URL_DEV: process.env.BASE_SOCKET_URL_DEV,
   },
 };
 

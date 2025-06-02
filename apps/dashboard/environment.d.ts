@@ -9,6 +9,8 @@ declare global {
       IS_PRODUCTION: string;
       BASE_API_URL_PROD: string;
       BASE_API_URL_DEV: string;
+      BASE_SOCKET_URL_PROD: string;
+      BASE_SOCKET_URL_DEV: string;
     }
   }
 }
