@@ -1,6 +1,7 @@
 import 'package:earkart_omni/config/utils/hive_types.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
+import 'package:earkart_omni/models/locations/locations.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 import 'package:equatable/equatable.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -55,8 +56,8 @@ class CentreEntity extends Equatable {
   final DateTime? createdAt;
   @HiveField(22)
   final DateTime? updatedAt;
-  // @HiveField(23)
-  // final dynamic district; // Replace with DistrictEntity if available
+  @HiveField(23)
+  final DistrictEntity? district; // Replace with DistrictEntity if available
   @HiveField(24)
   final DeviceEntity? device;
 
@@ -84,7 +85,7 @@ class CentreEntity extends Equatable {
     required this.breakTimeEnd,
     this.createdAt,
     this.updatedAt,
-    // this.district,
+    this.district,
     this.device,
   });
 
@@ -125,8 +126,10 @@ class CentreEntity extends Equatable {
           json['updatedAt'] != null
               ? DateTime.tryParse(json['updatedAt'])
               : null,
-      // district:
-      //     json['district'], // Replace with DistrictEntity.fromJson(json['district']) if available
+      district:
+          json['district'] != null
+              ? DistrictEntity.fromJson(json['district'])
+              : null,
       device:
           json['device'] != null ? DeviceEntity.fromJson(json['device']) : null,
     );
@@ -157,7 +160,7 @@ class CentreEntity extends Equatable {
       'breakTimeEnd': breakTimeEnd,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
-      // 'district': district, // Replace with district?.toJson() if available
+      'district': district?.toJson(),
       'device': device?.toJson(),
     };
   }
@@ -187,7 +190,7 @@ class CentreEntity extends Equatable {
     breakTimeEnd,
     createdAt,
     updatedAt,
-    // district,
+    district,
     device,
   ];
 }

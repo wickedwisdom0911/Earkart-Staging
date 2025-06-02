@@ -40,6 +40,7 @@ class CentreEntityAdapter extends TypeAdapter<CentreEntity> {
       breakTimeEnd: fields[20] as String,
       createdAt: fields[21] as DateTime?,
       updatedAt: fields[22] as DateTime?,
+      district: fields[23] as DistrictEntity?,
       device: fields[24] as DeviceEntity?,
     );
   }
@@ -47,7 +48,7 @@ class CentreEntityAdapter extends TypeAdapter<CentreEntity> {
   @override
   void write(BinaryWriter writer, CentreEntity obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -94,6 +95,8 @@ class CentreEntityAdapter extends TypeAdapter<CentreEntity> {
       ..write(obj.createdAt)
       ..writeByte(22)
       ..write(obj.updatedAt)
+      ..writeByte(23)
+      ..write(obj.district)
       ..writeByte(24)
       ..write(obj.device);
   }

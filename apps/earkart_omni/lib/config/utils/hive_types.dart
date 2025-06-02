@@ -8,4 +8,9 @@ class HiveTypes {
   static const int statusEnum = 6;
   static const int paymentCycleEnum = 7;
   static const int weekdaysEnum = 8;
+  static const int districtEntity = 9;
+  static const int cityEntity = 10;
+  static const int stateEntity = 11;
+  static const int countryEntity = 12;
+  static const int languageEntity = 13;
 }
