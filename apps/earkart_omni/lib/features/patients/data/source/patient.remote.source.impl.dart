@@ -1,14 +1,20 @@
 import 'package:dio/dio.dart';
 import 'package:earkart_omni/config/services/dio_exceptions.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
+import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/data/source/patient.remote.source.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
+import 'package:earkart_omni/models/patient/patient.model.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
-class PatientRemoteSource implements IPatientSource {
+class PatientRemoteSourceImpl implements IPatientSource {
   final Dio dio;
+  final PatientEntityDataSource patientEntityDataSource;
 
-  PatientRemoteSource({required this.dio});
+  PatientRemoteSourceImpl({
+    required this.dio,
+    required this.patientEntityDataSource,
+  });
 
   @override
   Future<PatientEntity?> createPatient(PatientEntity patient) async {
@@ -17,11 +23,26 @@ class PatientRemoteSource implements IPatientSource {
         Constants.patientUrl,
         data: patient.toJson(),
       );
-      return PatientEntity.fromJson(response.data);
+      final result = PatientModel.fromJson(response.data);
+      if (result.success) {
+        return result.data;
+      } else {
+        return null;
+      }
     } on DioException catch (e) {
       final error = DioExceptions.fromDioError(e).toString();
       Fluttertoast.showToast(msg: error);
       rethrow;
     }
+  }
+
+  @override
+  Future<PatientEntity?> getCurrentPatient() async {
+    return patientEntityDataSource.getPatientEntity();
+  }
+
+  @override
+  Future<void> clearPatientSession() async {
+    await patientEntityDataSource.clearBox();
   }
 }

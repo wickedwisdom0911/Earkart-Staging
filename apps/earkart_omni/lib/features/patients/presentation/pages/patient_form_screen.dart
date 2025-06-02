@@ -1,4 +1,3 @@
-import 'package:earkart_omni/config/utils/dimensions.dart';
 import 'package:earkart_omni/config/widgets/custom_text_field.dart';
 import 'package:earkart_omni/config/widgets/gender_selector.dart';
 import 'package:earkart_omni/config/widgets/helpers.dart';

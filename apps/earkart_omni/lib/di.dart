@@ -10,6 +10,15 @@ import 'package:earkart_omni/features/auth/domain/usecases/get.centre.usecase.da
 import 'package:earkart_omni/features/auth/domain/usecases/get.current.user.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/login.usecase.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
+import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
+import 'package:earkart_omni/features/patients/data/source/patient.remote.source.dart';
+import 'package:earkart_omni/features/patients/data/source/patient.remote.source.impl.dart';
+import 'package:earkart_omni/features/patients/data/repositories/patient.repository.impl.dart';
+import 'package:earkart_omni/features/patients/domain/repositories/patient.repository.interface.dart';
+import 'package:earkart_omni/features/patients/domain/usecases/create_patient.usecase.dart';
+import 'package:earkart_omni/features/patients/domain/usecases/delete_patient_session.usecase.dart';
+import 'package:earkart_omni/features/patients/domain/usecases/get_current_patient.usecase.dart';
+import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 
 import 'package:get_it/get_it.dart';
 
@@ -22,6 +31,9 @@ Future<void> setupDI() async {
   di.registerLazySingleton<UserEntityDataSource>(() => UserEntityDataSource());
   di.registerLazySingleton<CentreEntityDataSource>(
     () => CentreEntityDataSource(),
+  );
+  di.registerLazySingleton<PatientEntityDataSource>(
+    () => PatientEntityDataSource(),
   );
   //auth
   di.registerLazySingleton<AuthRemoteSource>(
@@ -50,6 +62,32 @@ Future<void> setupDI() async {
       getCentreUsecase: di.call(),
       getCentreDataUsecase: di.call(),
       getCurrentUserUsecase: di.call(),
+    ),
+  );
+  //patient
+  di.registerLazySingleton<IPatientSource>(
+    () => PatientRemoteSourceImpl(
+      dio: di.call(),
+      patientEntityDataSource: di.call(),
+    ),
+  );
+  di.registerLazySingleton<IPatientRepository>(
+    () => PatientRepositoryImpl(patientRemoteSource: di.call()),
+  );
+  di.registerLazySingleton<CreatePatientUsecase>(
+    () => CreatePatientUsecase(di.call()),
+  );
+  di.registerLazySingleton<GetCurrentPatientUsecase>(
+    () => GetCurrentPatientUsecase(patientRepository: di.call()),
+  );
+  di.registerLazySingleton<DeletePatientSessionUsecase>(
+    () => DeletePatientSessionUsecase(patientRepository: di.call()),
+  );
+  di.registerLazySingleton<PatientCubit>(
+    () => PatientCubit(
+      createPatientUsecase: di.call(),
+      getCurrentPatientUsecase: di.call(),
+      deletePatientSessionUsecase: di.call(),
     ),
   );
 }

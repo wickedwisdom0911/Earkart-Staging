@@ -4,6 +4,7 @@ import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
@@ -42,10 +43,11 @@ void main() async {
   Hive.registerAdapter(DistrictEntityAdapter());
   Hive.registerAdapter(PatientEntityAdapter());
   Hive.registerAdapter(CountryEntityAdapter());
+  Hive.registerAdapter(PatientEntityAdapter());
 
   await di<UserEntityDataSource>().init();
   await di<CentreEntityDataSource>().init();
-
+  await di<PatientEntityDataSource>().init();
   runApp(
     GetMaterialApp(
       title: "EarKart Omni",
