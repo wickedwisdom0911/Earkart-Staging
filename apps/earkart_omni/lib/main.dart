@@ -21,7 +21,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 void main() async {
   await dotenv.load(fileName: ".env");
-  WidgetsFlutterBinding.ensureInitialized;
+  WidgetsFlutterBinding.ensureInitialized();
   //locking device orientation
   SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]);
   // FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
@@ -43,7 +43,6 @@ void main() async {
   Hive.registerAdapter(DistrictEntityAdapter());
   Hive.registerAdapter(PatientEntityAdapter());
   Hive.registerAdapter(CountryEntityAdapter());
-  Hive.registerAdapter(PatientEntityAdapter());
 
   await di<UserEntityDataSource>().init();
   await di<CentreEntityDataSource>().init();
