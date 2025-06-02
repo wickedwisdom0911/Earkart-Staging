@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:earkart_omni/config/services/dio_exceptions.dart';
 import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
+import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/data/source/patient.remote.source.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
@@ -11,10 +12,12 @@ import 'package:earkart_omni/models/patient/patient.model.dart';
 class PatientRemoteSourceImpl implements IPatientSource {
   final Dio dio;
   final PatientEntityDataSource patientEntityDataSource;
+  final UserEntityDataSource userEntityDataSource;
 
   PatientRemoteSourceImpl({
     required this.dio,
     required this.patientEntityDataSource,
+    required this.userEntityDataSource,
   });
 
   @override
@@ -25,6 +28,12 @@ class PatientRemoteSourceImpl implements IPatientSource {
       final response = await dio.post(
         Constants.patientUrl,
         data: patient.toJson(),
+        options: Options(
+          headers: {
+            "Authorization":
+                "Bearer ${userEntityDataSource.getUserEntity()?.token}",
+          },
+        ),
       );
       final result = PatientModel.fromJson(response.data);
       if (result.success) {

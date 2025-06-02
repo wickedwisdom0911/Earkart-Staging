@@ -20,7 +20,7 @@ mixin _$AuthState {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserEntity user) success,
+    required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
     required TResult Function(String message) error,
   }) =>
@@ -29,7 +29,7 @@ mixin _$AuthState {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserEntity user)? success,
+    TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
     TResult? Function(String message)? error,
   }) =>
@@ -38,7 +38,7 @@ mixin _$AuthState {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserEntity user)? success,
+    TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -137,7 +137,7 @@ class _$AuthInitialImpl implements AuthInitial {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserEntity user) success,
+    required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
     required TResult Function(String message) error,
   }) {
@@ -149,7 +149,7 @@ class _$AuthInitialImpl implements AuthInitial {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserEntity user)? success,
+    TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -161,7 +161,7 @@ class _$AuthInitialImpl implements AuthInitial {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserEntity user)? success,
+    TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -260,7 +260,7 @@ class _$AuthLoadingImpl implements AuthLoading {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserEntity user) success,
+    required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
     required TResult Function(String message) error,
   }) {
@@ -272,7 +272,7 @@ class _$AuthLoadingImpl implements AuthLoading {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserEntity user)? success,
+    TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -284,7 +284,7 @@ class _$AuthLoadingImpl implements AuthLoading {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserEntity user)? success,
+    TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -346,7 +346,7 @@ abstract class _$$AuthSuccessImplCopyWith<$Res> {
           _$AuthSuccessImpl value, $Res Function(_$AuthSuccessImpl) then) =
       __$$AuthSuccessImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({UserEntity user});
+  $Res call({UserEntity? user});
 }
 
 /// @nodoc
@@ -362,13 +362,13 @@ class __$$AuthSuccessImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? user = null,
+    Object? user = freezed,
   }) {
     return _then(_$AuthSuccessImpl(
-      user: null == user
+      user: freezed == user
           ? _value.user
           : user // ignore: cast_nullable_to_non_nullable
-              as UserEntity,
+              as UserEntity?,
     ));
   }
 }
@@ -376,10 +376,10 @@ class __$$AuthSuccessImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$AuthSuccessImpl implements AuthSuccess {
-  const _$AuthSuccessImpl({required this.user});
+  const _$AuthSuccessImpl({this.user});
 
   @override
-  final UserEntity user;
+  final UserEntity? user;
 
   @override
   String toString() {
@@ -410,7 +410,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserEntity user) success,
+    required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
     required TResult Function(String message) error,
   }) {
@@ -422,7 +422,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserEntity user)? success,
+    TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -434,7 +434,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserEntity user)? success,
+    TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -487,10 +487,9 @@ class _$AuthSuccessImpl implements AuthSuccess {
 }
 
 abstract class AuthSuccess implements AuthState {
-  const factory AuthSuccess({required final UserEntity user}) =
-      _$AuthSuccessImpl;
+  const factory AuthSuccess({final UserEntity? user}) = _$AuthSuccessImpl;
 
-  UserEntity get user;
+  UserEntity? get user;
 
   /// Create a copy of AuthState
   /// with the given fields replaced by the non-null parameter values.
@@ -570,7 +569,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserEntity user) success,
+    required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
     required TResult Function(String message) error,
   }) {
@@ -582,7 +581,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserEntity user)? success,
+    TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -594,7 +593,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserEntity user)? success,
+    TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -729,7 +728,7 @@ class _$AuthErrorImpl implements AuthError {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(UserEntity user) success,
+    required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
     required TResult Function(String message) error,
   }) {
@@ -741,7 +740,7 @@ class _$AuthErrorImpl implements AuthError {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(UserEntity user)? success,
+    TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -753,7 +752,7 @@ class _$AuthErrorImpl implements AuthError {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(UserEntity user)? success,
+    TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),

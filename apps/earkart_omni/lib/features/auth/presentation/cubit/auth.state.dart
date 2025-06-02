@@ -8,7 +8,7 @@ part 'auth.state.freezed.dart';
 class AuthState with _$AuthState {
   const factory AuthState.initial() = AuthInitial;
   const factory AuthState.loading() = AuthLoading;
-  const factory AuthState.success({required UserEntity user}) = AuthSuccess;
+  const factory AuthState.success({UserEntity? user}) = AuthSuccess;
   const factory AuthState.centreSuccess({required CentreEntity centre}) =
       AuthCentreSuccess;
   const factory AuthState.error({required String message}) = AuthError;

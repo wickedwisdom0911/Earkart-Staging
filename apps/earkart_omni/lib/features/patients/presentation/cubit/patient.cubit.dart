@@ -19,8 +19,12 @@ class PatientCubit extends Cubit<PatientState> {
     emit(PatientLoading());
     final result = await createPatientUsecase(patient);
     result.fold(
-      (failure) => emit(PatientError(message: failure.message)),
-      (patient) => emit(PatientSuccess(patient: patient)),
+      (failure) {
+        emit(PatientError(message: failure.message));
+      },
+      (patient) {
+        emit(PatientSuccess(patient: patient));
+      },
     );
   }
 

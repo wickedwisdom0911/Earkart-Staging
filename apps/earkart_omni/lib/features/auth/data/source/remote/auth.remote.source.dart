@@ -4,7 +4,7 @@ import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 
 abstract class AuthRemoteSource {
-  Future<Either<Failure, UserEntity>> getCurrentUser();
+  Future<Either<Failure, UserEntity?>> getCurrentUser();
   Future<Either<Failure, CentreEntity>> getCentre();
   Future<Either<Failure, CentreEntity>> getCentreData();
   Future<Either<Failure, UserEntity>> login(String email, String password);

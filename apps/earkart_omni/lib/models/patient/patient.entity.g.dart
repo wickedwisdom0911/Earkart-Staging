@@ -33,7 +33,7 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       createdAt: fields[13] as DateTime?,
       updatedAt: fields[14] as DateTime?,
       languageId: fields[15] as String,
-      status: fields[16] as Status,
+      status: fields[16] as Status?,
       district: fields[17] as DistrictEntity?,
       creator: fields[18] as UserEntity?,
       updater: fields[19] as UserEntity?,

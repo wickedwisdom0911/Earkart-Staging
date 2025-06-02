@@ -7,5 +7,5 @@ abstract class AuthRepository {
   Future<Either<Failure, UserEntity>> login(String email, String password);
   Future<Either<Failure, CentreEntity>> getCentre();
   Future<Either<Failure, CentreEntity>> getCentreData();
-  Future<Either<Failure, UserEntity>> getCurrentUser();
+  Future<Either<Failure, UserEntity?>> getCurrentUser();
 }

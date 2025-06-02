@@ -19,50 +19,90 @@ class LookupCubit extends Cubit<LookupState> {
     required this.getStatesUsecase,
     required this.getCountriesUsecase,
     required this.getLanguagesUsecase,
-  }) : super(LookupState.initial());
+  }) : super(const LookupState());
 
   Future<void> getLanguages() async {
-    emit(LookupState.loading());
+    if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
     final result = await getLanguagesUsecase.call();
     result.fold(
-      (l) => emit(LookupState.error(message: l.message)),
-      (r) => emit(LookupState.languagesuccess(languages: r)),
+      (failure) {
+        if (!isClosed) {
+          emit(state.copyWith(isLoading: false, error: failure.message));
+        }
+      },
+      (languages) {
+        if (!isClosed) {
+          emit(state.copyWith(isLoading: false, languages: languages));
+        }
+      },
     );
   }
 
   Future<void> getCountries() async {
-    emit(LookupState.loading());
+    if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
     final result = await getCountriesUsecase.call();
     result.fold(
-      (l) => emit(LookupState.error(message: l.message)),
-      (r) => emit(LookupState.countriesuccess(countries: r)),
+      (failure) {
+        if (!isClosed) {
+          emit(state.copyWith(isLoading: false, error: failure.message));
+        }
+      },
+      (countries) {
+        if (!isClosed) {
+          emit(state.copyWith(isLoading: false, countries: countries));
+        }
+      },
     );
   }
 
   Future<void> getStates(String countryId) async {
-    emit(LookupState.loading());
+    if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
     final result = await getStatesUsecase.call(countryId);
     result.fold(
-      (l) => emit(LookupState.error(message: l.message)),
-      (r) => emit(LookupState.statesuccess(states: r)),
+      (failure) {
+        if (!isClosed) {
+          emit(state.copyWith(isLoading: false, error: failure.message));
+        }
+      },
+      (states) {
+        if (!isClosed) {
+          emit(state.copyWith(isLoading: false, states: states));
+        }
+      },
     );
   }
 
   Future<void> getCities(String stateId) async {
-    emit(LookupState.loading());
+    if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
     final result = await getCitiesUsecase.call(stateId);
     result.fold(
-      (l) => emit(LookupState.error(message: l.message)),
-      (r) => emit(LookupState.citiesuccess(cities: r)),
+      (failure) {
+        if (!isClosed) {
+          emit(state.copyWith(isLoading: false, error: failure.message));
+        }
+      },
+      (cities) {
+        if (!isClosed) {
+          emit(state.copyWith(isLoading: false, cities: cities));
+        }
+      },
     );
   }
 
   Future<void> getDistricts(String cityId) async {
-    emit(LookupState.loading());
+    if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
     final result = await getDistrictsUsecase.call(cityId);
     result.fold(
-      (l) => emit(LookupState.error(message: l.message)),
-      (r) => emit(LookupState.districtssuccess(districts: r)),
+      (failure) {
+        if (!isClosed) {
+          emit(state.copyWith(isLoading: false, error: failure.message));
+        }
+      },
+      (districts) {
+        if (!isClosed) {
+          emit(state.copyWith(isLoading: false, districts: districts));
+        }
+      },
     );
   }
 }

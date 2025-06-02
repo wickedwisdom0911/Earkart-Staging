@@ -43,7 +43,7 @@ class PatientEntity extends Equatable {
   @HiveField(15)
   final String languageId;
   @HiveField(16)
-  final Status status;
+  final Status? status;
 
   // Relations (use dynamic or Object? as placeholder)
   @HiveField(17)
@@ -56,7 +56,7 @@ class PatientEntity extends Equatable {
   final LanguageEntity? language; // LanguageEntity
 
   const PatientEntity({
-    required this.id,
+    this.id,
     required this.contactNumber,
     required this.code,
     required this.name,
@@ -67,12 +67,12 @@ class PatientEntity extends Equatable {
     required this.address,
     required this.districtId,
     required this.pincode,
-    required this.createdBy,
-    required this.updatedBy,
-    required this.createdAt,
-    required this.updatedAt,
+    this.createdBy,
+    this.updatedBy,
+    this.createdAt,
+    this.updatedAt,
     required this.languageId,
-    required this.status,
+    this.status,
     this.district,
     this.creator,
     this.updater,
@@ -87,7 +87,7 @@ class PatientEntity extends Equatable {
       name: json['name'],
       email: json['email'],
       gender: genderFromApi(json['gender']),
-      dob: DateTime.parse(json['dob']),
+      dob: json['dob'],
       password: json['password'],
       address: json['address'],
       districtId: json['districtId'],
@@ -121,7 +121,7 @@ class PatientEntity extends Equatable {
       'name': name,
       'email': email,
       'gender': gender.name.toUpperCase(),
-      'dob': dob.toIso8601String(),
+      'dob': dob,
       'password': password,
       'address': address,
       'districtId': districtId,
@@ -131,7 +131,7 @@ class PatientEntity extends Equatable {
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       'languageId': languageId,
-      'status': status.name.toUpperCase(),
+      'status': status?.name.toUpperCase(),
       'district': district?.toJson(),
       'creator': creator?.toJson(),
       'updater': updater?.toJson(),

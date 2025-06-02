@@ -52,12 +52,9 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
   }
 
   @override
-  Future<Either<Failure, UserEntity>> getCurrentUser() async {
+  Future<Either<Failure, UserEntity?>> getCurrentUser() async {
     final user = userEntityDataSource.getUserEntity();
-    if (user != null) {
-      return right(user);
-    }
-    return left(UnKnownFailure(error: "Failed to get current user"));
+    return right(user);
   }
 
   @override

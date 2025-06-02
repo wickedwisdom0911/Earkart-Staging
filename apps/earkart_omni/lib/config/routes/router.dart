@@ -4,6 +4,7 @@ import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
+import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
 import 'package:earkart_omni/models/enums.dart';
@@ -28,12 +29,15 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       return router(
         Builder(
           builder: (context) {
-            return BlocProvider<LookupCubit>(
-              create:
-                  (context) =>
-                      di.call<LookupCubit>()
-                        ..getLanguages()
-                        ..getCountries(),
+            return MultiBlocProvider(
+              providers: [
+                BlocProvider<LookupCubit>(
+                  create: (context) => di.call<LookupCubit>(),
+                ),
+                BlocProvider<PatientCubit>(
+                  create: (context) => di.call<PatientCubit>(),
+                ),
+              ],
               child: const PatientFormScreen(),
             );
           },
@@ -67,7 +71,7 @@ Route<dynamic> generateRoute(RouteSettings settings) {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (state is AuthSuccess) {
-                    if (state.user.role == Role.centre) {
+                    if (state.user?.role == Role.centre) {
                       return const HomeScreen();
                     }
                     return const LoginScreen();

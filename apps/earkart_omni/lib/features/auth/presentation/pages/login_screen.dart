@@ -184,6 +184,7 @@ class _LoginScreenState extends State<LoginScreen>
                             }
                           },
                           builder: (context, state) {
+                            print(state);
                             return GradientButton(
                               onPressed:
                                   state is AuthLoading ? () {} : _onLogin,

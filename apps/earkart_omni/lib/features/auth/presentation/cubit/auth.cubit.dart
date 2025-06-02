@@ -18,11 +18,15 @@ class AuthCubit extends Cubit<AuthState> {
   }) : super(AuthInitial());
 
   void login(String email, String password) async {
-    emit(AuthLoading());
+    if (!isClosed) emit(AuthLoading());
     final user = await loginUseCase(email, password);
     user.fold(
-      (failure) => emit(AuthError(message: failure.message)),
-      (user) => emit(AuthSuccess(user: user)),
+      (failure) {
+        if (!isClosed) emit(AuthError(message: failure.message));
+      },
+      (user) {
+        if (!isClosed) emit(AuthSuccess(user: user));
+      },
     );
   }
 

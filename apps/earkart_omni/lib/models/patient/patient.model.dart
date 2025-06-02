@@ -129,7 +129,7 @@ class PatientModelData extends PatientEntity {
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       'languageId': languageId,
-      'status': status.name.toUpperCase(),
+      'status': status?.name.toUpperCase(),
       'creator': creator?.toJson(),
       'updater': updater?.toJson(),
       'language': language?.toJson(),

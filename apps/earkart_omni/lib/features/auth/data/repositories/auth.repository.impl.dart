@@ -27,7 +27,7 @@ class AuthRepositoryImpl extends AuthRepository {
   }
 
   @override
-  Future<Either<Failure, UserEntity>> getCurrentUser() async {
+  Future<Either<Failure, UserEntity?>> getCurrentUser() async {
     return await remoteSource.getCurrentUser();
   }
 }

@@ -113,6 +113,7 @@ Future<void> setupDI() async {
     () => PatientRemoteSourceImpl(
       dio: di.call(),
       patientEntityDataSource: di.call(),
+      userEntityDataSource: di.call(),
     ),
   );
   di.registerLazySingleton<IPatientRepository>(
