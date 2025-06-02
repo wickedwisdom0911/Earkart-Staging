@@ -1,4 +1,5 @@
 import 'package:earkart_omni/config/services/api_client.dart';
+import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/remote/auth.remote.source.dart';
@@ -21,12 +22,26 @@ import 'package:earkart_omni/features/patients/domain/usecases/get_current_patie
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 
 import 'package:get_it/get_it.dart';
+import 'package:logger/logger.dart';
 
 final di = GetIt.instance;
 
 Future<void> setupDI() async {
   final api = API().getDio;
   di.registerLazySingleton(() => api);
+  di.registerLazySingleton<Logger>(
+    () => Logger(
+      level: Level.debug,
+      printer: PrettyPrinter(
+        methodCount: 0,
+        errorMethodCount: 8,
+        lineLength: 120,
+        colors: true,
+        printEmojis: true,
+      ),
+    ),
+  );
+  di.registerLazySingleton<ILogger>(() => CustomLogger(logger: di.call()));
 
   di.registerLazySingleton<UserEntityDataSource>(() => UserEntityDataSource());
   di.registerLazySingleton<CentreEntityDataSource>(

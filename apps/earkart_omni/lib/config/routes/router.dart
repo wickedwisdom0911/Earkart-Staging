@@ -48,11 +48,16 @@ Route<dynamic> generateRoute(RouteSettings settings) {
                   if (state is AuthInitial) {
                     return const LoginScreen();
                   }
+                  if (state is AuthLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
                   if (state is AuthSuccess) {
                     if (state.user.role == Role.centre) {
                       return const HomeScreen();
                     }
                     return const LoginScreen();
+                  } else if (state is AuthCentreSuccess) {
+                    return const HomeScreen();
                   }
                   return const LoginScreen();
                 },

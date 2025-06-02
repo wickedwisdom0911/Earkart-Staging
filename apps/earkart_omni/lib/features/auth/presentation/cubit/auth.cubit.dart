@@ -34,8 +34,12 @@ class AuthCubit extends Cubit<AuthState> {
     if (!isClosed) emit(AuthLoading());
     final centre = await getCentreUsecase();
     centre.fold(
-      (failure) => emit(AuthError(message: failure.message)),
-      (centre) => emit(AuthCentreSuccess(centre: centre)),
+      (failure) {
+        if (!isClosed) emit(AuthError(message: failure.message));
+      },
+      (centre) {
+        if (!isClosed) emit(AuthCentreSuccess(centre: centre));
+      },
     );
   }
 
@@ -43,8 +47,12 @@ class AuthCubit extends Cubit<AuthState> {
     emit(AuthLoading());
     final centreData = await getCentreDataUsecase();
     centreData.fold(
-      (failure) => emit(AuthError(message: failure.message)),
-      (centreData) => emit(AuthCentreSuccess(centre: centreData)),
+      (failure) {
+        if (!isClosed) emit(AuthError(message: failure.message));
+      },
+      (centreData) {
+        if (!isClosed) emit(AuthCentreSuccess(centre: centreData));
+      },
     );
   }
 
@@ -52,8 +60,12 @@ class AuthCubit extends Cubit<AuthState> {
     emit(AuthLoading());
     final currentUser = await getCurrentUserUsecase();
     currentUser.fold(
-      (failure) => emit(AuthError(message: failure.message)),
-      (currentUser) => emit(AuthSuccess(user: currentUser)),
+      (failure) {
+        if (!isClosed) emit(AuthError(message: failure.message));
+      },
+      (currentUser) {
+        if (!isClosed) emit(AuthSuccess(user: currentUser));
+      },
     );
   }
 }

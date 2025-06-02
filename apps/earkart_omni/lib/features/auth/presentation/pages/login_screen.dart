@@ -173,7 +173,6 @@ class _LoginScreenState extends State<LoginScreen>
                         BlocConsumer<AuthCubit, AuthState>(
                           listener: (context, state) {
                             if (state is AuthSuccess) {
-                              Fluttertoast.showToast(msg: "Login successful");
                               Navigator.pushReplacementNamed(
                                 context,
                                 HomeScreen.routeName,
