@@ -1,13 +1,24 @@
+import 'package:earkart_omni/config/utils/hive_types.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:equatable/equatable.dart';
+import 'package:hive/hive.dart';
+part 'tympanometry_test.entity.g.dart';
 
+@HiveType(typeId: HiveTypes.tympanometryTestEntity)
 class TympanometryTestEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? sessionId;
+  @HiveField(2)
   final TestStatus? status;
+  @HiveField(3)
   final List<TympanometryReadingEntity>? readings;
+  @HiveField(4)
   final String? notes;
+  @HiveField(5)
   final DateTime? createdAt;
+  @HiveField(6)
   final DateTime? updatedAt;
 
   const TympanometryTestEntity({
@@ -59,13 +70,21 @@ class TympanometryTestEntity extends Equatable {
   ];
 }
 
+@HiveType(typeId: HiveTypes.tympanometryReadingEntity)
 class TympanometryReadingEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? tympanometryId;
+  @HiveField(2)
   final Ear? ear;
+  @HiveField(3)
   final double? peakPressure;
+  @HiveField(4)
   final double? staticCompliance;
+  @HiveField(5)
   final double? earCanalVolume;
+  @HiveField(6)
   final TympType? tympType;
 
   const TympanometryReadingEntity({

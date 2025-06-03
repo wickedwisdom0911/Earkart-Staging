@@ -1,14 +1,26 @@
+import 'package:earkart_omni/config/utils/hive_types.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:equatable/equatable.dart';
+import 'package:hive/hive.dart';
+part 'otoscopy_test.entity.g.dart';
 
+@HiveType(typeId: HiveTypes.otoscopyTestEntity)
 class OtoscopyTestEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? sessionId;
+  @HiveField(2)
   final String? notes;
+  @HiveField(3)
   final DateTime? capturedAt;
+  @HiveField(4)
   final List<OtoscopyImageEntity>? otoscopyImages;
+  @HiveField(5)
   final TestStatus? status;
+  @HiveField(6)
   final DateTime? createdAt;
+  @HiveField(7)
   final DateTime? updatedAt;
 
   const OtoscopyTestEntity({
@@ -65,12 +77,19 @@ class OtoscopyTestEntity extends Equatable {
   ];
 }
 
+@HiveType(typeId: HiveTypes.otoscopyImageEntity)
 class OtoscopyImageEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? otoscopyId;
+  @HiveField(2)
   final Ear? ear;
+  @HiveField(3)
   final String? imageUrl;
+  @HiveField(4)
   final DateTime? capturedAt;
+  @HiveField(5)
   final String? notes;
 
   const OtoscopyImageEntity({

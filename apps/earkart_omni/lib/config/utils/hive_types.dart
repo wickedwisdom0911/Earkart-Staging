@@ -18,4 +18,16 @@ class HiveTypes {
   static const int sessionStatusEnum = 16;
   static const int patientConsultationStatusEnum = 17;
   static const int testStatusEnum = 18;
+  static const int consultationRecordingEntity = 19;
+  static const int audiometryTestEntity = 20;
+  static const int acReadingEntity = 21;
+  static const int bcReadingEntity = 22;
+  static const int speechReadingEntity = 23;
+  static const int oaeTestEntity = 24;
+  static const int oaeReadingEntity = 25;
+  static const int frequencyResponseEntity = 26;
+  static const int otoscopyTestEntity = 27;
+  static const int otoscopyImageEntity = 28;
+  static const int tympanometryTestEntity = 29;
+  static const int tympanometryReadingEntity = 30;
 }

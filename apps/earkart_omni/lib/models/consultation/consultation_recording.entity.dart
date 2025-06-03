@@ -1,10 +1,19 @@
+import 'package:earkart_omni/config/utils/hive_types.dart';
 import 'package:equatable/equatable.dart';
+import 'package:hive/hive.dart';
+part 'consultation_recording.entity.g.dart';
 
+@HiveType(typeId: HiveTypes.consultationRecordingEntity)
 class ConsultationRecordingEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? sessionId;
+  @HiveField(2)
   final String? recordingUrl;
+  @HiveField(3)
   final DateTime? createdAt;
+  @HiveField(4)
   final DateTime? updatedAt;
 
   const ConsultationRecordingEntity({

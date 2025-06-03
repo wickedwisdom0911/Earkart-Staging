@@ -1,15 +1,28 @@
+import 'package:earkart_omni/config/utils/hive_types.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:equatable/equatable.dart';
+import 'package:hive/hive.dart';
+part 'audiometry_test.entity.g.dart';
 
+@HiveType(typeId: HiveTypes.audiometryTestEntity)
 class AudiometryTestEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? sessionId;
+  @HiveField(2)
   final TestStatus? status;
+  @HiveField(3)
   final List<ACReadingEntity>? acTests;
+  @HiveField(4)
   final List<BCReadingEntity>? bcTests;
+  @HiveField(5)
   final List<SpeechReadingEntity>? speechTests;
+  @HiveField(6)
   final String? notes;
+  @HiveField(7)
   final DateTime? createdAt;
+  @HiveField(8)
   final DateTime? updatedAt;
 
   const AudiometryTestEntity({
@@ -75,13 +88,21 @@ class AudiometryTestEntity extends Equatable {
   ];
 }
 
+@HiveType(typeId: HiveTypes.acReadingEntity)
 class ACReadingEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? audiometryId;
+  @HiveField(2)
   final Ear? ear;
+  @HiveField(3)
   final int? frequencyHz;
+  @HiveField(4)
   final int? thresholdDb;
+  @HiveField(5)
   final bool? maskingUsed;
+  @HiveField(6)
   final Ear? maskingEar;
 
   const ACReadingEntity({
@@ -128,12 +149,19 @@ class ACReadingEntity extends Equatable {
   ];
 }
 
+@HiveType(typeId: HiveTypes.bcReadingEntity)
 class BCReadingEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? audiometryId;
+  @HiveField(2)
   final Ear? ear;
+  @HiveField(3)
   final int? frequencyHz;
+  @HiveField(4)
   final int? thresholdDb;
+  @HiveField(5)
   final bool? maskingUsed;
 
   const BCReadingEntity({
@@ -175,11 +203,17 @@ class BCReadingEntity extends Equatable {
   ];
 }
 
+@HiveType(typeId: HiveTypes.speechReadingEntity)
 class SpeechReadingEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? audiometryId;
+  @HiveField(2)
   final Ear? ear;
+  @HiveField(3)
   final int? srtDb;
+  @HiveField(4)
   final int? sdScore;
 
   const SpeechReadingEntity({

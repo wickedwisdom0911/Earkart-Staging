@@ -1,13 +1,24 @@
+import 'package:earkart_omni/config/utils/hive_types.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:equatable/equatable.dart';
+import 'package:hive/hive.dart';
+part 'oae_test.entity.g.dart';
 
+@HiveType(typeId: HiveTypes.oaeTestEntity)
 class OAETestEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? sessionId;
+  @HiveField(2)
   final TestStatus? status;
+  @HiveField(3)
   final List<OAEReadingEntity>? earTests;
+  @HiveField(4)
   final String? notes;
+  @HiveField(5)
   final DateTime? createdAt;
+  @HiveField(6)
   final DateTime? updatedAt;
 
   const OAETestEntity({
@@ -57,11 +68,17 @@ class OAETestEntity extends Equatable {
   ];
 }
 
+@HiveType(typeId: HiveTypes.oaeReadingEntity)
 class OAEReadingEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? oaeTestId;
+  @HiveField(2)
   final Ear? ear;
+  @HiveField(3)
   final bool? passed;
+  @HiveField(4)
   final List<FrequencyResponseEntity>? frequencyResponses;
 
   const OAEReadingEntity({
@@ -96,10 +113,15 @@ class OAEReadingEntity extends Equatable {
   List<Object?> get props => [id, oaeTestId, ear, passed, frequencyResponses];
 }
 
+@HiveType(typeId: HiveTypes.frequencyResponseEntity)
 class FrequencyResponseEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? oaeReadingId;
+  @HiveField(2)
   final int? frequencyHz;
+  @HiveField(3)
   final double? responseDb;
 
   const FrequencyResponseEntity({

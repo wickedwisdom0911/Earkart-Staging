@@ -1,3 +1,4 @@
+import 'package:earkart_omni/config/utils/hive_types.dart';
 import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/tympanometry/tympanometry_test.entity.dart';
 import 'package:earkart_omni/models/oae/oae_test.entity.dart';
@@ -8,27 +9,47 @@ import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:equatable/equatable.dart';
+import 'package:hive/hive.dart';
+part 'consultation.entity.g.dart';
 
+@HiveType(typeId: HiveTypes.consultationEntity)
 class ConsultationEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? patientId;
+  @HiveField(2)
   final String? audiologistId;
+  @HiveField(3)
   final String? centreId;
+  @HiveField(4)
   final PatientConsultationStatus? patientStatus;
+  @HiveField(5)
   final AudiologistConsultationStatus? audiologistStatus;
+  @HiveField(6)
   final AudiometryTestEntity? audiometry;
+  @HiveField(7)
   final TympanometryTestEntity? tympanometry;
+  @HiveField(8)
   final OAETestEntity? oae;
+  @HiveField(9)
   final OtoscopyTestEntity? otoscopy;
+  @HiveField(10)
   final String? notes;
+  @HiveField(11)
   final SessionStatus? status;
-  final DateTime? createdAt;
+  @HiveField(12)
   final DateTime? updatedAt;
-
+  @HiveField(13)
+  final DateTime? createdAt;
   // Relations
+  @HiveField(14)
   final PatientEntity? patient;
+  @HiveField(15)
   final AudiologistEntity? audiologist;
+  @HiveField(16)
   final CentreEntity? centre;
+  @HiveField(17)
   final List<ConsultationRecording>? recordings;
 
   const ConsultationEntity({
@@ -104,7 +125,6 @@ class ConsultationEntity extends Equatable {
   );
 
   Map<String, dynamic> toJson() => {
-    'id': id,
     'patientId': patientId,
     'audiologistId': audiologistId,
     'centreId': centreId,
@@ -116,12 +136,6 @@ class ConsultationEntity extends Equatable {
     'otoscopy': otoscopy?.toJson(),
     'notes': notes,
     'status': status?.name,
-    'createdAt': createdAt?.toIso8601String(),
-    'updatedAt': updatedAt?.toIso8601String(),
-    'patient': patient?.toJson(),
-    'audiologist': audiologist?.toJson(),
-    'centre': centre?.toJson(),
-    'recordings': recordings?.map((x) => x.toJson()).toList(),
   };
 
   @override
