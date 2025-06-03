@@ -35,9 +35,9 @@ class ConsultationCubit extends Cubit<ConsultationState> {
     );
   }
 
-  Future<void> createConsultation(ConsultationEntity consultation) async {
+  Future<void> createConsultation() async {
     emit(ConsultationLoading());
-    final result = await createConsultationUsecase(consultation);
+    final result = await createConsultationUsecase();
     result.fold(
       (l) => emit(ConsultationError(message: l.message)),
       (r) => emit(CreateConsultationSuccess(consultation: r)),

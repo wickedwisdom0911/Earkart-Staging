@@ -9,6 +9,7 @@ import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:earkart_omni/models/consultation/consultation.model.dart';
+import 'package:earkart_omni/models/enums.dart';
 
 class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
   final Dio dio;
@@ -22,13 +23,18 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
     required this.consultationEntityDataSource,
   });
   @override
-  Future<Either<Failure, ConsultationEntity>> createConsultation(
-    ConsultationEntity consultation,
-  ) async {
+  Future<Either<Failure, ConsultationEntity>> createConsultation() async {
     try {
+      final newConsultation = ConsultationEntity(
+        patientId: userEntityDataSource.getUserEntity()?.id,
+        centreId: centreEntityDataSource.getCentreEntity()?.id,
+        patientStatus: PatientConsultationStatus.requested,
+        audiologistStatus: AudiologistConsultationStatus.pending,
+        status: SessionStatus.inProgress,
+      );
       final response = await dio.post(
         Constants.createConsultationUrl,
-        data: consultation.toJson(),
+        data: newConsultation.toJson(),
         options: Options(
           headers: {
             'Content-Type': 'application/json',

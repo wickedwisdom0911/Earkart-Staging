@@ -91,7 +91,7 @@ class _RootScreenState extends State<RootScreen> {
       ],
       child: Builder(
         builder: (context) {
-          if (!checkedCentre || !checkedPatient) {
+          if (!checkedCentre || !checkedPatient || !checkedConsultation) {
             return const Center(child: CircularProgressIndicator());
           }
           if (centre != null && patient == null) {

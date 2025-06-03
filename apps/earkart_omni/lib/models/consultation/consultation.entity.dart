@@ -138,6 +138,48 @@ class ConsultationEntity extends Equatable {
     'status': status?.name,
   };
 
+  ConsultationEntity copyWith({
+    String? id,
+    String? patientId,
+    String? audiologistId,
+    String? centreId,
+    PatientConsultationStatus? patientStatus,
+    AudiologistConsultationStatus? audiologistStatus,
+    AudiometryTestEntity? audiometry,
+    TympanometryTestEntity? tympanometry,
+    OAETestEntity? oae,
+    OtoscopyTestEntity? otoscopy,
+    String? notes,
+    SessionStatus? status,
+    DateTime? updatedAt,
+    DateTime? createdAt,
+    PatientEntity? patient,
+    AudiologistEntity? audiologist,
+    CentreEntity? centre,
+    List<ConsultationRecordingEntity>? recordings,
+  }) {
+    return ConsultationEntity(
+      id: id ?? this.id,
+      patientId: patientId ?? this.patientId,
+      audiologistId: audiologistId ?? this.audiologistId,
+      centreId: centreId ?? this.centreId,
+      patientStatus: patientStatus ?? this.patientStatus,
+      audiologistStatus: audiologistStatus ?? this.audiologistStatus,
+      audiometry: audiometry ?? this.audiometry,
+      tympanometry: tympanometry ?? this.tympanometry,
+      oae: oae ?? this.oae,
+      otoscopy: otoscopy ?? this.otoscopy,
+      notes: notes ?? this.notes,
+      status: status ?? this.status,
+      updatedAt: updatedAt ?? this.updatedAt,
+      createdAt: createdAt ?? this.createdAt,
+      patient: patient ?? this.patient,
+      audiologist: audiologist ?? this.audiologist,
+      centre: centre ?? this.centre,
+      recordings: recordings ?? this.recordings,
+    );
+  }
+
   @override
   List<Object?> get props => [
     id,

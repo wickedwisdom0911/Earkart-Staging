@@ -8,10 +8,8 @@ class ConsultationRepositoryImpl extends IConsultationRepository {
   final IConsultationRemoteSource consultationRemoteSource;
   ConsultationRepositoryImpl({required this.consultationRemoteSource});
   @override
-  Future<Either<Failure, ConsultationEntity>> createConsultation(
-    ConsultationEntity consultation,
-  ) async {
-    return consultationRemoteSource.createConsultation(consultation);
+  Future<Either<Failure, ConsultationEntity>> createConsultation() async {
+    return consultationRemoteSource.createConsultation();
   }
 
   @override

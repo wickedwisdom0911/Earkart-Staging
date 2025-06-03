@@ -8,9 +8,7 @@ class CreateConsultationUsecase {
 
   CreateConsultationUsecase({required this.consultationRepository});
 
-  Future<Either<Failure, ConsultationEntity>> call(
-    ConsultationEntity consultation,
-  ) async {
-    return consultationRepository.createConsultation(consultation);
+  Future<Either<Failure, ConsultationEntity>> call() async {
+    return consultationRepository.createConsultation();
   }
 }
