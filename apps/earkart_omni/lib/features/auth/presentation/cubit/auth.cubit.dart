@@ -35,7 +35,7 @@ class AuthCubit extends Cubit<AuthState> {
     final centre = await getCentreUsecase();
     centre.fold(
       (failure) {
-        if (!isClosed) emit(AuthError(message: failure.message));
+        if (!isClosed) emit(AuthCentreError(message: failure.message));
       },
       (centre) {
         if (!isClosed) emit(AuthCentreSuccess(centre: centre));

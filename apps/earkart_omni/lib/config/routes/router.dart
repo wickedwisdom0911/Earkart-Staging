@@ -1,6 +1,7 @@
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
@@ -71,15 +72,38 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       return router(
         Builder(
           builder: (context) {
-            return BlocProvider<PatientCubit>(
-              create: (context) => di.call<PatientCubit>(),
+            return MultiBlocProvider(
+              providers: [
+                BlocProvider<PatientCubit>(
+                  create: (context) => di.call<PatientCubit>(),
+                ),
+                BlocProvider<ConsultationCubit>(
+                  create: (context) => di.call<ConsultationCubit>(),
+                ),
+              ],
               child: const ConsultationRequestScreen(),
             );
           },
         ),
       );
     case ConsultationScreen.routeName:
-      return router(const ConsultationScreen());
+      return router(
+        Builder(
+          builder: (context) {
+            return MultiBlocProvider(
+              providers: [
+                BlocProvider<PatientCubit>(
+                  create: (context) => di.call<PatientCubit>(),
+                ),
+                BlocProvider<ConsultationCubit>(
+                  create: (context) => di.call<ConsultationCubit>(),
+                ),
+              ],
+              child: const ConsultationScreen(),
+            );
+          },
+        ),
+      );
     case RootScreen.routeName:
       return router(
         Builder(
@@ -91,6 +115,9 @@ Route<dynamic> generateRoute(RouteSettings settings) {
                 ),
                 BlocProvider<PatientCubit>(
                   create: (context) => di.call<PatientCubit>(),
+                ),
+                BlocProvider<ConsultationCubit>(
+                  create: (context) => di.call<ConsultationCubit>(),
                 ),
               ],
               child: const RootScreen(),

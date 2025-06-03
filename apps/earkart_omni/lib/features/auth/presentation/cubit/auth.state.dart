@@ -11,5 +11,7 @@ class AuthState with _$AuthState {
   const factory AuthState.success({UserEntity? user}) = AuthSuccess;
   const factory AuthState.centreSuccess({required CentreEntity centre}) =
       AuthCentreSuccess;
+  const factory AuthState.centreError({required String message}) =
+      AuthCentreError;
   const factory AuthState.error({required String message}) = AuthError;
 }

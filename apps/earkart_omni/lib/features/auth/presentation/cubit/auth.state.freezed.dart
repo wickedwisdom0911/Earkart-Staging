@@ -22,6 +22,7 @@ mixin _$AuthState {
     required TResult Function() loading,
     required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
+    required TResult Function(String message) centreError,
     required TResult Function(String message) error,
   }) =>
       throw _privateConstructorUsedError;
@@ -31,6 +32,7 @@ mixin _$AuthState {
     TResult? Function()? loading,
     TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
+    TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
   }) =>
       throw _privateConstructorUsedError;
@@ -40,6 +42,7 @@ mixin _$AuthState {
     TResult Function()? loading,
     TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
+    TResult Function(String message)? centreError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) =>
@@ -50,6 +53,7 @@ mixin _$AuthState {
     required TResult Function(AuthLoading value) loading,
     required TResult Function(AuthSuccess value) success,
     required TResult Function(AuthCentreSuccess value) centreSuccess,
+    required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
   }) =>
       throw _privateConstructorUsedError;
@@ -59,6 +63,7 @@ mixin _$AuthState {
     TResult? Function(AuthLoading value)? loading,
     TResult? Function(AuthSuccess value)? success,
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
+    TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
   }) =>
       throw _privateConstructorUsedError;
@@ -68,6 +73,7 @@ mixin _$AuthState {
     TResult Function(AuthLoading value)? loading,
     TResult Function(AuthSuccess value)? success,
     TResult Function(AuthCentreSuccess value)? centreSuccess,
+    TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
     required TResult orElse(),
   }) =>
@@ -139,6 +145,7 @@ class _$AuthInitialImpl implements AuthInitial {
     required TResult Function() loading,
     required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
+    required TResult Function(String message) centreError,
     required TResult Function(String message) error,
   }) {
     return initial();
@@ -151,6 +158,7 @@ class _$AuthInitialImpl implements AuthInitial {
     TResult? Function()? loading,
     TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
+    TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
   }) {
     return initial?.call();
@@ -163,6 +171,7 @@ class _$AuthInitialImpl implements AuthInitial {
     TResult Function()? loading,
     TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
+    TResult Function(String message)? centreError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -179,6 +188,7 @@ class _$AuthInitialImpl implements AuthInitial {
     required TResult Function(AuthLoading value) loading,
     required TResult Function(AuthSuccess value) success,
     required TResult Function(AuthCentreSuccess value) centreSuccess,
+    required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
   }) {
     return initial(this);
@@ -191,6 +201,7 @@ class _$AuthInitialImpl implements AuthInitial {
     TResult? Function(AuthLoading value)? loading,
     TResult? Function(AuthSuccess value)? success,
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
+    TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
   }) {
     return initial?.call(this);
@@ -203,6 +214,7 @@ class _$AuthInitialImpl implements AuthInitial {
     TResult Function(AuthLoading value)? loading,
     TResult Function(AuthSuccess value)? success,
     TResult Function(AuthCentreSuccess value)? centreSuccess,
+    TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
     required TResult orElse(),
   }) {
@@ -262,6 +274,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     required TResult Function() loading,
     required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
+    required TResult Function(String message) centreError,
     required TResult Function(String message) error,
   }) {
     return loading();
@@ -274,6 +287,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     TResult? Function()? loading,
     TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
+    TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
   }) {
     return loading?.call();
@@ -286,6 +300,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     TResult Function()? loading,
     TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
+    TResult Function(String message)? centreError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -302,6 +317,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     required TResult Function(AuthLoading value) loading,
     required TResult Function(AuthSuccess value) success,
     required TResult Function(AuthCentreSuccess value) centreSuccess,
+    required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
   }) {
     return loading(this);
@@ -314,6 +330,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     TResult? Function(AuthLoading value)? loading,
     TResult? Function(AuthSuccess value)? success,
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
+    TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
   }) {
     return loading?.call(this);
@@ -326,6 +343,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     TResult Function(AuthLoading value)? loading,
     TResult Function(AuthSuccess value)? success,
     TResult Function(AuthCentreSuccess value)? centreSuccess,
+    TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
     required TResult orElse(),
   }) {
@@ -412,6 +430,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     required TResult Function() loading,
     required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
+    required TResult Function(String message) centreError,
     required TResult Function(String message) error,
   }) {
     return success(user);
@@ -424,6 +443,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     TResult? Function()? loading,
     TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
+    TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
   }) {
     return success?.call(user);
@@ -436,6 +456,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     TResult Function()? loading,
     TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
+    TResult Function(String message)? centreError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -452,6 +473,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     required TResult Function(AuthLoading value) loading,
     required TResult Function(AuthSuccess value) success,
     required TResult Function(AuthCentreSuccess value) centreSuccess,
+    required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
   }) {
     return success(this);
@@ -464,6 +486,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     TResult? Function(AuthLoading value)? loading,
     TResult? Function(AuthSuccess value)? success,
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
+    TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
   }) {
     return success?.call(this);
@@ -476,6 +499,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     TResult Function(AuthLoading value)? loading,
     TResult Function(AuthSuccess value)? success,
     TResult Function(AuthCentreSuccess value)? centreSuccess,
+    TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
     required TResult orElse(),
   }) {
@@ -571,6 +595,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     required TResult Function() loading,
     required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
+    required TResult Function(String message) centreError,
     required TResult Function(String message) error,
   }) {
     return centreSuccess(centre);
@@ -583,6 +608,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     TResult? Function()? loading,
     TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
+    TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
   }) {
     return centreSuccess?.call(centre);
@@ -595,6 +621,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     TResult Function()? loading,
     TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
+    TResult Function(String message)? centreError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -611,6 +638,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     required TResult Function(AuthLoading value) loading,
     required TResult Function(AuthSuccess value) success,
     required TResult Function(AuthCentreSuccess value) centreSuccess,
+    required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
   }) {
     return centreSuccess(this);
@@ -623,6 +651,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     TResult? Function(AuthLoading value)? loading,
     TResult? Function(AuthSuccess value)? success,
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
+    TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
   }) {
     return centreSuccess?.call(this);
@@ -635,6 +664,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     TResult Function(AuthLoading value)? loading,
     TResult Function(AuthSuccess value)? success,
     TResult Function(AuthCentreSuccess value)? centreSuccess,
+    TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
     required TResult orElse(),
   }) {
@@ -655,6 +685,172 @@ abstract class AuthCentreSuccess implements AuthState {
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$AuthCentreSuccessImplCopyWith<_$AuthCentreSuccessImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$AuthCentreErrorImplCopyWith<$Res> {
+  factory _$$AuthCentreErrorImplCopyWith(_$AuthCentreErrorImpl value,
+          $Res Function(_$AuthCentreErrorImpl) then) =
+      __$$AuthCentreErrorImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({String message});
+}
+
+/// @nodoc
+class __$$AuthCentreErrorImplCopyWithImpl<$Res>
+    extends _$AuthStateCopyWithImpl<$Res, _$AuthCentreErrorImpl>
+    implements _$$AuthCentreErrorImplCopyWith<$Res> {
+  __$$AuthCentreErrorImplCopyWithImpl(
+      _$AuthCentreErrorImpl _value, $Res Function(_$AuthCentreErrorImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of AuthState
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? message = null,
+  }) {
+    return _then(_$AuthCentreErrorImpl(
+      message: null == message
+          ? _value.message
+          : message // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$AuthCentreErrorImpl implements AuthCentreError {
+  const _$AuthCentreErrorImpl({required this.message});
+
+  @override
+  final String message;
+
+  @override
+  String toString() {
+    return 'AuthState.centreError(message: $message)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AuthCentreErrorImpl &&
+            (identical(other.message, message) || other.message == message));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, message);
+
+  /// Create a copy of AuthState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AuthCentreErrorImplCopyWith<_$AuthCentreErrorImpl> get copyWith =>
+      __$$AuthCentreErrorImplCopyWithImpl<_$AuthCentreErrorImpl>(
+          this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() initial,
+    required TResult Function() loading,
+    required TResult Function(UserEntity? user) success,
+    required TResult Function(CentreEntity centre) centreSuccess,
+    required TResult Function(String message) centreError,
+    required TResult Function(String message) error,
+  }) {
+    return centreError(message);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? initial,
+    TResult? Function()? loading,
+    TResult? Function(UserEntity? user)? success,
+    TResult? Function(CentreEntity centre)? centreSuccess,
+    TResult? Function(String message)? centreError,
+    TResult? Function(String message)? error,
+  }) {
+    return centreError?.call(message);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? initial,
+    TResult Function()? loading,
+    TResult Function(UserEntity? user)? success,
+    TResult Function(CentreEntity centre)? centreSuccess,
+    TResult Function(String message)? centreError,
+    TResult Function(String message)? error,
+    required TResult orElse(),
+  }) {
+    if (centreError != null) {
+      return centreError(message);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AuthInitial value) initial,
+    required TResult Function(AuthLoading value) loading,
+    required TResult Function(AuthSuccess value) success,
+    required TResult Function(AuthCentreSuccess value) centreSuccess,
+    required TResult Function(AuthCentreError value) centreError,
+    required TResult Function(AuthError value) error,
+  }) {
+    return centreError(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AuthInitial value)? initial,
+    TResult? Function(AuthLoading value)? loading,
+    TResult? Function(AuthSuccess value)? success,
+    TResult? Function(AuthCentreSuccess value)? centreSuccess,
+    TResult? Function(AuthCentreError value)? centreError,
+    TResult? Function(AuthError value)? error,
+  }) {
+    return centreError?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(AuthInitial value)? initial,
+    TResult Function(AuthLoading value)? loading,
+    TResult Function(AuthSuccess value)? success,
+    TResult Function(AuthCentreSuccess value)? centreSuccess,
+    TResult Function(AuthCentreError value)? centreError,
+    TResult Function(AuthError value)? error,
+    required TResult orElse(),
+  }) {
+    if (centreError != null) {
+      return centreError(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class AuthCentreError implements AuthState {
+  const factory AuthCentreError({required final String message}) =
+      _$AuthCentreErrorImpl;
+
+  String get message;
+
+  /// Create a copy of AuthState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$AuthCentreErrorImplCopyWith<_$AuthCentreErrorImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 
@@ -730,6 +926,7 @@ class _$AuthErrorImpl implements AuthError {
     required TResult Function() loading,
     required TResult Function(UserEntity? user) success,
     required TResult Function(CentreEntity centre) centreSuccess,
+    required TResult Function(String message) centreError,
     required TResult Function(String message) error,
   }) {
     return error(message);
@@ -742,6 +939,7 @@ class _$AuthErrorImpl implements AuthError {
     TResult? Function()? loading,
     TResult? Function(UserEntity? user)? success,
     TResult? Function(CentreEntity centre)? centreSuccess,
+    TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
   }) {
     return error?.call(message);
@@ -754,6 +952,7 @@ class _$AuthErrorImpl implements AuthError {
     TResult Function()? loading,
     TResult Function(UserEntity? user)? success,
     TResult Function(CentreEntity centre)? centreSuccess,
+    TResult Function(String message)? centreError,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -770,6 +969,7 @@ class _$AuthErrorImpl implements AuthError {
     required TResult Function(AuthLoading value) loading,
     required TResult Function(AuthSuccess value) success,
     required TResult Function(AuthCentreSuccess value) centreSuccess,
+    required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
   }) {
     return error(this);
@@ -782,6 +982,7 @@ class _$AuthErrorImpl implements AuthError {
     TResult? Function(AuthLoading value)? loading,
     TResult? Function(AuthSuccess value)? success,
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
+    TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
   }) {
     return error?.call(this);
@@ -794,6 +995,7 @@ class _$AuthErrorImpl implements AuthError {
     TResult Function(AuthLoading value)? loading,
     TResult Function(AuthSuccess value)? success,
     TResult Function(AuthCentreSuccess value)? centreSuccess,
+    TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
     required TResult orElse(),
   }) {

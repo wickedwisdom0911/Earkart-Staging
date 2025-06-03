@@ -1,4 +1,8 @@
+import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,14 +25,17 @@ class RootScreen extends StatefulWidget {
 class _RootScreenState extends State<RootScreen> {
   bool checkedCentre = false;
   bool checkedPatient = false;
+  bool checkedConsultation = false;
   CentreEntity? centre;
   PatientEntity? patient;
+  ConsultationEntity? consultation;
 
   @override
   void initState() {
     super.initState();
     context.read<AuthCubit>().getCentreData();
     context.read<PatientCubit>().getCurrentPatient();
+    context.read<ConsultationCubit>().getCurrentConsultation();
   }
 
   @override
@@ -65,6 +72,22 @@ class _RootScreenState extends State<RootScreen> {
             }
           },
         ),
+        BlocListener<ConsultationCubit, ConsultationState>(
+          listener: (context, state) {
+            if (state is CurrentConsultationSuccess) {
+              setState(() {
+                checkedConsultation = true;
+                consultation = state.consultation;
+              });
+            } else if (state is ConsultationError ||
+                state is ConsultationInitial) {
+              setState(() {
+                checkedConsultation = true;
+                consultation = null;
+              });
+            }
+          },
+        ),
       ],
       child: Builder(
         builder: (context) {
@@ -74,8 +97,11 @@ class _RootScreenState extends State<RootScreen> {
           if (centre != null && patient == null) {
             return const HomeScreen();
           }
-          if (centre != null && patient != null) {
+          if (centre != null && patient != null && consultation == null) {
             return const ConsultationRequestScreen();
+          }
+          if (centre != null && patient != null && consultation != null) {
+            return const ConsultationScreen();
           }
           return const LoginScreen();
         },
