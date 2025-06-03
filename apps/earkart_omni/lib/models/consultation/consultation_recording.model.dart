@@ -1,8 +1,15 @@
-class ConsultationRecording {
+import 'package:earkart_omni/models/consultation/consultation_recording.entity.dart';
+
+class ConsultationRecording extends ConsultationRecordingEntity {
+  @override
   final String id;
+  @override
   final String sessionId;
+  @override
   final String recordingUrl;
+  @override
   final DateTime createdAt;
+  @override
   final DateTime updatedAt;
 
   ConsultationRecording({
@@ -11,7 +18,13 @@ class ConsultationRecording {
     required this.recordingUrl,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : super(
+         id: id,
+         sessionId: sessionId,
+         recordingUrl: recordingUrl,
+         createdAt: createdAt,
+         updatedAt: updatedAt,
+       );
 
   factory ConsultationRecording.fromJson(Map<String, dynamic> json) =>
       ConsultationRecording(

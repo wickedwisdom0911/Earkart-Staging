@@ -1,4 +1,5 @@
 import 'package:earkart_omni/models/audiometry/audiometry_test.model.dart';
+import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/tympanometry/tympanometry_test.model.dart';
 import 'package:earkart_omni/models/oae/oae_test.model.dart';
 import 'package:earkart_omni/models/otoscopy/otoscopy_test.model.dart';
@@ -8,20 +9,54 @@ import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 
-class ConsultationModelData {
+class ConsultationModel {
+  final bool success;
+  final String message;
+  final ConsultationModelData data;
+
+  ConsultationModel({
+    required this.success,
+    required this.message,
+    required this.data,
+  });
+
+  factory ConsultationModel.fromJson(Map<String, dynamic> json) {
+    return ConsultationModel(
+      success: json['success'],
+      message: json['message'],
+      data: ConsultationModelData.fromJson(json['data']),
+    );
+  }
+}
+
+class ConsultationModelData extends ConsultationEntity {
+  @override
   final String id;
+  @override
   final String patientId;
+  @override
   final String? audiologistId;
+  @override
   final String centreId;
+  @override
   final PatientConsultationStatus patientStatus;
+  @override
   final AudiologistConsultationStatus audiologistStatus;
+  @override
   final AudiometryTest? audiometry;
+  @override
   final TympanometryTest? tympanometry;
+  @override
   final OAETest? oae;
+  @override
   final OtoscopyTest? otoscopy;
+  @override
   final String? notes;
+  @override
   final SessionStatus status;
+  @override
   final DateTime createdAt;
+  @override
   final DateTime updatedAt;
 
   // Relations
@@ -49,7 +84,25 @@ class ConsultationModelData {
     this.audiologist,
     this.centre,
     this.recordings,
-  });
+  }) : super(
+         id: id,
+         patientId: patientId,
+         audiologistId: audiologistId,
+         centreId: centreId,
+         patientStatus: patientStatus,
+         audiologistStatus: audiologistStatus,
+         audiometry: audiometry,
+         tympanometry: tympanometry,
+         oae: oae,
+         otoscopy: otoscopy,
+         notes: notes,
+         createdAt: createdAt,
+         updatedAt: updatedAt,
+         patient: patient,
+         audiologist: audiologist,
+         centre: centre,
+         recordings: recordings,
+       );
 
   factory ConsultationModelData.fromJson(Map<String, dynamic> json) {
     return ConsultationModelData(
