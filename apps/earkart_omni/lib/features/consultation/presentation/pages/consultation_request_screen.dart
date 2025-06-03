@@ -5,8 +5,6 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/consultati
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
-import 'package:earkart_omni/models/consultation/consultation.entity.dart';
-import 'package:earkart_omni/models/enums.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -43,9 +41,9 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
       );
       _cameraController = CameraController(
         frontCamera,
-        ResolutionPreset.max,
+        ResolutionPreset.veryHigh,
         enableAudio: false,
-        fps: 120,
+        fps: 60,
       );
       await _cameraController!.initialize();
       if (mounted) {
@@ -235,7 +233,9 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                   'Start Consultation',
                                   style: TextStyle(color: Colors.white),
                                 ),
-                                onPressed: () {},
+                                onPressed: () {
+                                  startConsultation();
+                                },
                               ),
                             ],
                           ),

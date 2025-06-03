@@ -128,14 +128,14 @@ class ConsultationEntity extends Equatable {
     'patientId': patientId,
     'audiologistId': audiologistId,
     'centreId': centreId,
-    'patientStatus': patientStatus?.name,
-    'audiologistStatus': audiologistStatus?.name,
-    'audiometry': audiometry?.toJson(),
-    'tympanometry': tympanometry?.toJson(),
-    'oae': oae?.toJson(),
-    'otoscopy': otoscopy?.toJson(),
+    'patientStatus': patientStatus?.name.toUpperCase(),
+    'audiologistStatus': audiologistStatus?.name.toUpperCase(),
+    // 'audiometry': audiometry?.toJson(),
+    // 'tympanometry': tympanometry?.toJson(),
+    // 'oae': oae?.toJson(),
+    // 'otoscopy': otoscopy?.toJson(),
     'notes': notes,
-    'status': status?.name,
+    'status': status != null ? toUpperSnakeCase(status!.name) : null,
   };
 
   ConsultationEntity copyWith({

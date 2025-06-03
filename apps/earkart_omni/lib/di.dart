@@ -196,6 +196,7 @@ Future<void> setupDI() async {
       consultationEntityDataSource: di.call(),
       userEntityDataSource: di.call(),
       centreEntityDataSource: di.call(),
+      patientEntityDataSource: di.call(),
     ),
   );
   di.registerLazySingleton<IConsultationRepository>(

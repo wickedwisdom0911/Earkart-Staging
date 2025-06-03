@@ -133,7 +133,19 @@ testStatusFromApi(String value) {
   }
 }
 
-enum TympType { A, As, Ad, B, C }
+@HiveType(typeId: HiveTypes.tympTypeEnum)
+enum TympType {
+  @HiveField(0)
+  A,
+  @HiveField(1)
+  As,
+  @HiveField(2)
+  Ad,
+  @HiveField(3)
+  B,
+  @HiveField(4)
+  C,
+}
 
 tympTypeFromApi(String value) {
   switch (value) {
@@ -186,6 +198,15 @@ Role roleFromApi(String value) {
   );
 }
 
+String toUpperSnakeCase(String input) {
+  return input
+      .replaceAllMapped(
+        RegExp(r'([a-z])([A-Z])'),
+        (match) => '${match.group(1)}_${match.group(2)}',
+      )
+      .toUpperCase();
+}
+
 PaymentCycle paymentCycleFromApi(String value) {
   return PaymentCycle.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
@@ -210,10 +231,18 @@ AudiologistConsultationStatus audiologistConsultationStatusFromApi(
 }
 
 SessionStatus sessionStatusFromApi(String value) {
-  return SessionStatus.values.firstWhere(
-    (e) => e.name.toUpperCase() == value,
-    orElse: () => SessionStatus.inProgress,
-  );
+  switch (value.toUpperCase()) {
+    case 'IN_PROGRESS':
+      return SessionStatus.inProgress;
+    case 'COMPLETED':
+      return SessionStatus.completed;
+    case 'CANCELLED':
+      return SessionStatus.cancelled;
+    case 'FAILED':
+      return SessionStatus.failed;
+    default:
+      throw Exception('Unknown SessionStatus: $value');
+  }
 }
 
 PatientConsultationStatus patientConsultationStatusFromApi(String value) {

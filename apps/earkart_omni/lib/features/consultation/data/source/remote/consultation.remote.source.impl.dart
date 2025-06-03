@@ -1,10 +1,13 @@
 import 'package:earkart_omni/config/services/dio_exceptions.dart';
 import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
+import 'package:earkart_omni/config/utils/custom_logger.dart';
+import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
 import 'package:earkart_omni/features/consultation/data/source/remote/consultation.remote.source.dart';
+import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
@@ -16,22 +19,25 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
   final CentreEntityDataSource centreEntityDataSource;
   final UserEntityDataSource userEntityDataSource;
   final ConsultationEntityDataSource consultationEntityDataSource;
+  final PatientEntityDataSource patientEntityDataSource;
   ConsultationRemoteSourceImpl({
     required this.dio,
     required this.centreEntityDataSource,
     required this.userEntityDataSource,
     required this.consultationEntityDataSource,
+    required this.patientEntityDataSource,
   });
   @override
   Future<Either<Failure, ConsultationEntity>> createConsultation() async {
     try {
       final newConsultation = ConsultationEntity(
-        patientId: userEntityDataSource.getUserEntity()?.id,
+        patientId: patientEntityDataSource.getPatientEntity()?.id,
         centreId: centreEntityDataSource.getCentreEntity()?.id,
         patientStatus: PatientConsultationStatus.requested,
         audiologistStatus: AudiologistConsultationStatus.pending,
         status: SessionStatus.inProgress,
       );
+      di<ILogger>().debug(newConsultation.toJson().toString());
       final response = await dio.post(
         Constants.createConsultationUrl,
         data: newConsultation.toJson(),
