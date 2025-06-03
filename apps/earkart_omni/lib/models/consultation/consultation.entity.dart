@@ -3,7 +3,7 @@ import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/tympanometry/tympanometry_test.entity.dart';
 import 'package:earkart_omni/models/oae/oae_test.entity.dart';
 import 'package:earkart_omni/models/otoscopy/otoscopy_test.entity.dart';
-import 'package:earkart_omni/models/consultation/consultation_recording.model.dart';
+import 'package:earkart_omni/models/consultation/consultation_recording.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
@@ -50,7 +50,7 @@ class ConsultationEntity extends Equatable {
   @HiveField(16)
   final CentreEntity? centre;
   @HiveField(17)
-  final List<ConsultationRecording>? recordings;
+  final List<ConsultationRecordingEntity>? recordings;
 
   const ConsultationEntity({
     this.id,
@@ -120,7 +120,7 @@ class ConsultationEntity extends Equatable {
         json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
     recordings:
         (json['recordings'] as List?)
-            ?.map((x) => ConsultationRecording.fromJson(x))
+            ?.map((x) => ConsultationRecordingEntity.fromJson(x))
             .toList(),
   );
 

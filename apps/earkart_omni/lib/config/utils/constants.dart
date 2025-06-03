@@ -17,6 +17,7 @@ class Constants {
   static const cityDb = "city_db";
   static const districtDb = "district_db";
   static const languageDb = "language_db";
+  static const consultationDb = "consultation_db";
   static final baseUrl = dotenv.env['BASE_URL'];
   static final loginUrl = "${baseUrl}auth/login";
   static final deviceUrl = "${baseUrl}device/find-by-value";
@@ -30,4 +31,9 @@ class Constants {
   static final statesUrl = "${baseUrl}states/get-states-by-country-id";
   static final citiesUrl = "${baseUrl}city/get-cities-by-state-id";
   static final districtsUrl = "${baseUrl}district/get-districts-by-city-id";
+  static final createConsultationUrl = "${baseUrl}consultation/create";
+  static final getConsultationByIdUrl = "${baseUrl}consultation/get-by-id";
+  static final updateConsultationUrl = "${baseUrl}consultation/update";
+  static final getConsultationsByCentreIdUrl =
+      "${baseUrl}consultation/get-by-centre-id";
 }

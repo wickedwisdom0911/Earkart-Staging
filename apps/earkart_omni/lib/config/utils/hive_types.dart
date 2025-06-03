@@ -30,4 +30,6 @@ class HiveTypes {
   static const int otoscopyImageEntity = 28;
   static const int tympanometryTestEntity = 29;
   static const int tympanometryReadingEntity = 30;
+  static const int audiologistEntity = 31;
+  static const int earEnum = 32;
 }

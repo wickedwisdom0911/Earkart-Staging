@@ -1,37 +1,68 @@
+import 'package:earkart_omni/config/utils/hive_types.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/language/language.entity.dart';
 import 'package:earkart_omni/models/locations/locations.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 import 'package:equatable/equatable.dart';
+import 'package:hive/hive.dart';
 
+part 'audiologist.entity.g.dart';
+
+@HiveType(typeId: HiveTypes.audiologistEntity)
 class AudiologistEntity extends Equatable {
+  @HiveField(0)
   final String? id;
+  @HiveField(1)
   final String? userId;
+  @HiveField(2)
   final String? address;
+  @HiveField(3)
   final String? districtId;
+  @HiveField(4)
   final String? pincode;
+  @HiveField(5)
   final String? contactNumber;
+  @HiveField(6)
   final String? rciNumber;
+  @HiveField(7)
   final List<String>? qualifications;
+  @HiveField(8)
   final DateTime? agreementSignDate;
+  @HiveField(9)
   final DateTime? reportingDate;
+  @HiveField(10)
   final String? grade;
+  @HiveField(11)
   final String? createdBy;
+  @HiveField(12)
   final String? updatedBy;
+  @HiveField(13)
   final PaymentCycle? paymentCycle;
+  @HiveField(14)
   final List<WeekDays>? workingDays;
+  @HiveField(15)
   final DateTime? workingTimeStart;
+  @HiveField(16)
   final DateTime? workingTimeEnd;
+  @HiveField(17)
   final DateTime? breakTimeStart;
+  @HiveField(18)
   final DateTime? breakTimeEnd;
+  @HiveField(19)
   final DateTime? createdAt;
+  @HiveField(20)
   final DateTime? updatedAt;
 
   // Relations
+  @HiveField(21)
   final UserEntity? user;
+  @HiveField(22)
   final DistrictEntity? district;
+  @HiveField(23)
   final UserEntity? creator;
+  @HiveField(24)
   final UserEntity? updater;
+  @HiveField(25)
   final List<LanguageEntity>? languages;
 
   const AudiologistEntity({

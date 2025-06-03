@@ -11,6 +11,18 @@ import 'package:earkart_omni/features/auth/domain/usecases/get.centre.usecase.da
 import 'package:earkart_omni/features/auth/domain/usecases/get.current.user.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/login.usecase.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
+import 'package:earkart_omni/features/consultation/data/repositories/consulation.repository.impl.dart';
+import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
+import 'package:earkart_omni/features/consultation/data/source/remote/consultation.remote.source.dart';
+import 'package:earkart_omni/features/consultation/data/source/remote/consultation.remote.source.impl.dart';
+import 'package:earkart_omni/features/consultation/domain/repositories/consultation.repository.dart';
+import 'package:earkart_omni/features/consultation/domain/usecases/create_consultation.usecase.dart';
+import 'package:earkart_omni/features/consultation/domain/usecases/delete_current_consultation_session.usecase.dart';
+import 'package:earkart_omni/features/consultation/domain/usecases/get_consultation_by_id.usecase.dart';
+import 'package:earkart_omni/features/consultation/domain/usecases/get_consultations_by_centre_id.usecase.dart';
+import 'package:earkart_omni/features/consultation/domain/usecases/get_current_consultation.usecase.dart';
+import 'package:earkart_omni/features/consultation/domain/usecases/update_consultation.usecase.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/lookup/data/reositories/lookup.repository.impl.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/city.entity.source.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/countries.entity.source.dart';
@@ -78,6 +90,9 @@ Future<void> setupDI() async {
   di.registerLazySingleton<CityEntityDataSource>(() => CityEntityDataSource());
   di.registerLazySingleton<DistrictEntityDataSource>(
     () => DistrictEntityDataSource(),
+  );
+  di.registerLazySingleton<ConsultationEntityDataSource>(
+    () => ConsultationEntityDataSource(),
   );
 
   //auth
@@ -171,6 +186,49 @@ Future<void> setupDI() async {
       getStatesUsecase: di.call(),
       getCitiesUsecase: di.call(),
       getDistrictsUsecase: di.call(),
+    ),
+  );
+
+  //consultation
+  di.registerLazySingleton<IConsultationRemoteSource>(
+    () => ConsultationRemoteSourceImpl(
+      dio: di.call(),
+      consultationEntityDataSource: di.call(),
+      userEntityDataSource: di.call(),
+      centreEntityDataSource: di.call(),
+    ),
+  );
+  di.registerLazySingleton<IConsultationRepository>(
+    () => ConsultationRepositoryImpl(consultationRemoteSource: di.call()),
+  );
+  di.registerLazySingleton<GetConsultationByIdUsecase>(
+    () => GetConsultationByIdUsecase(consultationRepository: di.call()),
+  );
+  di.registerLazySingleton<CreateConsultationUsecase>(
+    () => CreateConsultationUsecase(consultationRepository: di.call()),
+  );
+  di.registerLazySingleton<UpdateConsultationUsecase>(
+    () => UpdateConsultationUsecase(consultationRepository: di.call()),
+  );
+  di.registerLazySingleton<DeleteCurrentConsultationSessionUsecase>(
+    () => DeleteCurrentConsultationSessionUsecase(
+      consultationRepository: di.call(),
+    ),
+  );
+  di.registerLazySingleton<GetConsultationsByCentreIdUsecase>(
+    () => GetConsultationsByCentreIdUsecase(consultationRepository: di.call()),
+  );
+  di.registerLazySingleton<GetCurrentConsultationUsecase>(
+    () => GetCurrentConsultationUsecase(consultationRepository: di.call()),
+  );
+  di.registerLazySingleton<ConsultationCubit>(
+    () => ConsultationCubit(
+      createConsultationUsecase: di.call(),
+      getConsultationByIdUsecase: di.call(),
+      updateConsultationUsecase: di.call(),
+      deleteCurrentConsultationSessionUsecase: di.call(),
+      getConsultationsByCentreIdUsecase: di.call(),
+      getCurrentConsultationUsecase: di.call(),
     ),
   );
 }

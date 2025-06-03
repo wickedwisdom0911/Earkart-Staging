@@ -4,7 +4,13 @@ import '../config/utils/hive_types.dart';
 
 part 'enums.g.dart';
 
-enum Ear { left, right }
+@HiveType(typeId: HiveTypes.earEnum)
+enum Ear {
+  @HiveField(0)
+  left,
+  @HiveField(1)
+  right,
+}
 
 @HiveType(typeId: HiveTypes.genderEnum)
 enum Gender {

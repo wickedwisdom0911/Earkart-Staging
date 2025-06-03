@@ -34,7 +34,7 @@ class ConsultationEntityAdapter extends TypeAdapter<ConsultationEntity> {
       patient: fields[14] as PatientEntity?,
       audiologist: fields[15] as AudiologistEntity?,
       centre: fields[16] as CentreEntity?,
-      recordings: (fields[17] as List?)?.cast<ConsultationRecording>(),
+      recordings: (fields[17] as List?)?.cast<ConsultationRecordingEntity>(),
     );
   }
 

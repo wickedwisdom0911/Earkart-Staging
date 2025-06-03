@@ -6,6 +6,45 @@ part of 'enums.dart';
 // TypeAdapterGenerator
 // **************************************************************************
 
+class EarAdapter extends TypeAdapter<Ear> {
+  @override
+  final int typeId = 32;
+
+  @override
+  Ear read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return Ear.left;
+      case 1:
+        return Ear.right;
+      default:
+        return Ear.left;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, Ear obj) {
+    switch (obj) {
+      case Ear.left:
+        writer.writeByte(0);
+        break;
+      case Ear.right:
+        writer.writeByte(1);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EarAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
 class GenderAdapter extends TypeAdapter<Gender> {
   @override
   final int typeId = 4;
