@@ -36,23 +36,15 @@ class CountryModel {
 }
 
 class CountryModelData extends CountryEntity {
-  CountryModelData({
-    String? id,
-    required String name,
-    required String code,
-    List<StateEntity>? states,
-    required Status status,
-    required DateTime createdAt,
-    required DateTime updatedAt,
-  }) : super(
-         id: id,
-         name: name,
-         code: code,
-         states: states,
-         status: status,
-         createdAt: createdAt,
-         updatedAt: updatedAt,
-       );
+  const CountryModelData({
+    super.id,
+    required super.name,
+    required super.code,
+    super.states,
+    required super.status,
+    required super.createdAt,
+    required super.updatedAt,
+  });
 
   factory CountryModelData.fromJson(Map<String, dynamic> json) {
     return CountryModelData(
@@ -71,6 +63,7 @@ class CountryModelData extends CountryEntity {
     );
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -119,25 +112,16 @@ class StateModel {
 }
 
 class StateModelData extends StateEntity {
-  StateModelData({
-    String? id,
-    required String name,
-    required String countryId,
-    List<CityEntity>? cities,
-    required Status status,
-    required DateTime createdAt,
-    required DateTime updatedAt,
-    CountryEntity? country,
-  }) : super(
-         id: id,
-         name: name,
-         countryId: countryId,
-         cities: cities,
-         status: status,
-         createdAt: createdAt,
-         updatedAt: updatedAt,
-         country: country,
-       );
+  const StateModelData({
+    super.id,
+    required super.name,
+    required super.countryId,
+    super.cities,
+    required super.status,
+    required super.createdAt,
+    required super.updatedAt,
+    super.country,
+  });
 
   factory StateModelData.fromJson(Map<String, dynamic> json) {
     return StateModelData(
@@ -160,6 +144,7 @@ class StateModelData extends StateEntity {
     );
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -208,25 +193,16 @@ class CityModel {
 }
 
 class CityModelData extends CityEntity {
-  CityModelData({
-    String? id,
-    required String name,
-    required String stateId,
-    required Status status,
-    required DateTime createdAt,
-    required DateTime updatedAt,
-    StateEntity? state,
-    List<DistrictEntity>? districts,
-  }) : super(
-         id: id,
-         name: name,
-         stateId: stateId,
-         status: status,
-         createdAt: createdAt,
-         updatedAt: updatedAt,
-         state: state,
-         districts: districts,
-       );
+  const CityModelData({
+    super.id,
+    required super.name,
+    required super.stateId,
+    required super.status,
+    required super.createdAt,
+    required super.updatedAt,
+    super.state,
+    super.districts,
+  });
 
   factory CityModelData.fromJson(Map<String, dynamic> json) {
     return CityModelData(
@@ -248,6 +224,7 @@ class CityModelData extends CityEntity {
     );
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -297,23 +274,15 @@ class DistrictModel {
 }
 
 class DistrictModelData extends DistrictEntity {
-  DistrictModelData({
-    String? id,
-    required String name,
-    required String cityId,
-    required Status status,
-    required DateTime createdAt,
-    required DateTime updatedAt,
-    CityEntity? city,
-  }) : super(
-         id: id,
-         name: name,
-         cityId: cityId,
-         status: status,
-         createdAt: createdAt,
-         updatedAt: updatedAt,
-         city: city,
-       );
+  const DistrictModelData({
+    super.id,
+    required super.name,
+    required super.cityId,
+    required super.status,
+    required super.createdAt,
+    required super.updatedAt,
+    super.city,
+  });
 
   factory DistrictModelData.fromJson(Map<String, dynamic> json) {
     return DistrictModelData(
@@ -327,6 +296,7 @@ class DistrictModelData extends DistrictEntity {
     );
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'id': id,

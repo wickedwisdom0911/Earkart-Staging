@@ -2,12 +2,19 @@ import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/oae/oae_test.entity.dart';
 
 class OAETest extends OAETestEntity {
+  @override
   final String id;
+  @override
   final String sessionId;
+  @override
   final TestStatus status;
+  @override
   final List<OAEReadingEntity>? earTests;
+  @override
   final String? notes;
+  @override
   final DateTime createdAt;
+  @override
   final DateTime updatedAt;
 
   OAETest({
@@ -33,6 +40,7 @@ class OAETest extends OAETestEntity {
     updatedAt: DateTime.parse(json['updatedAt']),
   );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'sessionId': sessionId,
@@ -45,10 +53,15 @@ class OAETest extends OAETestEntity {
 }
 
 class OAEReading extends OAEReadingEntity {
+  @override
   final String id;
+  @override
   final String oaeTestId;
+  @override
   final Ear ear;
+  @override
   final bool passed;
+  @override
   final List<FrequencyResponseEntity>? frequencyResponses;
 
   OAEReading({
@@ -76,6 +89,7 @@ class OAEReading extends OAEReadingEntity {
             .toList(),
   );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'oaeTestId': oaeTestId,
@@ -86,9 +100,13 @@ class OAEReading extends OAEReadingEntity {
 }
 
 class FrequencyResponse extends FrequencyResponseEntity {
+  @override
   final String id;
+  @override
   final String oaeReadingId;
+  @override
   final int frequencyHz;
+  @override
   final double responseDb;
 
   FrequencyResponse({
@@ -111,6 +129,7 @@ class FrequencyResponse extends FrequencyResponseEntity {
         responseDb: (json['responseDb'] as num).toDouble(),
       );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'oaeReadingId': oaeReadingId,

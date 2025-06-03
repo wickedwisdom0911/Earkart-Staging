@@ -9,11 +9,11 @@ class GradientButton extends StatelessWidget {
   final Function() onPressed;
   final List<Color>? colors;
   const GradientButton({
-    Key? key,
+    super.key,
     required this.child,
     required this.onPressed,
     this.colors,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -15,7 +15,7 @@ class StateSelector extends StatelessWidget {
   final List<StateEntity> items;
 
   const StateSelector({
-    Key? key,
+    super.key,
     required this.value,
     required this.onChanged,
     required this.items,
@@ -23,7 +23,7 @@ class StateSelector extends StatelessWidget {
     this.title,
     this.enabled = true,
     this.errorText,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

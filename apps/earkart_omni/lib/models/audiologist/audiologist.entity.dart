@@ -34,7 +34,7 @@ class AudiologistEntity extends Equatable {
   final UserEntity? updater;
   final List<LanguageEntity>? languages;
 
-  AudiologistEntity({
+  const AudiologistEntity({
     this.id,
     this.userId,
     this.address,

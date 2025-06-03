@@ -10,7 +10,7 @@ class TympanometryTestEntity extends Equatable {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
-  TympanometryTestEntity({
+  const TympanometryTestEntity({
     this.id,
     this.sessionId,
     this.status,
@@ -68,7 +68,7 @@ class TympanometryReadingEntity extends Equatable {
   final double? earCanalVolume;
   final TympType? tympType;
 
-  TympanometryReadingEntity({
+  const TympanometryReadingEntity({
     this.id,
     this.tympanometryId,
     this.ear,

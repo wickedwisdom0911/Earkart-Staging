@@ -15,7 +15,7 @@ class DistrictSelector extends StatelessWidget {
   final List<DistrictEntity> items;
 
   const DistrictSelector({
-    Key? key,
+    super.key,
     required this.value,
     required this.onChanged,
     required this.items,
@@ -23,7 +23,7 @@ class DistrictSelector extends StatelessWidget {
     this.title,
     this.enabled = true,
     this.errorText,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

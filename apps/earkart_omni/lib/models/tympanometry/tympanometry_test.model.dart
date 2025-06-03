@@ -2,12 +2,19 @@ import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/tympanometry/tympanometry_test.entity.dart';
 
 class TympanometryTest extends TympanometryTestEntity {
+  @override
   final String id;
+  @override
   final String sessionId;
+  @override
   final TestStatus status;
+  @override
   final List<TympanometryReadingEntity>? readings;
+  @override
   final String? notes;
+  @override
   final DateTime createdAt;
+  @override
   final DateTime updatedAt;
 
   TympanometryTest({
@@ -42,6 +49,7 @@ class TympanometryTest extends TympanometryTestEntity {
         updatedAt: DateTime.parse(json['updatedAt']),
       );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'sessionId': sessionId,
@@ -54,12 +62,19 @@ class TympanometryTest extends TympanometryTestEntity {
 }
 
 class TympanometryReading extends TympanometryReadingEntity {
+  @override
   final String id;
+  @override
   final String tympanometryId;
+  @override
   final Ear ear;
+  @override
   final double peakPressure;
+  @override
   final double staticCompliance;
+  @override
   final double earCanalVolume;
+  @override
   final TympType tympType;
 
   TympanometryReading({
@@ -91,6 +106,7 @@ class TympanometryReading extends TympanometryReadingEntity {
         tympType: tympTypeFromApi(json['tympType']),
       );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'tympanometryId': tympanometryId,

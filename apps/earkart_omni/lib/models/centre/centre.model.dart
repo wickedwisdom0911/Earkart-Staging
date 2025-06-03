@@ -32,31 +32,55 @@ class CentreModel {
 }
 
 class CentreModelData extends CentreEntity {
+  @override
   final String? id;
+  @override
   final String? userId;
+  @override
   final UserEntity? user; // Replace with your User model if available
+  @override
   final UserEntity? creator; // Replace with your User model if available
+  @override
   final UserEntity? updater; // Replace with your User model if available
+  @override
   final String code;
+  @override
   final String address;
+  @override
   final String districtId;
+  @override
   final String pincode;
+  @override
   final String contactNumber;
+  @override
   final String entName;
+  @override
   final String assistantName;
+  @override
   final String assistantContactNumber;
+  @override
   final PaymentCycle paymentCycle;
+  @override
   final String? createdBy;
+  @override
   final String? updatedBy;
+  @override
   final List<WeekDays> workingDays;
+  @override
   final String workingTimeStart;
+  @override
   final String workingTimeEnd;
+  @override
   final String breakTimeStart;
+  @override
   final String breakTimeEnd;
+  @override
   final DateTime? createdAt;
+  @override
   final DateTime? updatedAt;
-  final DistrictEntity?
-  district; // Replace with your District model if available
+  @override
+  final DistrictEntity? district; // Replace with your District model if available
+  @override
   final DeviceEntity? device; // Replace with your DeviceModelData if available
 
   const CentreModelData({
@@ -156,6 +180,7 @@ class CentreModelData extends CentreEntity {
     );
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'id': id,

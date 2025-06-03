@@ -36,21 +36,14 @@ class LanguageModel {
 }
 
 class LanguageModelData extends LanguageEntity {
-  LanguageModelData({
-    String? id,
-    required String name,
-    required String code,
-    required Status status,
-    required DateTime createdAt,
-    required DateTime updatedAt,
-  }) : super(
-         id: id,
-         name: name,
-         code: code,
-         status: status,
-         createdAt: createdAt,
-         updatedAt: updatedAt,
-       );
+  const LanguageModelData({
+    super.id,
+    required super.name,
+    required super.code,
+    required super.status,
+    required super.createdAt,
+    required super.updatedAt,
+  });
 
   factory LanguageModelData.fromJson(Map<String, dynamic> json) {
     return LanguageModelData(
@@ -63,6 +56,7 @@ class LanguageModelData extends LanguageEntity {
     );
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'id': id,

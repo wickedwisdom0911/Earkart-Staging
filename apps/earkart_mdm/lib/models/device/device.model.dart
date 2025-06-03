@@ -29,16 +29,27 @@ class DeviceModel {
 }
 
 class DeviceData extends DeviceEntity {
+  @override
   final String id;
+  @override
   final String deviceCode;
+  @override
   final String? tabletID;
+  @override
   final String? deviceID;
+  @override
   final String? tabletAppVersion;
+  @override
   final String? tabletAndroidVersion;
+  @override
   final String? centreId;
+  @override
   final Status status;
+  @override
   final DateTime createdAt;
+  @override
   final DateTime updatedAt;
+  @override
   final CentreEntity? centre;
   // final Centre? centre; // Uncomment and import if you have a Centre model
   // final List<DeviceActivity> deviceActivities; // Define if needed
@@ -95,6 +106,7 @@ class DeviceData extends DeviceEntity {
     );
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'id': id,

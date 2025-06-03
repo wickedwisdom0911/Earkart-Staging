@@ -2,14 +2,23 @@ import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 
 class AudiometryTest extends AudiometryTestEntity {
+  @override
   final String id;
+  @override
   final String sessionId;
+  @override
   final TestStatus status;
+  @override
   final List<ACReadingEntity>? acTests;
+  @override
   final List<BCReadingEntity>? bcTests;
+  @override
   final List<SpeechReadingEntity>? speechTests;
+  @override
   final String? notes;
+  @override
   final DateTime createdAt;
+  @override
   final DateTime updatedAt;
 
   AudiometryTest({
@@ -55,6 +64,7 @@ class AudiometryTest extends AudiometryTestEntity {
     updatedAt: DateTime.parse(json['updatedAt']),
   );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'sessionId': sessionId,
@@ -69,12 +79,19 @@ class AudiometryTest extends AudiometryTestEntity {
 }
 
 class ACReading extends ACReadingEntity {
+  @override
   final String id;
+  @override
   final String audiometryId;
+  @override
   final Ear ear;
+  @override
   final int frequencyHz;
+  @override
   final int thresholdDb;
+  @override
   final bool maskingUsed;
+  @override
   final Ear? maskingEar;
 
   ACReading({
@@ -106,6 +123,7 @@ class ACReading extends ACReadingEntity {
         json['maskingEar'] != null ? earFromApi(json['maskingEar']) : null,
   );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'audiometryId': audiometryId,
@@ -118,11 +136,17 @@ class ACReading extends ACReadingEntity {
 }
 
 class BCReading extends BCReadingEntity {
+  @override
   final String id;
+  @override
   final String audiometryId;
+  @override
   final Ear ear;
+  @override
   final int frequencyHz;
+  @override
   final int thresholdDb;
+  @override
   final bool maskingUsed;
 
   BCReading({
@@ -149,6 +173,7 @@ class BCReading extends BCReadingEntity {
     maskingUsed: json['maskingUsed'],
   );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'audiometryId': audiometryId,
@@ -160,10 +185,15 @@ class BCReading extends BCReadingEntity {
 }
 
 class SpeechReading extends SpeechReadingEntity {
+  @override
   final String id;
+  @override
   final String audiometryId;
+  @override
   final Ear ear;
+  @override
   final int srtDb;
+  @override
   final int sdScore;
 
   SpeechReading({
@@ -188,6 +218,7 @@ class SpeechReading extends SpeechReadingEntity {
     sdScore: json['sdScore'],
   );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'audiometryId': audiometryId,

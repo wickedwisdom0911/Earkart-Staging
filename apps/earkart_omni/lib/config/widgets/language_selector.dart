@@ -15,7 +15,7 @@ class LanguageSelector extends StatelessWidget {
   final List<LanguageEntity> items;
 
   const LanguageSelector({
-    Key? key,
+    super.key,
     required this.value,
     required this.onChanged,
     required this.items,
@@ -23,7 +23,7 @@ class LanguageSelector extends StatelessWidget {
     this.title,
     this.enabled = true,
     this.errorText,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

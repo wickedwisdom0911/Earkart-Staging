@@ -2,13 +2,21 @@ import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/otoscopy/otoscopy_test.entity.dart';
 
 class OtoscopyTest extends OtoscopyTestEntity {
+  @override
   final String id;
+  @override
   final String sessionId;
+  @override
   final String? notes;
+  @override
   final DateTime capturedAt;
+  @override
   final List<OtoscopyImageEntity>? otoscopyImages;
+  @override
   final TestStatus status;
+  @override
   final DateTime createdAt;
+  @override
   final DateTime updatedAt;
 
   OtoscopyTest({
@@ -45,6 +53,7 @@ class OtoscopyTest extends OtoscopyTestEntity {
     updatedAt: DateTime.parse(json['updatedAt']),
   );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'sessionId': sessionId,
@@ -58,11 +67,17 @@ class OtoscopyTest extends OtoscopyTestEntity {
 }
 
 class OtoscopyImage extends OtoscopyImageEntity {
+  @override
   final String id;
+  @override
   final String otoscopyId;
+  @override
   final Ear ear;
+  @override
   final String imageUrl;
+  @override
   final DateTime capturedAt;
+  @override
   final String? notes;
 
   OtoscopyImage({
@@ -89,6 +104,7 @@ class OtoscopyImage extends OtoscopyImageEntity {
     notes: json['notes'],
   );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'otoscopyId': otoscopyId,

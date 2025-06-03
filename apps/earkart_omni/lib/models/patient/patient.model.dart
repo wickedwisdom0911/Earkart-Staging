@@ -46,51 +46,29 @@ class PatientModel {
 }
 
 class PatientModelData extends PatientEntity {
-  PatientModelData({
-    String? id,
-    required String contactNumber,
-    required String code,
-    required String name,
-    String? email,
-    required Gender gender,
-    required String dob,
-    String? password,
-    required String address,
-    required String districtId,
-    required String pincode,
-    String? createdBy,
-    String? updatedBy,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-    required String languageId,
-    required Status status,
-    DistrictEntity? district,
-    UserEntity? creator,
-    UserEntity? updater,
-    LanguageEntity? language,
-  }) : super(
-         id: id,
-         contactNumber: contactNumber,
-         code: code,
-         name: name,
-         email: email,
-         gender: gender,
-         dob: dob,
-         password: password,
-         address: address,
-         districtId: districtId,
-         pincode: pincode,
-         createdBy: createdBy,
-         updatedBy: updatedBy,
-         createdAt: createdAt,
-         updatedAt: updatedAt,
-         languageId: languageId,
-         status: status,
-         creator: creator,
-         updater: updater,
-         language: language,
-         district: district,
-       );
+  const PatientModelData({
+    super.id,
+    required super.contactNumber,
+    required super.code,
+    required super.name,
+    super.email,
+    required super.gender,
+    required super.dob,
+    super.password,
+    required super.address,
+    required super.districtId,
+    required super.pincode,
+    super.createdBy,
+    super.updatedBy,
+    super.createdAt,
+    super.updatedAt,
+    required super.languageId,
+    required Status super.status,
+    super.district,
+    super.creator,
+    super.updater,
+    super.language,
+  });
 
   factory PatientModelData.fromJson(Map<String, dynamic> json) {
     return PatientModelData(
@@ -126,6 +104,7 @@ class PatientModelData extends PatientEntity {
     );
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'id': id,

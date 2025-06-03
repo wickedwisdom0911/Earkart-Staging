@@ -11,7 +11,7 @@ class OtoscopyTestEntity extends Equatable {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
-  OtoscopyTestEntity({
+  const OtoscopyTestEntity({
     this.id,
     this.sessionId,
     this.notes,
@@ -73,7 +73,7 @@ class OtoscopyImageEntity extends Equatable {
   final DateTime? capturedAt;
   final String? notes;
 
-  OtoscopyImageEntity({
+  const OtoscopyImageEntity({
     this.id,
     this.otoscopyId,
     this.ear,

@@ -11,8 +11,8 @@ abstract class Failure {
 }
 
 class UnKnownFailure extends Failure {
-  UnKnownFailure({String? error, StackTrace? stack})
-    : super(message: "Something went wrong", error: error, stackTrace: stack);
+  UnKnownFailure({super.error, StackTrace? stack})
+    : super(message: "Something went wrong", stackTrace: stack);
 }
 
 class FetchDataFailure extends Failure {

@@ -12,7 +12,7 @@ import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart'
 
 class RootScreen extends StatefulWidget {
   static const routeName = '/';
-  const RootScreen({Key? key}) : super(key: key);
+  const RootScreen({super.key});
 
   @override
   State<RootScreen> createState() => _RootScreenState();

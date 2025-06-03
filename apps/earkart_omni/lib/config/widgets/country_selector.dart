@@ -15,7 +15,7 @@ class CountrySelector extends StatelessWidget {
   final List<CountryEntity> items;
 
   const CountrySelector({
-    Key? key,
+    super.key,
     required this.value,
     required this.onChanged,
     required this.items,
@@ -23,7 +23,7 @@ class CountrySelector extends StatelessWidget {
     this.title,
     this.enabled = true,
     this.errorText,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

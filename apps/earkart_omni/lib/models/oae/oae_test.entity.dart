@@ -10,7 +10,7 @@ class OAETestEntity extends Equatable {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
-  OAETestEntity({
+  const OAETestEntity({
     this.id,
     this.sessionId,
     this.status,
@@ -64,7 +64,7 @@ class OAEReadingEntity extends Equatable {
   final bool? passed;
   final List<FrequencyResponseEntity>? frequencyResponses;
 
-  OAEReadingEntity({
+  const OAEReadingEntity({
     this.id,
     this.oaeTestId,
     this.ear,
@@ -102,7 +102,7 @@ class FrequencyResponseEntity extends Equatable {
   final int? frequencyHz;
   final double? responseDb;
 
-  FrequencyResponseEntity({
+  const FrequencyResponseEntity({
     this.id,
     this.oaeReadingId,
     this.frequencyHz,

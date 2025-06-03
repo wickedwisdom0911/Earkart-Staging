@@ -27,19 +27,30 @@ class UserModel {
 }
 
 class UserModelData extends UserEntity {
+  @override
   final String? id;
+  @override
   final String email;
+  @override
   final String name;
+  @override
   final String? password;
+  @override
   final Role role;
+  @override
   final Status status;
+  @override
   final Gender gender;
+  @override
   final String dob;
+  @override
   final String? createdAt;
+  @override
   final String? updatedAt;
+  @override
   final String? token;
 
-  UserModelData({
+  const UserModelData({
     this.id,
     required this.email,
     required this.name,
@@ -81,6 +92,7 @@ class UserModelData extends UserEntity {
     );
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'id': id,

@@ -26,7 +26,7 @@ class CustomTextField extends StatefulWidget {
   final bool? readOnly, autofocus;
   final Color? fillcolor, titleColor;
   const CustomTextField({
-    Key? key,
+    super.key,
     this.controller,
     this.validator,
     this.keyboardType,
@@ -51,7 +51,7 @@ class CustomTextField extends StatefulWidget {
     this.title,
     this.fillcolor,
     this.titleColor,
-  }) : super(key: key);
+  });
 
   @override
   State<CustomTextField> createState() => _CustomTextFieldState();

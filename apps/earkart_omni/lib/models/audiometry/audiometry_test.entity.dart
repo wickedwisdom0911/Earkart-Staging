@@ -12,7 +12,7 @@ class AudiometryTestEntity extends Equatable {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
-  AudiometryTestEntity({
+  const AudiometryTestEntity({
     this.id,
     this.sessionId,
     this.status,
@@ -84,7 +84,7 @@ class ACReadingEntity extends Equatable {
   final bool? maskingUsed;
   final Ear? maskingEar;
 
-  ACReadingEntity({
+  const ACReadingEntity({
     this.id,
     this.audiometryId,
     this.ear,
@@ -136,7 +136,7 @@ class BCReadingEntity extends Equatable {
   final int? thresholdDb;
   final bool? maskingUsed;
 
-  BCReadingEntity({
+  const BCReadingEntity({
     this.id,
     this.audiometryId,
     this.ear,
@@ -182,7 +182,7 @@ class SpeechReadingEntity extends Equatable {
   final int? srtDb;
   final int? sdScore;
 
-  SpeechReadingEntity({
+  const SpeechReadingEntity({
     this.id,
     this.audiometryId,
     this.ear,

@@ -33,7 +33,7 @@ class CentreEntity extends Equatable {
   // final District? district; // Uncomment and define District if needed
   // final DeviceEntity? device; // Uncomment and import if needed
 
-  CentreEntity({
+  const CentreEntity({
     required this.id,
     required this.userId,
     // this.user,

@@ -26,33 +26,59 @@ class AudiologistModel {
 }
 
 class AudiologistModelData extends AudiologistEntity {
+  @override
   final String? id;
+  @override
   final String? userId;
+  @override
   final String? address;
+  @override
   final String? districtId;
+  @override
   final String? pincode;
+  @override
   final String? contactNumber;
+  @override
   final String? rciNumber;
+  @override
   final List<String>? qualifications;
+  @override
   final DateTime? agreementSignDate;
+  @override
   final DateTime? reportingDate;
+  @override
   final String? grade;
+  @override
   final String? createdBy;
+  @override
   final String? updatedBy;
+  @override
   final PaymentCycle? paymentCycle;
+  @override
   final List<WeekDays>? workingDays;
+  @override
   final DateTime? workingTimeStart;
+  @override
   final DateTime? workingTimeEnd;
+  @override
   final DateTime? breakTimeStart;
+  @override
   final DateTime? breakTimeEnd;
+  @override
   final DateTime? createdAt;
+  @override
   final DateTime? updatedAt;
 
   // Relations (minimal stubs)
+  @override
   final UserEntity? user;
+  @override
   final DistrictEntity? district;
+  @override
   final UserEntity? creator;
+  @override
   final UserEntity? updater;
+  @override
   final List<LanguageEntity>? languages;
 
   AudiologistModelData({
@@ -147,6 +173,7 @@ class AudiologistModelData extends AudiologistEntity {
         languages: json['languages'],
       );
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'userId': userId,
