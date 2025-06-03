@@ -1,12 +1,13 @@
+import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 
-class AudiometryTest {
+class AudiometryTest extends AudiometryTestEntity {
   final String id;
   final String sessionId;
   final TestStatus status;
-  final List<ACReading> acTests;
-  final List<BCReading> bcTests;
-  final List<SpeechReading> speechTests;
+  final List<ACReadingEntity>? acTests;
+  final List<BCReadingEntity>? bcTests;
+  final List<SpeechReadingEntity>? speechTests;
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -15,13 +16,23 @@ class AudiometryTest {
     required this.id,
     required this.sessionId,
     required this.status,
-    required this.acTests,
-    required this.bcTests,
-    required this.speechTests,
+    this.acTests,
+    this.bcTests,
+    this.speechTests,
     this.notes,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : super(
+         id: id,
+         sessionId: sessionId,
+         status: status,
+         acTests: acTests,
+         bcTests: bcTests,
+         speechTests: speechTests,
+         notes: notes,
+         createdAt: createdAt,
+         updatedAt: updatedAt,
+       );
 
   factory AudiometryTest.fromJson(Map<String, dynamic> json) => AudiometryTest(
     id: json['id'],
@@ -29,15 +40,15 @@ class AudiometryTest {
     status: testStatusFromApi(json['status']),
     acTests:
         (json['acTests'] as List? ?? [])
-            .map((e) => ACReading.fromJson(e))
+            .map((e) => ACReadingEntity.fromJson(e))
             .toList(),
     bcTests:
         (json['bcTests'] as List? ?? [])
-            .map((e) => BCReading.fromJson(e))
+            .map((e) => BCReadingEntity.fromJson(e))
             .toList(),
     speechTests:
         (json['speechTests'] as List? ?? [])
-            .map((e) => SpeechReading.fromJson(e))
+            .map((e) => SpeechReadingEntity.fromJson(e))
             .toList(),
     notes: json['notes'],
     createdAt: DateTime.parse(json['createdAt']),
@@ -48,16 +59,16 @@ class AudiometryTest {
     'id': id,
     'sessionId': sessionId,
     'status': status.name,
-    'acTests': acTests.map((e) => e.toJson()).toList(),
-    'bcTests': bcTests.map((e) => e.toJson()).toList(),
-    'speechTests': speechTests.map((e) => e.toJson()).toList(),
+    'acTests': acTests?.map((e) => e.toJson()).toList(),
+    'bcTests': bcTests?.map((e) => e.toJson()).toList(),
+    'speechTests': speechTests?.map((e) => e.toJson()).toList(),
     'notes': notes,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
 }
 
-class ACReading {
+class ACReading extends ACReadingEntity {
   final String id;
   final String audiometryId;
   final Ear ear;
@@ -74,7 +85,15 @@ class ACReading {
     required this.thresholdDb,
     required this.maskingUsed,
     this.maskingEar,
-  });
+  }) : super(
+         id: id,
+         audiometryId: audiometryId,
+         ear: ear,
+         frequencyHz: frequencyHz,
+         thresholdDb: thresholdDb,
+         maskingUsed: maskingUsed,
+         maskingEar: maskingEar,
+       );
 
   factory ACReading.fromJson(Map<String, dynamic> json) => ACReading(
     id: json['id'],
@@ -98,7 +117,7 @@ class ACReading {
   };
 }
 
-class BCReading {
+class BCReading extends BCReadingEntity {
   final String id;
   final String audiometryId;
   final Ear ear;
@@ -113,8 +132,14 @@ class BCReading {
     required this.frequencyHz,
     required this.thresholdDb,
     required this.maskingUsed,
-  });
-
+  }) : super(
+         id: id,
+         audiometryId: audiometryId,
+         ear: ear,
+         frequencyHz: frequencyHz,
+         thresholdDb: thresholdDb,
+         maskingUsed: maskingUsed,
+       );
   factory BCReading.fromJson(Map<String, dynamic> json) => BCReading(
     id: json['id'],
     audiometryId: json['audiometryId'],
@@ -134,7 +159,7 @@ class BCReading {
   };
 }
 
-class SpeechReading {
+class SpeechReading extends SpeechReadingEntity {
   final String id;
   final String audiometryId;
   final Ear ear;
@@ -147,7 +172,13 @@ class SpeechReading {
     required this.ear,
     required this.srtDb,
     required this.sdScore,
-  });
+  }) : super(
+         id: id,
+         audiometryId: audiometryId,
+         ear: ear,
+         srtDb: srtDb,
+         sdScore: sdScore,
+       );
 
   factory SpeechReading.fromJson(Map<String, dynamic> json) => SpeechReading(
     id: json['id'],

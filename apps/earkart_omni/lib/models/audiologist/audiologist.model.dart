@@ -1,3 +1,4 @@
+import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/language/language.entity.dart';
 import 'package:earkart_omni/models/locations/locations.entity.dart';
@@ -24,7 +25,7 @@ class AudiologistModel {
   };
 }
 
-class AudiologistModelData {
+class AudiologistModelData extends AudiologistEntity {
   final String? id;
   final String? userId;
   final String? address;
@@ -81,7 +82,34 @@ class AudiologistModelData {
     this.creator,
     this.updater,
     this.languages,
-  });
+  }) : super(
+         id: id,
+         userId: userId,
+         address: address,
+         districtId: districtId,
+         pincode: pincode,
+         contactNumber: contactNumber,
+         rciNumber: rciNumber,
+         qualifications: qualifications,
+         agreementSignDate: agreementSignDate,
+         reportingDate: reportingDate,
+         grade: grade,
+         createdBy: createdBy,
+         updatedBy: updatedBy,
+         paymentCycle: paymentCycle,
+         workingDays: workingDays,
+         workingTimeStart: workingTimeStart,
+         workingTimeEnd: workingTimeEnd,
+         breakTimeStart: breakTimeStart,
+         breakTimeEnd: breakTimeEnd,
+         createdAt: createdAt,
+         updatedAt: updatedAt,
+         user: user,
+         district: district,
+         creator: creator,
+         updater: updater,
+         languages: languages,
+       );
 
   factory AudiologistModelData.fromJson(Map<String, dynamic> json) =>
       AudiologistModelData(

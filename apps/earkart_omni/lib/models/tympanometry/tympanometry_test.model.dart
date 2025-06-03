@@ -1,10 +1,11 @@
 import 'package:earkart_omni/models/enums.dart';
+import 'package:earkart_omni/models/tympanometry/tympanometry_test.entity.dart';
 
-class TympanometryTest {
+class TympanometryTest extends TympanometryTestEntity {
   final String id;
   final String sessionId;
   final TestStatus status;
-  final List<TympanometryReading> readings;
+  final List<TympanometryReadingEntity>? readings;
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -13,11 +14,19 @@ class TympanometryTest {
     required this.id,
     required this.sessionId,
     required this.status,
-    required this.readings,
+    this.readings,
     this.notes,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : super(
+         id: id,
+         sessionId: sessionId,
+         status: status,
+         readings: readings,
+         notes: notes,
+         createdAt: createdAt,
+         updatedAt: updatedAt,
+       );
 
   factory TympanometryTest.fromJson(Map<String, dynamic> json) =>
       TympanometryTest(
@@ -26,7 +35,7 @@ class TympanometryTest {
         status: testStatusFromApi(json['status']),
         readings:
             (json['readings'] as List? ?? [])
-                .map((e) => TympanometryReading.fromJson(e))
+                .map((e) => TympanometryReadingEntity.fromJson(e))
                 .toList(),
         notes: json['notes'],
         createdAt: DateTime.parse(json['createdAt']),
@@ -37,14 +46,14 @@ class TympanometryTest {
     'id': id,
     'sessionId': sessionId,
     'status': status.name,
-    'readings': readings.map((e) => e.toJson()).toList(),
+    'readings': readings?.map((e) => e.toJson()).toList(),
     'notes': notes,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
 }
 
-class TympanometryReading {
+class TympanometryReading extends TympanometryReadingEntity {
   final String id;
   final String tympanometryId;
   final Ear ear;
@@ -61,7 +70,15 @@ class TympanometryReading {
     required this.staticCompliance,
     required this.earCanalVolume,
     required this.tympType,
-  });
+  }) : super(
+         id: id,
+         tympanometryId: tympanometryId,
+         ear: ear,
+         peakPressure: peakPressure,
+         staticCompliance: staticCompliance,
+         earCanalVolume: earCanalVolume,
+         tympType: tympType,
+       );
 
   factory TympanometryReading.fromJson(Map<String, dynamic> json) =>
       TympanometryReading(

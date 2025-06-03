@@ -1,10 +1,11 @@
 import 'package:earkart_omni/models/enums.dart';
+import 'package:earkart_omni/models/oae/oae_test.entity.dart';
 
-class OAETest {
+class OAETest extends OAETestEntity {
   final String id;
   final String sessionId;
   final TestStatus status;
-  final List<OAEReading> earTests;
+  final List<OAEReadingEntity>? earTests;
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -13,7 +14,7 @@ class OAETest {
     required this.id,
     required this.sessionId,
     required this.status,
-    required this.earTests,
+    this.earTests,
     this.notes,
     required this.createdAt,
     required this.updatedAt,
@@ -25,7 +26,7 @@ class OAETest {
     status: testStatusFromApi(json['status']),
     earTests:
         (json['earTests'] as List? ?? [])
-            .map((e) => OAEReading.fromJson(e))
+            .map((e) => OAEReadingEntity.fromJson(e))
             .toList(),
     notes: json['notes'],
     createdAt: DateTime.parse(json['createdAt']),
@@ -36,19 +37,19 @@ class OAETest {
     'id': id,
     'sessionId': sessionId,
     'status': status.name,
-    'earTests': earTests.map((e) => e.toJson()).toList(),
+    'earTests': earTests?.map((e) => e.toJson()).toList(),
     'notes': notes,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
 }
 
-class OAEReading {
+class OAEReading extends OAEReadingEntity {
   final String id;
   final String oaeTestId;
   final Ear ear;
   final bool passed;
-  final List<FrequencyResponse> frequencyResponses;
+  final List<FrequencyResponseEntity>? frequencyResponses;
 
   OAEReading({
     required this.id,
@@ -56,7 +57,13 @@ class OAEReading {
     required this.ear,
     required this.passed,
     required this.frequencyResponses,
-  });
+  }) : super(
+         id: id,
+         oaeTestId: oaeTestId,
+         ear: ear,
+         passed: passed,
+         frequencyResponses: frequencyResponses,
+       );
 
   factory OAEReading.fromJson(Map<String, dynamic> json) => OAEReading(
     id: json['id'],
@@ -65,7 +72,7 @@ class OAEReading {
     passed: json['passed'],
     frequencyResponses:
         (json['frequencyResponses'] as List? ?? [])
-            .map((e) => FrequencyResponse.fromJson(e))
+            .map((e) => FrequencyResponseEntity.fromJson(e))
             .toList(),
   );
 
@@ -74,11 +81,11 @@ class OAEReading {
     'oaeTestId': oaeTestId,
     'ear': ear.name,
     'passed': passed,
-    'frequencyResponses': frequencyResponses.map((e) => e.toJson()).toList(),
+    'frequencyResponses': frequencyResponses?.map((e) => e.toJson()).toList(),
   };
 }
 
-class FrequencyResponse {
+class FrequencyResponse extends FrequencyResponseEntity {
   final String id;
   final String oaeReadingId;
   final int frequencyHz;
@@ -89,7 +96,12 @@ class FrequencyResponse {
     required this.oaeReadingId,
     required this.frequencyHz,
     required this.responseDb,
-  });
+  }) : super(
+         id: id,
+         oaeReadingId: oaeReadingId,
+         frequencyHz: frequencyHz,
+         responseDb: responseDb,
+       );
 
   factory FrequencyResponse.fromJson(Map<String, dynamic> json) =>
       FrequencyResponse(

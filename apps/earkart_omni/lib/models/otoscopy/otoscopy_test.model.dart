@@ -1,11 +1,12 @@
 import 'package:earkart_omni/models/enums.dart';
+import 'package:earkart_omni/models/otoscopy/otoscopy_test.entity.dart';
 
-class OtoscopyTest {
+class OtoscopyTest extends OtoscopyTestEntity {
   final String id;
   final String sessionId;
   final String? notes;
   final DateTime capturedAt;
-  final List<OtoscopyImage> otoscopyImages;
+  final List<OtoscopyImageEntity>? otoscopyImages;
   final TestStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -15,11 +16,20 @@ class OtoscopyTest {
     required this.sessionId,
     this.notes,
     required this.capturedAt,
-    required this.otoscopyImages,
+    this.otoscopyImages,
     required this.status,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : super(
+         id: id,
+         sessionId: sessionId,
+         notes: notes,
+         capturedAt: capturedAt,
+         otoscopyImages: otoscopyImages,
+         status: status,
+         createdAt: createdAt,
+         updatedAt: updatedAt,
+       );
 
   factory OtoscopyTest.fromJson(Map<String, dynamic> json) => OtoscopyTest(
     id: json['id'],
@@ -28,7 +38,7 @@ class OtoscopyTest {
     capturedAt: DateTime.parse(json['capturedAt']),
     otoscopyImages:
         (json['otoscopyImages'] as List? ?? [])
-            .map((e) => OtoscopyImage.fromJson(e))
+            .map((e) => OtoscopyImageEntity.fromJson(e))
             .toList(),
     status: testStatusFromApi(json['status']),
     createdAt: DateTime.parse(json['createdAt']),
@@ -40,14 +50,14 @@ class OtoscopyTest {
     'sessionId': sessionId,
     'notes': notes,
     'capturedAt': capturedAt.toIso8601String(),
-    'otoscopyImages': otoscopyImages.map((e) => e.toJson()).toList(),
+    'otoscopyImages': otoscopyImages?.map((e) => e.toJson()).toList(),
     'status': status.name,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
 }
 
-class OtoscopyImage {
+class OtoscopyImage extends OtoscopyImageEntity {
   final String id;
   final String otoscopyId;
   final Ear ear;
@@ -62,8 +72,14 @@ class OtoscopyImage {
     required this.imageUrl,
     required this.capturedAt,
     this.notes,
-  });
-
+  }) : super(
+         id: id,
+         otoscopyId: otoscopyId,
+         ear: ear,
+         imageUrl: imageUrl,
+         capturedAt: capturedAt,
+         notes: notes,
+       );
   factory OtoscopyImage.fromJson(Map<String, dynamic> json) => OtoscopyImage(
     id: json['id'],
     otoscopyId: json['otoscopyId'],
