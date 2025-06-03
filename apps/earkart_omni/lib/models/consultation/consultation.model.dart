@@ -12,7 +12,8 @@ import 'package:earkart_omni/models/centre/centre.entity.dart';
 class ConsultationModel {
   final bool success;
   final String message;
-  final ConsultationModelData data;
+  final dynamic
+  data; // Can be ConsultationModelData or List<ConsultationModelData>
 
   ConsultationModel({
     required this.success,
@@ -21,10 +22,20 @@ class ConsultationModel {
   });
 
   factory ConsultationModel.fromJson(Map<String, dynamic> json) {
+    final dataJson = json['data'];
+    dynamic parsedData;
+    if (dataJson is List) {
+      parsedData =
+          dataJson.map((item) => ConsultationModelData.fromJson(item)).toList();
+    } else if (dataJson is Map<String, dynamic>) {
+      parsedData = ConsultationModelData.fromJson(dataJson);
+    } else {
+      parsedData = null;
+    }
     return ConsultationModel(
       success: json['success'],
       message: json['message'],
-      data: ConsultationModelData.fromJson(json['data']),
+      data: parsedData,
     );
   }
 }
