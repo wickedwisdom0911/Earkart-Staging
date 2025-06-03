@@ -260,3 +260,191 @@ class WeekDaysAdapter extends TypeAdapter<WeekDays> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+class AudiologistConsultationStatusAdapter
+    extends TypeAdapter<AudiologistConsultationStatus> {
+  @override
+  final int typeId = 15;
+
+  @override
+  AudiologistConsultationStatus read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return AudiologistConsultationStatus.pending;
+      case 1:
+        return AudiologistConsultationStatus.accepted;
+      case 2:
+        return AudiologistConsultationStatus.joined;
+      case 3:
+        return AudiologistConsultationStatus.disconnected;
+      default:
+        return AudiologistConsultationStatus.pending;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, AudiologistConsultationStatus obj) {
+    switch (obj) {
+      case AudiologistConsultationStatus.pending:
+        writer.writeByte(0);
+        break;
+      case AudiologistConsultationStatus.accepted:
+        writer.writeByte(1);
+        break;
+      case AudiologistConsultationStatus.joined:
+        writer.writeByte(2);
+        break;
+      case AudiologistConsultationStatus.disconnected:
+        writer.writeByte(3);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AudiologistConsultationStatusAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class SessionStatusAdapter extends TypeAdapter<SessionStatus> {
+  @override
+  final int typeId = 16;
+
+  @override
+  SessionStatus read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return SessionStatus.inProgress;
+      case 1:
+        return SessionStatus.completed;
+      case 2:
+        return SessionStatus.failed;
+      case 3:
+        return SessionStatus.cancelled;
+      default:
+        return SessionStatus.inProgress;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, SessionStatus obj) {
+    switch (obj) {
+      case SessionStatus.inProgress:
+        writer.writeByte(0);
+        break;
+      case SessionStatus.completed:
+        writer.writeByte(1);
+        break;
+      case SessionStatus.failed:
+        writer.writeByte(2);
+        break;
+      case SessionStatus.cancelled:
+        writer.writeByte(3);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SessionStatusAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class PatientConsultationStatusAdapter
+    extends TypeAdapter<PatientConsultationStatus> {
+  @override
+  final int typeId = 17;
+
+  @override
+  PatientConsultationStatus read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return PatientConsultationStatus.requested;
+      case 1:
+        return PatientConsultationStatus.joined;
+      case 2:
+        return PatientConsultationStatus.disconnected;
+      default:
+        return PatientConsultationStatus.requested;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, PatientConsultationStatus obj) {
+    switch (obj) {
+      case PatientConsultationStatus.requested:
+        writer.writeByte(0);
+        break;
+      case PatientConsultationStatus.joined:
+        writer.writeByte(1);
+        break;
+      case PatientConsultationStatus.disconnected:
+        writer.writeByte(2);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PatientConsultationStatusAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class TestStatusAdapter extends TypeAdapter<TestStatus> {
+  @override
+  final int typeId = 18;
+
+  @override
+  TestStatus read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return TestStatus.inProgress;
+      case 1:
+        return TestStatus.completed;
+      case 2:
+        return TestStatus.cancelled;
+      default:
+        return TestStatus.inProgress;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, TestStatus obj) {
+    switch (obj) {
+      case TestStatus.inProgress:
+        writer.writeByte(0);
+        break;
+      case TestStatus.completed:
+        writer.writeByte(1);
+        break;
+      case TestStatus.cancelled:
+        writer.writeByte(2);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TestStatusAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}

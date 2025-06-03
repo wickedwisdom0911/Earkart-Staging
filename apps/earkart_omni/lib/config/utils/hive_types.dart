@@ -13,4 +13,9 @@ class HiveTypes {
   static const int stateEntity = 11;
   static const int countryEntity = 12;
   static const int languageEntity = 13;
+  static const int consultationEntity = 14;
+  static const int audiologistConsultationStatusEnum = 15;
+  static const int sessionStatusEnum = 16;
+  static const int patientConsultationStatusEnum = 17;
+  static const int testStatusEnum = 18;
 }

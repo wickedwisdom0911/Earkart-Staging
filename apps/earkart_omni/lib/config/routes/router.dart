@@ -25,7 +25,16 @@ Route<dynamic> generateRoute(RouteSettings settings) {
 
   switch (settings.name) {
     case AllPatientsScreen.routeName:
-      return router(const AllPatientsScreen());
+      return router(
+        Builder(
+          builder: (context) {
+            return BlocProvider<PatientCubit>(
+              create: (context) => di.call<PatientCubit>(),
+              child: const AllPatientsScreen(),
+            );
+          },
+        ),
+      );
     case PatientFormScreen.routeName:
       return router(
         Builder(

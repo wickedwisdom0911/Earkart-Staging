@@ -1,6 +1,7 @@
 import 'package:camera/camera.dart';
 import 'package:earkart_omni/config/widgets/gradient_button.dart';
 import 'package:earkart_omni/config/widgets/helpers.dart';
+import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
 import 'package:flutter/cupertino.dart';
@@ -72,7 +73,14 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: CupertinoButton(
               padding: EdgeInsets.zero,
-              onPressed: () {},
+              onPressed: () {
+                context.read<PatientCubit>().deletePatientSession();
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  RootScreen.routeName,
+                  (route) => false,
+                );
+              },
               child: const Text('Cancel'),
             ),
           ),

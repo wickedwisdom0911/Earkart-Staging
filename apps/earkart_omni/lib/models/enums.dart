@@ -41,32 +41,123 @@ enum Status {
 }
 
 @HiveType(typeId: HiveTypes.paymentCycleEnum)
-enum PaymentCycle { 
+enum PaymentCycle {
   @HiveField(0)
-  monthly, 
+  monthly,
   @HiveField(1)
-  quarterly, 
+  quarterly,
   @HiveField(2)
-  halfYearly, 
+  halfYearly,
   @HiveField(3)
-  yearly }
+  yearly,
+}
 
 @HiveType(typeId: HiveTypes.weekdaysEnum)
-enum WeekDays { 
+enum WeekDays {
   @HiveField(0)
-  monday, 
+  monday,
   @HiveField(1)
-  tuesday, 
+  tuesday,
   @HiveField(2)
-  wednesday, 
+  wednesday,
   @HiveField(3)
-  thursday, 
+  thursday,
   @HiveField(4)
-  friday, 
+  friday,
   @HiveField(5)
-  saturday, 
+  saturday,
   @HiveField(6)
-  sunday }
+  sunday,
+}
+
+@HiveType(typeId: HiveTypes.audiologistConsultationStatusEnum)
+enum AudiologistConsultationStatus {
+  @HiveField(0)
+  pending,
+  @HiveField(1)
+  accepted,
+  @HiveField(2)
+  joined,
+  @HiveField(3)
+  disconnected,
+}
+
+@HiveType(typeId: HiveTypes.sessionStatusEnum)
+enum SessionStatus {
+  @HiveField(0)
+  inProgress,
+  @HiveField(1)
+  completed,
+  @HiveField(2)
+  failed,
+  @HiveField(3)
+  cancelled,
+}
+
+@HiveType(typeId: HiveTypes.patientConsultationStatusEnum)
+enum PatientConsultationStatus {
+  @HiveField(0)
+  requested,
+  @HiveField(1)
+  joined,
+  @HiveField(2)
+  disconnected,
+}
+
+@HiveType(typeId: HiveTypes.testStatusEnum)
+enum TestStatus {
+  @HiveField(0)
+  inProgress,
+  @HiveField(1)
+  completed,
+  @HiveField(2)
+  cancelled,
+}
+
+testStatusFromApi(String value) {
+  switch (value.toUpperCase()) {
+    case 'IN_PROGRESS':
+      return TestStatus.inProgress;
+    case 'COMPLETED':
+      return TestStatus.completed;
+    case 'CANCELLED':
+      return TestStatus.cancelled;
+    default:
+      throw Exception('Unknown TestStatus: $value');
+  }
+}
+
+enum TympType { A, As, Ad, B, C }
+
+tympTypeFromApi(String value) {
+  switch (value) {
+    case 'A':
+      return TympType.A;
+    case 'As':
+      return TympType.As;
+    case 'Ad':
+      return TympType.Ad;
+    case 'B':
+      return TympType.B;
+    case 'C':
+      return TympType.C;
+    default:
+      throw Exception('Unknown TympType: $value');
+  }
+}
+
+// Ear enum and helper
+// If not already present:
+earFromApi(String value) {
+  switch (value.toLowerCase()) {
+    case 'left':
+      return Ear.left;
+    case 'right':
+      return Ear.right;
+    default:
+      throw Exception('Unknown Ear: $value');
+  }
+}
 
 Status statusFromApi(String value) {
   return Status.values.firstWhere(
@@ -100,5 +191,28 @@ WeekDays weekDaysFromApi(String value) {
   return WeekDays.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
     orElse: () => WeekDays.monday,
+  );
+}
+
+AudiologistConsultationStatus audiologistConsultationStatusFromApi(
+  String value,
+) {
+  return AudiologistConsultationStatus.values.firstWhere(
+    (e) => e.name.toUpperCase() == value,
+    orElse: () => AudiologistConsultationStatus.pending,
+  );
+}
+
+SessionStatus sessionStatusFromApi(String value) {
+  return SessionStatus.values.firstWhere(
+    (e) => e.name.toUpperCase() == value,
+    orElse: () => SessionStatus.inProgress,
+  );
+}
+
+PatientConsultationStatus patientConsultationStatusFromApi(String value) {
+  return PatientConsultationStatus.values.firstWhere(
+    (e) => e.name.toUpperCase() == value,
+    orElse: () => PatientConsultationStatus.requested,
   );
 }
