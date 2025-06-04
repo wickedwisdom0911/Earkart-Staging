@@ -358,32 +358,37 @@ class SessionStatusAdapter extends TypeAdapter<SessionStatus> {
   SessionStatus read(BinaryReader reader) {
     switch (reader.readByte()) {
       case 0:
-        return SessionStatus.inProgress;
+        return SessionStatus.pending;
       case 1:
-        return SessionStatus.completed;
+        return SessionStatus.inProgress;
       case 2:
-        return SessionStatus.failed;
+        return SessionStatus.completed;
       case 3:
+        return SessionStatus.failed;
+      case 4:
         return SessionStatus.cancelled;
       default:
-        return SessionStatus.inProgress;
+        return SessionStatus.pending;
     }
   }
 
   @override
   void write(BinaryWriter writer, SessionStatus obj) {
     switch (obj) {
-      case SessionStatus.inProgress:
+      case SessionStatus.pending:
         writer.writeByte(0);
         break;
-      case SessionStatus.completed:
+      case SessionStatus.inProgress:
         writer.writeByte(1);
         break;
-      case SessionStatus.failed:
+      case SessionStatus.completed:
         writer.writeByte(2);
         break;
-      case SessionStatus.cancelled:
+      case SessionStatus.failed:
         writer.writeByte(3);
+        break;
+      case SessionStatus.cancelled:
+        writer.writeByte(4);
         break;
     }
   }
@@ -452,32 +457,27 @@ class TestStatusAdapter extends TypeAdapter<TestStatus> {
   TestStatus read(BinaryReader reader) {
     switch (reader.readByte()) {
       case 0:
-        return TestStatus.pending;
-      case 1:
         return TestStatus.inProgress;
-      case 2:
+      case 1:
         return TestStatus.completed;
-      case 3:
+      case 2:
         return TestStatus.cancelled;
       default:
-        return TestStatus.pending;
+        return TestStatus.inProgress;
     }
   }
 
   @override
   void write(BinaryWriter writer, TestStatus obj) {
     switch (obj) {
-      case TestStatus.pending:
+      case TestStatus.inProgress:
         writer.writeByte(0);
         break;
-      case TestStatus.inProgress:
+      case TestStatus.completed:
         writer.writeByte(1);
         break;
-      case TestStatus.completed:
-        writer.writeByte(2);
-        break;
       case TestStatus.cancelled:
-        writer.writeByte(3);
+        writer.writeByte(2);
         break;
     }
   }

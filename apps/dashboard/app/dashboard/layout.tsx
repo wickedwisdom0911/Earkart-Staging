@@ -1,6 +1,7 @@
 import { AppSidebar } from "@/components/ui/AppSidebar";
 import { DashboardHeader } from "@/components/ui/dashboard-header";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { SocketProvider } from "@/providers/socket-provider";
 
 export default function DashboardLayout({
   children,
@@ -13,7 +14,9 @@ export default function DashboardLayout({
         <DashboardHeader />
         <div className="flex w-full h-full overflow-hidden flex-1 ">
           <AppSidebar />
-          <main className="w-full h-full">{children}</main>
+          <SocketProvider>
+            <main className="w-full h-full">{children}</main>
+          </SocketProvider>
         </div>
       </SidebarProvider>
     </div>

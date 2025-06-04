@@ -1,21 +1,31 @@
 "use client";
-import { io } from "socket.io-client";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
-import { useEffect } from "react";
-const socket = io(process.env.BASE_SOCKET_URL_DEV);
-
+import { useEffect, useState } from "react";
+import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
+import { ConsultationModelData } from "@/models/consultation.model";
+import { useSocket } from "@/providers/socket-provider";
 export default function DashboardPage() {
+  const [allConsulations, setAllConsulations] = useState<
+    ConsultationModelData[]
+  >([]);
+  const { data: consultations, isLoading, isError } = useGetAllConsultations();
+  const socket = useSocket();
   useEffect(() => {
+    if (Array.isArray(consultations?.data)) {
+      setAllConsulations(consultations?.data);
+    }
+    if (!socket) return;
     socket.on("connect", () => {
       console.log("Connected to socket");
     });
-    // socket.emit("join_consultation", {
-    //   consultationId: "123",
-    // });
-    // socket.on("joined", (data) => {
-    //   console.log("joined", data);
-    // });
-  }, []);
+    socket.emit("join_consultation", {
+      consultationId: 123,
+    });
+    socket.on("new_consultation", (data: ConsultationModelData) => {
+      setAllConsulations((prev) => [...prev, data]);
+    });
+  }, [socket, consultations]);
+
   return (
     <DashboardBodyWrapper>
       <div className="w-full mb-8">
@@ -35,7 +45,13 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-      <div>Active Consultation Rooms</div>
+      {isLoading && <div>Loading...</div>}
+      {isError && <div>Error</div>}
+      <div>
+        {allConsulations?.map((consultation) => (
+          <div key={consultation.id}>{consultation.id}</div>
+        ))}
+      </div>
     </DashboardBodyWrapper>
   );
 }

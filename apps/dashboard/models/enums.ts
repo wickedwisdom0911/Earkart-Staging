@@ -36,3 +36,38 @@ export enum DeviceActivityType {
   ENABLED = "ENABLED",
   DISABLED = "DISABLED",
 }
+export enum TestStatus {
+  PENDING = "PENDING",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+}
+export enum Ear {
+  LEFT = "LEFT",
+  RIGHT = "RIGHT",
+}
+export enum TympType {
+  A = "A",
+  As = "As",
+  Ad = "Ad",
+  B = "B",
+  C = "C",
+}
+export enum PatientConsultationStatus {
+  REQUESTED = "REQUESTED",
+  JOINED = "JOINED",
+  DISCONNECTED = "DISCONNECTED",
+}
+export enum AudiologistConsultationStatus {
+  PENDING = "PENDING",
+  ACCEPTED = "ACCEPTED",
+  JOINED = "JOINED",
+  DISCONNECTED = "DISCONNECTED",
+}
+export enum SessionStatus {
+  PENDING = "PENDING",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+}

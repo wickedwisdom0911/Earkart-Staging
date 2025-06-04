@@ -91,12 +91,14 @@ enum AudiologistConsultationStatus {
 @HiveType(typeId: HiveTypes.sessionStatusEnum)
 enum SessionStatus {
   @HiveField(0)
-  inProgress,
+  pending,
   @HiveField(1)
-  completed,
+  inProgress,
   @HiveField(2)
-  failed,
+  completed,
   @HiveField(3)
+  failed,
+  @HiveField(4)
   cancelled,
 }
 
@@ -113,19 +115,15 @@ enum PatientConsultationStatus {
 @HiveType(typeId: HiveTypes.testStatusEnum)
 enum TestStatus {
   @HiveField(0)
-  pending,
-  @HiveField(1)
   inProgress,
-  @HiveField(2)
+  @HiveField(1)
   completed,
-  @HiveField(3)
+  @HiveField(2)
   cancelled,
 }
 
 testStatusFromApi(String value) {
   switch (value.toUpperCase()) {
-    case 'PENDING':
-      return TestStatus.pending;
     case 'IN_PROGRESS':
       return TestStatus.inProgress;
     case 'COMPLETED':
@@ -236,6 +234,8 @@ AudiologistConsultationStatus audiologistConsultationStatusFromApi(
 
 SessionStatus sessionStatusFromApi(String value) {
   switch (value.toUpperCase()) {
+    case 'PENDING':
+      return SessionStatus.pending;
     case 'IN_PROGRESS':
       return SessionStatus.inProgress;
     case 'COMPLETED':
