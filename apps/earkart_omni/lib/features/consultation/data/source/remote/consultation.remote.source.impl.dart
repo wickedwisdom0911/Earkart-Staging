@@ -35,7 +35,7 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
         centreId: centreEntityDataSource.getCentreEntity()?.id,
         patientStatus: PatientConsultationStatus.requested,
         audiologistStatus: AudiologistConsultationStatus.pending,
-        status: SessionStatus.inProgress,
+        status: SessionStatus.pending,
       );
       di<ILogger>().debug(newConsultation.toJson().toString());
       final response = await dio.post(
