@@ -8,6 +8,9 @@ import { AudiometryTestModelDataSchema } from "./audiometry.model";
 import { TympanometryTestModelDataSchema } from "./tympanometry.model";
 import { OAETestModelDataSchema } from "./oae.model";
 import { OtoscopyTestModelDataSchema } from "./otoscopy.model";
+import { AudiologistModelDataSchema } from "./audiologist.model";
+import { CentreModelDataSchema } from "./centre.model";
+import { patientModeldataSchema } from "./patient.model";
 
 export const ConsultationRecordingModelDataSchema = z.object({
   id: z.string(),
@@ -32,9 +35,9 @@ export const ConsultationModelDataSchema = z.object({
   status: z.nativeEnum(SessionStatus),
   createdAt: z.string(),
   updatedAt: z.string(),
-  patient: z.unknown().optional().nullable(),
-  audiologist: z.unknown().optional().nullable(),
-  centre: z.unknown().optional().nullable(),
+  patient: patientModeldataSchema.optional().nullable(),
+  audiologist: AudiologistModelDataSchema.optional().nullable(),
+  centre: CentreModelDataSchema.optional().nullable(),
   recordings: z
     .array(ConsultationRecordingModelDataSchema)
     .optional()

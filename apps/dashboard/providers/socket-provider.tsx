@@ -16,11 +16,21 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
           token: user?.token,
         },
       });
+      if (socketRef.current?.connected) {
+        console.log("Connected to socket -", socketRef.current.id);
+      }
+      socketRef.current?.on("connect", () => {
+        console.log("Connected to socket");
+      });
+      // Log all socket events and their payloads
+      socketRef.current.onAny((event, ...args) => {
+        console.log(`[SOCKET EVENT]: ${event}`, ...args);
+      });
     }
     return () => {
       socketRef.current?.disconnect();
     };
-  }, []);
+  }, [user]);
 
   return (
     <SocketContext.Provider value={socketRef.current}>
