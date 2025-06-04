@@ -452,27 +452,32 @@ class TestStatusAdapter extends TypeAdapter<TestStatus> {
   TestStatus read(BinaryReader reader) {
     switch (reader.readByte()) {
       case 0:
-        return TestStatus.inProgress;
+        return TestStatus.pending;
       case 1:
-        return TestStatus.completed;
+        return TestStatus.inProgress;
       case 2:
+        return TestStatus.completed;
+      case 3:
         return TestStatus.cancelled;
       default:
-        return TestStatus.inProgress;
+        return TestStatus.pending;
     }
   }
 
   @override
   void write(BinaryWriter writer, TestStatus obj) {
     switch (obj) {
-      case TestStatus.inProgress:
+      case TestStatus.pending:
         writer.writeByte(0);
         break;
-      case TestStatus.completed:
+      case TestStatus.inProgress:
         writer.writeByte(1);
         break;
-      case TestStatus.cancelled:
+      case TestStatus.completed:
         writer.writeByte(2);
+        break;
+      case TestStatus.cancelled:
+        writer.writeByte(3);
         break;
     }
   }
@@ -484,6 +489,60 @@ class TestStatusAdapter extends TypeAdapter<TestStatus> {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is TestStatusAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class TympTypeAdapter extends TypeAdapter<TympType> {
+  @override
+  final int typeId = 33;
+
+  @override
+  TympType read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return TympType.A;
+      case 1:
+        return TympType.As;
+      case 2:
+        return TympType.Ad;
+      case 3:
+        return TympType.B;
+      case 4:
+        return TympType.C;
+      default:
+        return TympType.A;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, TympType obj) {
+    switch (obj) {
+      case TympType.A:
+        writer.writeByte(0);
+        break;
+      case TympType.As:
+        writer.writeByte(1);
+        break;
+      case TympType.Ad:
+        writer.writeByte(2);
+        break;
+      case TympType.B:
+        writer.writeByte(3);
+        break;
+      case TympType.C:
+        writer.writeByte(4);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TympTypeAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

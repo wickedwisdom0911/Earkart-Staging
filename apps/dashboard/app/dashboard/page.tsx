@@ -9,12 +9,12 @@ export default function DashboardPage() {
     socket.on("connect", () => {
       console.log("Connected to socket");
     });
-    socket.emit("join_consultation", {
-      consultationId: "123",
-    });
-    socket.on("joined", (data) => {
-      console.log("joined", data);
-    });
+    // socket.emit("join_consultation", {
+    //   consultationId: "123",
+    // });
+    // socket.on("joined", (data) => {
+    //   console.log("joined", data);
+    // });
   }, []);
   return (
     <DashboardBodyWrapper>

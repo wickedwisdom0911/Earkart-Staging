@@ -113,15 +113,19 @@ enum PatientConsultationStatus {
 @HiveType(typeId: HiveTypes.testStatusEnum)
 enum TestStatus {
   @HiveField(0)
-  inProgress,
+  pending,
   @HiveField(1)
-  completed,
+  inProgress,
   @HiveField(2)
+  completed,
+  @HiveField(3)
   cancelled,
 }
 
 testStatusFromApi(String value) {
   switch (value.toUpperCase()) {
+    case 'PENDING':
+      return TestStatus.pending;
     case 'IN_PROGRESS':
       return TestStatus.inProgress;
     case 'COMPLETED':
