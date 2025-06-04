@@ -14,16 +14,49 @@ export default function DashboardPage() {
   >([]);
   const { data: consultations, isLoading, isError } = useGetAllConsultations();
   const socket = useSocket();
+
+  // NEW: Track socket connection status
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
+
   useEffect(() => {
     if (Array.isArray(consultations?.data)) {
       setAllConsulations(consultations?.data);
     }
+  }, [consultations]);
+
+  useEffect(() => {
     if (!socket) return;
 
-    socket.on("new_consultation", (data: ConsultationModelData) => {
-      setAllConsulations((prev) => [...prev, data]);
+    // Handler functions
+    socket.onAny((event, ...args) => {
+      console.log(`[SOCKET EVENT]: ${event}`, ...args);
     });
-  }, [socket, consultations]);
+    const onNewConsultation = (data: ConsultationModelData) => {
+      setAllConsulations((prev) => {
+        // Only add if not already present
+        if (prev.some((c) => c.id === data.id)) return prev;
+        return [data, ...prev];
+      });
+    };
+
+    // NEW: Listen for connect/disconnect
+    const handleConnect = () => setIsSocketConnected(true);
+    const handleDisconnect = () => setIsSocketConnected(false);
+
+    socket.on("new_consultation", onNewConsultation);
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+
+    // Set initial status
+    setIsSocketConnected(socket.connected);
+
+    // Cleanup: remove listeners
+    return () => {
+      socket.off("new_consultation", onNewConsultation);
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+    };
+  }, [socket]);
 
   const renderConsultationCard = (consultation: ConsultationModelData) => {
     const dateStr = consultation.createdAt
@@ -83,19 +116,31 @@ export default function DashboardPage() {
 
   return (
     <DashboardBodyWrapper>
-      <div className="w-full mb-8">
-        <div className="rounded-2xl bg-gradient-to-r from-primary-100 to-blue-100 dark:from-primary-900 dark:to-blue-900 p-6 flex items-center gap-4 shadow-md border border-primary-200 dark:border-primary-800">
-          <span className="text-3xl">💬🩺🏥</span>
-          <div className="flex flex-col">
-            <span className="text-lg md:text-xl font-semibold text-primary-800 dark:text-primary-100">
-              You will see all the{" "}
-              <span className="text-primary-600 dark:text-primary-300 font-bold">
-                Active Consultation Rooms
-              </span>{" "}
-              and requests here
-            </span>
-            <span className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-              Stay tuned for your next patient! 🚀
+      <div className="w-full mb-8 ">
+        <div className="rounded-2xl bg-gradient-to-r from-primary-100 to-blue-100 dark:from-primary-900 dark:to-blue-900 p-6 flex items-center justify-between gap-4 shadow-md border border-primary-200 dark:border-primary-800">
+          <div className="flex  gap-4">
+            <span className="text-3xl">💬🩺🏥</span>
+            <div className="flex flex-col">
+              <span className="text-lg md:text-xl font-semibold text-primary-800 dark:text-primary-100">
+                You will see all the{" "}
+                <span className="text-primary-600 dark:text-primary-300 font-bold">
+                  Active Consultation Rooms
+                </span>{" "}
+                and requests here
+              </span>
+              <span className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                Stay tuned for your next patient! 🚀
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col items-center justify-center">
+            <span className="text-3xl">{isSocketConnected ? "💡" : "⚪"}</span>
+            <span
+              className={`text-xs ${isSocketConnected ? "text-green-500" : "text-gray-400"}`}
+            >
+              {isSocketConnected
+                ? "You are connected"
+                : "You are not connected"}
             </span>
           </div>
         </div>
