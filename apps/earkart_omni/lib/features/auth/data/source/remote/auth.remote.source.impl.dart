@@ -86,11 +86,8 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
   }
 
   @override
-  Future<Either<Failure, CentreEntity>> getCentreData() async {
+  Future<Either<Failure, CentreEntity?>> getCentreData() async {
     final centre = centreEntityDataSource.getCentreEntity();
-    if (centre != null) {
-      return right(centre);
-    }
-    return left(UnKnownFailure(error: "Failed to get centre"));
+    return right(centre);
   }
 }

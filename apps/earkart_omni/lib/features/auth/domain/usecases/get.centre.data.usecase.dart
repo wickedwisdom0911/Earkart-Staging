@@ -8,7 +8,7 @@ class GetCentreDataUsecase {
 
   GetCentreDataUsecase({required this.authRepository});
 
-  Future<Either<Failure, CentreEntity>> call() async {
+  Future<Either<Failure, CentreEntity?>> call() async {
     return await authRepository.getCentreData();
   }
 }

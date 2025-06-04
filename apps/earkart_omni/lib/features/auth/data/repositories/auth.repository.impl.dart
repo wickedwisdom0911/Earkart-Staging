@@ -22,7 +22,7 @@ class AuthRepositoryImpl extends AuthRepository {
   }
 
   @override
-  Future<Either<Failure, CentreEntity>> getCentreData() async {
+  Future<Either<Failure, CentreEntity?>> getCentreData() async {
     return await remoteSource.getCentreData();
   }
 

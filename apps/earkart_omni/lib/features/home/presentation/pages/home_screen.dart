@@ -38,9 +38,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (state is AuthCentreSuccess) {
                   return Column(
                     children: [
-                      Text(state.centre.user?.name ?? "Centre Dashboard"),
+                      Text(state.centre?.user?.name ?? "Centre Dashboard"),
                       Text(
-                        state.centre.code,
+                        state.centre?.code ?? "",
                         style: TextStyle(fontSize: 10, color: Colors.grey),
                       ),
                     ],
