@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { useSocket } from "@/providers/socket-provider";
-import Link from "next/link";
 import { format } from "date-fns";
 import { SessionStatus } from "@/models/enums";
-
+import { useRouter } from "next/navigation";
 export default function DashboardPage() {
+  const router = useRouter();
   const [allConsulations, setAllConsulations] = useState<
     ConsultationModelData[]
   >([]);
@@ -58,6 +58,18 @@ export default function DashboardPage() {
     };
   }, [socket]);
 
+  const joinRoom = (consultationId: string) => {
+    console.log(consultationId);
+
+    socket?.emit("join_consultation", { consultationId });
+    socket?.on("joined", (data) => {
+      console.log("Joined consultation:", data);
+      if (data === consultationId) {
+        router.push(`/consultation/${data}`);
+      }
+    });
+  };
+
   const renderConsultationCard = (consultation: ConsultationModelData) => {
     const dateStr = consultation.createdAt
       ? format(new Date(consultation.createdAt), "dd MMM yyyy, hh:mm a")
@@ -68,7 +80,6 @@ export default function DashboardPage() {
         : consultation.status === SessionStatus.PENDING
           ? "bg-yellow-100 text-yellow-800"
           : "bg-gray-100 text-gray-800";
-
     return (
       <div
         key={consultation.id}
@@ -102,14 +113,13 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
-        <Link
-          href={`/dashboard/consultation/${consultation.id}`}
-          className="mt-4"
+
+        <button
+          onClick={() => joinRoom(consultation.id)}
+          className="w-full bg-primary-600 cursor-pointer text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary-700 transition"
         >
-          <button className="w-full bg-primary-600 cursor-pointer text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary-700 transition">
-            Join Consultation
-          </button>
-        </Link>
+          Join Consultation
+        </button>
       </div>
     );
   };

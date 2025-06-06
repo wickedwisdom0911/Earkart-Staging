@@ -1,23 +1,23 @@
 "use server";
-
 import getBaseUrl from "@/lib/environment";
 import { verifySession } from "@/lib/session";
 
-export default async function fetchToken(identity: string, room: string) {
+export async function deleteRoom(roomName: string) {
   const baseUrl = await getBaseUrl();
-  const url = `${baseUrl}twilio/video-token`;
+  const url = `${baseUrl}twilio/delete-room`;
   const user = await verifySession();
-  if (!user?.token) {
+  if (!user) {
     throw new Error("Unauthorized");
   }
   const response = await fetch(url, {
     method: "POST",
+    body: JSON.stringify({
+      room: roomName,
+    }),
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${user.token}`,
     },
-    body: JSON.stringify({ identity, room }),
   });
-  const data = await response.json();
-  return data;
+  return response.json();
 }
