@@ -2,6 +2,7 @@ import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/twilio.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
@@ -85,6 +86,9 @@ Route<dynamic> generateRoute(RouteSettings settings) {
                 ),
                 BlocProvider<LookupCubit>(
                   create: (context) => di.call<LookupCubit>(),
+                ),
+                BlocProvider<TwilioCubit>(
+                  create: (context) => di.call<TwilioCubit>(),
                 ),
               ],
               child: const RootScreen(),

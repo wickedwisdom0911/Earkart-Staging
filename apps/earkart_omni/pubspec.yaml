@@ -21,7 +21,7 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   flutter_bloc: ^9.1.1
-  permission_handler: ^12.0.0
+  permission_handler: any
   path_provider: ^2.1.5
   file_picker: ^10.1.9
   open_filex: ^4.7.0
@@ -44,6 +44,7 @@ dependencies:
   flutter_animate: ^4.5.2
   fluttertoast: ^8.2.1
   camera: ^0.11.1
+  twilio_programmable_video: ^1.1.1
 
 dev_dependencies:
   flutter_test:

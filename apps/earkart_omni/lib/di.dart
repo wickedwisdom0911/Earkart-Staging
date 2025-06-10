@@ -12,17 +12,25 @@ import 'package:earkart_omni/features/auth/domain/usecases/get.current.user.usec
 import 'package:earkart_omni/features/auth/domain/usecases/login.usecase.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/repositories/consulation.repository.impl.dart';
+import 'package:earkart_omni/features/consultation/data/repositories/twilio.respository.impl.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
 import 'package:earkart_omni/features/consultation/data/source/remote/consultation.remote.source.dart';
 import 'package:earkart_omni/features/consultation/data/source/remote/consultation.remote.source.impl.dart';
+import 'package:earkart_omni/features/consultation/data/source/remote/twilio.remote.source.dart';
+import 'package:earkart_omni/features/consultation/data/source/remote/twilio.remote.source.impl.dart';
 import 'package:earkart_omni/features/consultation/domain/repositories/consultation.repository.dart';
+import 'package:earkart_omni/features/consultation/domain/repositories/twilio.repository.dart';
 import 'package:earkart_omni/features/consultation/domain/usecases/create_consultation.usecase.dart';
+import 'package:earkart_omni/features/consultation/domain/usecases/create_room_usecase.dart';
 import 'package:earkart_omni/features/consultation/domain/usecases/delete_current_consultation_session.usecase.dart';
+import 'package:earkart_omni/features/consultation/domain/usecases/delete_room_usecase.dart';
 import 'package:earkart_omni/features/consultation/domain/usecases/get_consultation_by_id.usecase.dart';
 import 'package:earkart_omni/features/consultation/domain/usecases/get_consultations_by_centre_id.usecase.dart';
 import 'package:earkart_omni/features/consultation/domain/usecases/get_current_consultation.usecase.dart';
+import 'package:earkart_omni/features/consultation/domain/usecases/get_token_usecase.dart';
 import 'package:earkart_omni/features/consultation/domain/usecases/update_consultation.usecase.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/twilio.cubit.dart';
 import 'package:earkart_omni/features/lookup/data/reositories/lookup.repository.impl.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/city.entity.source.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/countries.entity.source.dart';
@@ -231,5 +239,22 @@ Future<void> setupDI() async {
       getConsultationsByCentreIdUsecase: di.call(),
       getCurrentConsultationUsecase: di.call(),
     ),
+  );
+  //twilio
+  di.registerLazySingleton<ITwilioRemoteSource>(
+    () => TwilioRemoteSourceImpl(di.call(), di.call()),
+  );
+  di.registerLazySingleton<ITwilioRepository>(
+    () => TwilioRepositoryImpl(di.call()),
+  );
+  di.registerLazySingleton<GetTokenUsecase>(() => GetTokenUsecase(di.call()));
+  di.registerLazySingleton<CreateRoomUsecase>(
+    () => CreateRoomUsecase(di.call()),
+  );
+  di.registerLazySingleton<DeleteRoomUsecase>(
+    () => DeleteRoomUsecase(di.call()),
+  );
+  di.registerLazySingleton<TwilioCubit>(
+    () => TwilioCubit(di.call(), di.call(), di.call()),
   );
 }
