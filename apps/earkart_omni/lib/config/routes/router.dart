@@ -29,10 +29,7 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       return router(
         Builder(
           builder: (context) {
-            return BlocProvider<PatientCubit>(
-              create: (context) => di.call<PatientCubit>(),
-              child: const AllPatientsScreen(),
-            );
+            return const AllPatientsScreen();
           },
         ),
       );
@@ -40,17 +37,7 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       return router(
         Builder(
           builder: (context) {
-            return MultiBlocProvider(
-              providers: [
-                BlocProvider<LookupCubit>(
-                  create: (context) => di.call<LookupCubit>(),
-                ),
-                BlocProvider<PatientCubit>(
-                  create: (context) => di.call<PatientCubit>(),
-                ),
-              ],
-              child: const PatientFormScreen(),
-            );
+            return const PatientFormScreen();
           },
         ),
       );
@@ -58,10 +45,7 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       return router(
         Builder(
           builder: (context) {
-            return BlocProvider<AuthCubit>(
-              create: (context) => di.call<AuthCubit>(),
-              child: const HomeScreen(),
-            );
+            return const HomeScreen();
           },
         ),
       );
@@ -72,17 +56,7 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       return router(
         Builder(
           builder: (context) {
-            return MultiBlocProvider(
-              providers: [
-                BlocProvider<PatientCubit>(
-                  create: (context) => di.call<PatientCubit>(),
-                ),
-                BlocProvider<ConsultationCubit>(
-                  create: (context) => di.call<ConsultationCubit>(),
-                ),
-              ],
-              child: const ConsultationRequestScreen(),
-            );
+            return const ConsultationRequestScreen();
           },
         ),
       );
@@ -90,17 +64,7 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       return router(
         Builder(
           builder: (context) {
-            return MultiBlocProvider(
-              providers: [
-                BlocProvider<PatientCubit>(
-                  create: (context) => di.call<PatientCubit>(),
-                ),
-                BlocProvider<ConsultationCubit>(
-                  create: (context) => di.call<ConsultationCubit>(),
-                ),
-              ],
-              child: const ConsultationScreen(),
-            );
+            return const ConsultationScreen();
           },
         ),
       );
@@ -118,6 +82,9 @@ Route<dynamic> generateRoute(RouteSettings settings) {
                 ),
                 BlocProvider<ConsultationCubit>(
                   create: (context) => di.call<ConsultationCubit>(),
+                ),
+                BlocProvider<LookupCubit>(
+                  create: (context) => di.call<LookupCubit>(),
                 ),
               ],
               child: const RootScreen(),

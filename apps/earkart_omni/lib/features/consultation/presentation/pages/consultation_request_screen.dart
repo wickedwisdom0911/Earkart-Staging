@@ -2,6 +2,8 @@ import 'package:camera/camera.dart';
 import 'package:earkart_omni/config/widgets/gradient_button.dart';
 import 'package:earkart_omni/config/widgets/helpers.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
@@ -228,13 +230,31 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                 ),
                               ),
                               addVerticalSpace(20),
-                              GradientButton(
-                                child: const Text(
-                                  'Start Consultation',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                                onPressed: () {
-                                  startConsultation();
+                              BlocConsumer<
+                                ConsultationCubit,
+                                ConsultationState
+                              >(
+                                listener: (context, state) {
+                                  if (state.maybeWhen(
+                                    orElse: () => false,
+                                    createConsultationSuccess: (_) => true,
+                                  )) {
+                                    Navigator.pushNamed(
+                                      context,
+                                      ConsultationScreen.routeName,
+                                    );
+                                  }
+                                },
+                                builder: (context, state) {
+                                  return GradientButton(
+                                    child: const Text(
+                                      'Start Consultation',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                    onPressed: () {
+                                      startConsultation();
+                                    },
+                                  );
                                 },
                               ),
                             ],
