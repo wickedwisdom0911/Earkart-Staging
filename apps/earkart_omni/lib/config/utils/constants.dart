@@ -39,4 +39,5 @@ class Constants {
   static final getTokenUrl = "${baseUrl}twilio/video-token";
   static final createRoomUrl = "${baseUrl}twilio/create-room";
   static final deleteRoomUrl = "${baseUrl}twilio/delete-room";
+  static final getAgoraTokenUrl = "${baseUrl}agora/create-agora-token";
 }
