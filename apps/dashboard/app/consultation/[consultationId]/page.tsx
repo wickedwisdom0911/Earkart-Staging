@@ -1,17 +1,13 @@
 "use client";
-import TwilioVideoRoom from "@/components/twilioVideoRoom";
-import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useParams } from "next/navigation";
+import { VideoCall } from "./_components/video-call";
 
 export default function ConsultationPage() {
   const { consultationId } = useParams();
-  const { data: user } = useGetUser();
   return (
     <div>
-      <TwilioVideoRoom
-        identity={user?.id || ""}
-        roomName={consultationId?.toString() || ""}
-      />
+      <h1>Consultation Page: {consultationId}</h1>
+      <VideoCall channel={consultationId as string} />
     </div>
   );
 }
