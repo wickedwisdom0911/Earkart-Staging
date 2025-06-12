@@ -3,7 +3,7 @@ import { z } from "zod";
 export const AgoraModelDataSchema = z.object({
   token: z.string(),
   appId: z.string(),
-  userId: z.string(),
+  userId: z.number(),
 });
 export const AgoraModelSchema = z.object({
   success: z.boolean(),

@@ -37,6 +37,7 @@ dependencies:
   device_info_plus: ^11.4.0
   dartz: ^0.10.1
   freezed_annotation: ^2.4.1
+  agora_rtc_engine: ^6.5.2
 
   #ui
   figma_squircle: ^0.6.3

@@ -250,5 +250,4 @@ Future<void> setupDI() async {
     () => GetAgoraTokenUsecase(di.call()),
   );
   di.registerLazySingleton<AgoraCubit>(() => AgoraCubit(di.call()));
-  di.registerLazySingleton<AgoraCubit>(() => AgoraCubit(di.call()));
 }

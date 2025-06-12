@@ -1,7 +1,7 @@
 class AgoraEntity {
   final String token;
   final String appId;
-  final String userId;
+  final int userId;
 
   AgoraEntity({required this.token, required this.appId, required this.userId});
 
@@ -9,7 +9,7 @@ class AgoraEntity {
     return AgoraEntity(
       token: json['token'] as String,
       appId: json['appId'] as String,
-      userId: json['userId'] as String,
+      userId: json['userId'] as int,
     );
   }
 

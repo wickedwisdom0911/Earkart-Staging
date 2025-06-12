@@ -5,6 +5,7 @@ import 'package:earkart_omni/features/auth/data/source/local/centre.entity.sourc
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
@@ -130,6 +131,7 @@ class MyApp extends StatelessWidget {
           create: (context) => di.call<ConsultationCubit>(),
         ),
         BlocProvider<LookupCubit>(create: (context) => di.call<LookupCubit>()),
+        BlocProvider<AgoraCubit>(create: (context) => di.call<AgoraCubit>()),
       ],
       child: GetMaterialApp(
         title: "EarKart Omni",
