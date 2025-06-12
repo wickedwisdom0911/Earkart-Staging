@@ -3,9 +3,14 @@ import 'package:earkart_omni/config/theme/theme_manager.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
+import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/twilio.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
+import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
+import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
@@ -21,6 +26,7 @@ import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/tympanometry/tympanometry_test.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
 import 'package:get/route_manager.dart';
@@ -115,12 +121,25 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
-      title: "EarKart Omni",
-      debugShowCheckedModeBanner: false,
-      theme: theme,
-      initialRoute: RootScreen.routeName,
-      onGenerateRoute: (settings) => generateRoute(settings),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<AuthCubit>(create: (context) => di.call<AuthCubit>()),
+        BlocProvider<PatientCubit>(
+          create: (context) => di.call<PatientCubit>(),
+        ),
+        BlocProvider<ConsultationCubit>(
+          create: (context) => di.call<ConsultationCubit>(),
+        ),
+        BlocProvider<LookupCubit>(create: (context) => di.call<LookupCubit>()),
+        BlocProvider<TwilioCubit>(create: (context) => di.call<TwilioCubit>()),
+      ],
+      child: GetMaterialApp(
+        title: "EarKart Omni",
+        debugShowCheckedModeBanner: false,
+        theme: theme,
+        initialRoute: RootScreen.routeName,
+        onGenerateRoute: (settings) => generateRoute(settings),
+      ),
     );
   }
 }

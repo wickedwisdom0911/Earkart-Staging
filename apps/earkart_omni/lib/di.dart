@@ -242,7 +242,7 @@ Future<void> setupDI() async {
   );
   //twilio
   di.registerLazySingleton<ITwilioRemoteSource>(
-    () => TwilioRemoteSourceImpl(di.call(), di.call()),
+    () => TwilioRemoteSourceImpl(di.call(), di.call(), di.call(), di.call()),
   );
   di.registerLazySingleton<ITwilioRepository>(
     () => TwilioRepositoryImpl(di.call()),

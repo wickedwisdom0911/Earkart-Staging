@@ -8,10 +8,7 @@ class GetTokenUsecase {
 
   GetTokenUsecase(this.twilioRepository);
 
-  Future<Either<Failure, TwilioToken>> call(
-    String patientId,
-    String consultationId,
-  ) async {
-    return await twilioRepository.getToken(patientId, consultationId);
+  Future<Either<Failure, TwilioToken>> call() async {
+    return await twilioRepository.getToken();
   }
 }

@@ -73,26 +73,7 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       return router(
         Builder(
           builder: (context) {
-            return MultiBlocProvider(
-              providers: [
-                BlocProvider<AuthCubit>(
-                  create: (context) => di.call<AuthCubit>(),
-                ),
-                BlocProvider<PatientCubit>(
-                  create: (context) => di.call<PatientCubit>(),
-                ),
-                BlocProvider<ConsultationCubit>(
-                  create: (context) => di.call<ConsultationCubit>(),
-                ),
-                BlocProvider<LookupCubit>(
-                  create: (context) => di.call<LookupCubit>(),
-                ),
-                BlocProvider<TwilioCubit>(
-                  create: (context) => di.call<TwilioCubit>(),
-                ),
-              ],
-              child: const RootScreen(),
-            );
+            return const RootScreen();
           },
         ),
       );

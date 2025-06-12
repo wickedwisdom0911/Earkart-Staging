@@ -15,27 +15,27 @@ class TwilioCubit extends Cubit<TwilioState> {
     this.deleteRoomUsecase,
   ) : super(const TwilioInitial());
 
-  Future<void> getToken(String patientId, String consultationId) async {
+  Future<void> getToken() async {
     emit(const TwilioLoading());
-    final result = await getTokenUsecase(patientId, consultationId);
+    final result = await getTokenUsecase();
     result.fold(
       (l) => emit(TwilioError(message: l.message)),
       (r) => emit(TwilioSuccess(token: r.data ?? "")),
     );
   }
 
-  Future<void> createRoom(String consultationId) async {
+  Future<void> createRoom() async {
     emit(const TwilioLoading());
-    final result = await createRoomUsecase(consultationId);
+    final result = await createRoomUsecase();
     result.fold(
       (l) => emit(TwilioError(message: l.message)),
       (r) => emit(TwilioSuccess(token: r.data ?? "")),
     );
   }
 
-  Future<void> deleteRoom(String consultationId) async {
+  Future<void> deleteRoom() async {
     emit(const TwilioLoading());
-    final result = await deleteRoomUsecase(consultationId);
+    final result = await deleteRoomUsecase();
     result.fold(
       (l) => emit(TwilioError(message: l.message)),
       (r) => emit(TwilioSuccess(token: r.data ?? "")),

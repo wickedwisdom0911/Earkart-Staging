@@ -31,7 +31,15 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
     _initCamera();
   }
 
-  void startConsultation() {
+  void startConsultation() async {
+    // Dispose camera before starting consultation
+    if (_cameraController != null) {
+      await _cameraController!.dispose();
+      _cameraController = null;
+      setState(() {
+        _isCameraInitialized = false;
+      });
+    }
     context.read<ConsultationCubit>().createConsultation();
   }
 
@@ -239,6 +247,11 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                     orElse: () => false,
                                     createConsultationSuccess: (_) => true,
                                   )) {
+                                    // Ensure camera is disposed before navigation
+                                    if (_cameraController != null) {
+                                      _cameraController!.dispose();
+                                      _cameraController = null;
+                                    }
                                     Navigator.pushNamed(
                                       context,
                                       ConsultationScreen.routeName,

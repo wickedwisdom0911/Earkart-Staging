@@ -36,7 +36,7 @@ class Constants {
   static final updateConsultationUrl = "${baseUrl}consultation/update";
   static final getConsultationsByCentreIdUrl =
       "${baseUrl}consultation/get-by-centre-id";
-  static final getTokenUrl = "${baseUrl}twilio/get-token";
+  static final getTokenUrl = "${baseUrl}twilio/video-token";
   static final createRoomUrl = "${baseUrl}twilio/create-room";
   static final deleteRoomUrl = "${baseUrl}twilio/delete-room";
 }

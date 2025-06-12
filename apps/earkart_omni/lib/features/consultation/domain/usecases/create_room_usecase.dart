@@ -8,7 +8,7 @@ class CreateRoomUsecase {
 
   CreateRoomUsecase(this.twilioRepository);
 
-  Future<Either<Failure, TwilioToken>> call(String consultationId) async {
-    return await twilioRepository.createRoom(consultationId);
+  Future<Either<Failure, TwilioToken>> call() async {
+    return await twilioRepository.createRoom();
   }
 }

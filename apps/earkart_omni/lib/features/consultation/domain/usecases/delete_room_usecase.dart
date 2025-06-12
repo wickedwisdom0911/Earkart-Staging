@@ -8,7 +8,7 @@ class DeleteRoomUsecase {
 
   DeleteRoomUsecase(this.twilioRepository);
 
-  Future<Either<Failure, TwilioToken>> call(String consultationId) async {
-    return await twilioRepository.deleteRoom(consultationId);
+  Future<Either<Failure, TwilioToken>> call() async {
+    return await twilioRepository.deleteRoom();
   }
 }

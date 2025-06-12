@@ -9,20 +9,17 @@ class TwilioRepositoryImpl implements ITwilioRepository {
 
   TwilioRepositoryImpl(this.twilioRemoteSource);
   @override
-  Future<Either<Failure, TwilioToken>> getToken(
-    String patientId,
-    String consultationId,
-  ) async {
-    return await twilioRemoteSource.getToken(patientId, consultationId);
+  Future<Either<Failure, TwilioToken>> getToken() async {
+    return await twilioRemoteSource.getToken();
   }
 
   @override
-  Future<Either<Failure, TwilioToken>> createRoom(String consultationId) async {
-    return await twilioRemoteSource.createRoom(consultationId);
+  Future<Either<Failure, TwilioToken>> createRoom() async {
+    return await twilioRemoteSource.createRoom();
   }
 
   @override
-  Future<Either<Failure, TwilioToken>> deleteRoom(String consultationId) async {
-    return await twilioRemoteSource.deleteRoom(consultationId);
+  Future<Either<Failure, TwilioToken>> deleteRoom() async {
+    return await twilioRemoteSource.deleteRoom();
   }
 }
