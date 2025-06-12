@@ -6,7 +6,6 @@ import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
-import 'package:earkart_omni/features/consultation/presentation/cubit/twilio.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
@@ -131,7 +130,6 @@ class MyApp extends StatelessWidget {
           create: (context) => di.call<ConsultationCubit>(),
         ),
         BlocProvider<LookupCubit>(create: (context) => di.call<LookupCubit>()),
-        BlocProvider<TwilioCubit>(create: (context) => di.call<TwilioCubit>()),
       ],
       child: GetMaterialApp(
         title: "EarKart Omni",

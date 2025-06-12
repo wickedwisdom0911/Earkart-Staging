@@ -2,7 +2,6 @@ import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
-import 'package:earkart_omni/features/consultation/presentation/widgets/twilio_video_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -28,11 +27,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       body: BlocBuilder<ConsultationCubit, ConsultationState>(
         builder: (context, state) {
           di<ILogger>().debug(state.toString());
-          if (state is CurrentConsultationSuccess) {
-            return TwilioVideoWidget(
-              consultationId: state.consultation.id ?? "",
-            );
-          }
+          if (state is CurrentConsultationSuccess) {}
           return const Center(child: CircularProgressIndicator());
         },
       ),
