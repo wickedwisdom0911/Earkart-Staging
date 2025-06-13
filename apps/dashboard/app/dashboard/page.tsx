@@ -5,10 +5,27 @@ import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consult
 import { ConsultationModelData } from "@/models/consultation.model";
 import { useSocket } from "@/providers/socket-provider";
 import { format } from "date-fns";
-import { SessionStatus } from "@/models/enums";
+import {
+  AudiologistConsultationStatus,
+  SessionStatus,
+  Role,
+} from "@/models/enums";
 import { useRouter } from "next/navigation";
+import { useGetUser } from "@/hooks/auth/use-get-user";
+import {
+  User,
+  Building2,
+  Video,
+  CheckCircle2,
+  Clock,
+  PlayCircle,
+  AlertCircle,
+  XCircle,
+} from "lucide-react";
+
 export default function DashboardPage() {
   const router = useRouter();
+  const { data: user } = useGetUser();
   const [allConsulations, setAllConsulations] = useState<
     ConsultationModelData[]
   >([]);
@@ -74,52 +91,126 @@ export default function DashboardPage() {
     const dateStr = consultation.createdAt
       ? format(new Date(consultation.createdAt), "dd MMM yyyy, hh:mm a")
       : "N/A";
-    const statusColor =
-      consultation.status === SessionStatus.COMPLETED
-        ? "bg-green-100 text-green-800"
-        : consultation.status === SessionStatus.PENDING
-          ? "bg-yellow-100 text-yellow-800"
-          : "bg-gray-100 text-gray-800";
+
+    // Status colors and icons
+    const statusConfig = {
+      [SessionStatus.COMPLETED]: {
+        color: "bg-green-50 text-green-700 border-green-200",
+        icon: <CheckCircle2 className="w-5 h-5" />,
+        label: "Completed",
+      },
+      [SessionStatus.PENDING]: {
+        color: "bg-yellow-50 text-yellow-700 border-yellow-200",
+        icon: <Clock className="w-5 h-5" />,
+        label: "Pending",
+      },
+      [SessionStatus.IN_PROGRESS]: {
+        color: "bg-blue-50 text-blue-700 border-blue-200",
+        icon: <PlayCircle className="w-5 h-5" />,
+        label: "In Progress",
+      },
+      [SessionStatus.FAILED]: {
+        color: "bg-red-50 text-red-700 border-red-200",
+        icon: <AlertCircle className="w-5 h-5" />,
+        label: "Failed",
+      },
+      [SessionStatus.CANCELLED]: {
+        color: "bg-gray-50 text-gray-700 border-gray-200",
+        icon: <XCircle className="w-5 h-5" />,
+        label: "Cancelled",
+      },
+    };
+
+    const status =
+      statusConfig[consultation.status] || statusConfig[SessionStatus.PENDING];
+    const isAudiologist =
+      user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+
     return (
       <div
         key={consultation.id}
-        className="flex flex-col justify-between h-full bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 transition-transform hover:scale-105 hover:shadow-2xl"
+        className="group flex flex-col h-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary-200 dark:hover:border-primary-700"
       >
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-2xl">👤</span>
-            <span className="font-semibold text-lg text-primary-700 dark:text-primary-200 truncate">
-              {consultation.patient?.name || "Unknown Patient"}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xl">🏥</span>
-            <span className="text-md text-primary-600 dark:text-primary-300 truncate">
-              {consultation.centre?.user?.name || "Centre Name"}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xl">📅</span>
-            <span className="text-sm text-gray-600 dark:text-gray-300">
-              {dateStr}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-xl">🔖</span>
-            <span
-              className={`text-xs font-bold px-2 py-1 rounded ${statusColor}`}
-            >
-              {consultation.status?.toUpperCase() || "N/A"}
-            </span>
+        {/* Header with status */}
+        <div className={`px-4 py-3 border-b ${status.color}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {status.icon}
+              <span className="font-medium">{status.label}</span>
+            </div>
+            <span className="text-sm opacity-75">{dateStr}</span>
           </div>
         </div>
 
-        <button
-          onClick={() => joinRoom(consultation.id)}
-          className="w-full bg-primary-600 cursor-pointer text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary-700 transition"
-        >
-          Join Consultation
-        </button>
+        {/* Main content */}
+        <div className="flex-1 p-4 space-y-4">
+          {/* Patient Info */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-primary-600 dark:text-primary-400">
+                <User className="w-5 h-5" />
+              </span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">
+                {consultation.patient?.name || "Unknown Patient"}
+              </span>
+            </div>
+          </div>
+
+          {/* Centre Info */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-primary-600 dark:text-primary-400">
+                <Building2 className="w-5 h-5" />
+              </span>
+              <span className="text-sm text-gray-600 dark:text-gray-300">
+                {consultation.centre?.user?.name || "Centre Name"}
+              </span>
+            </div>
+          </div>
+
+          {/* Audiologist Info */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-primary-600 dark:text-primary-400">
+                <User className="w-5 h-5" />
+              </span>
+              <span className="text-sm text-gray-600 dark:text-gray-300">
+                {consultation.audiologist?.user?.name ||
+                  "No Audiologist Assigned"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        {isAudiologist && (
+          <div className="p-4 border-t border-gray-100 dark:border-gray-700">
+            {!consultation.audiologist &&
+              consultation.audiologistStatus ===
+                AudiologistConsultationStatus.PENDING &&
+              consultation.status === SessionStatus.PENDING && (
+                <button
+                  onClick={() => joinRoom(consultation.id)}
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Video className="w-5 h-5" />
+                  Join Consultation
+                </button>
+              )}
+            {consultation.audiologist &&
+              consultation.audiologist.userId === user?.id &&
+              (consultation.status === SessionStatus.IN_PROGRESS ||
+                consultation.status === SessionStatus.PENDING) && (
+                <button
+                  onClick={() => joinRoom(consultation.id)}
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Video className="w-5 h-5" />
+                  Rejoin Consultation
+                </button>
+              )}
+          </div>
+        )}
       </div>
     );
   };
