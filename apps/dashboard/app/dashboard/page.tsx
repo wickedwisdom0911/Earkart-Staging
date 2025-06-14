@@ -22,6 +22,7 @@ import {
   AlertCircle,
   XCircle,
 } from "lucide-react";
+import { ROUTES } from "@/lib/routes";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -82,7 +83,7 @@ export default function DashboardPage() {
     socket?.on("joined", (data) => {
       console.log("Joined consultation:", data);
       if (data === consultationId) {
-        router.push(`/consultation/${data}`);
+        router.push(ROUTES.CONSULTATION(data));
       }
     });
   };

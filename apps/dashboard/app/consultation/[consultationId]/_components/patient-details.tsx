@@ -1,4 +1,4 @@
-import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
+"use client";
 import {
   Form,
   FormControl,
@@ -23,12 +23,16 @@ import GenderSelect from "@/components/ui/selector/gender-select";
 import MultiLanguageSelector from "@/components/ui/selector/language-selector";
 import { Gender } from "@/models/enums";
 import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
 
 export default function PatientDetails({
   patient,
 }: {
   patient: PatientModelData;
 }) {
+  const router = useRouter();
+  const { consultationId } = useParams();
   const [countryId, setCountryId] = useState<string | null>(
     patient.district?.city?.state?.country?.id || null
   );
@@ -68,166 +72,142 @@ export default function PatientDetails({
 
   function handleSubmit(data: PatientModelData) {
     console.log(data);
+    router.push(ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string));
   }
 
   return (
-    <DashboardBodyWrapper
-      pageTitle="Patient details"
-      className="border-none flex-1"
-    >
-      <div className="p-6 bg-white rounded-lg shadow-sm">
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(handleSubmit)}
-            className="space-y-6"
-          >
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Enter full name" />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+    <div className="p-4 ">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Full Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Enter full name" />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="email" placeholder="Enter email" />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="contactNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contact Number</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Enter contact number" />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="gender"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Gender</FormLabel>
+                  <FormControl>
+                    <GenderSelect
+                      value={field.value as Gender}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="dob"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date of Birth</FormLabel>
+                  <FormControl>
+                    <DatetimePicker
+                      value={field.value ? new Date(field.value) : undefined}
+                      onChange={(date: Date | undefined) =>
+                        field.onChange(date ? date.toISOString() : "")
+                      }
+                      format={[["days", "months", "years"], []]}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="languageId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Preferred Language</FormLabel>
+                  <FormControl>
+                    <MultiLanguageSelector
+                      value={field.value ? [field.value] : []}
+                      onChange={(ids) => field.onChange(ids[0] || "")}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <div className="col-span-2">
               <FormField
                 control={form.control}
-                name="email"
+                name="districtId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="email"
-                        placeholder="Enter email"
+                    <FormLabel>Location</FormLabel>
+                    <div className="grid grid-cols-2 gap-4">
+                      <CountrySelector
+                        value={countryId}
+                        onChange={setCountryId}
+                        initialValue={countryId}
                       />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="contactNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contact Number</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Enter contact number" />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="gender"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Gender</FormLabel>
-                    <FormControl>
-                      <GenderSelect
-                        value={field.value as Gender}
-                        onChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="dob"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date of Birth</FormLabel>
-                    <FormControl>
-                      <DatetimePicker
-                        value={field.value ? new Date(field.value) : undefined}
-                        onChange={(date: Date | undefined) =>
-                          field.onChange(date ? date.toISOString() : "")
-                        }
-                        format={[["days", "months", "years"], []]}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="languageId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Preferred Language</FormLabel>
-                    <FormControl>
-                      <MultiLanguageSelector
-                        value={field.value ? [field.value] : []}
-                        onChange={(ids) => field.onChange(ids[0] || "")}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <div className="col-span-2">
-                <FormField
-                  control={form.control}
-                  name="districtId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Location</FormLabel>
-                      <div className="grid grid-cols-2 gap-4">
-                        <CountrySelector
-                          value={countryId}
-                          onChange={setCountryId}
-                          initialValue={countryId}
+                      {countryId && (
+                        <StateSelector
+                          value={stateId}
+                          onChange={setStateId}
+                          countryId={countryId}
+                          initialValue={stateId}
                         />
-                        {countryId && (
-                          <StateSelector
-                            value={stateId}
-                            onChange={setStateId}
-                            countryId={countryId}
-                            initialValue={stateId}
-                          />
-                        )}
-                        {stateId && (
-                          <CitySelector
-                            value={cityId}
-                            onChange={setCityId}
-                            stateId={stateId}
-                            initialValue={cityId}
-                          />
-                        )}
-                        {cityId && (
-                          <DistrictSelector
-                            value={field.value}
-                            onChange={field.onChange}
-                            cityId={cityId}
-                            initialValue={field.value}
-                          />
-                        )}
-                      </div>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="pincode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Pincode</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Enter pincode" />
-                    </FormControl>
+                      )}
+                      {stateId && (
+                        <CitySelector
+                          value={cityId}
+                          onChange={setCityId}
+                          stateId={stateId}
+                          initialValue={cityId}
+                        />
+                      )}
+                      {cityId && (
+                        <DistrictSelector
+                          value={field.value}
+                          onChange={field.onChange}
+                          cityId={cityId}
+                          initialValue={field.value}
+                        />
+                      )}
+                    </div>
                   </FormItem>
                 )}
               />
@@ -235,25 +215,38 @@ export default function PatientDetails({
 
             <FormField
               control={form.control}
-              name="address"
+              name="pincode"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Address</FormLabel>
+                  <FormLabel>Pincode</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Enter address" />
+                    <Input {...field} placeholder="Enter pincode" />
                   </FormControl>
                 </FormItem>
               )}
             />
+          </div>
 
-            <div className="flex justify-end">
-              <Button type="submit" className="w-32">
-                Next
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </div>
-    </DashboardBodyWrapper>
+          <FormField
+            control={form.control}
+            name="address"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Address</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter address" />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <div className="flex justify-end">
+            <Button type="submit" className="w-32">
+              Next
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </div>
   );
 }
