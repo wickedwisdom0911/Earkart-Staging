@@ -11,6 +11,7 @@ import AgoraRTC, {
   useIsConnected,
   AgoraRTCProvider,
   useRTCClient,
+  ILocalTrack,
 } from "agora-rtc-react";
 import useCreateToken from "@/hooks/agora/use-create-token";
 
@@ -175,33 +176,88 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
       setIsLeaving(true);
       setError(null);
 
-      // Stop and cleanup tracks
+      // Aggressive cleanup of tracks
+      const cleanupTrack = async (track: ILocalTrack) => {
+        if (!track) return;
+
+        try {
+          // Stop the track first
+          await track.stop();
+
+          // Get and stop the underlying MediaStreamTrack
+          if (track.getMediaStreamTrack) {
+            const mediaStreamTrack = track.getMediaStreamTrack();
+            if (mediaStreamTrack) {
+              mediaStreamTrack.stop();
+              mediaStreamTrack.enabled = false;
+            }
+          }
+
+          // Close the track last
+          await track.close();
+        } catch (err) {
+          console.warn("Error during track cleanup:", err);
+        }
+      };
+
+      // Cleanup local tracks
       if (localMicrophoneTrack) {
-        localMicrophoneTrack.stop();
-        localMicrophoneTrack.close();
+        await cleanupTrack(localMicrophoneTrack);
       }
       if (localCameraTrack) {
-        localCameraTrack.stop();
-        localCameraTrack.close();
+        await cleanupTrack(localCameraTrack);
       }
+
+      // Unpublish and leave if connected
       if (isConnected) {
-        if (localMicrophoneTrack) {
-          await client.unpublish(localMicrophoneTrack);
+        try {
+          if (localMicrophoneTrack) {
+            await client.unpublish(localMicrophoneTrack);
+          }
+          if (localCameraTrack) {
+            await client.unpublish(localCameraTrack);
+          }
+          await client.leave();
+        } catch (err) {
+          console.warn("Error during unpublish/leave:", err);
         }
-        if (localCameraTrack) {
-          await client.unpublish(localCameraTrack);
-        }
-        // Leave channel
-        await client.leave();
       }
+
+      // Reset states
       setToken(null);
-      // Force cleanup of any remaining tracksAdd commentMore actions
+      setAppId(null);
+      setUid(null);
+
+      // Force cleanup of any remaining tracks
       if (client.localTracks) {
-        client.localTracks.forEach((track) => {
-          track.stop();
-          track.close();
-        });
+        for (const track of client.localTracks) {
+          await cleanupTrack(track);
+        }
       }
+
+      // Additional cleanup of media devices
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        for (const device of devices) {
+          if (device.kind === "videoinput" || device.kind === "audioinput") {
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({
+                [device.kind]: { deviceId: device.deviceId },
+              });
+              stream.getTracks().forEach((track) => {
+                track.stop();
+                track.enabled = false;
+              });
+            } catch (err) {
+              // Ignore errors for devices that might be in use
+              console.warn(`Could not access device ${device.deviceId}:`, err);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Error during media devices cleanup:", err);
+      }
+
       // Navigate away
       router.push("/dashboard");
     } catch (err) {
@@ -210,7 +266,14 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
     } finally {
       setIsLeaving(false);
     }
-  }, [isLeaving, localMicrophoneTrack, localCameraTrack, client, router]);
+  }, [
+    isLeaving,
+    localMicrophoneTrack,
+    localCameraTrack,
+    client,
+    router,
+    isConnected,
+  ]);
 
   if (!isConnected && (!token || !appId)) {
     return (
