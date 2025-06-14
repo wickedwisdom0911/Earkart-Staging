@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -353,7 +354,10 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                         onPressed: () async {
                           await _leaveChannel();
                           if (!mounted || _isDisposed) return;
-                          Navigator.pop(context);
+                          Navigator.pushReplacementNamed(
+                            context,
+                            RootScreen.routeName,
+                          );
                         },
                         shape: const CircleBorder(),
                         padding: const EdgeInsets.all(15.0),

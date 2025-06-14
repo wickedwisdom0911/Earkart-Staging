@@ -26,7 +26,6 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
   const [error, setError] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
   const [micOn, setMic] = useState(true);
-  const [cameraOn, setCamera] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [appId, setAppId] = useState<string | null>(null);
   const [uid, setUid] = useState<number | null>(null);
@@ -98,7 +97,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
 
   // Get local tracks
   const { localMicrophoneTrack } = useLocalMicrophoneTrack(micOn);
-  const { localCameraTrack } = useLocalCameraTrack(cameraOn);
+  const { localCameraTrack } = useLocalCameraTrack();
 
   // Get remote users
   const remoteUsers = useRemoteUsers();
@@ -209,20 +208,20 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
   }
 
   return (
-    <div className="flex flex-col items-center p-4">
+    <div className="flex flex-col items-center p-4  w-fit">
       {error && (
         <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
           {error}
         </div>
       )}
-      <div className="flex gap-4 mb-4">
+      <div className="flex flex-col gap-4 mb-4">
         <div
           ref={localRef}
           className="w-80 h-60 bg-black rounded-lg overflow-hidden"
         >
           <LocalUser
             audioTrack={localMicrophoneTrack}
-            cameraOn={cameraOn}
+            cameraOn={true}
             micOn={micOn}
             playAudio={false}
             videoTrack={localCameraTrack}
@@ -250,10 +249,11 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
           ))}
         </div>
       </div>
-      <div className="flex gap-4">
+      <div className="flex gap-4 w-full ">
         <button
           onClick={() => setMic(!micOn)}
           className={`
+            flex-1
             px-4 py-2 rounded-md font-medium text-white
             ${micOn ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-600 hover:bg-gray-700"}
             transition-colors duration-200
@@ -261,20 +261,12 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
         >
           {micOn ? "Mute" : "Unmute"}
         </button>
-        <button
-          onClick={() => setCamera(!cameraOn)}
-          className={`
-            px-4 py-2 rounded-md font-medium text-white
-            ${cameraOn ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-600 hover:bg-gray-700"}
-            transition-colors duration-200
-          `}
-        >
-          {cameraOn ? "Turn Off Camera" : "Turn On Camera"}
-        </button>
+
         <button
           onClick={handleLeave}
           disabled={isLeaving}
           className={`
+            flex-1
             px-6 py-2 rounded-md font-medium text-white
             ${
               isLeaving
