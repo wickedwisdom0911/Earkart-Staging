@@ -19,12 +19,13 @@ export default function ConsultationPage() {
   if (!consultation?.data) return <div>No data</div>;
 
   const consultationData = consultation.data as ConsultationModelData;
+  console.log(consultationData);
 
   return (
     <DashboardBodyWrapper
       pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
     >
-      <div className="flex border border-red-400 items-center justify-start">
+      <div className="flex border border-red-400 items-center justify-start overflow-hidden">
         <VideoCall channel={consultationId as string} />
         {consultationData.patient && (
           <PatientDetails patient={consultationData.patient} />
