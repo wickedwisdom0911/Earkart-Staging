@@ -25,6 +25,8 @@ import { Gender } from "@/models/enums";
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/routes";
+import { useUpdatePatient } from "@/hooks/consultation/use-update-patient";
+import { toast } from "sonner";
 
 export default function PatientDetails({
   patient,
@@ -47,7 +49,7 @@ export default function PatientDetails({
     resolver: zodResolver(patientModeldataSchema),
     defaultValues: patient,
   });
-
+  const { mutate: updatePatient, isPending } = useUpdatePatient();
   // Reset state/city/district when parent changes
   useEffect(() => {
     if (!countryId) {
@@ -71,8 +73,69 @@ export default function PatientDetails({
   }, [cityId, form]);
 
   function handleSubmit(data: PatientModelData) {
-    console.log(data);
-    router.push(ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string));
+    // Check if any field has changed from the original patient data
+    const changes: Record<
+      string,
+      {
+        old: PatientModelData[keyof PatientModelData];
+        new: PatientModelData[keyof PatientModelData];
+      }
+    > = {};
+
+    const hasChanges = Object.keys(data).some((key) => {
+      const typedKey = key as keyof PatientModelData;
+      const oldValue = patient[typedKey];
+      const newValue = data[typedKey];
+
+      // Skip comparing undefined/null values and empty strings
+      if (oldValue === undefined || newValue === undefined) return false;
+      if (oldValue === "" && newValue === "") return false;
+
+      // Handle date comparison
+      if (typedKey === "dob") {
+        const oldDate = oldValue
+          ? new Date(oldValue as string).toISOString()
+          : "";
+        const newDate = newValue
+          ? new Date(newValue as string).toISOString()
+          : "";
+        const isChanged = oldDate !== newDate;
+        if (isChanged) {
+          changes[key] = { old: oldValue, new: newValue };
+        }
+        return isChanged;
+      }
+
+      // Handle string comparison
+      const isChanged = String(oldValue) !== String(newValue);
+      if (isChanged) {
+        changes[key] = { old: oldValue, new: newValue };
+      }
+      return isChanged;
+    });
+
+    if (hasChanges) {
+      updatePatient(
+        { ...data, id: patient.id },
+        {
+          onSuccess: (result) => {
+            if (result.success) {
+              toast.success("Patient updated successfully");
+              router.push(
+                ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string)
+              );
+            } else {
+              toast.error(result.message);
+            }
+          },
+          onError: (error) => {
+            toast.error(error.message);
+          },
+        }
+      );
+    } else {
+      router.push(ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string));
+    }
   }
 
   return (
@@ -241,8 +304,8 @@ export default function PatientDetails({
           />
 
           <div className="flex justify-end">
-            <Button type="submit" className="w-32">
-              Next
+            <Button type="submit" className="w-32" disabled={isPending}>
+              {isPending ? "Saving..." : "Next"}
             </Button>
           </div>
         </form>

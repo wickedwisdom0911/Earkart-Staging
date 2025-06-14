@@ -16,4 +16,6 @@ export const ROUTES = {
   CONSULTATION: (consultationId: string) => `/consultation/${consultationId}`,
   CONSULTATION_TEST_SELECTION: (consultationId: string) =>
     `/consultation/${consultationId}/test-selection`,
+  CONSULTATION_TEST: (consultationId: string, testId: string) =>
+    `/consultation/${consultationId}/test/${testId}`,
 };

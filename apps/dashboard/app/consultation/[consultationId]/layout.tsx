@@ -13,6 +13,7 @@ export default function ConsultationLayout({
   params: Promise<{ consultationId: string }>;
 }) {
   const resolvedParams = use(params);
+
   const {
     data: consultation,
     isLoading,
