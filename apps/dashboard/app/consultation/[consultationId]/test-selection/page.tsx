@@ -41,23 +41,23 @@ export default function TestSelectionPage() {
   };
 
   return (
-    <DashboardBodyWrapper>
-      <div className="container mx-auto py-8">
-        <h1 className="text-2xl font-bold mb-6">Select a Test</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {testOptions.map((test) => (
-            <Card
-              key={test.id}
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => handleTestClick(test.id)}
-            >
-              <CardContent className="p-6">
-                <h2 className="text-xl font-semibold mb-2">{test.name}</h2>
-                <p className="text-gray-600">{test.description}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+    <DashboardBodyWrapper
+      className="border-none justify-center"
+      pageTitle="Test Selection"
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {testOptions.map((test) => (
+          <Card
+            key={test.id}
+            className="cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => handleTestClick(test.id)}
+          >
+            <CardContent className="p-6">
+              <h2 className="text-xl font-semibold mb-2">{test.name}</h2>
+              <p className="text-gray-600">{test.description}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </DashboardBodyWrapper>
   );
