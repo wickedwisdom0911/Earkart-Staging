@@ -25,6 +25,11 @@ const testOptions = [
     name: "Otoacoustic Emissions",
     description: "Measure inner ear response to sound",
   },
+  {
+    id: "video-otoscopy",
+    name: "Video Otoscopy",
+    description: "Visualize the middle ear and tympanic membrane",
+  },
 ];
 
 export default function TestSelectionPage() {
