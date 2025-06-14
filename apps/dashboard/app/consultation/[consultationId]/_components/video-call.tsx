@@ -15,6 +15,8 @@ import AgoraRTC, {
   ILocalTrack,
 } from "agora-rtc-react";
 import useCreateToken from "@/hooks/agora/use-create-token";
+import { Mic, MicOff, PhoneOff } from "lucide-react";
+import { useDialog } from "@/hooks/use-dialog";
 
 interface VideoCallProps {
   channel: string;
@@ -31,6 +33,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
   const [token, setToken] = useState<string | null>(null);
   const [appId, setAppId] = useState<string | null>(null);
   const [uid, setUid] = useState<number | null>(null);
+  const { Dialog, openDialog } = useDialog();
 
   // Get client and connection status
   const client = useRTCClient();
@@ -171,102 +174,114 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
 
   // Handle leaving
   const handleLeave = useCallback(async () => {
-    if (isLeaving) return;
-
-    try {
-      setIsLeaving(true);
-      setError(null);
-
-      // Aggressive cleanup of tracks
-      const cleanupTrack = async (track: ILocalTrack) => {
-        if (!track) return;
+    openDialog({
+      title: "Leave Call",
+      description: "Are you sure you want to leave this call?",
+      onConfirm: async () => {
+        if (isLeaving) return;
 
         try {
-          // Stop the track first
-          await track.stop();
+          setIsLeaving(true);
+          setError(null);
 
-          // Get and stop the underlying MediaStreamTrack
-          if (track.getMediaStreamTrack) {
-            const mediaStreamTrack = track.getMediaStreamTrack();
-            if (mediaStreamTrack) {
-              mediaStreamTrack.stop();
-              mediaStreamTrack.enabled = false;
+          // Aggressive cleanup of tracks
+          const cleanupTrack = async (track: ILocalTrack) => {
+            if (!track) return;
+
+            try {
+              // Stop the track first
+              await track.stop();
+
+              // Get and stop the underlying MediaStreamTrack
+              if (track.getMediaStreamTrack) {
+                const mediaStreamTrack = track.getMediaStreamTrack();
+                if (mediaStreamTrack) {
+                  mediaStreamTrack.stop();
+                  mediaStreamTrack.enabled = false;
+                }
+              }
+
+              // Close the track last
+              await track.close();
+            } catch (err) {
+              console.warn("Error during track cleanup:", err);
             }
-          }
+          };
 
-          // Close the track last
-          await track.close();
-        } catch (err) {
-          console.warn("Error during track cleanup:", err);
-        }
-      };
-
-      // Cleanup local tracks
-      if (localMicrophoneTrack) {
-        await cleanupTrack(localMicrophoneTrack);
-      }
-      if (localCameraTrack) {
-        await cleanupTrack(localCameraTrack);
-      }
-
-      // Unpublish and leave if connected
-      if (isConnected) {
-        try {
+          // Cleanup local tracks
           if (localMicrophoneTrack) {
-            await client.unpublish(localMicrophoneTrack);
+            await cleanupTrack(localMicrophoneTrack);
           }
           if (localCameraTrack) {
-            await client.unpublish(localCameraTrack);
+            await cleanupTrack(localCameraTrack);
           }
-          await client.leave();
-        } catch (err) {
-          console.warn("Error during unpublish/leave:", err);
-        }
-      }
 
-      // Reset states
-      setToken(null);
-      setAppId(null);
-      setUid(null);
-
-      // Force cleanup of any remaining tracks
-      if (client.localTracks) {
-        for (const track of client.localTracks) {
-          await cleanupTrack(track);
-        }
-      }
-
-      // Additional cleanup of media devices
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        for (const device of devices) {
-          if (device.kind === "videoinput" || device.kind === "audioinput") {
+          // Unpublish and leave if connected
+          if (isConnected) {
             try {
-              const stream = await navigator.mediaDevices.getUserMedia({
-                [device.kind]: { deviceId: device.deviceId },
-              });
-              stream.getTracks().forEach((track) => {
-                track.stop();
-                track.enabled = false;
-              });
+              if (localMicrophoneTrack) {
+                await client.unpublish(localMicrophoneTrack);
+              }
+              if (localCameraTrack) {
+                await client.unpublish(localCameraTrack);
+              }
+              await client.leave();
             } catch (err) {
-              // Ignore errors for devices that might be in use
-              console.warn(`Could not access device ${device.deviceId}:`, err);
+              console.warn("Error during unpublish/leave:", err);
             }
           }
-        }
-      } catch (err) {
-        console.warn("Error during media devices cleanup:", err);
-      }
 
-      // Navigate away
-      router.push("/dashboard");
-    } catch (err) {
-      console.error("Error leaving channel:", err);
-      setError((err as Error).message);
-    } finally {
-      setIsLeaving(false);
-    }
+          // Reset states
+          setToken(null);
+          setAppId(null);
+          setUid(null);
+
+          // Force cleanup of any remaining tracks
+          if (client.localTracks) {
+            for (const track of client.localTracks) {
+              await cleanupTrack(track);
+            }
+          }
+
+          // Additional cleanup of media devices
+          try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            for (const device of devices) {
+              if (
+                device.kind === "videoinput" ||
+                device.kind === "audioinput"
+              ) {
+                try {
+                  const stream = await navigator.mediaDevices.getUserMedia({
+                    [device.kind]: { deviceId: device.deviceId },
+                  });
+                  stream.getTracks().forEach((track) => {
+                    track.stop();
+                    track.enabled = false;
+                  });
+                } catch (err) {
+                  // Ignore errors for devices that might be in use
+                  console.warn(
+                    `Could not access device ${device.deviceId}:`,
+                    err
+                  );
+                }
+              }
+            }
+          } catch (err) {
+            console.warn("Error during media devices cleanup:", err);
+          }
+
+          // Navigate away
+          router.push("/dashboard");
+        } catch (err) {
+          console.error("Error leaving channel:", err);
+          setError((err as Error).message);
+        } finally {
+          setIsLeaving(false);
+        }
+      },
+    });
   }, [
     isLeaving,
     localMicrophoneTrack,
@@ -274,6 +289,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
     client,
     router,
     isConnected,
+    openDialog,
   ]);
 
   if (!isConnected && (!token || !appId)) {
@@ -285,14 +301,18 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
   }
 
   return (
-    <div className="flex flex-col items-center h-full min-w-[400px]   w-fit">
+    <div className="flex flex-col items-center h-full min-w-[400px] w-fit">
+      <Dialog />
       {error && (
         <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
           {error}
         </div>
       )}
       <div className="flex flex-col h-full w-full gap-1 mb-2">
-        <div ref={localRef} className="w-full h-full bg-black overflow-hidden">
+        <div
+          ref={localRef}
+          className="w-full h-full bg-black overflow-hidden relative"
+        >
           <LocalUser
             audioTrack={localMicrophoneTrack}
             cameraOn={true}
@@ -305,6 +325,31 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
               You
             </div>
           </LocalUser>
+          <div className="absolute top-2 right-2 flex gap-2">
+            <button
+              onClick={() => setMic(!micOn)}
+              className={`
+                p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
+                z-10
+                transition-colors duration-200
+                ${micOn ? "text-white" : "text-red-500"}
+              `}
+            >
+              {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+            </button>
+            <button
+              onClick={handleLeave}
+              disabled={isLeaving}
+              className={`
+                p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
+                z-10
+                transition-colors duration-200
+                ${isLeaving ? "text-gray-500" : "text-red-500 hover:text-red-600"}
+              `}
+            >
+              <PhoneOff size={20} />
+            </button>
+          </div>
         </div>
         <div ref={remoteRef} className="w-full h-full bg-black overflow-hidden">
           {remoteUsers.map((user) => (
@@ -319,36 +364,6 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
             </RemoteUser>
           ))}
         </div>
-      </div>
-      <div className="flex gap-4 w-full ">
-        <button
-          onClick={() => setMic(!micOn)}
-          className={`
-            flex-1
-            px-4 py-2 rounded-md font-medium text-white
-            ${micOn ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-600 hover:bg-gray-700"}
-            transition-colors duration-200
-          `}
-        >
-          {micOn ? "Mute" : "Unmute"}
-        </button>
-
-        <button
-          onClick={handleLeave}
-          disabled={isLeaving}
-          className={`
-            flex-1
-            px-6 py-2 rounded-md font-medium text-white
-            ${
-              isLeaving
-                ? "bg-gray-500 cursor-not-allowed"
-                : "bg-red-600 hover:bg-red-700 cursor-pointer"
-            }
-            transition-colors duration-200
-          `}
-        >
-          {isLeaving ? "Leaving..." : "Leave Call"}
-        </button>
       </div>
     </div>
   );
