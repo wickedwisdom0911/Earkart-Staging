@@ -42,7 +42,7 @@ export default function TestSelectionPage() {
 
   return (
     <DashboardBodyWrapper
-      className="border-none justify-center"
+      className="border-none justify-around"
       pageTitle="Test Selection"
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

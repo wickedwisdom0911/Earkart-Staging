@@ -134,13 +134,13 @@
   }
 }
 /* Hide scrollbars on all platforms */
-/* body,
+body,
 * {
   scrollbar-width: none; /* Firefox */
-/* -ms-overflow-style: none; IE and Edge */
-/* } */
+  -ms-overflow-style: none;
+}
 
-/* body::-webkit-scrollbar, */
-/* *::-webkit-scrollbar { */
-/* display: none; Chrome, Safari, Opera */
-/* } */
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  display: none;
+}

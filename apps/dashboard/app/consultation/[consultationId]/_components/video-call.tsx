@@ -285,17 +285,14 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
   }
 
   return (
-    <div className="flex flex-col items-center p-4  w-fit">
+    <div className="flex flex-col items-center h-full min-w-[400px]   w-fit">
       {error && (
         <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
           {error}
         </div>
       )}
-      <div className="flex flex-col gap-4 mb-4">
-        <div
-          ref={localRef}
-          className="w-80 h-60 bg-black rounded-lg overflow-hidden"
-        >
+      <div className="flex flex-col h-full w-full gap-1 mb-2">
+        <div ref={localRef} className="w-full h-full bg-black overflow-hidden">
           <LocalUser
             audioTrack={localMicrophoneTrack}
             cameraOn={true}
@@ -309,10 +306,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
             </div>
           </LocalUser>
         </div>
-        <div
-          ref={remoteRef}
-          className="w-80 h-60 bg-black rounded-lg overflow-hidden"
-        >
+        <div ref={remoteRef} className="w-full h-full bg-black overflow-hidden">
           {remoteUsers.map((user) => (
             <RemoteUser
               key={user.uid}
@@ -320,7 +314,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
               style={{ width: "100%", height: "100%" }}
             >
               <div className="absolute bottom-2 left-2 text-white text-sm">
-                {user.uid}
+                patient
               </div>
             </RemoteUser>
           ))}

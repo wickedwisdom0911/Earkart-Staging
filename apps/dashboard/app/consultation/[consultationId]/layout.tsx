@@ -30,8 +30,9 @@ export default function ConsultationLayout({
   return (
     <DashboardBodyWrapper
       pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
+      className="border-none "
     >
-      <div className="flex gap-2 border border-red-400 overflow-hidden">
+      <div className="flex gap-2  overflow-hidden h-full w-full">
         <VideoCall channel={resolvedParams.consultationId} />
         <main className="flex-1">{children}</main>
       </div>
