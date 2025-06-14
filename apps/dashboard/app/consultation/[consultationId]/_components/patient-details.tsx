@@ -304,7 +304,11 @@ export default function PatientDetails({
           />
 
           <div className="flex justify-end">
-            <Button type="submit" className="w-32" disabled={isPending}>
+            <Button
+              type="submit"
+              className="w-fit cursor-pointer bg-primary-500 text-white"
+              disabled={isPending}
+            >
               {isPending ? "Saving..." : "Next"}
             </Button>
           </div>

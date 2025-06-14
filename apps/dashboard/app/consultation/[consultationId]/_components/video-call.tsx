@@ -301,7 +301,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
   }
 
   return (
-    <div className="flex flex-col items-center h-full min-w-[400px] w-fit">
+    <div className="flex flex-col items-center h-full min-w-1/3 w-fit">
       <Dialog />
       {error && (
         <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
