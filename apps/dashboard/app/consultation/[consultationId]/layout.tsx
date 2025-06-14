@@ -33,7 +33,10 @@ export default function ConsultationLayout({
       className="border-none "
     >
       <div className="flex gap-2  overflow-hidden h-full w-full">
-        <VideoCall channel={resolvedParams.consultationId} />
+        <VideoCall
+          channel={resolvedParams.consultationId}
+          patientName={consultationData.patient?.name || "Patient"}
+        />
         <main className="flex-1">{children}</main>
       </div>
     </DashboardBodyWrapper>

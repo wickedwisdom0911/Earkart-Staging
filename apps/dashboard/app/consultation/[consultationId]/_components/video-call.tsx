@@ -15,14 +15,46 @@ import AgoraRTC, {
   ILocalTrack,
 } from "agora-rtc-react";
 import useCreateToken from "@/hooks/agora/use-create-token";
-import { Mic, MicOff, PhoneOff } from "lucide-react";
+import { Mic, MicOff, PhoneOff, User } from "lucide-react";
 import { useDialog } from "@/hooks/use-dialog";
 
 interface VideoCallProps {
   channel: string;
+  patientName: string;
 }
 
-const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
+const VideoPlaceholder = ({
+  name,
+  size = "full",
+}: {
+  name: string;
+  size?: "full" | "small";
+}) => {
+  const isSmall = size === "small";
+  return (
+    <div
+      className={`flex flex-col items-center justify-center ${isSmall ? "w-32 h-32" : "w-full h-full"} bg-gray-900 rounded-2xl border border-gray-800`}
+    >
+      <div className="flex flex-col items-center gap-2">
+        <div
+          className={`${isSmall ? "w-12 h-12" : "w-24 h-24"} rounded-full bg-gray-800 flex items-center justify-center`}
+        >
+          <User
+            className={`${isSmall ? "w-6 h-6" : "w-12 h-12"} text-gray-400`}
+          />
+        </div>
+        <span className={`${isSmall ? "text-xs" : "text-sm"} text-gray-400`}>
+          {name}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const VideoCallContent: React.FC<VideoCallProps> = ({
+  channel,
+  patientName,
+}) => {
   const localRef = useRef<HTMLDivElement>(null);
   const remoteRef = useRef<HTMLDivElement>(null);
   const { mutateAsync: fetchToken } = useCreateToken();
@@ -301,7 +333,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
   }
 
   return (
-    <div className="flex flex-col items-center h-full min-w-1/3 w-fit">
+    <div className="flex flex-col items-center h-full min-w-1/3 w-fit relative">
       <Dialog />
       {error && (
         <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
@@ -309,23 +341,52 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
         </div>
       )}
       <div className="flex flex-col h-full w-full gap-1 mb-2">
+        {/* Remote user (patient) - full screen */}
         <div
-          ref={localRef}
-          className="w-full h-full bg-black overflow-hidden relative"
+          ref={remoteRef}
+          className="w-full h-full rounded-2xl border bg-gray-900 overflow-hidden"
         >
-          <LocalUser
-            audioTrack={localMicrophoneTrack}
-            cameraOn={true}
-            micOn={micOn}
-            playAudio={false}
-            videoTrack={localCameraTrack}
-            style={{ width: "100%", height: "100%" }}
+          {remoteUsers.length > 0 ? (
+            remoteUsers.map((user) => (
+              <RemoteUser
+                key={user.uid}
+                user={user}
+                style={{ width: "100%", height: "100%" }}
+              >
+                <div className="absolute bottom-3 left-3 text-white text-sm">
+                  {patientName}
+                </div>
+              </RemoteUser>
+            ))
+          ) : (
+            <VideoPlaceholder name={patientName} />
+          )}
+        </div>
+
+        {/* Local user (audiologist) - floating circle */}
+        <div className="absolute top-4 right-4 flex flex-col items-center gap-2">
+          <div
+            ref={localRef}
+            className="w-32 h-32 rounded-full overflow-hidden border-2 border-white shadow-lg bg-gray-900"
           >
-            <div className="absolute bottom-2 left-2 text-white text-sm">
-              You
-            </div>
-          </LocalUser>
-          <div className="absolute top-2 right-2 flex gap-2">
+            {localCameraTrack ? (
+              <LocalUser
+                audioTrack={localMicrophoneTrack}
+                cameraOn={true}
+                micOn={micOn}
+                playAudio={false}
+                videoTrack={localCameraTrack}
+                style={{ width: "100%", height: "100%" }}
+              >
+                <div className="absolute bottom-1 left-1 text-white text-xs">
+                  You
+                </div>
+              </LocalUser>
+            ) : (
+              <VideoPlaceholder name="You" size="small" />
+            )}
+          </div>
+          <div className="flex gap-2">
             <button
               onClick={() => setMic(!micOn)}
               className={`
@@ -350,19 +411,6 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
               <PhoneOff size={20} />
             </button>
           </div>
-        </div>
-        <div ref={remoteRef} className="w-full h-full bg-black overflow-hidden">
-          {remoteUsers.map((user) => (
-            <RemoteUser
-              key={user.uid}
-              user={user}
-              style={{ width: "100%", height: "100%" }}
-            >
-              <div className="absolute bottom-2 left-2 text-white text-sm">
-                patient
-              </div>
-            </RemoteUser>
-          ))}
         </div>
       </div>
     </div>
