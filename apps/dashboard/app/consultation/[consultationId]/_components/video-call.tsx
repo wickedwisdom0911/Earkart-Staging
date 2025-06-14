@@ -177,17 +177,39 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
 
       // Stop and cleanup tracks
       if (localMicrophoneTrack) {
-        localMicrophoneTrack.stop();
-        localMicrophoneTrack.close();
+        await localMicrophoneTrack.stop();
+        await localMicrophoneTrack.close();
+        localMicrophoneTrack.setEnabled(false);
       }
       if (localCameraTrack) {
-        localCameraTrack.stop();
-        localCameraTrack.close();
+        await localCameraTrack.stop();
+        await localCameraTrack.close();
+        localCameraTrack.setEnabled(false);
       }
 
-      // Leave channel
-      await client.leave();
+      // Only unpublish if we're connected
+      if (isConnected) {
+        if (localMicrophoneTrack) {
+          await client.unpublish(localMicrophoneTrack);
+        }
+        if (localCameraTrack) {
+          await client.unpublish(localCameraTrack);
+        }
+        // Leave channel
+        await client.leave();
+      }
+
       setToken(null);
+      setAppId(null);
+      setUid(null);
+
+      // Force cleanup of any remaining tracks
+      if (client.localTracks) {
+        client.localTracks.forEach((track) => {
+          track.stop();
+          track.close();
+        });
+      }
 
       // Navigate away
       router.push("/dashboard");
@@ -197,7 +219,34 @@ const VideoCallContent: React.FC<VideoCallProps> = ({ channel }) => {
     } finally {
       setIsLeaving(false);
     }
-  }, [isLeaving, localMicrophoneTrack, localCameraTrack, client, router]);
+  }, [
+    isLeaving,
+    localMicrophoneTrack,
+    localCameraTrack,
+    client,
+    router,
+    isConnected,
+  ]);
+
+  // Add cleanup effect
+  useEffect(() => {
+    return () => {
+      // Cleanup on component unmount
+      if (localMicrophoneTrack) {
+        localMicrophoneTrack.stop();
+        localMicrophoneTrack.close();
+        localMicrophoneTrack.setEnabled(false);
+      }
+      if (localCameraTrack) {
+        localCameraTrack.stop();
+        localCameraTrack.close();
+        localCameraTrack.setEnabled(false);
+      }
+      if (client) {
+        client.leave();
+      }
+    };
+  }, [localMicrophoneTrack, localCameraTrack, client]);
 
   if (!isConnected && (!token || !appId)) {
     return (
