@@ -1,0 +1,23 @@
+name: usb_serial_kotlin
+description: A Flutter plugin for USB serial communication.
+version: 0.0.1
+
+environment:
+  sdk: ">=2.12.0 <3.0.0" # Adjust the SDK version as needed
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.example.usb_serial_kotlin
+        pluginClass: UsbSerialKotlinPlugin # Ensure this matches the class name in your Kotlin file
+        minSdkVersion: 21 # Adjust this as necessary
+        androidPackage: com.example.usb_serial_kotlin # Ensure this matches your package name

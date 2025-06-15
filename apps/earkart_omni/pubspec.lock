@@ -246,14 +246,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.8"
-  dartlin:
-    dependency: transitive
-    description:
-      name: dartlin
-      sha256: "80764ff3d1801a086c2b802bd39ff6d306e783710741fab8e9981d2ba5ad68a1"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.6.3"
   dartz:
     dependency: "direct main"
     description:
@@ -302,14 +294,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.3"
-  enum_to_string:
-    dependency: transitive
-    description:
-      name: enum_to_string
-      sha256: "93b75963d3b0c9f6a90c095b3af153e1feccb79f6f08282d3274ff8d9eea52bc"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.2.1"
   equatable:
     dependency: "direct main"
     description:
@@ -424,6 +408,13 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_uvc_camera:
+    dependency: "direct main"
+    description:
+      path: "packages/flutter_uvc_camera"
+      relative: true
+    source: path
+    version: "0.0.4"
   flutter_web_plugins:
     dependency: transitive
     description: flutter
@@ -1010,27 +1001,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.2"
-  twilio_programmable_video:
-    dependency: "direct main"
-    description:
-      path: "packages/twilio_programmable_video/programmable_video"
-      relative: true
-    source: path
-    version: "1.1.1"
-  twilio_programmable_video_platform_interface:
-    dependency: transitive
-    description:
-      path: "packages/twilio_programmable_video/programmable_video_platform_interface"
-      relative: true
-    source: path
-    version: "1.1.0"
-  twilio_programmable_video_web:
-    dependency: transitive
-    description:
-      path: "packages/twilio_programmable_video/programmable_video_web"
-      relative: true
-    source: path
-    version: "1.1.0"
   typed_data:
     dependency: transitive
     description:
@@ -1103,6 +1073,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.4"
+  usb_serial_kotlin:
+    dependency: "direct main"
+    description:
+      path: "packages/usb_serial_kotlin"
+      relative: true
+    source: path
+    version: "0.0.1"
   vector_math:
     dependency: transitive
     description:
@@ -1111,14 +1088,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.4"
-  version:
-    dependency: transitive
-    description:
-      name: version
-      sha256: b8d9fc75327de5da108942502043f0b7d6500fbded3137560ec2254dc4b9f8ba
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.3"
   vm_service:
     dependency: transitive
     description:

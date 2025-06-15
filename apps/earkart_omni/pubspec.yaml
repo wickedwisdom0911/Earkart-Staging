@@ -46,8 +46,10 @@ dependencies:
   flutter_animate: ^4.5.2
   fluttertoast: ^8.2.1
   camera: ^0.11.1
-  twilio_programmable_video:
-    path: packages/twilio_programmable_video/programmable_video
+  usb_serial_kotlin:
+    path: packages/usb_serial_kotlin
+  flutter_uvc_camera:
+    path: packages/flutter_uvc_camera
 
 dev_dependencies:
   flutter_test:
