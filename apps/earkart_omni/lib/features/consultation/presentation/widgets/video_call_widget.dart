@@ -318,10 +318,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(100),
-                    child:
-                        _localUserJoined
-                            ? _localVideo()
-                            : const Center(child: CircularProgressIndicator()),
+                    child: _localVideo(),
                   ),
                 ),
               ),
@@ -398,31 +395,13 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       return Container(
         color: Colors.black54,
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.person,
-                  size: 40,
-                  color: Colors.white54,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'You',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+          child: Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.person, size: 40, color: Colors.white54),
           ),
         ),
       );
