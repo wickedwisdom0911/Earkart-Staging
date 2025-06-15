@@ -2,6 +2,16 @@
 import React, { useState, useCallback, useRef } from "react";
 import PureToneGraph from "./_components/audiogram";
 
+enum SignalType {
+  Steady = "Steady",
+  Pulsed = "Pulsed",
+  Warble = "Warble",
+  NB = "NB",
+  White = "White",
+  SpeechNoise = "SpeechNoise",
+  Speech = "Speech",
+}
+
 interface TestResult {
   ear: string;
   x: number;
@@ -9,6 +19,7 @@ interface TestResult {
   mode: string;
   masking: number;
   noResponse: number;
+  signalType: SignalType;
 }
 
 const FREQUENCIES = [
@@ -31,15 +42,22 @@ export default function PureTonePage() {
   const [selectedMode, setSelectedMode] = useState<"AC" | "BC">("AC");
   const [selectedFrequency, setSelectedFrequency] = useState(1000);
   const [selectedLevel, setSelectedLevel] = useState(0);
+  const [selectedSignalType, setSelectedSignalType] = useState<SignalType>(
+    SignalType.Steady
+  );
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [selectedLabelIndexes, setSelectedLabelIndexes] = useState({
     x: 5,
     y: 13,
   }); // Default to 1000Hz, 0dB
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMasking, setIsMasking] = useState(false);
+  const [maskingLevel, setMaskingLevel] = useState(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  const maskingOscillatorRef = useRef<OscillatorNode | null>(null);
+  const maskingGainNodeRef = useRef<GainNode | null>(null);
 
   // Initialize audio context
   const initAudio = useCallback(() => {
@@ -47,6 +65,10 @@ export default function PureTonePage() {
       audioContextRef.current = new AudioContext();
       gainNodeRef.current = audioContextRef.current.createGain();
       gainNodeRef.current.connect(audioContextRef.current.destination);
+
+      // Initialize masking audio nodes
+      maskingGainNodeRef.current = audioContextRef.current.createGain();
+      maskingGainNodeRef.current.connect(audioContextRef.current.destination);
     }
   }, []);
 
@@ -58,11 +80,93 @@ export default function PureTonePage() {
 
     if (audioContextRef.current && !oscillatorRef.current) {
       oscillatorRef.current = audioContextRef.current.createOscillator();
-      oscillatorRef.current.type = "sine";
-      oscillatorRef.current.frequency.setValueAtTime(
-        selectedFrequency,
-        audioContextRef.current.currentTime
-      );
+
+      // Configure oscillator based on signal type
+      switch (selectedSignalType) {
+        case SignalType.Steady:
+          oscillatorRef.current.type = "sine";
+          oscillatorRef.current.frequency.setValueAtTime(
+            selectedFrequency,
+            audioContextRef.current.currentTime
+          );
+          oscillatorRef.current.connect(gainNodeRef.current!);
+          break;
+        case SignalType.Pulsed:
+          oscillatorRef.current.type = "sine";
+          // Add pulsing effect using gain modulation
+          const pulseGain = audioContextRef.current.createGain();
+          const pulseOsc = audioContextRef.current.createOscillator();
+          pulseOsc.frequency.setValueAtTime(
+            2,
+            audioContextRef.current.currentTime
+          ); // 2Hz pulsing
+          pulseGain.gain.setValueAtTime(
+            0.5,
+            audioContextRef.current.currentTime
+          );
+          pulseOsc.connect(pulseGain.gain);
+          pulseOsc.start();
+          oscillatorRef.current.frequency.setValueAtTime(
+            selectedFrequency,
+            audioContextRef.current.currentTime
+          );
+          oscillatorRef.current.connect(pulseGain);
+          pulseGain.connect(gainNodeRef.current!);
+          break;
+        case SignalType.Warble:
+          oscillatorRef.current.type = "sine";
+          // Add frequency modulation for warble effect
+          const warbleOsc = audioContextRef.current.createOscillator();
+          warbleOsc.frequency.setValueAtTime(
+            5,
+            audioContextRef.current.currentTime
+          ); // 5Hz warble
+          warbleOsc.connect(oscillatorRef.current.frequency);
+          warbleOsc.start();
+          oscillatorRef.current.frequency.setValueAtTime(
+            selectedFrequency,
+            audioContextRef.current.currentTime
+          );
+          oscillatorRef.current.connect(gainNodeRef.current!);
+          break;
+        case SignalType.NB:
+          // Narrow band noise
+          const noiseBuffer = audioContextRef.current.createBuffer(
+            1,
+            audioContextRef.current.sampleRate,
+            audioContextRef.current.sampleRate
+          );
+          const noiseData = noiseBuffer.getChannelData(0);
+          for (let i = 0; i < noiseBuffer.length; i++) {
+            noiseData[i] = Math.random() * 2 - 1;
+          }
+          const noiseSource = audioContextRef.current.createBufferSource();
+          noiseSource.buffer = noiseBuffer;
+          noiseSource.loop = true;
+          noiseSource.connect(gainNodeRef.current!);
+          noiseSource.start();
+          return; // Skip the rest of the function for noise
+        case SignalType.White:
+          // White noise
+          const whiteNoise = audioContextRef.current.createScriptProcessor(
+            4096,
+            1,
+            1
+          );
+          whiteNoise.onaudioprocess = (e) => {
+            const output = e.outputBuffer.getChannelData(0);
+            for (let i = 0; i < output.length; i++) {
+              output[i] = Math.random() * 2 - 1;
+            }
+          };
+          whiteNoise.connect(gainNodeRef.current!);
+          return; // Skip the rest of the function for noise
+        case SignalType.SpeechNoise:
+        case SignalType.Speech:
+          // These would require more complex implementation with audio files
+          console.warn("Speech and Speech Noise not implemented yet");
+          return;
+      }
 
       // Convert dB HL to gain (simplified conversion)
       const gain = Math.pow(10, (selectedLevel - 100) / 20);
@@ -71,11 +175,39 @@ export default function PureTonePage() {
         audioContextRef.current.currentTime
       );
 
-      oscillatorRef.current.connect(gainNodeRef.current!);
-      oscillatorRef.current.start();
+      if (oscillatorRef.current) {
+        oscillatorRef.current.start();
+      }
       setIsPlaying(true);
+
+      // Start masking tone if enabled
+      if (isMasking && !maskingOscillatorRef.current) {
+        maskingOscillatorRef.current =
+          audioContextRef.current.createOscillator();
+        maskingOscillatorRef.current.type = "sine";
+        maskingOscillatorRef.current.frequency.setValueAtTime(
+          selectedFrequency,
+          audioContextRef.current.currentTime
+        );
+
+        const maskingGain = Math.pow(10, (maskingLevel - 100) / 20);
+        maskingGainNodeRef.current?.gain.setValueAtTime(
+          maskingGain,
+          audioContextRef.current.currentTime
+        );
+
+        maskingOscillatorRef.current.connect(maskingGainNodeRef.current!);
+        maskingOscillatorRef.current.start();
+      }
     }
-  }, [selectedFrequency, selectedLevel, initAudio]);
+  }, [
+    selectedFrequency,
+    selectedLevel,
+    isMasking,
+    maskingLevel,
+    selectedSignalType,
+    initAudio,
+  ]);
 
   // Stop tone
   const stopTone = useCallback(() => {
@@ -83,18 +215,31 @@ export default function PureTonePage() {
       oscillatorRef.current.stop();
       oscillatorRef.current.disconnect();
       oscillatorRef.current = null;
-      setIsPlaying(false);
     }
+    if (maskingOscillatorRef.current) {
+      maskingOscillatorRef.current.stop();
+      maskingOscillatorRef.current.disconnect();
+      maskingOscillatorRef.current = null;
+    }
+    setIsPlaying(false);
   }, []);
 
-  // Toggle tone
-  const toggleTone = useCallback(() => {
+  // Handle mouse down for play tone
+  const handleMouseDown = useCallback(() => {
+    playTone();
+  }, [playTone]);
+
+  // Handle mouse up for stop tone
+  const handleMouseUp = useCallback(() => {
+    stopTone();
+  }, [stopTone]);
+
+  // Handle mouse leave for stop tone
+  const handleMouseLeave = useCallback(() => {
     if (isPlaying) {
       stopTone();
-    } else {
-      playTone();
     }
-  }, [isPlaying, playTone, stopTone]);
+  }, [isPlaying, stopTone]);
 
   // Handle frequency change
   const handleFrequencyChange = (freq: number) => {
@@ -125,6 +270,18 @@ export default function PureTonePage() {
     }
   };
 
+  // Handle masking level change
+  const handleMaskingLevelChange = (level: number) => {
+    setMaskingLevel(level);
+    if (isPlaying && maskingGainNodeRef.current && audioContextRef.current) {
+      const gain = Math.pow(10, (level - 100) / 20);
+      maskingGainNodeRef.current.gain.setValueAtTime(
+        gain,
+        audioContextRef.current.currentTime
+      );
+    }
+  };
+
   // Add test result
   const addTestResult = () => {
     const newResult: TestResult = {
@@ -132,8 +289,9 @@ export default function PureTonePage() {
       x: selectedFrequency,
       y: selectedLevel,
       mode: selectedMode,
-      masking: 0,
+      masking: isMasking ? maskingLevel : 0,
       noResponse: 0,
+      signalType: selectedSignalType,
     };
     setTestResults((prev) => [...prev, newResult]);
   };
@@ -159,6 +317,17 @@ export default function PureTonePage() {
         const gain = Math.pow(10, (newLevel - 100) / 20);
         gainNodeRef.current.gain.setValueAtTime(
           gain,
+          audioContextRef.current.currentTime
+        );
+      }
+      // Update masking tone frequency
+      if (
+        isMasking &&
+        maskingOscillatorRef.current &&
+        audioContextRef.current
+      ) {
+        maskingOscillatorRef.current.frequency.setValueAtTime(
+          newFrequency,
           audioContextRef.current.currentTime
         );
       }
@@ -241,6 +410,75 @@ export default function PureTonePage() {
               ))}
             </select>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Signal Type
+            </label>
+            <select
+              className="w-full p-2 border rounded"
+              value={selectedSignalType}
+              onChange={(e) => {
+                setSelectedSignalType(e.target.value as SignalType);
+                if (isPlaying) {
+                  stopTone();
+                  playTone();
+                }
+              }}
+            >
+              {Object.values(SignalType).map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Masking Controls */}
+          <div className="col-span-2">
+            <div className="flex items-center gap-4">
+              <button
+                className={`px-4 py-2 rounded flex items-center gap-2 ${
+                  isMasking ? "bg-purple-500 text-white" : "bg-gray-200"
+                }`}
+                onClick={() => setIsMasking((prev) => !prev)}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 100-12 6 6 0 000 12z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                {isMasking ? "Masking On" : "Masking Off"}
+              </button>
+              {isMasking && (
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-2">
+                    Masking Level (dB HL)
+                  </label>
+                  <select
+                    className="w-full p-2 border rounded"
+                    value={maskingLevel}
+                    onChange={(e) =>
+                      handleMaskingLevelChange(Number(e.target.value))
+                    }
+                  >
+                    {HEARING_LEVELS.map((level) => (
+                      <option key={level} value={level}>
+                        {level}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Action Buttons */}
@@ -250,8 +488,10 @@ export default function PureTonePage() {
               isPlaying
                 ? "bg-red-500 hover:bg-red-600"
                 : "bg-green-500 hover:bg-green-600"
-            } text-white`}
-            onClick={toggleTone}
+            } text-white select-none`}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -259,21 +499,13 @@ export default function PureTonePage() {
               viewBox="0 0 20 20"
               fill="currentColor"
             >
-              {isPlaying ? (
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z"
-                  clipRule="evenodd"
-                />
-              ) : (
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                  clipRule="evenodd"
-                />
-              )}
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                clipRule="evenodd"
+              />
             </svg>
-            {isPlaying ? "Stop Tone" : "Play Tone"}
+            Hold to Play
           </button>
           <button
             className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
