@@ -26,6 +26,7 @@ import AppSidebarBody from "./AppSidebarBody";
 import useLogoutUser from "@/hooks/auth/use-logout-user";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useSocket } from "@/providers/socket-provider";
 
 export interface SidebarItem {
   name: string;
@@ -94,6 +95,7 @@ const audiologistSidebarItems: SidebarItem[] = [
   },
 ];
 export function AppSidebar() {
+  const socket = useSocket();
   const { open } = useSidebar();
   const { data: user } = useGetUser();
   const { mutate: logout, isPending: isLoading } = useLogoutUser();
@@ -102,6 +104,7 @@ export function AppSidebar() {
     logout(undefined, {
       onSuccess: (data) => {
         if (data) {
+          socket?.disconnect();
           router.replace("/login");
           toast.success("Logged out successfully");
         }

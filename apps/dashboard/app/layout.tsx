@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import CustomQueryClientProvider from "@/providers/QueryClientProvider";
+import { SocketProvider } from "@/providers/socket-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,7 +52,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable}  antialiased h-full w-full`}
       >
         <Toaster />
-        <CustomQueryClientProvider>{children}</CustomQueryClientProvider>
+        <CustomQueryClientProvider>
+          <SocketProvider>{children}</SocketProvider>
+        </CustomQueryClientProvider>
       </body>
     </html>
   );

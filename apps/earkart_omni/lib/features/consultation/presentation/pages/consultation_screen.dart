@@ -72,6 +72,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       socket.onConnectError((error) {
         di<ILogger>().error('Socket connection error: $error');
       });
+      socket.on("user_joined", (data) {
+        di<ILogger>().debug('User joined: $data');
+      });
+      socket.on("user_left", (data) {
+        di<ILogger>().debug('User left: $data');
+      });
     } catch (e) {
       di<ILogger>().error('Error setting up socket: $e');
     }
