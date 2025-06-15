@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/di.dart';
@@ -6,6 +8,8 @@ import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/video_call_widget.dart';
+import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation.model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -22,6 +26,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   late IO.Socket socket;
   bool _isSocketInitialized = false;
   bool _isInitialized = false;
+  ConsultationEntity? consultation;
 
   @override
   void initState() {
@@ -73,8 +78,22 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         di<ILogger>().error('Socket connection error: $error');
       });
       socket.on("user_joined", (data) {
-        di<ILogger>().debug('User joined: $data');
+        if (data == null) {
+          di<ILogger>().debug('Received null data in user_joined event');
+          return;
+        }
+        if (data['user'] != null) {
+          final consultationData = ConsultationModelData.fromJson(data['user']);
+          if (consultationData != null) {
+            setState(() {
+              consultation = consultationData;
+            });
+          } else {
+            di<ILogger>().error('Failed to parse consultation data');
+          }
+        }
       });
+
       socket.on("user_left", (data) {
         di<ILogger>().debug('User left: $data');
       });
@@ -88,7 +107,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Consultation'),
+        title: Text(
+          consultation?.audiologist?.user?.name != null
+              ? "Consultation by ${consultation!.audiologist!.user!.name}"
+              : "Consultation by Earkart",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -130,6 +154,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         child: BlocBuilder<ConsultationCubit, ConsultationState>(
           builder: (context, state) {
             if (state is CurrentConsultationSuccess) {
+              consultation = state.consultation;
+              if (socket.connected) {
+                socket.emit("join_consultation", {
+                  "consultationId": consultation?.id,
+                });
+              }
               return VideoCallWidget(channelName: state.consultation.id ?? "");
             }
             return const Center(

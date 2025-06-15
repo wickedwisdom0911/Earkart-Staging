@@ -384,15 +384,49 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   }
 
   Widget _localVideo() {
-    return AgoraVideoView(
-      controller: VideoViewController(
-        rtcEngine: _engine,
-        canvas: const VideoCanvas(
-          uid: 0,
-          renderMode: RenderModeType.renderModeHidden,
+    if (_localUserJoined) {
+      return AgoraVideoView(
+        controller: VideoViewController(
+          rtcEngine: _engine,
+          canvas: const VideoCanvas(
+            uid: 0,
+            renderMode: RenderModeType.renderModeHidden,
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      return Container(
+        color: Colors.black54,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person,
+                  size: 40,
+                  color: Colors.white54,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'You',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
   Widget _remoteVideo() {
@@ -405,11 +439,42 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
       );
     } else {
-      return const Center(
-        child: Text(
-          'Waiting for remote user to join...',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white),
+      return Container(
+        color: Colors.black87,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person,
+                  size: 80,
+                  color: Colors.white54,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Waiting for Audiologist to join...',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'The video will appear here once they join',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white38, fontSize: 14),
+              ),
+            ],
+          ),
         ),
       );
     }

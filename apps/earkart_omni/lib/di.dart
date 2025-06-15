@@ -68,8 +68,8 @@ Future<void> setupDI() async {
       level: Level.debug,
       printer: PrettyPrinter(
         methodCount: 0,
-        errorMethodCount: 8,
-        lineLength: 120,
+        errorMethodCount: 10,
+        lineLength: 20,
         colors: true,
         printEmojis: true,
       ),
