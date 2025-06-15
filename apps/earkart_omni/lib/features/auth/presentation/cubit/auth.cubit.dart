@@ -61,10 +61,10 @@ class AuthCubit extends Cubit<AuthState> {
     final currentUser = await getCurrentUserUsecase();
     currentUser.fold(
       (failure) {
-        if (!isClosed) emit(AuthError(message: failure.message));
+        emit(AuthError(message: failure.message));
       },
       (currentUser) {
-        if (!isClosed) emit(AuthSuccess(user: currentUser));
+        emit(AuthSuccess(user: currentUser));
       },
     );
   }

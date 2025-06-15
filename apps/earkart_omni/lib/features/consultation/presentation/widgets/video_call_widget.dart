@@ -103,6 +103,19 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
       );
 
+      // Set client role before enabling video
+      await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+
+      // Enable video and set video encoder configuration
+      await _engine.enableVideo();
+      await _engine.setVideoEncoderConfiguration(
+        const VideoEncoderConfiguration(
+          dimensions: VideoDimensions(width: 640, height: 360),
+          frameRate: 15,
+          bitrate: 0,
+        ),
+      );
+
       _engine.registerEventHandler(
         RtcEngineEventHandler(
           onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
@@ -137,12 +150,12 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
           },
           onTokenPrivilegeWillExpire: (RtcConnection connection, String token) {
             debugPrint("Token will expire soon");
-            // You might want to refresh the token here
+            // Refresh token here
+            context.read<AgoraCubit>().getAgoraToken();
           },
         ),
       );
 
-      await _engine.enableVideo();
       await _startPreview();
       _isInitialized = true;
     } catch (e) {
@@ -168,47 +181,27 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       }
 
       // Ensure token is properly formatted
-      final cleanToken = token;
+      final cleanToken = token.trim();
       debugPrint(
         'Attempting to join channel with token: ${cleanToken.substring(0, 10)}...',
       );
       debugPrint('Channel name: ${widget.channelName}');
       debugPrint('Token length: ${cleanToken.length}');
 
-      // First try to join with token
-      try {
-        await _engine.joinChannel(
-          token: cleanToken,
-          channelId: widget.channelName,
-          options: const ChannelMediaOptions(
-            autoSubscribeVideo: true,
-            autoSubscribeAudio: true,
-            publishCameraTrack: true,
-            publishMicrophoneTrack: true,
-            clientRoleType: ClientRoleType.clientRoleBroadcaster,
-          ),
-          uid: uid,
-        );
-        debugPrint('Successfully joined channel: ${widget.channelName}');
-      } catch (e) {
-        debugPrint('Error joining with token: $e');
-        // If token join fails, try joining without token
-        await _engine.joinChannel(
-          token: '',
-          channelId: widget.channelName,
-          options: const ChannelMediaOptions(
-            autoSubscribeVideo: true,
-            autoSubscribeAudio: true,
-            publishCameraTrack: true,
-            publishMicrophoneTrack: true,
-            clientRoleType: ClientRoleType.clientRoleBroadcaster,
-          ),
-          uid: uid,
-        );
-        debugPrint(
-          'Successfully joined channel without token: ${widget.channelName}',
-        );
-      }
+      // Join with token
+      await _engine.joinChannel(
+        token: cleanToken,
+        channelId: widget.channelName,
+        options: const ChannelMediaOptions(
+          autoSubscribeVideo: true,
+          autoSubscribeAudio: true,
+          publishCameraTrack: true,
+          publishMicrophoneTrack: true,
+          clientRoleType: ClientRoleType.clientRoleBroadcaster,
+        ),
+        uid: uid,
+      );
+      debugPrint('Successfully joined channel: ${widget.channelName}');
     } catch (e) {
       debugPrint('Error joining channel: $e');
       if (!mounted || _isDisposed) return;
@@ -316,15 +309,15 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
               Align(
                 alignment: Alignment.topLeft,
                 child: Container(
-                  width: 100,
+                  width: 150,
                   height: 150,
                   margin: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(100),
                     border: Border.all(color: Colors.white, width: 2),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(100),
                     child:
                         _localUserJoined
                             ? _localVideo()
