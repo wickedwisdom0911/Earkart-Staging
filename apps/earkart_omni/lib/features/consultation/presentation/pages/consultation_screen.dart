@@ -1,5 +1,4 @@
-import 'dart:developer';
-
+// ignore_for_file: unnecessary_null_comparison
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/di.dart';
@@ -105,7 +104,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(
           consultation?.audiologist?.user?.name != null
@@ -113,8 +111,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               : "Consultation by Earkart",
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
       ),
       body: MultiBlocListener(
         listeners: [
