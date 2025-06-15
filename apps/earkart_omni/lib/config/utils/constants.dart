@@ -19,6 +19,7 @@ class Constants {
   static const languageDb = "language_db";
   static const consultationDb = "consultation_db";
   static final baseUrl = dotenv.env['BASE_URL'];
+  static final socketUrl = dotenv.env['SOCKET_URL'];
   static final loginUrl = "${baseUrl}auth/login";
   static final deviceUrl = "${baseUrl}device/find-by-value";
   static final setupDeviceUrl = "${baseUrl}device/setup";

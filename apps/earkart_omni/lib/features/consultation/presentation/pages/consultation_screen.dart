@@ -5,6 +5,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/consultati
 import 'package:earkart_omni/features/consultation/presentation/widgets/video_call_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class ConsultationScreen extends StatefulWidget {
   static const routeName = '/consultation';
@@ -15,6 +16,7 @@ class ConsultationScreen extends StatefulWidget {
 }
 
 class _ConsultationScreenState extends State<ConsultationScreen> {
+  late IO.Socket socket;
   @override
   void initState() {
     super.initState();
