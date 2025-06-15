@@ -436,7 +436,7 @@ export default function PureTonePage() {
 
           {/* Masking Controls */}
           <div className="col-span-2">
-            <div className="flex items-center gap-4">
+            <div className="flex items-end gap-4">
               <button
                 className={`px-4 py-2 rounded flex items-center gap-2 ${
                   isMasking ? "bg-purple-500 text-white" : "bg-gray-200"
@@ -458,7 +458,7 @@ export default function PureTonePage() {
                 {isMasking ? "Masking On" : "Masking Off"}
               </button>
               {isMasking && (
-                <div className="flex-1">
+                <div className="flex-1 ">
                   <label className="block text-sm font-medium mb-2">
                     Masking Level (dB HL)
                   </label>
@@ -523,7 +523,7 @@ export default function PureTonePage() {
       </div>
 
       {/* Audiogram Display */}
-      <div className="border rounded p-4">
+      <div className="border flex items-center justify-center rounded p-4">
         <PureToneGraph
           selectedLabelIndexes={selectedLabelIndexes}
           resultMarkings={testResults}
