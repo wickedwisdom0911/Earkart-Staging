@@ -28,6 +28,7 @@ import 'package:earkart_omni/features/consultation/domain/usecases/get_consultat
 import 'package:earkart_omni/features/consultation/domain/usecases/get_current_consultation.usecase.dart';
 import 'package:earkart_omni/features/consultation/domain/usecases/update_consultation.usecase.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
 import 'package:earkart_omni/features/lookup/data/reositories/lookup.repository.impl.dart';
@@ -254,4 +255,5 @@ Future<void> setupDI() async {
 
   //device
   di.registerLazySingleton<DeviceCubit>(() => DeviceCubit());
+  di.registerLazySingleton<CommunicationCubit>(() => CommunicationCubit());
 }

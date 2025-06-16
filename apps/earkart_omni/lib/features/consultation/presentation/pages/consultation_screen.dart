@@ -4,11 +4,14 @@ import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/video_call_widget.dart';
+import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.model.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +41,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void initState() {
     super.initState();
     context.read<ConsultationCubit>().getCurrentConsultation();
+
     _checkAndRequestPermissions();
   }
 
@@ -225,6 +229,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "r15cConnected": r15cDevice != null,
         "revo2Connected": revo2Device != null,
       });
+
       if (!mounted) return;
       if (data == null) {
         di<ILogger>().debug('Received null data in user_joined event');
@@ -248,6 +253,14 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
     socket.on("start-test", (data) {
       di<ILogger>().debug('Start test: $data');
+
+      if (data["testId"] != null && data["testId"] == "pure-tone") {
+        if (r15cDevice != null) {
+          if (context.read<CommunicationCubit>().state.isConnected) {
+            context.read<CommunicationCubit>().sendBeginPacket(TestType.PTA);
+          }
+        }
+      }
     });
 
     socket.on("user_left", (data) {
@@ -337,11 +350,55 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                       "consultationId": consultation?.id,
                       "r15cConnected": r15cDevice != null,
                       "revo2Connected": revo2Device != null,
+                      "synced": false,
+                      "portOpen": false,
                     });
+                  }
+                  if (r15cDevice != null) {
+                    if (!context.read<CommunicationCubit>().state.isConnected) {
+                      context.read<CommunicationCubit>().initializePort(
+                        r15cDevice,
+                      );
+                      context.read<CommunicationCubit>().sendSyncPacket();
+                      context.read<CommunicationCubit>().sendQueryInfoPacket();
+                      if (_isSocketInitialized) {
+                        socket.emit("device_event", {
+                          "consultationId": consultation?.id,
+                          "r15cConnected": r15cDevice != null,
+                          "revo2Connected": revo2Device != null,
+                          "synced":
+                              context.read<CommunicationCubit>().state.isSynced,
+                          "portOpen":
+                              context
+                                  .read<CommunicationCubit>()
+                                  .state
+                                  .isConnected,
+                        });
+                      }
+                    }
                   }
                 },
                 orElse: () {},
               );
+            },
+          ),
+          BlocListener<CommunicationCubit, CommunicationState>(
+            listener: (context, state) {
+              if (!state.isSynced) {
+                context.read<CommunicationCubit>().sendSyncPacket();
+              }
+              if (state.transducerResponse != null) {
+                // Handle transducer response
+              }
+              if (state.impedanceStatus != null) {
+                // Handle impedance status
+              }
+              if (state.impedanceData != null) {
+                // Handle impedance data
+              }
+              if (state.error != null) {
+                // Handle error
+              }
             },
           ),
         ],

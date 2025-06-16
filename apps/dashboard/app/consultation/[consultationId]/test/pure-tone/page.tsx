@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import PureToneGraph from "./_components/audiogram";
 import { useSocket } from "@/providers/socket-provider";
+import { useParams } from "next/navigation";
 
 enum SignalType {
   Steady = "Steady",
@@ -39,6 +40,7 @@ const FREQUENCIES = [
 const HEARING_LEVELS = Array.from({ length: 27 }, (_, i) => (i - 2) * 5); // -10 to 120 in steps of 5
 
 export default function PureTonePage() {
+  const { consultationId } = useParams();
   const [selectedEar, setSelectedEar] = useState<"L" | "R">("L");
   const [selectedMode, setSelectedMode] = useState<"AC" | "BC">("AC");
   const [selectedFrequency, setSelectedFrequency] = useState(1000);
@@ -60,13 +62,31 @@ export default function PureTonePage() {
   const maskingOscillatorRef = useRef<OscillatorNode | null>(null);
   const maskingGainNodeRef = useRef<GainNode | null>(null);
   const [isR15cCeoonected, setIsR15cCeoonected] = useState(false);
+  const [isDeviceReady, setIsDeviceReady] = useState(false);
   const socket = useSocket();
 
   useEffect(() => {
-    socket?.on("device_event", (data) => {
-      setIsR15cCeoonected(data.r15cConnected);
-    });
-  }, [socket]);
+    socket?.on(
+      "device_event",
+      (data: {
+        r15cConnected: boolean;
+        revo2Connected: boolean;
+        synced: boolean;
+        portOpen: boolean;
+      }) => {
+        console.log(data);
+        setIsR15cCeoonected(data.r15cConnected);
+        setIsDeviceReady(data.synced && data.portOpen);
+      }
+    );
+    if (isR15cCeoonected) {
+      socket?.emit("start-test", {
+        testId: "pure-tone",
+        consultationId: consultationId,
+      });
+      console.log("started test");
+    }
+  }, [socket, isR15cCeoonected]);
 
   // Initialize audio context
   const initAudio = useCallback(() => {
@@ -348,13 +368,25 @@ export default function PureTonePage() {
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Pure Tone Audiometry</h1>
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-3 h-3 rounded-full ${isR15cCeoonected ? "bg-green-500" : "bg-red-500"}`}
-            />
-            <span className="text-sm font-medium">
-              R15C {isR15cCeoonected ? "Connected" : "Disconnected"}
-            </span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-3 h-3 rounded-full ${isR15cCeoonected ? "bg-green-500" : "bg-red-500"}`}
+              />
+              <span className="text-sm font-medium">
+                R15C {isR15cCeoonected ? "Connected" : "Disconnected"}
+              </span>
+            </div>
+            {isR15cCeoonected && (
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-3 h-3 rounded-full ${isDeviceReady ? "bg-green-500" : "bg-yellow-500"}`}
+                />
+                <span className="text-sm font-medium">
+                  {isDeviceReady ? "Ready" : "Not Ready"}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
