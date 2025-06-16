@@ -6,12 +6,15 @@ import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/video_call_widget.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:permission_handler/permission_handler.dart';
 
 class ConsultationScreen extends StatefulWidget {
   static const routeName = '/consultation';
@@ -26,11 +29,49 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   bool _isSocketInitialized = false;
   bool _isInitialized = false;
   ConsultationEntity? consultation;
+  bool _hasJoinedConsultation = false;
+  bool _isReconnecting = false;
 
   @override
   void initState() {
     super.initState();
     context.read<ConsultationCubit>().getCurrentConsultation();
+    _checkAndRequestPermissions();
+  }
+
+  Future<void> _checkAndRequestPermissions() async {
+    final storageStatus = await Permission.manageExternalStorage.request();
+    final usbStatus = await Permission.bluetooth.request();
+
+    if (storageStatus.isGranted && usbStatus.isGranted) {
+      context.read<DeviceCubit>().startDeviceMonitoring();
+    } else if (storageStatus.isDenied ||
+        storageStatus.isPermanentlyDenied ||
+        usbStatus.isDenied ||
+        usbStatus.isPermanentlyDenied) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (context) => AlertDialog(
+                title: const Text('Permission Required'),
+                content: const Text(
+                  'Storage and USB permissions are required to detect USB devices. Please grant the permissions in settings.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      openAppSettings();
+                    },
+                    child: const Text('Open Settings'),
+                  ),
+                ],
+              ),
+        );
+      }
+    }
   }
 
   @override
@@ -44,43 +85,145 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
   @override
   void dispose() {
-    if (_isSocketInitialized) {
-      socket.disconnect();
-      socket.dispose();
+    try {
+      if (_isSocketInitialized) {
+        socket.off('user_joined');
+        socket.off('start-test');
+        socket.off('user_left');
+        socket.off('connect');
+        socket.off('disconnect');
+        socket.off('reconnect');
+        socket.disconnect();
+        socket.dispose();
+      }
+      context.read<DeviceCubit>().stopDeviceMonitoring();
+      _hasJoinedConsultation = false;
+      _isReconnecting = false;
+    } catch (e) {
+      di<ILogger>().error('Error in dispose: $e');
     }
     super.dispose();
   }
 
   void _setupSocket(String token) {
     try {
+      // Disconnect existing socket if any
+      if (_isSocketInitialized) {
+        socket.disconnect();
+        socket.dispose();
+      }
+
       socket = IO.io(Constants.socketUrl, <String, dynamic>{
         'transports': ['websocket'],
         'autoConnect': true,
         'auth': {'token': token},
+        'reconnection': true,
+        'reconnectionAttempts': 5,
+        'reconnectionDelay': 1000,
+        'timeout': 10000,
       });
 
-      socket.onConnect((_) {
-        di<ILogger>().debug('Socket connected successfully');
-        setState(() => _isSocketInitialized = true);
+      // Set up socket event handlers
+      _setupSocketEventHandlers();
+    } catch (e) {
+      di<ILogger>().error('Error setting up socket: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error connecting to server. Please try again.'),
+          ),
+        );
+      }
+    }
+  }
+
+  void _setupSocketEventHandlers() {
+    if (!mounted) return;
+
+    socket.onConnect((_) {
+      if (!mounted) return;
+      di<ILogger>().debug('Socket connected successfully');
+      setState(() {
+        _isSocketInitialized = true;
+        _isReconnecting = false;
       });
 
-      socket.onDisconnect((_) {
-        di<ILogger>().debug('Socket disconnected');
-        setState(() => _isSocketInitialized = false);
-      });
+      // Try to rejoin consultation if we have one
+      _tryJoinConsultation();
+    });
 
-      socket.onError((error) {
-        di<ILogger>().error('Socket error: $error');
+    socket.onDisconnect((_) {
+      if (!mounted) return;
+      di<ILogger>().debug('Socket disconnected');
+      setState(() {
+        _isSocketInitialized = false;
+        _hasJoinedConsultation = false; // Reset join status on disconnect
       });
+    });
 
-      socket.onConnectError((error) {
-        di<ILogger>().error('Socket connection error: $error');
+    socket.onError((error) {
+      di<ILogger>().error('Socket error: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Connection error: ${error.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    });
+
+    socket.onConnectError((error) {
+      di<ILogger>().error('Socket connection error: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Connection error: ${error.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    });
+
+    socket.onReconnect((_) {
+      if (!mounted) return;
+      di<ILogger>().debug('Socket reconnected');
+      setState(() {
+        _isSocketInitialized = true;
+        _isReconnecting = true;
       });
-      socket.on("user_joined", (data) {
-        if (data == null) {
-          di<ILogger>().debug('Received null data in user_joined event');
-          return;
-        }
+      _tryJoinConsultation(); // Try to rejoin on reconnect
+    });
+
+    socket.onReconnectAttempt((attempt) {
+      di<ILogger>().debug('Socket reconnection attempt: $attempt');
+    });
+
+    socket.onReconnectError((error) {
+      di<ILogger>().error('Socket reconnection error: $error');
+    });
+
+    socket.onReconnectFailed((_) {
+      di<ILogger>().error('Socket reconnection failed');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Failed to reconnect to server. Please check your connection.',
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    });
+
+    socket.on("user_joined", (data) {
+      if (!mounted) return;
+      if (data == null) {
+        di<ILogger>().debug('Received null data in user_joined event');
+        return;
+      }
+      try {
         if (data['user'] != null) {
           final consultationData = ConsultationModelData.fromJson(data['user']);
           if (consultationData != null) {
@@ -91,15 +234,32 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
             di<ILogger>().error('Failed to parse consultation data');
           }
         }
+      } catch (e) {
+        di<ILogger>().error('Error handling user_joined event: $e');
+      }
+    });
+
+    socket.on("start-test", (data) {
+      di<ILogger>().debug('Start test: $data');
+    });
+
+    socket.on("user_left", (data) {
+      di<ILogger>().debug('User left: $data');
+    });
+  }
+
+  void _tryJoinConsultation() {
+    if (!mounted || !_isSocketInitialized) return;
+
+    if (consultation?.id != null && !_hasJoinedConsultation) {
+      di<ILogger>().debug(
+        'Attempting to join consultation: ${consultation?.id}',
+      );
+      socket.emit("join_consultation", {"consultationId": consultation?.id});
+      setState(() {
+        _hasJoinedConsultation = true;
       });
-      socket.on("start-test", (data) {
-        di<ILogger>().debug('Start test: $data');
-      });
-      socket.on("user_left", (data) {
-        di<ILogger>().debug('User left: $data');
-      });
-    } catch (e) {
-      di<ILogger>().error('Error setting up socket: $e');
+      di<ILogger>().debug('Join consultation event emitted');
     }
   }
 
@@ -111,7 +271,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           consultation?.audiologist?.user?.name != null
               ? "Consultation by ${consultation!.audiologist!.user!.name}"
               : "Consultation by Earkart",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       body: MultiBlocListener(
@@ -148,16 +308,36 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               );
             },
           ),
+          BlocListener<ConsultationCubit, ConsultationState>(
+            listener: (context, state) {
+              if (state is CurrentConsultationSuccess) {
+                setState(() {
+                  consultation = state.consultation;
+                });
+                _tryJoinConsultation();
+              }
+            },
+          ),
+          BlocListener<DeviceCubit, DeviceState>(
+            listener: (context, state) {
+              state.maybeWhen(
+                success: (devices, r15cDevice, revo2Device) {
+                  if (_isSocketInitialized) {
+                    socket.emit("device_event", {
+                      "consultationId": consultation?.id,
+                      "r15cConnected": r15cDevice != null,
+                      "revo2Connected": revo2Device != null,
+                    });
+                  }
+                },
+                orElse: () {},
+              );
+            },
+          ),
         ],
         child: BlocBuilder<ConsultationCubit, ConsultationState>(
           builder: (context, state) {
             if (state is CurrentConsultationSuccess) {
-              consultation = state.consultation;
-              if (socket.connected) {
-                socket.emit("join_consultation", {
-                  "consultationId": consultation?.id,
-                });
-              }
               return VideoCallWidget(channelName: state.consultation.id ?? "");
             }
             return const Center(
