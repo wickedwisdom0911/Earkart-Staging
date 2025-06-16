@@ -456,11 +456,19 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
   void _emitDeviceEvent(CommunicationState state) {
     if (_isSocketInitialized) {
+      String connectionStatus = "Disconnected";
+
+      if (state.transducerResponse != null) {
+        connectionStatus = "Ready";
+      } else if (state.isConnected) {
+        connectionStatus = "Connected";
+      }
+
       socket.emit("device_event", {
         "consultationId": consultation?.id,
         "r15cConnected": r15cDevice != null,
         "revo2Connected": revo2Device != null,
-        "connectionStatus": state.connectionStatus,
+        "connectionStatus": connectionStatus,
         "transducerResponse": state.transducerResponse != null,
       });
     }
