@@ -107,14 +107,28 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
 
       // Enable video and set video encoder configuration
-      await _engine.enableVideo();
       await _engine.setVideoEncoderConfiguration(
         const VideoEncoderConfiguration(
-          dimensions: VideoDimensions(width: 640, height: 360),
-          frameRate: 15,
-          bitrate: 0,
+          dimensions: VideoDimensions(width: 1280, height: 720),
+          frameRate: 30,
+          bitrate: 2500,
+          mirrorMode: VideoMirrorModeType.videoMirrorModeAuto,
+          minBitrate: 1000,
+          degradationPreference: DegradationPreference.maintainQuality,
         ),
       );
+      await _engine.enableVideo();
+
+      await _engine.setParameters(
+        '{"che.video.mainBitRateStreamParameter":{"width":1280,"height":720,"frameRate":30,"bitRate":2500}}',
+      );
+      await _engine.setParameters(
+        '{"che.video.lowBitRateStreamParameter":{"width":640,"height":360,"frameRate":15,"bitRate":140}}',
+      );
+
+      // Add this to ensure high quality video publishing
+      await _engine.setParameters('{"che.video.publishBitRate":2500}');
+      await _engine.setParameters('{"che.video.publishFrameRate":30}');
 
       _engine.registerEventHandler(
         RtcEngineEventHandler(
