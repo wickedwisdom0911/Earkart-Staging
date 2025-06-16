@@ -360,7 +360,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
                     // Reset communication state on detachment
                     if (!isNowConnected) {
-                      context.read<CommunicationCubit>().clearImpedanceData();
+                      context.read<CommunicationCubit>().resetState();
                     }
                   }
 

@@ -411,6 +411,29 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     emit(state.copyWith(impedanceStatus: null, impedanceData: null));
   }
 
+  void resetState() {
+    di<ILogger>().debug('Resetting communication state');
+    _subscription?.cancel();
+    _port?.close();
+    _port = null;
+    _commandQueue.clear();
+    _processing = false;
+    _errorCount = 0;
+
+    emit(
+      const CommunicationState(
+        isConnected: false,
+        isSynced: false,
+        isReleased: false,
+        connectionStatus: 'Disconnected',
+        transducerResponse: null,
+        impedanceStatus: null,
+        impedanceData: null,
+        error: null,
+      ),
+    );
+  }
+
   @override
   Future<void> close() {
     di<ILogger>().debug('Closing communication cubit');
