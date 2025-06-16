@@ -92,7 +92,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           }
         }
       });
-
+      socket.on("start-test", (data) {
+        di<ILogger>().debug('Start test: $data');
+      });
       socket.on("user_left", (data) {
         di<ILogger>().debug('User left: $data');
       });

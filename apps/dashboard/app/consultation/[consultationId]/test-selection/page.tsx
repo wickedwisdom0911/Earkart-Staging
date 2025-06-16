@@ -3,6 +3,7 @@
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { Card, CardContent } from "@/components/ui/card";
 import { useRouter, useParams } from "next/navigation";
+import { useSocket } from "@/providers/socket-provider";
 
 const testOptions = [
   {
@@ -35,8 +36,13 @@ const testOptions = [
 export default function TestSelectionPage() {
   const router = useRouter();
   const params = useParams();
+  const socket = useSocket();
 
   const handleTestClick = (testId: string) => {
+    socket?.emit("start-test", {
+      testId,
+      consultationId: params.consultationId,
+    });
     router.push(`/consultation/${params.consultationId}/test/${testId}`);
   };
 

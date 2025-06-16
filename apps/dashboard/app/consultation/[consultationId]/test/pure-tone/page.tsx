@@ -58,7 +58,6 @@ export default function PureTonePage() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const maskingOscillatorRef = useRef<OscillatorNode | null>(null);
   const maskingGainNodeRef = useRef<GainNode | null>(null);
-
   // Initialize audio context
   const initAudio = useCallback(() => {
     if (!audioContextRef.current) {
