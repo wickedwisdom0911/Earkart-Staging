@@ -1,6 +1,7 @@
 "use client";
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import PureToneGraph from "./_components/audiogram";
+import { useSocket } from "@/providers/socket-provider";
 
 enum SignalType {
   Steady = "Steady",
@@ -58,6 +59,15 @@ export default function PureTonePage() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const maskingOscillatorRef = useRef<OscillatorNode | null>(null);
   const maskingGainNodeRef = useRef<GainNode | null>(null);
+  const [isR15cCeoonected, setIsR15cCeoonected] = useState(false);
+  const socket = useSocket();
+
+  useEffect(() => {
+    socket?.on("device_event", (data) => {
+      setIsR15cCeoonected(data.r15cConnected);
+    });
+  }, [socket]);
+
   // Initialize audio context
   const initAudio = useCallback(() => {
     if (!audioContextRef.current) {
@@ -336,7 +346,17 @@ export default function PureTonePage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-4">Pure Tone Audiometry</h1>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Pure Tone Audiometry</h1>
+          <div className="flex items-center gap-2">
+            <div
+              className={`w-3 h-3 rounded-full ${isR15cCeoonected ? "bg-green-500" : "bg-red-500"}`}
+            />
+            <span className="text-sm font-medium">
+              R15C {isR15cCeoonected ? "Connected" : "Disconnected"}
+            </span>
+          </div>
+        </div>
 
         {/* Test Controls */}
         <div className="grid grid-cols-2 gap-4 mb-6">
