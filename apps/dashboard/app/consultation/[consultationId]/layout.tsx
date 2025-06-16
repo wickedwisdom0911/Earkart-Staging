@@ -4,6 +4,8 @@ import { VideoCall } from "./_components/video-call";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { use } from "react";
+import { useSocket } from "@/providers/socket-provider";
+import { useEffect } from "react";
 
 export default function ConsultationLayout({
   children,
@@ -13,12 +15,37 @@ export default function ConsultationLayout({
   params: Promise<{ consultationId: string }>;
 }) {
   const resolvedParams = use(params);
+  const socket = useSocket();
 
   const {
     data: consultation,
     isLoading,
     error,
   } = useGetConsultation(resolvedParams.consultationId);
+
+  // Add socket connection handling
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleConnect = () => {
+      console.log("Socket connected, joining consultation...");
+      // Emit join_consultation event when socket connects
+      socket.emit("join_consultation", {
+        consultationId: resolvedParams.consultationId,
+      });
+    };
+
+    socket.on("connect", handleConnect);
+
+    if (socket.connected) {
+      handleConnect();
+    }
+
+    // Cleanup
+    return () => {
+      socket.off("connect", handleConnect);
+    };
+  }, [socket, resolvedParams.consultationId]);
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;

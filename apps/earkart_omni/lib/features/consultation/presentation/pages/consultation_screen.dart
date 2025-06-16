@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 
 class ConsultationScreen extends StatefulWidget {
   static const routeName = '/consultation';
@@ -31,7 +32,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   ConsultationEntity? consultation;
   bool _hasJoinedConsultation = false;
   bool _isReconnecting = false;
-
+  UsbDevice? r15cDevice;
+  UsbDevice? revo2Device;
   @override
   void initState() {
     super.initState();
@@ -218,6 +220,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     });
 
     socket.on("user_joined", (data) {
+      socket.emit("device_event", {
+        "consultationId": consultation?.id,
+        "r15cConnected": r15cDevice != null,
+        "revo2Connected": revo2Device != null,
+      });
       if (!mounted) return;
       if (data == null) {
         di<ILogger>().debug('Received null data in user_joined event');
@@ -259,6 +266,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       setState(() {
         _hasJoinedConsultation = true;
       });
+
       di<ILogger>().debug('Join consultation event emitted');
     }
   }
@@ -322,6 +330,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
             listener: (context, state) {
               state.maybeWhen(
                 success: (devices, r15cDevice, revo2Device) {
+                  this.r15cDevice = r15cDevice;
+                  this.revo2Device = revo2Device;
                   if (_isSocketInitialized) {
                     socket.emit("device_event", {
                       "consultationId": consultation?.id,
