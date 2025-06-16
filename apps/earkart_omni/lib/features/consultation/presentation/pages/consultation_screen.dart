@@ -343,39 +343,40 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
             listener: (context, state) {
               state.maybeWhen(
                 success: (devices, r15cDevice, revo2Device) {
+                  final wasConnected = this.r15cDevice != null;
+                  final isNowConnected = r15cDevice != null;
+
+                  // Update device references
                   this.r15cDevice = r15cDevice;
                   this.revo2Device = revo2Device;
-                  if (_isSocketInitialized) {
-                    socket.emit("device_event", {
-                      "consultationId": consultation?.id,
-                      "r15cConnected": r15cDevice != null,
-                      "revo2Connected": revo2Device != null,
-                      "synced": false,
-                      "portOpen": false,
-                    });
-                  }
-                  if (r15cDevice != null) {
-                    if (!context.read<CommunicationCubit>().state.isConnected) {
-                      context.read<CommunicationCubit>().initializePort(
-                        r15cDevice,
-                      );
-                      context.read<CommunicationCubit>().sendSyncPacket();
-                      context.read<CommunicationCubit>().sendQueryInfoPacket();
-                      if (_isSocketInitialized) {
-                        socket.emit("device_event", {
-                          "consultationId": consultation?.id,
-                          "r15cConnected": r15cDevice != null,
-                          "revo2Connected": revo2Device != null,
-                          "synced":
-                              context.read<CommunicationCubit>().state.isSynced,
-                          "portOpen":
-                              context
-                                  .read<CommunicationCubit>()
-                                  .state
-                                  .isConnected,
-                        });
-                      }
+
+                  // Handle device state changes
+                  if (wasConnected != isNowConnected) {
+                    di<ILogger>().debug(
+                      isNowConnected
+                          ? 'R15C device attached'
+                          : 'R15C device detached',
+                    );
+
+                    // Reset communication state on detachment
+                    if (!isNowConnected) {
+                      context.read<CommunicationCubit>().clearImpedanceData();
                     }
+                  }
+
+                  // Emit device event to socket
+                  if (_isSocketInitialized) {
+                    _emitDeviceEvent(context.read<CommunicationCubit>().state);
+                  }
+
+                  // Initialize device if newly attached
+                  if (isNowConnected && !wasConnected) {
+                    di<ILogger>().debug(
+                      'Initializing newly attached R15C device',
+                    );
+                    context.read<CommunicationCubit>().initializePort(
+                      r15cDevice,
+                    );
                   }
                 },
                 orElse: () {},
@@ -384,20 +385,50 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
           BlocListener<CommunicationCubit, CommunicationState>(
             listener: (context, state) {
-              if (!state.isSynced) {
-                context.read<CommunicationCubit>().sendSyncPacket();
+              if (r15cDevice != null) {
+                // Handle connection state
+                if (!state.isConnected) {
+                  di<ILogger>().debug(
+                    'Device not connected, initializing port...',
+                  );
+                  context.read<CommunicationCubit>().initializePort(
+                    r15cDevice!,
+                  );
+                  _emitDeviceEvent(state);
+                }
+                // Handle initialization state
+                else if (state.isConnected && !state.isSynced) {
+                  di<ILogger>().debug(
+                    'Device connected but not synced, sending sync packet...',
+                  );
+                  context.read<CommunicationCubit>().sendSyncPacket();
+                  _emitDeviceEvent(state);
+                }
+                // Handle ready state
+                else if (state.isSynced && state.transducerResponse == null) {
+                  di<ILogger>().debug(
+                    'Device synced but not ready, sending query info packet...',
+                  );
+                  context.read<CommunicationCubit>().sendQueryInfoPacket();
+                  _emitDeviceEvent(state);
+                }
+                // Device is ready
+                else if (state.transducerResponse != null) {
+                  di<ILogger>().debug('Device ready with transducer response');
+                  _emitDeviceEvent(state);
+                }
               }
-              if (state.transducerResponse != null) {
-                // Handle transducer response
-              }
+
+              // Handle other states
               if (state.impedanceStatus != null) {
-                // Handle impedance status
+                _emitDeviceEvent(state);
               }
               if (state.impedanceData != null) {
-                // Handle impedance data
+                _emitDeviceEvent(state);
               }
               if (state.error != null) {
-                // Handle error
+                di<ILogger>().error('Device error: ${state.error}');
+                _emitDeviceEvent(state);
               }
             },
           ),
@@ -421,5 +452,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         ),
       ),
     );
+  }
+
+  void _emitDeviceEvent(CommunicationState state) {
+    if (_isSocketInitialized) {
+      socket.emit("device_event", {
+        "consultationId": consultation?.id,
+        "r15cConnected": r15cDevice != null,
+        "revo2Connected": revo2Device != null,
+        "connectionStatus": state.connectionStatus,
+        "transducerResponse": state.transducerResponse != null,
+      });
+    }
   }
 }

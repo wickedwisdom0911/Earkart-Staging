@@ -62,7 +62,7 @@ export default function PureTonePage() {
   const maskingOscillatorRef = useRef<OscillatorNode | null>(null);
   const maskingGainNodeRef = useRef<GainNode | null>(null);
   const [isR15cCeoonected, setIsR15cCeoonected] = useState(false);
-  const [isDeviceReady, setIsDeviceReady] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<string>("");
   const socket = useSocket();
 
   useEffect(() => {
@@ -71,12 +71,11 @@ export default function PureTonePage() {
       (data: {
         r15cConnected: boolean;
         revo2Connected: boolean;
-        synced: boolean;
-        portOpen: boolean;
+        connectionStatus: string;
       }) => {
         console.log(data);
         setIsR15cCeoonected(data.r15cConnected);
-        setIsDeviceReady(data.synced && data.portOpen);
+        setConnectionStatus(data.connectionStatus);
       }
     );
     if (isR15cCeoonected) {
@@ -379,12 +378,7 @@ export default function PureTonePage() {
             </div>
             {isR15cCeoonected && (
               <div className="flex items-center gap-2">
-                <div
-                  className={`w-3 h-3 rounded-full ${isDeviceReady ? "bg-green-500" : "bg-yellow-500"}`}
-                />
-                <span className="text-sm font-medium">
-                  {isDeviceReady ? "Ready" : "Not Ready"}
-                </span>
+                <span className="text-sm font-medium">{connectionStatus}</span>
               </div>
             )}
           </div>
