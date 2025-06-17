@@ -349,9 +349,9 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         "SignalType": 3,
         "Frequency": -1,
         "Level": maskingLevel ?? 0,
-        "Pulsed": pulsed,
+        "Pulsed": false,
         "Rate": 1.0,
-        "Signal": maskingSignal ?? false,
+        "Signal": signal == true ? maskingSignal ?? false : false,
       };
       channels.add(channel1);
     }

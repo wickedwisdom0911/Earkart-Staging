@@ -40,8 +40,12 @@ interface TransducerData {
   Transducers: Array<{
     ConductionType: number;
     Calibrations: Array<{
+      SignalType: number;
       CalibrationFrequencies: Array<{
         Frequency: number;
+        MaxLevelHL: number;
+        MinLevelHL: number;
+        Calibration: number;
       }>;
     }>;
     SignalTypes: number[];
@@ -87,18 +91,93 @@ export default function PureTonePage() {
     );
   }, [transducerData, selectedMode]);
 
+  const currentCalibration = useMemo(() => {
+    if (!currentTransducer) return null;
+    return currentTransducer.Calibrations.find(
+      (cal) =>
+        cal.SignalType ===
+        Number(
+          Object.entries(SIGNAL_TYPE_MAP).find(
+            ([, value]) => value === selectedSignalType
+          )?.[0]
+        )
+    );
+  }, [currentTransducer, selectedSignalType]);
+
   const availableFrequencies = useMemo(() => {
-    if (!currentTransducer) return [];
-    const frequencies = new Set<number>();
-    currentTransducer.Calibrations.forEach((cal) => {
-      cal.CalibrationFrequencies.forEach((freq) => {
-        if (freq.Frequency > 0) {
-          frequencies.add(freq.Frequency);
+    if (!currentCalibration) return [];
+    return currentCalibration.CalibrationFrequencies.filter(
+      (freq) => freq.Frequency > 0
+    )
+      .map((freq) => freq.Frequency)
+      .sort((a, b) => a - b);
+  }, [currentCalibration]);
+
+  const availableLevels = useMemo(() => {
+    if (!currentCalibration || !selectedFrequency) return [];
+
+    const freqData = currentCalibration.CalibrationFrequencies.find(
+      (freq) => freq.Frequency === selectedFrequency
+    );
+
+    if (!freqData) return [];
+
+    // Generate array of levels in steps of 5
+    const levels = [];
+    for (
+      let level = freqData.MinLevelHL;
+      level <= freqData.MaxLevelHL;
+      level += 5
+    ) {
+      levels.push(level);
+    }
+    return levels;
+  }, [currentCalibration, selectedFrequency]);
+
+  // Set default values when transducer data is loaded
+  useEffect(() => {
+    if (currentTransducer && !selectedFrequency) {
+      // Find the calibration for Steady signal type
+      const steadyCalibration = currentTransducer.Calibrations.find(
+        (cal) => cal.SignalType === 0
+      );
+
+      if (steadyCalibration) {
+        // Find 1000Hz frequency
+        const freq1000 = steadyCalibration.CalibrationFrequencies.find(
+          (freq) => freq.Frequency === 1000
+        );
+
+        if (freq1000) {
+          setSelectedFrequency(1000);
+          setSelectedLevel(freq1000.MaxLevelHL);
+          const freqIndex = availableFrequencies.findIndex((f) => f === 1000);
+          const levelIndex = HEARING_LEVELS.findIndex(
+            (l) => l === freq1000.MaxLevelHL
+          );
+          if (freqIndex !== -1 && levelIndex !== -1) {
+            setSelectedLabelIndexes({ x: freqIndex, y: levelIndex });
+          }
         }
-      });
-    });
-    return Array.from(frequencies).sort((a, b) => a - b);
-  }, [currentTransducer]);
+      }
+    }
+  }, [currentTransducer, availableFrequencies]);
+
+  // Update selected level when frequency changes if current level is not available
+  useEffect(() => {
+    if (
+      availableLevels.length > 0 &&
+      !availableLevels.includes(selectedLevel)
+    ) {
+      setSelectedLevel(availableLevels[0]);
+      const levelIndex = HEARING_LEVELS.findIndex(
+        (l) => l === availableLevels[0]
+      );
+      if (levelIndex !== -1) {
+        setSelectedLabelIndexes((prev) => ({ ...prev, y: levelIndex }));
+      }
+    }
+  }, [availableLevels, selectedLevel]);
 
   const availableSignalTypes = useMemo(() => {
     if (!currentTransducer) return [];
@@ -184,7 +263,7 @@ export default function PureTonePage() {
 
   // Handle mouse leave for stop tone
   const handleMouseLeave = useCallback(() => {
-    _endAudiometrySignal();
+    // _endAudiometrySignal();
   }, [_endAudiometrySignal]);
 
   // Handle frequency change
@@ -339,7 +418,7 @@ export default function PureTonePage() {
               value={selectedLevel}
               onChange={(e) => handleLevelChange(Number(e.target.value))}
             >
-              {HEARING_LEVELS.map((level) => (
+              {availableLevels.map((level) => (
                 <option key={level} value={level}>
                   {level}
                 </option>
@@ -473,7 +552,7 @@ export default function PureTonePage() {
                 clipRule="evenodd"
               />
             </svg>
-            Hold to Play
+            {isPlaying ? "Release to Stop" : "Hold to Play"}
           </button>
           <button
             className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"

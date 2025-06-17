@@ -271,11 +271,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         signalType:
             data["signalType"] == "Steady"
                 ? SignalType.Steady
-                : data["signalType"] == "Pulsed"
-                ? SignalType.Pulsed
+                : data["signalType"] == "Warble"
+                ? SignalType.Warble
                 : data["signalType"] == "NB"
                 ? SignalType.NB
-                : SignalType.White,
+                : data["signalType"] == "White"
+                ? SignalType.White
+                : data["signalType"] == "SpeechNoise"
+                ? SignalType.SpeechNoise
+                : data["signalType"] == "Speech"
+                ? SignalType.Speech
+                : SignalType.Steady,
         conductionType:
             data["conductionType"] == "AC"
                 ? ConductionType.Air
@@ -476,7 +482,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void _emitDeviceEvent(CommunicationState state) {
     if (_isSocketInitialized) {
       String connectionStatus = "Disconnected";
-      di<ILogger>().debug('Emitting device event: ${state.isInBeginMode}');
+      di<ILogger>().debug('Emitting device event: ${state}');
       if (state.isInBeginMode) {
         connectionStatus = "begin";
       } else if (state.transducerResponse != null) {
