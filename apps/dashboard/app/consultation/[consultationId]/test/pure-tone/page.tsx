@@ -12,15 +12,14 @@ enum SignalType {
   NB = "NB",
   White = "White",
   SpeechNoise = "SpeechNoise",
-  Speech = "Speech",
 }
 
 const SIGNAL_TYPE_MAP = {
   0: SignalType.Steady,
-  2: SignalType.Warble,
-  3: SignalType.NB,
-  4: SignalType.White,
-  7: SignalType.Speech,
+  1: SignalType.Warble,
+  2: SignalType.NB,
+  3: SignalType.White,
+  4: SignalType.SpeechNoise,
 };
 
 interface TestResult {
@@ -54,10 +53,10 @@ interface TransducerData {
 }
 
 export default function PureTonePage() {
-  const [selectedEar, setSelectedEar] = useState<"L" | "R">("L");
+  const [selectedEar, setSelectedEar] = useState<"L" | "R">("R");
   const [selectedMode, setSelectedMode] = useState<"AC" | "BC">("AC");
   const [selectedFrequency, setSelectedFrequency] = useState(1000);
-  const [selectedLevel, setSelectedLevel] = useState(0);
+  const [selectedLevel, setSelectedLevel] = useState(105);
   const [selectedSignalType, setSelectedSignalType] = useState<SignalType>(
     SignalType.Steady
   );
@@ -107,7 +106,7 @@ export default function PureTonePage() {
   const availableFrequencies = useMemo(() => {
     if (!currentCalibration) return [];
     return currentCalibration.CalibrationFrequencies.filter(
-      (freq) => freq.Frequency > 0
+      (freq) => freq.Frequency
     )
       .map((freq) => freq.Frequency)
       .sort((a, b) => a - b);
@@ -116,8 +115,12 @@ export default function PureTonePage() {
   const availableLevels = useMemo(() => {
     if (!currentCalibration || !selectedFrequency) return [];
 
-    const freqData = currentCalibration.CalibrationFrequencies.find(
-      (freq) => freq.Frequency === selectedFrequency
+    const freqData = currentCalibration.CalibrationFrequencies.find((freq) =>
+      // For signal types 3 and 4, use the entry with frequency -1
+      selectedSignalType === SignalType.White ||
+      selectedSignalType === SignalType.SpeechNoise
+        ? freq.Frequency === -1
+        : freq.Frequency === selectedFrequency
     );
 
     if (!freqData) return [];
@@ -132,38 +135,9 @@ export default function PureTonePage() {
       levels.push(level);
     }
     return levels;
-  }, [currentCalibration, selectedFrequency]);
+  }, [currentCalibration, selectedFrequency, selectedSignalType]);
 
   // Set default values when transducer data is loaded
-  useEffect(() => {
-    if (currentTransducer && !selectedFrequency) {
-      // Find the calibration for Steady signal type
-      const steadyCalibration = currentTransducer.Calibrations.find(
-        (cal) => cal.SignalType === 0
-      );
-
-      if (steadyCalibration) {
-        // Find 1000Hz frequency
-        const freq1000 = steadyCalibration.CalibrationFrequencies.find(
-          (freq) => freq.Frequency === 1000
-        );
-
-        if (freq1000) {
-          setSelectedFrequency(1000);
-          setSelectedLevel(freq1000.MaxLevelHL);
-          const freqIndex = availableFrequencies.findIndex((f) => f === 1000);
-          const levelIndex = HEARING_LEVELS.findIndex(
-            (l) => l === freq1000.MaxLevelHL
-          );
-          if (freqIndex !== -1 && levelIndex !== -1) {
-            setSelectedLabelIndexes({ x: freqIndex, y: levelIndex });
-          }
-        }
-      }
-    }
-  }, [currentTransducer, availableFrequencies]);
-
-  // Update selected level when frequency changes if current level is not available
   useEffect(() => {
     if (
       availableLevels.length > 0 &&
