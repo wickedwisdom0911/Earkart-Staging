@@ -5,11 +5,11 @@ import { useSocket } from "./socket-provider";
 interface DeviceState {
   r15c: {
     isConnected: boolean;
-    connectionStatus: "disconnected" | "connected" | "ready";
+    connectionStatus: "disconnected" | "connected" | "ready" | "begin";
   };
   revo2: {
     isConnected: boolean;
-    connectionStatus: "disconnected" | "connected" | "ready";
+    connectionStatus: "disconnected" | "connected" | "ready" | "begin";
   };
 }
 
@@ -60,7 +60,8 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
             connectionStatus: data.connectionStatus as
               | "disconnected"
               | "connected"
-              | "ready",
+              | "ready"
+              | "begin",
           },
           revo2: {
             ...prev.revo2,
@@ -68,9 +69,11 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
             connectionStatus: data.connectionStatus as
               | "disconnected"
               | "connected"
-              | "ready",
+              | "ready"
+              | "begin",
           },
         }));
+        console.log(data);
       }
     );
 

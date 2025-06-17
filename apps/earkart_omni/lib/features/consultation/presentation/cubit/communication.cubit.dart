@@ -8,6 +8,7 @@ import 'package:earkart_omni/config/utils/packet_format_interpreter.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
+import 'package:earkart_omni/models/communication/acknowledgement.dart';
 import 'package:earkart_omni/models/communication/audiometer_core_state.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/communication/impedance_data.dart';
@@ -169,6 +170,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
             isSynced: true,
             connectionStatus: 'Synced',
             error: null,
+            isInBeginMode: false,
           ),
         );
         return;
@@ -192,6 +194,19 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           di<ILogger>().debug('Received patient response');
           final isReleased = json['PatientResponseEvent']['Released'];
           emit(state.copyWith(isReleased: isReleased, error: null));
+          break;
+        case 12: // Acknowledgement
+          di<ILogger>().debug('Received acknowledgement');
+          final acknowledgement = Acknowledgement.fromJson(json);
+          if (acknowledgement.packetName == "Begin") {
+            emit(
+              state.copyWith(
+                isInBeginMode: true,
+                connectionStatus: "begin",
+                error: null,
+              ),
+            );
+          }
           break;
         case 14: // Impedance Status
           di<ILogger>().debug('Received impedance status');
@@ -349,17 +364,23 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   Future<void> sendBeginPacket(TestType testType) async {
-    di<ILogger>().debug('Sending begin packet for test type: $testType');
-    final packet = _packetInterpreter.constructPacket({
-      "PacketType": 5,
-      "PacketName": "Begin",
-      "Modality": testType == TestType.Impedance ? 2 : 1,
-      "Impedance": {
-        "ProbetoneFrequency": 226,
-        "RealTimeStatusUpdate": {"InIdle": false, "DuringExecution": true},
-      },
-    });
-    await sendCommand(packet);
+    if (!state.isInBeginMode) {
+      di<ILogger>().debug('Sending begin packet for test type: $testType');
+      final packet = _packetInterpreter.constructPacket({
+        "PacketType": 5,
+        "PacketName": "Begin",
+        "Modality": testType == TestType.Impedance ? 2 : 1,
+        "Impedance": {
+          "ProbetoneFrequency": 226,
+          "RealTimeStatusUpdate": {"InIdle": false, "DuringExecution": true},
+        },
+      });
+      await sendCommand(packet);
+    } else {
+      di<ILogger>().debug(
+        'Device already in begin mode, skipping begin packet',
+      );
+    }
   }
 
   Future<void> sendStartImpedancePacket() async {
@@ -430,6 +451,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         impedanceStatus: null,
         impedanceData: null,
         error: null,
+        isInBeginMode: false,
       ),
     );
   }
@@ -476,6 +498,11 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           isSynced: false,
           isConnected: false,
           connectionStatus: 'Resetting...',
+          isInBeginMode: false,
+          transducerResponse: null,
+          impedanceStatus: null,
+          impedanceData: null,
+          error: null,
         ),
       );
 

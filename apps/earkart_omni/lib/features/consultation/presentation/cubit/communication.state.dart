@@ -11,6 +11,7 @@ class CommunicationState with _$CommunicationState {
     @Default(false) bool isConnected,
     @Default(false) bool isSynced,
     @Default(false) bool isReleased,
+    @Default(false) bool isInBeginMode,
     @Default('Disconnected') String connectionStatus,
     TransducerResponse? transducerResponse,
     ImpedanceStatus? impedanceStatus,

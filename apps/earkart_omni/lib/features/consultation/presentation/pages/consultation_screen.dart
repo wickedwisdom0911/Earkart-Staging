@@ -38,7 +38,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   UsbDevice? r15cDevice;
   UsbDevice? revo2Device;
   TestType? testType;
-  bool isDeviceBeginPacketSent = false;
   @override
   void initState() {
     super.initState();
@@ -227,6 +226,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
     socket.on("user_joined", (data) {
       _emitDeviceEvent(context.read<CommunicationCubit>().state);
+      _handleBeginPacket(testType);
 
       if (!mounted) return;
       if (data == null) {
@@ -252,18 +252,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.on("start-test", (data) {
       di<ILogger>().debug('Start test: $data');
       if (data["testId"] != null) {
-        testType =
-            data["testId"] == "pure-tone" ? TestType.PTA : TestType.Impedance;
-        isDeviceBeginPacketSent = false;
-      }
-
-      if (testType == TestType.PTA && !isDeviceBeginPacketSent) {
-        if (r15cDevice != null) {
-          if (context.read<CommunicationCubit>().state.isConnected) {
-            context.read<CommunicationCubit>().sendBeginPacket(testType!);
-            isDeviceBeginPacketSent = true;
-          }
-        }
+        setState(() {
+          testType =
+              data["testId"] == "pure-tone" ? TestType.PTA : TestType.Impedance;
+        });
+        _handleBeginPacket(testType);
       }
     });
 
@@ -416,14 +409,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   context.read<CommunicationCubit>().sendQueryInfoPacket();
                   _emitDeviceEvent(state);
                 }
-                // Device is ready
+                // Device is ready - send begin packet
                 else if (state.transducerResponse != null) {
                   di<ILogger>().debug('Device ready with transducer response');
-                  if (isDeviceBeginPacketSent) {
-                    context.read<CommunicationCubit>().sendBeginPacket(
-                      testType!,
-                    );
-                  }
+                  _handleBeginPacket(testType);
                   _emitDeviceEvent(state);
                 }
               }
@@ -480,6 +469,18 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "connectionStatus": connectionStatus,
         "transducerResponse": state.transducerResponse != null,
       });
+    }
+  }
+
+  void _handleBeginPacket(TestType? testType) {
+    if (r15cDevice != null &&
+        context.read<CommunicationCubit>().state.isConnected &&
+        context.read<CommunicationCubit>().state.transducerResponse != null) {
+      di<ILogger>().debug('Sending begin packet for test type: $testType');
+      context.read<CommunicationCubit>().sendBeginPacket(
+        testType ?? TestType.PTA,
+      );
+      _emitDeviceEvent(context.read<CommunicationCubit>().state);
     }
   }
 }

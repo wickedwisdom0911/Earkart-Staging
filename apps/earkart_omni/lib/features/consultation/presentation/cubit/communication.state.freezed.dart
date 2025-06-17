@@ -19,6 +19,7 @@ mixin _$CommunicationState {
   bool get isConnected => throw _privateConstructorUsedError;
   bool get isSynced => throw _privateConstructorUsedError;
   bool get isReleased => throw _privateConstructorUsedError;
+  bool get isInBeginMode => throw _privateConstructorUsedError;
   String get connectionStatus => throw _privateConstructorUsedError;
   TransducerResponse? get transducerResponse =>
       throw _privateConstructorUsedError;
@@ -43,6 +44,7 @@ abstract class $CommunicationStateCopyWith<$Res> {
       {bool isConnected,
       bool isSynced,
       bool isReleased,
+      bool isInBeginMode,
       String connectionStatus,
       TransducerResponse? transducerResponse,
       ImpedanceStatus? impedanceStatus,
@@ -68,6 +70,7 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
     Object? isConnected = null,
     Object? isSynced = null,
     Object? isReleased = null,
+    Object? isInBeginMode = null,
     Object? connectionStatus = null,
     Object? transducerResponse = freezed,
     Object? impedanceStatus = freezed,
@@ -86,6 +89,10 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
       isReleased: null == isReleased
           ? _value.isReleased
           : isReleased // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isInBeginMode: null == isInBeginMode
+          ? _value.isInBeginMode
+          : isInBeginMode // ignore: cast_nullable_to_non_nullable
               as bool,
       connectionStatus: null == connectionStatus
           ? _value.connectionStatus
@@ -123,6 +130,7 @@ abstract class _$$CommunicationStateImplCopyWith<$Res>
       {bool isConnected,
       bool isSynced,
       bool isReleased,
+      bool isInBeginMode,
       String connectionStatus,
       TransducerResponse? transducerResponse,
       ImpedanceStatus? impedanceStatus,
@@ -146,6 +154,7 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
     Object? isConnected = null,
     Object? isSynced = null,
     Object? isReleased = null,
+    Object? isInBeginMode = null,
     Object? connectionStatus = null,
     Object? transducerResponse = freezed,
     Object? impedanceStatus = freezed,
@@ -164,6 +173,10 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
       isReleased: null == isReleased
           ? _value.isReleased
           : isReleased // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isInBeginMode: null == isInBeginMode
+          ? _value.isInBeginMode
+          : isInBeginMode // ignore: cast_nullable_to_non_nullable
               as bool,
       connectionStatus: null == connectionStatus
           ? _value.connectionStatus
@@ -196,6 +209,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
       {this.isConnected = false,
       this.isSynced = false,
       this.isReleased = false,
+      this.isInBeginMode = false,
       this.connectionStatus = 'Disconnected',
       this.transducerResponse,
       this.impedanceStatus,
@@ -213,6 +227,9 @@ class _$CommunicationStateImpl implements _CommunicationState {
   final bool isReleased;
   @override
   @JsonKey()
+  final bool isInBeginMode;
+  @override
+  @JsonKey()
   final String connectionStatus;
   @override
   final TransducerResponse? transducerResponse;
@@ -225,7 +242,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
 
   @override
   String toString() {
-    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, connectionStatus: $connectionStatus, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, error: $error)';
+    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, isInBeginMode: $isInBeginMode, connectionStatus: $connectionStatus, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, error: $error)';
   }
 
   @override
@@ -239,6 +256,8 @@ class _$CommunicationStateImpl implements _CommunicationState {
                 other.isSynced == isSynced) &&
             (identical(other.isReleased, isReleased) ||
                 other.isReleased == isReleased) &&
+            (identical(other.isInBeginMode, isInBeginMode) ||
+                other.isInBeginMode == isInBeginMode) &&
             (identical(other.connectionStatus, connectionStatus) ||
                 other.connectionStatus == connectionStatus) &&
             (identical(other.transducerResponse, transducerResponse) ||
@@ -256,6 +275,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
       isConnected,
       isSynced,
       isReleased,
+      isInBeginMode,
       connectionStatus,
       transducerResponse,
       impedanceStatus,
@@ -277,6 +297,7 @@ abstract class _CommunicationState implements CommunicationState {
       {final bool isConnected,
       final bool isSynced,
       final bool isReleased,
+      final bool isInBeginMode,
       final String connectionStatus,
       final TransducerResponse? transducerResponse,
       final ImpedanceStatus? impedanceStatus,
@@ -289,6 +310,8 @@ abstract class _CommunicationState implements CommunicationState {
   bool get isSynced;
   @override
   bool get isReleased;
+  @override
+  bool get isInBeginMode;
   @override
   String get connectionStatus;
   @override
