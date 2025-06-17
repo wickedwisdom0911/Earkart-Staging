@@ -33,8 +33,6 @@ interface TestResult {
   pulsed: boolean;
 }
 
-const HEARING_LEVELS = Array.from({ length: 27 }, (_, i) => (i - 2) * 5); // -10 to 120 in steps of 5
-
 interface TransducerData {
   Transducers: Array<{
     ConductionType: number;
@@ -113,7 +111,7 @@ export default function PureTonePage() {
   }, [currentCalibration]);
 
   const availableLevels = useMemo(() => {
-    if (!currentCalibration || !selectedFrequency) return [];
+    if (!currentCalibration) return [];
 
     const freqData = currentCalibration.CalibrationFrequencies.find((freq) =>
       // For signal types 3 and 4, use the entry with frequency -1
@@ -137,16 +135,15 @@ export default function PureTonePage() {
     return levels;
   }, [currentCalibration, selectedFrequency, selectedSignalType]);
 
-  // Set default values when transducer data is loaded
+  // Update selected level when frequency or signal type changes
   useEffect(() => {
-    if (
-      availableLevels.length > 0 &&
-      !availableLevels.includes(selectedLevel)
-    ) {
-      setSelectedLevel(availableLevels[0]);
-      const levelIndex = HEARING_LEVELS.findIndex(
-        (l) => l === availableLevels[0]
-      );
+    if (availableLevels.length > 0) {
+      // If current level is not in available levels, set to first available level
+      if (!availableLevels.includes(selectedLevel)) {
+        setSelectedLevel(availableLevels[0]);
+      }
+      // Update the y-axis index for the audiogram
+      const levelIndex = availableLevels.findIndex((l) => l === selectedLevel);
       if (levelIndex !== -1) {
         setSelectedLabelIndexes((prev) => ({ ...prev, y: levelIndex }));
       }
@@ -240,12 +237,29 @@ export default function PureTonePage() {
     // _endAudiometrySignal();
   }, [_endAudiometrySignal]);
 
+  // Handle signal type change
+  const handleSignalTypeChange = (type: SignalType) => {
+    setSelectedSignalType(type);
+    // Reset frequency to first available frequency for the new signal type
+    if (availableFrequencies.length > 0) {
+      setSelectedFrequency(availableFrequencies[0]);
+    }
+    if (isPlaying) {
+      _endAudiometrySignal();
+      _sendAudiometrySignal();
+    }
+  };
+
   // Handle frequency change
   const handleFrequencyChange = (freq: number) => {
     setSelectedFrequency(freq);
     const freqIndex = availableFrequencies.findIndex((f) => f === freq);
     if (freqIndex !== -1) {
       setSelectedLabelIndexes((prev) => ({ ...prev, x: freqIndex }));
+    }
+    // Reset level to first available level for the new frequency
+    if (availableLevels.length > 0) {
+      setSelectedLevel(availableLevels[0]);
     }
     if (isPlaying) {
       _endAudiometrySignal();
@@ -256,7 +270,7 @@ export default function PureTonePage() {
   // Handle level change
   const handleLevelChange = (level: number) => {
     setSelectedLevel(level);
-    const levelIndex = HEARING_LEVELS.findIndex((l) => l === level);
+    const levelIndex = availableLevels.findIndex((l) => l === level);
     if (levelIndex !== -1) {
       setSelectedLabelIndexes((prev) => ({ ...prev, y: levelIndex }));
     }
@@ -293,7 +307,7 @@ export default function PureTonePage() {
   // Handle audiogram click
   const handleAudiogramClick = (x: number, y: number) => {
     const newFrequency = availableFrequencies[x];
-    const newLevel = HEARING_LEVELS[y];
+    const newLevel = availableLevels[y];
 
     setSelectedLabelIndexes({ x, y });
     setSelectedFrequency(newFrequency);
@@ -407,13 +421,9 @@ export default function PureTonePage() {
             <select
               className="w-full p-2 border rounded"
               value={selectedSignalType}
-              onChange={(e) => {
-                setSelectedSignalType(e.target.value as SignalType);
-                if (isPlaying) {
-                  _endAudiometrySignal();
-                  _sendAudiometrySignal();
-                }
-              }}
+              onChange={(e) =>
+                handleSignalTypeChange(e.target.value as SignalType)
+              }
             >
               {availableSignalTypes.map((type: SignalType) => (
                 <option key={type} value={type}>
@@ -490,7 +500,7 @@ export default function PureTonePage() {
                       handleMaskingLevelChange(Number(e.target.value))
                     }
                   >
-                    {HEARING_LEVELS.map((level) => (
+                    {availableLevels.map((level) => (
                       <option key={level} value={level}>
                         {level}
                       </option>
