@@ -37,6 +37,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   bool _isReconnecting = false;
   UsbDevice? r15cDevice;
   UsbDevice? revo2Device;
+  TestType? testType;
+  bool isDeviceBeginPacketSent = false;
   @override
   void initState() {
     super.initState();
@@ -224,11 +226,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     });
 
     socket.on("user_joined", (data) {
-      socket.emit("device_event", {
-        "consultationId": consultation?.id,
-        "r15cConnected": r15cDevice != null,
-        "revo2Connected": revo2Device != null,
-      });
+      _emitDeviceEvent(context.read<CommunicationCubit>().state);
 
       if (!mounted) return;
       if (data == null) {
@@ -253,11 +251,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
     socket.on("start-test", (data) {
       di<ILogger>().debug('Start test: $data');
+      if (data["testId"] != null) {
+        testType =
+            data["testId"] == "pure-tone" ? TestType.PTA : TestType.Impedance;
+        isDeviceBeginPacketSent = false;
+      }
 
-      if (data["testId"] != null && data["testId"] == "pure-tone") {
+      if (testType == TestType.PTA && !isDeviceBeginPacketSent) {
         if (r15cDevice != null) {
           if (context.read<CommunicationCubit>().state.isConnected) {
-            context.read<CommunicationCubit>().sendBeginPacket(TestType.PTA);
+            context.read<CommunicationCubit>().sendBeginPacket(testType!);
+            isDeviceBeginPacketSent = true;
           }
         }
       }
@@ -415,6 +419,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 // Device is ready
                 else if (state.transducerResponse != null) {
                   di<ILogger>().debug('Device ready with transducer response');
+                  if (isDeviceBeginPacketSent) {
+                    context.read<CommunicationCubit>().sendBeginPacket(
+                      testType!,
+                    );
+                  }
                   _emitDeviceEvent(state);
                 }
               }

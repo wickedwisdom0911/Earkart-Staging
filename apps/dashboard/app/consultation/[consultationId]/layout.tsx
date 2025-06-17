@@ -6,6 +6,7 @@ import { ConsultationModelData } from "@/models/consultation.model";
 import { use } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useEffect } from "react";
+import { useDevice } from "@/providers/device-provider";
 
 export default function ConsultationLayout({
   children,
@@ -22,6 +23,8 @@ export default function ConsultationLayout({
     isLoading,
     error,
   } = useGetConsultation(resolvedParams.consultationId);
+  const { deviceState } = useDevice();
+  const { r15c, revo2 } = deviceState;
 
   // Add socket connection handling
   useEffect(() => {
@@ -58,6 +61,33 @@ export default function ConsultationLayout({
     <DashboardBodyWrapper
       pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
       className="border-none "
+      button={
+        <div className="flex items-center gap-4">
+          {/* R15C Device Status */}
+          <div className="flex items-center gap-2">
+            <div
+              className={`w-3 h-3 rounded-full ${
+                r15c.isConnected ? "bg-green-500" : "bg-red-500"
+              }`}
+            />
+            <span className="text-sm font-medium">
+              R15C: {r15c.connectionStatus}
+            </span>
+          </div>
+
+          {/* Revo2 Device Status */}
+          <div className="flex items-center gap-2">
+            <div
+              className={`w-3 h-3 rounded-full ${
+                revo2.isConnected ? "bg-green-500" : "bg-red-500"
+              }`}
+            />
+            <span className="text-sm font-medium">
+              Revo2: {revo2.connectionStatus}
+            </span>
+          </div>
+        </div>
+      }
     >
       <div className="flex gap-2  overflow-hidden h-full w-full">
         <VideoCall

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import CustomQueryClientProvider from "@/providers/QueryClientProvider";
 import { SocketProvider } from "@/providers/socket-provider";
+import { DeviceProvider } from "@/providers/device-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,7 +54,9 @@ export default function RootLayout({
       >
         <Toaster />
         <CustomQueryClientProvider>
-          <SocketProvider>{children}</SocketProvider>
+          <SocketProvider>
+            <DeviceProvider>{children}</DeviceProvider>
+          </SocketProvider>
         </CustomQueryClientProvider>
       </body>
     </html>
