@@ -240,10 +240,48 @@ export default function PureTonePage() {
   // Handle signal type change
   const handleSignalTypeChange = (type: SignalType) => {
     setSelectedSignalType(type);
-    // Reset frequency to first available frequency for the new signal type
-    if (availableFrequencies.length > 0) {
-      setSelectedFrequency(availableFrequencies[0]);
+
+    // Get the calibration for the new signal type
+    const newCalibration = currentTransducer?.Calibrations.find(
+      (cal) =>
+        cal.SignalType ===
+        Number(
+          Object.entries(SIGNAL_TYPE_MAP).find(
+            ([, value]) => value === type
+          )?.[0]
+        )
+    );
+
+    if (newCalibration) {
+      // For White and SpeechNoise, use frequency -1
+      if (type === SignalType.White || type === SignalType.SpeechNoise) {
+        const freqData = newCalibration.CalibrationFrequencies.find(
+          (freq) => freq.Frequency === -1
+        );
+        if (freqData) {
+          setSelectedLevel(freqData.MaxLevelHL);
+        }
+      } else {
+        // For other signal types, use the first available frequency
+        const firstFreq = newCalibration.CalibrationFrequencies.filter(
+          (freq) => freq.Frequency > 0
+        ).sort((a, b) => a.Frequency - b.Frequency)[0];
+
+        if (firstFreq) {
+          setSelectedFrequency(firstFreq.Frequency);
+          setSelectedLevel(firstFreq.MaxLevelHL);
+          const freqIndex = newCalibration.CalibrationFrequencies.filter(
+            (freq) => freq.Frequency > 0
+          )
+            .sort((a, b) => a.Frequency - b.Frequency)
+            .findIndex((freq) => freq.Frequency === firstFreq.Frequency);
+          if (freqIndex !== -1) {
+            setSelectedLabelIndexes((prev) => ({ ...prev, x: freqIndex }));
+          }
+        }
+      }
     }
+
     if (isPlaying) {
       _endAudiometrySignal();
       _sendAudiometrySignal();
