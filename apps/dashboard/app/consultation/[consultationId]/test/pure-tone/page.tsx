@@ -1,16 +1,27 @@
 "use client";
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import PureToneGraph from "./_components/audiogram";
+import { useSocket } from "@/providers/socket-provider";
+import { useParams } from "next/navigation";
+import { useDevice } from "@/providers/device-provider";
+import PureToneLoadingSkeleton from "./_components/loading-skeleton";
 
 enum SignalType {
   Steady = "Steady",
-  Pulsed = "Pulsed",
   Warble = "Warble",
   NB = "NB",
   White = "White",
   SpeechNoise = "SpeechNoise",
   Speech = "Speech",
 }
+
+const SIGNAL_TYPE_MAP = {
+  0: SignalType.Steady,
+  2: SignalType.Warble,
+  3: SignalType.NB,
+  4: SignalType.White,
+  7: SignalType.Speech,
+};
 
 interface TestResult {
   ear: string;
@@ -20,22 +31,23 @@ interface TestResult {
   masking: number;
   noResponse: number;
   signalType: SignalType;
+  pulsed: boolean;
 }
 
-const FREQUENCIES = [
-  "125",
-  "250",
-  "500",
-  "750",
-  "1000",
-  "1500",
-  "2000",
-  "3000",
-  "4000",
-  "6000",
-  "8000",
-];
 const HEARING_LEVELS = Array.from({ length: 27 }, (_, i) => (i - 2) * 5); // -10 to 120 in steps of 5
+
+interface TransducerData {
+  Transducers: Array<{
+    ConductionType: number;
+    Calibrations: Array<{
+      CalibrationFrequencies: Array<{
+        Frequency: number;
+      }>;
+    }>;
+    SignalTypes: number[];
+    EarSides: number[];
+  }>;
+}
 
 export default function PureTonePage() {
   const [selectedEar, setSelectedEar] = useState<"L" | "R">("L");
@@ -45,6 +57,7 @@ export default function PureTonePage() {
   const [selectedSignalType, setSelectedSignalType] = useState<SignalType>(
     SignalType.Steady
   );
+  const [isPulsed, setIsPulsed] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [selectedLabelIndexes, setSelectedLabelIndexes] = useState({
     x: 5,
@@ -53,206 +66,137 @@ export default function PureTonePage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMasking, setIsMasking] = useState(false);
   const [maskingLevel, setMaskingLevel] = useState(0);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const oscillatorRef = useRef<OscillatorNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const maskingOscillatorRef = useRef<OscillatorNode | null>(null);
-  const maskingGainNodeRef = useRef<GainNode | null>(null);
+  const [transducerData, setTransducerData] = useState<TransducerData | null>(
+    null
+  );
+  const socket = useSocket();
+  const { consultationId } = useParams();
+  const { deviceState } = useDevice();
 
-  useEffect(() => {}, []);
-
-  // Initialize audio context
-  const initAudio = useCallback(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext();
-      gainNodeRef.current = audioContextRef.current.createGain();
-      gainNodeRef.current.connect(audioContextRef.current.destination);
-
-      // Initialize masking audio nodes
-      maskingGainNodeRef.current = audioContextRef.current.createGain();
-      maskingGainNodeRef.current.connect(audioContextRef.current.destination);
+  // Update transducer data only when valid data is received
+  useEffect(() => {
+    if (deviceState?.transducerResponse?.Transducers) {
+      setTransducerData(deviceState.transducerResponse);
     }
-  }, []);
+  }, [deviceState?.transducerResponse]);
 
-  // Play tone
-  const playTone = useCallback(() => {
-    if (!audioContextRef.current) {
-      initAudio();
-    }
+  const currentTransducer = useMemo(() => {
+    if (!transducerData?.Transducers) return null;
+    return transducerData.Transducers.find(
+      (t) => t.ConductionType === (selectedMode === "AC" ? 0 : 1)
+    );
+  }, [transducerData, selectedMode]);
 
-    if (audioContextRef.current && !oscillatorRef.current) {
-      oscillatorRef.current = audioContextRef.current.createOscillator();
+  const availableFrequencies = useMemo(() => {
+    if (!currentTransducer) return [];
+    const frequencies = new Set<number>();
+    currentTransducer.Calibrations.forEach((cal) => {
+      cal.CalibrationFrequencies.forEach((freq) => {
+        if (freq.Frequency > 0) {
+          frequencies.add(freq.Frequency);
+        }
+      });
+    });
+    return Array.from(frequencies).sort((a, b) => a - b);
+  }, [currentTransducer]);
 
-      // Configure oscillator based on signal type
-      switch (selectedSignalType) {
-        case SignalType.Steady:
-          oscillatorRef.current.type = "sine";
-          oscillatorRef.current.frequency.setValueAtTime(
-            selectedFrequency,
-            audioContextRef.current.currentTime
-          );
-          oscillatorRef.current.connect(gainNodeRef.current!);
-          break;
-        case SignalType.Pulsed:
-          oscillatorRef.current.type = "sine";
-          // Add pulsing effect using gain modulation
-          const pulseGain = audioContextRef.current.createGain();
-          const pulseOsc = audioContextRef.current.createOscillator();
-          pulseOsc.frequency.setValueAtTime(
-            2,
-            audioContextRef.current.currentTime
-          ); // 2Hz pulsing
-          pulseGain.gain.setValueAtTime(
-            0.5,
-            audioContextRef.current.currentTime
-          );
-          pulseOsc.connect(pulseGain.gain);
-          pulseOsc.start();
-          oscillatorRef.current.frequency.setValueAtTime(
-            selectedFrequency,
-            audioContextRef.current.currentTime
-          );
-          oscillatorRef.current.connect(pulseGain);
-          pulseGain.connect(gainNodeRef.current!);
-          break;
-        case SignalType.Warble:
-          oscillatorRef.current.type = "sine";
-          // Add frequency modulation for warble effect
-          const warbleOsc = audioContextRef.current.createOscillator();
-          warbleOsc.frequency.setValueAtTime(
-            5,
-            audioContextRef.current.currentTime
-          ); // 5Hz warble
-          warbleOsc.connect(oscillatorRef.current.frequency);
-          warbleOsc.start();
-          oscillatorRef.current.frequency.setValueAtTime(
-            selectedFrequency,
-            audioContextRef.current.currentTime
-          );
-          oscillatorRef.current.connect(gainNodeRef.current!);
-          break;
-        case SignalType.NB:
-          // Narrow band noise
-          const noiseBuffer = audioContextRef.current.createBuffer(
-            1,
-            audioContextRef.current.sampleRate,
-            audioContextRef.current.sampleRate
-          );
-          const noiseData = noiseBuffer.getChannelData(0);
-          for (let i = 0; i < noiseBuffer.length; i++) {
-            noiseData[i] = Math.random() * 2 - 1;
-          }
-          const noiseSource = audioContextRef.current.createBufferSource();
-          noiseSource.buffer = noiseBuffer;
-          noiseSource.loop = true;
-          noiseSource.connect(gainNodeRef.current!);
-          noiseSource.start();
-          return; // Skip the rest of the function for noise
-        case SignalType.White:
-          // White noise
-          const whiteNoise = audioContextRef.current.createScriptProcessor(
-            4096,
-            1,
-            1
-          );
-          whiteNoise.onaudioprocess = (e) => {
-            const output = e.outputBuffer.getChannelData(0);
-            for (let i = 0; i < output.length; i++) {
-              output[i] = Math.random() * 2 - 1;
-            }
-          };
-          whiteNoise.connect(gainNodeRef.current!);
-          return; // Skip the rest of the function for noise
-        case SignalType.SpeechNoise:
-        case SignalType.Speech:
-          // These would require more complex implementation with audio files
-          console.warn("Speech and Speech Noise not implemented yet");
-          return;
-      }
+  const availableSignalTypes = useMemo(() => {
+    if (!currentTransducer) return [];
+    return currentTransducer.SignalTypes.map(
+      (type: number) => SIGNAL_TYPE_MAP[type as keyof typeof SIGNAL_TYPE_MAP]
+    ).filter(Boolean);
+  }, [currentTransducer]);
 
-      // Convert dB HL to gain (simplified conversion)
-      const gain = Math.pow(10, (selectedLevel - 100) / 20);
-      gainNodeRef.current?.gain.setValueAtTime(
-        gain,
-        audioContextRef.current.currentTime
-      );
+  const availableEarSides = useMemo<Array<"L" | "R">>(() => {
+    if (!currentTransducer) return ["L"];
+    return currentTransducer.EarSides.map((side: number) =>
+      side === 0 ? "L" : "R"
+    );
+  }, [currentTransducer]);
 
-      if (oscillatorRef.current) {
-        oscillatorRef.current.start();
-      }
+  const _sendAudiometrySignal = useCallback(() => {
+    if (socket) {
+      socket.emit("audiometry-signal", {
+        connectionId: consultationId,
+        frequency: selectedFrequency,
+        level: selectedLevel,
+        signal: true,
+        pulsed: isPulsed,
+        earSide: selectedEar,
+        signalType: selectedSignalType,
+        conductionType: selectedMode,
+        maskingSignal: isMasking,
+        maskingLevel: maskingLevel,
+      });
       setIsPlaying(true);
-
-      // Start masking tone if enabled
-      if (isMasking && !maskingOscillatorRef.current) {
-        maskingOscillatorRef.current =
-          audioContextRef.current.createOscillator();
-        maskingOscillatorRef.current.type = "sine";
-        maskingOscillatorRef.current.frequency.setValueAtTime(
-          selectedFrequency,
-          audioContextRef.current.currentTime
-        );
-
-        const maskingGain = Math.pow(10, (maskingLevel - 100) / 20);
-        maskingGainNodeRef.current?.gain.setValueAtTime(
-          maskingGain,
-          audioContextRef.current.currentTime
-        );
-
-        maskingOscillatorRef.current.connect(maskingGainNodeRef.current!);
-        maskingOscillatorRef.current.start();
-      }
     }
   }, [
+    socket,
+    consultationId,
     selectedFrequency,
     selectedLevel,
+    selectedEar,
+    selectedSignalType,
+    selectedMode,
     isMasking,
     maskingLevel,
-    selectedSignalType,
-    initAudio,
+    isPulsed,
   ]);
 
-  // Stop tone
-  const stopTone = useCallback(() => {
-    if (oscillatorRef.current) {
-      oscillatorRef.current.stop();
-      oscillatorRef.current.disconnect();
-      oscillatorRef.current = null;
+  const _endAudiometrySignal = useCallback(() => {
+    if (socket) {
+      socket.emit("audiometry-signal", {
+        connectionId: consultationId,
+        frequency: selectedFrequency,
+        level: selectedLevel,
+        signal: false,
+        pulsed: isPulsed,
+        earSide: selectedEar,
+        signalType: selectedSignalType,
+        conductionType: selectedMode,
+        maskingSignal: isMasking,
+        maskingLevel: maskingLevel,
+      });
+      setIsPlaying(false);
     }
-    if (maskingOscillatorRef.current) {
-      maskingOscillatorRef.current.stop();
-      maskingOscillatorRef.current.disconnect();
-      maskingOscillatorRef.current = null;
-    }
-    setIsPlaying(false);
-  }, []);
+  }, [
+    socket,
+    consultationId,
+    selectedFrequency,
+    selectedLevel,
+    selectedEar,
+    selectedSignalType,
+    selectedMode,
+    isMasking,
+    maskingLevel,
+    isPulsed,
+  ]);
 
   // Handle mouse down for play tone
   const handleMouseDown = useCallback(() => {
-    playTone();
-  }, [playTone]);
+    _sendAudiometrySignal();
+  }, [_sendAudiometrySignal]);
 
   // Handle mouse up for stop tone
   const handleMouseUp = useCallback(() => {
-    stopTone();
-  }, [stopTone]);
+    _endAudiometrySignal();
+  }, [_endAudiometrySignal]);
 
   // Handle mouse leave for stop tone
   const handleMouseLeave = useCallback(() => {
-    if (isPlaying) {
-      stopTone();
-    }
-  }, [isPlaying, stopTone]);
+    _endAudiometrySignal();
+  }, [_endAudiometrySignal]);
 
   // Handle frequency change
   const handleFrequencyChange = (freq: number) => {
     setSelectedFrequency(freq);
-    const freqIndex = FREQUENCIES.findIndex((f) => Number(f) === freq);
+    const freqIndex = availableFrequencies.findIndex((f) => f === freq);
     if (freqIndex !== -1) {
       setSelectedLabelIndexes((prev) => ({ ...prev, x: freqIndex }));
     }
     if (isPlaying) {
-      stopTone();
-      playTone();
+      _endAudiometrySignal();
+      _sendAudiometrySignal();
     }
   };
 
@@ -263,24 +207,18 @@ export default function PureTonePage() {
     if (levelIndex !== -1) {
       setSelectedLabelIndexes((prev) => ({ ...prev, y: levelIndex }));
     }
-    if (isPlaying && gainNodeRef.current && audioContextRef.current) {
-      const gain = Math.pow(10, (level - 100) / 20);
-      gainNodeRef.current.gain.setValueAtTime(
-        gain,
-        audioContextRef.current.currentTime
-      );
+    if (isPlaying) {
+      _endAudiometrySignal();
+      _sendAudiometrySignal();
     }
   };
 
   // Handle masking level change
   const handleMaskingLevelChange = (level: number) => {
     setMaskingLevel(level);
-    if (isPlaying && maskingGainNodeRef.current && audioContextRef.current) {
-      const gain = Math.pow(10, (level - 100) / 20);
-      maskingGainNodeRef.current.gain.setValueAtTime(
-        gain,
-        audioContextRef.current.currentTime
-      );
+    if (isPlaying) {
+      _endAudiometrySignal();
+      _sendAudiometrySignal();
     }
   };
 
@@ -294,47 +232,29 @@ export default function PureTonePage() {
       masking: isMasking ? maskingLevel : 0,
       noResponse: 0,
       signalType: selectedSignalType,
+      pulsed: isPulsed,
     };
     setTestResults((prev) => [...prev, newResult]);
   };
 
   // Handle audiogram click
   const handleAudiogramClick = (x: number, y: number) => {
-    const newFrequency = Number(FREQUENCIES[x]);
+    const newFrequency = availableFrequencies[x];
     const newLevel = HEARING_LEVELS[y];
 
     setSelectedLabelIndexes({ x, y });
     setSelectedFrequency(newFrequency);
     setSelectedLevel(newLevel);
 
-    // Update audio if playing
     if (isPlaying) {
-      if (oscillatorRef.current && audioContextRef.current) {
-        oscillatorRef.current.frequency.setValueAtTime(
-          newFrequency,
-          audioContextRef.current.currentTime
-        );
-      }
-      if (gainNodeRef.current && audioContextRef.current) {
-        const gain = Math.pow(10, (newLevel - 100) / 20);
-        gainNodeRef.current.gain.setValueAtTime(
-          gain,
-          audioContextRef.current.currentTime
-        );
-      }
-      // Update masking tone frequency
-      if (
-        isMasking &&
-        maskingOscillatorRef.current &&
-        audioContextRef.current
-      ) {
-        maskingOscillatorRef.current.frequency.setValueAtTime(
-          newFrequency,
-          audioContextRef.current.currentTime
-        );
-      }
+      _endAudiometrySignal();
+      _sendAudiometrySignal();
     }
   };
+
+  if (!currentTransducer) {
+    return <PureToneLoadingSkeleton />;
+  }
 
   return (
     <div className="p-6">
@@ -349,18 +269,21 @@ export default function PureTonePage() {
           <div>
             <label className="block text-sm font-medium mb-2">Ear</label>
             <div className="flex gap-4">
-              <button
-                className={`px-4 py-2 rounded ${selectedEar === "L" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
-                onClick={() => setSelectedEar("L")}
-              >
-                Left
-              </button>
-              <button
-                className={`px-4 py-2 rounded ${selectedEar === "R" ? "bg-red-500 text-white" : "bg-gray-200"}`}
-                onClick={() => setSelectedEar("R")}
-              >
-                Right
-              </button>
+              {availableEarSides.map((ear: "L" | "R") => (
+                <button
+                  key={ear}
+                  className={`px-4 py-2 rounded ${
+                    selectedEar === ear
+                      ? ear === "L"
+                        ? "bg-blue-500 text-white"
+                        : "bg-red-500 text-white"
+                      : "bg-gray-200"
+                  }`}
+                  onClick={() => setSelectedEar(ear)}
+                >
+                  {ear === "L" ? "Left" : "Right"}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -368,13 +291,21 @@ export default function PureTonePage() {
             <label className="block text-sm font-medium mb-2">Mode</label>
             <div className="flex gap-4">
               <button
-                className={`px-4 py-2 rounded ${selectedMode === "AC" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+                className={`px-4 py-2 rounded ${
+                  selectedMode === "AC"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-200"
+                }`}
                 onClick={() => setSelectedMode("AC")}
               >
                 Air
               </button>
               <button
-                className={`px-4 py-2 rounded ${selectedMode === "BC" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+                className={`px-4 py-2 rounded ${
+                  selectedMode === "BC"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-200"
+                }`}
                 onClick={() => setSelectedMode("BC")}
               >
                 Bone
@@ -391,7 +322,7 @@ export default function PureTonePage() {
               value={selectedFrequency}
               onChange={(e) => handleFrequencyChange(Number(e.target.value))}
             >
-              {FREQUENCIES.map((freq) => (
+              {availableFrequencies.map((freq) => (
                 <option key={freq} value={freq}>
                   {freq}
                 </option>
@@ -426,17 +357,49 @@ export default function PureTonePage() {
               onChange={(e) => {
                 setSelectedSignalType(e.target.value as SignalType);
                 if (isPlaying) {
-                  stopTone();
-                  playTone();
+                  _endAudiometrySignal();
+                  _sendAudiometrySignal();
                 }
               }}
             >
-              {Object.values(SignalType).map((type) => (
+              {availableSignalTypes.map((type: SignalType) => (
                 <option key={type} value={type}>
                   {type}
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Pulsed Signal
+            </label>
+            <button
+              className={`w-full px-4 py-2 rounded flex items-center justify-center gap-2 ${
+                isPulsed ? "bg-blue-500 text-white" : "bg-gray-200"
+              }`}
+              onClick={() => {
+                setIsPulsed((prev) => !prev);
+                if (isPlaying) {
+                  _endAudiometrySignal();
+                  _sendAudiometrySignal();
+                }
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              {isPulsed ? "Pulsed On" : "Pulsed Off"}
+            </button>
           </div>
 
           {/* Masking Controls */}

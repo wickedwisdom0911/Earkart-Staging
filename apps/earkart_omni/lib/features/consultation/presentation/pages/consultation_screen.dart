@@ -259,6 +259,31 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.on("user_left", (data) {
       di<ILogger>().debug('User left: $data');
     });
+
+    socket.on("audiometry-signal", (data) {
+      di<ILogger>().debug('Audiometry signal: $data');
+      context.read<CommunicationCubit>().sendStatePacket(
+        frequency: data["frequency"],
+        level: data["level"],
+        signal: data["signal"],
+        pulsed: data["pulsed"],
+        earSide: data["earSide"] == "L" ? EarSide.Left : EarSide.Right,
+        signalType:
+            data["signalType"] == "Steady"
+                ? SignalType.Steady
+                : data["signalType"] == "Pulsed"
+                ? SignalType.Pulsed
+                : data["signalType"] == "NB"
+                ? SignalType.NB
+                : SignalType.White,
+        conductionType:
+            data["conductionType"] == "AC"
+                ? ConductionType.Air
+                : ConductionType.Bone,
+        maskingSignal: data["maskingSignal"],
+        maskingLevel: data["maskingLevel"],
+      );
+    });
   }
 
   void _tryJoinConsultation() {
@@ -465,6 +490,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "r15cConnected": r15cDevice != null,
         "revo2Connected": revo2Device != null,
         "connectionStatus": connectionStatus,
+        "transducerResponse": state.transducerResponse,
       });
     }
   }

@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
 import { useSocket } from "./socket-provider";
+import { TransducersResponse } from "@/models/device/transducers-response.model";
 
 interface DeviceState {
   r15c: {
@@ -11,6 +12,7 @@ interface DeviceState {
     isConnected: boolean;
     connectionStatus: "disconnected" | "connected" | "ready" | "begin";
   };
+  transducerResponse: TransducersResponse | null;
 }
 
 // contexts/DeviceContext.tsx
@@ -37,6 +39,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
       isConnected: false,
       connectionStatus: "disconnected",
     },
+    transducerResponse: null,
   });
 
   const socket = useSocket();
@@ -51,6 +54,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
         r15cConnected: boolean;
         revo2Connected: boolean;
         connectionStatus: string;
+        transducerResponse: TransducersResponse;
       }) => {
         setDeviceState((prev) => ({
           ...prev,
@@ -74,6 +78,12 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
           },
         }));
         console.log(data);
+        if (data.transducerResponse) {
+          setDeviceState((prev) => ({
+            ...prev,
+            transducerResponse: data.transducerResponse,
+          }));
+        }
       }
     );
 
