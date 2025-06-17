@@ -34,7 +34,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   bool _isInitialized = false;
   ConsultationEntity? consultation;
   bool _hasJoinedConsultation = false;
-  bool _isReconnecting = false;
   UsbDevice? r15cDevice;
   UsbDevice? revo2Device;
   TestType? testType;
@@ -105,7 +104,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       }
       context.read<DeviceCubit>().stopDeviceMonitoring();
       _hasJoinedConsultation = false;
-      _isReconnecting = false;
     } catch (e) {
       di<ILogger>().error('Error in dispose: $e');
     }
@@ -152,7 +150,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       di<ILogger>().debug('Socket connected successfully');
       setState(() {
         _isSocketInitialized = true;
-        _isReconnecting = false;
       });
 
       // Try to rejoin consultation if we have one
@@ -197,7 +194,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       di<ILogger>().debug('Socket reconnected');
       setState(() {
         _isSocketInitialized = true;
-        _isReconnecting = true;
       });
       _tryJoinConsultation(); // Try to rejoin on reconnect
     });
@@ -455,8 +451,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void _emitDeviceEvent(CommunicationState state) {
     if (_isSocketInitialized) {
       String connectionStatus = "Disconnected";
-
-      if (state.transducerResponse != null) {
+      di<ILogger>().debug('Emitting device event: ${state.isInBeginMode}');
+      if (state.isInBeginMode) {
+        connectionStatus = "begin";
+      } else if (state.transducerResponse != null) {
         connectionStatus = "Ready";
       } else if (state.isConnected) {
         connectionStatus = "Connected";
@@ -467,7 +465,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "r15cConnected": r15cDevice != null,
         "revo2Connected": revo2Device != null,
         "connectionStatus": connectionStatus,
-        "transducerResponse": state.transducerResponse != null,
       });
     }
   }

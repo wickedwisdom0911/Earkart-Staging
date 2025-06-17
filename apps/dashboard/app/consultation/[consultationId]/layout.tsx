@@ -71,7 +71,9 @@ export default function ConsultationLayout({
               }`}
             />
             <span className="text-sm font-medium">
-              R15C: {r15c.connectionStatus}
+              R15C:{" "}
+              {r15c.connectionStatus.charAt(0).toUpperCase() +
+                r15c.connectionStatus.slice(1)}
             </span>
           </div>
 
@@ -83,7 +85,9 @@ export default function ConsultationLayout({
               }`}
             />
             <span className="text-sm font-medium">
-              Revo2: {revo2.connectionStatus}
+              Revo2:{" "}
+              {revo2.connectionStatus.charAt(0).toUpperCase() +
+                revo2.connectionStatus.slice(1)}
             </span>
           </div>
         </div>

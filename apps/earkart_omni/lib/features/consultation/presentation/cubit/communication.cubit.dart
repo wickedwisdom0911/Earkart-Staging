@@ -198,7 +198,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         case 12: // Acknowledgement
           di<ILogger>().debug('Received acknowledgement');
           final acknowledgement = Acknowledgement.fromJson(json);
-          if (acknowledgement.packetName == "Begin") {
+          if (acknowledgement.request?.name == "Begin") {
+            di<ILogger>().debug('Device is in begin mode');
             emit(
               state.copyWith(
                 isInBeginMode: true,
