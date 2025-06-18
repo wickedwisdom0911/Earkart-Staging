@@ -91,8 +91,8 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
               x2={pressureMin}
               y1={complianceMin}
               y2={complianceMax}
-              fill="#ffebee"
-              stroke="#d32f2f"
+              fill={selectedEar === "L" ? "#e6f3ff" : "#ffebee"}
+              stroke={selectedEar === "L" ? "#3B82F6" : "#EF4444"}
               strokeWidth={1.5}
               fillOpacity={0.3}
               isFront={false}
