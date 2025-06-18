@@ -355,14 +355,26 @@ export default function PureTonePage() {
   // Handle frequency change
   const handleFrequencyChange = (freq: number) => {
     setSelectedFrequency(freq);
+
+    // Find the index of the selected frequency in the available frequencies array
     const freqIndex = availableFrequencies.findIndex((f) => f === freq);
     if (freqIndex !== -1) {
       setSelectedLabelIndexes((prev) => ({ ...prev, x: freqIndex }));
     }
+
     // Reset level to first available level for the new frequency
     if (availableLevels.length > 0) {
-      setSelectedLevel(availableLevels[0]);
+      const newLevel = availableLevels[0];
+      setSelectedLevel(newLevel);
+
+      // Update the y-axis index for the audiogram
+      const levelIndex = availableLevels.findIndex((l) => l === newLevel);
+      if (levelIndex !== -1) {
+        setSelectedLabelIndexes((prev) => ({ ...prev, y: levelIndex }));
+      }
     }
+
+    // If a tone is playing, update it with the new frequency and level
     if (isPlaying) {
       _endAudiometrySignal();
       _sendAudiometrySignal();
