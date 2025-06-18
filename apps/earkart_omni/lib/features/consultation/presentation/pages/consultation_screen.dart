@@ -471,12 +471,37 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         maskingLevel: data["maskingLevel"],
       );
     });
+    socket.on("start-tympanometry", (data) {
+      try {
+        di<ILogger>().debug('Start tympanometry: $data');
+        if (data == null) {
+          di<ILogger>().error('Received null data in start-tympanometry event');
+          return;
+        }
+
+        context.read<CommunicationCubit>().sendStartImpedancePacket(
+          probeToneFrequency: (data["ProbeToneFrequency"] as num).toInt(),
+          autoSpeed: data["AutoSpeed"] as bool,
+          speed: (data["Speed"] as num).toInt(),
+          start: (data["Start"] as num).toInt(),
+          stop: (data["Stop"] as num).toInt(),
+          complianceMin: (data["ComplianceMin"] as num).toDouble(),
+          complianceMax: (data["ComplianceMax"] as num).toDouble(),
+          pressureMin: (data["PressureMin"] as num).toDouble(),
+          pressureMax: (data["PressureMax"] as num).toDouble(),
+        );
+      } catch (e) {
+        di<ILogger>().error('Error handling start-tympanometry event: $e');
+      }
+    });
 
     socket.on("end-test", (data) {
-      di<ILogger>().debug('End test: $data');
-
-      // context.read<CommunicationCubit>().sendStopCommand();
-      context.read<CommunicationCubit>().sendExitPacket();
+      try {
+        di<ILogger>().debug('End test: $data');
+        context.read<CommunicationCubit>().sendExitPacket();
+      } catch (e) {
+        di<ILogger>().error('Error handling end-test event: $e');
+      }
     });
   }
 

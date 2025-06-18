@@ -423,25 +423,35 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     }
   }
 
-  Future<void> sendStartImpedancePacket() async {
+  Future<void> sendStartImpedancePacket({
+    required int probeToneFrequency,
+    required bool autoSpeed,
+    required int speed,
+    required int start,
+    required int stop,
+    required double complianceMin,
+    required double complianceMax,
+    required double pressureMin,
+    required double pressureMax,
+  }) async {
     di<ILogger>().debug('Sending start impedance packet');
     final packet = _packetInterpreter.constructPacket({
       "PacketType": 10,
       "PacketName": "StartImpedance",
-      "ProbetoneFrequency": 226,
+      "ProbetoneFrequency": probeToneFrequency,
       "RealTimeStatusUpdate": {"InIdle": false, "DuringExecution": true},
       "Tymp": {
         "Pressure": {
-          "AutoSpeed": false,
-          "Speed": 200,
-          "Start": 100,
-          "Stop": -200,
+          "AutoSpeed": autoSpeed,
+          "Speed": speed,
+          "Start": start,
+          "Stop": stop,
         },
         "NormativeBox": {
-          "ComplianceMin": 0.3,
-          "ComplianceMax": 1.7,
-          "PressureMin": -150,
-          "PressureMax": 50,
+          "ComplianceMin": complianceMin,
+          "ComplianceMax": complianceMax,
+          "PressureMin": pressureMin,
+          "PressureMax": pressureMax,
         },
       },
     });
