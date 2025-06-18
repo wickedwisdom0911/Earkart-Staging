@@ -2,8 +2,8 @@ import { z } from "zod";
 import { TestStatus, Ear } from "./enums";
 
 export const ACReadingModelDataSchema = z.object({
-  id: z.string(),
-  audiometryId: z.string(),
+  id: z.string().optional(),
+  audiometryId: z.string().optional(),
   ear: z.nativeEnum(Ear),
   frequencyHz: z.number(),
   thresholdDb: z.number(),
@@ -12,8 +12,8 @@ export const ACReadingModelDataSchema = z.object({
 });
 
 export const BCReadingModelDataSchema = z.object({
-  id: z.string(),
-  audiometryId: z.string(),
+  id: z.string().optional(),
+  audiometryId: z.string().optional(),
   ear: z.nativeEnum(Ear),
   frequencyHz: z.number(),
   thresholdDb: z.number(),
@@ -21,8 +21,8 @@ export const BCReadingModelDataSchema = z.object({
 });
 
 export const SpeechReadingModelDataSchema = z.object({
-  id: z.string(),
-  audiometryId: z.string(),
+  id: z.string().optional(),
+  audiometryId: z.string().optional(),
   ear: z.nativeEnum(Ear),
   srtDb: z.number(),
   sdScore: z.number(),

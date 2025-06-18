@@ -423,8 +423,6 @@ export default function PureTonePage() {
 
     // Transform test results to match ACReadingModelData schema
     const acTests = updatedAcResults.map((result) => ({
-      id: crypto.randomUUID(),
-      audiometryId: crypto.randomUUID(),
       ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
       frequencyHz: result.x,
       thresholdDb: result.y,
@@ -435,8 +433,6 @@ export default function PureTonePage() {
 
     // Transform test results to match BCReadingModelData schema
     const bcTests = updatedBcResults.map((result) => ({
-      id: crypto.randomUUID(),
-      audiometryId: crypto.randomUUID(),
       ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
       frequencyHz: result.x,
       thresholdDb: result.y,
@@ -448,7 +444,7 @@ export default function PureTonePage() {
       {
         ...consultationData,
         audiometry: {
-          id: consultationData.audiometry?.id || crypto.randomUUID(),
+          id: consultationData.audiometry?.id,
           sessionId: consultationId as string,
           status: TestStatus.IN_PROGRESS,
           acTests: acTests,
@@ -475,9 +471,54 @@ export default function PureTonePage() {
 
   // Clear test results
   const clearTestResults = () => {
-    setTestResults([]);
-    setAcTestResults([]);
-    setBcTestResults([]);
+    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+      return;
+
+    // Clear only the selected mode's results
+    if (selectedMode === "AC") {
+      setAcTestResults([]);
+    } else {
+      setBcTestResults([]);
+    }
+
+    // Update the combined results
+    setTestResults(selectedMode === "AC" ? bcTestResults : acTestResults);
+    const consultationData = consultationResponse.data as ConsultationModelData;
+
+    // Transform remaining test results to match schemas
+    const acTests =
+      selectedMode === "AC" ? [] : consultationData.audiometry?.acTests;
+
+    const bcTests =
+      selectedMode === "BC" ? [] : consultationData.audiometry?.bcTests;
+
+    updateConsultation(
+      {
+        ...consultationData,
+        audiometry: {
+          id: consultationData.audiometry?.id,
+          sessionId: consultationId as string,
+          status: TestStatus.IN_PROGRESS,
+          acTests: acTests,
+          bcTests: bcTests,
+          createdAt:
+            consultationData.audiometry?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      {
+        onSuccess: (data) => {
+          if (data.success) {
+            toast.success(`${selectedMode} test results cleared successfully`);
+          } else {
+            toast.error(data.message);
+          }
+        },
+        onError: (error) => {
+          toast.error(`Failed to clear test results: ${error.message}`);
+        },
+      }
+    );
   };
 
   // Handle audiogram click
