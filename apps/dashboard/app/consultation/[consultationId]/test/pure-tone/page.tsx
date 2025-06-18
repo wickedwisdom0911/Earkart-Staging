@@ -5,6 +5,11 @@ import { useSocket } from "@/providers/socket-provider";
 import { useParams } from "next/navigation";
 import { useDevice } from "@/providers/device-provider";
 import PureToneLoadingSkeleton from "./_components/loading-skeleton";
+import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
+import { TestStatus, Ear } from "@/models/enums";
+import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
+import { ConsultationModelData } from "@/models/consultation.model";
+import { toast } from "sonner";
 
 enum SignalType {
   Steady = "Steady",
@@ -60,6 +65,8 @@ export default function PureTonePage() {
   );
   const [isPulsed, setIsPulsed] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [acTestResults, setAcTestResults] = useState<TestResult[]>([]);
+  const [bcTestResults, setBcTestResults] = useState<TestResult[]>([]);
   const [selectedLabelIndexes, setSelectedLabelIndexes] = useState({
     x: 5,
     y: 13,
@@ -73,6 +80,59 @@ export default function PureTonePage() {
   const socket = useSocket();
   const { consultationId } = useParams();
   const { deviceState } = useDevice();
+  const { mutate: updateConsultation } = useUpdateConsultation();
+  const { data: consultationResponse } = useGetConsultation(
+    consultationId as string
+  );
+
+  // Populate test results from existing audiometry data
+  useEffect(() => {
+    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+      return;
+
+    const consultationData = consultationResponse.data as ConsultationModelData;
+
+    // Handle AC tests
+    if (consultationData.audiometry?.acTests) {
+      const existingAcResults = consultationData.audiometry.acTests.map(
+        (test) => ({
+          ear: test.ear === Ear.LEFT ? "L" : "R",
+          x: test.frequencyHz,
+          y: test.thresholdDb,
+          mode: "AC",
+          masking: test.maskingUsed
+            ? test.maskingEar === Ear.LEFT
+              ? 1
+              : 2
+            : 0,
+          noResponse: 0,
+          signalType: SignalType.Steady,
+          pulsed: false,
+        })
+      );
+      setAcTestResults(existingAcResults);
+    }
+
+    // Handle BC tests
+    if (consultationData.audiometry?.bcTests) {
+      const existingBcResults = consultationData.audiometry.bcTests.map(
+        (test) => ({
+          ear: test.ear === Ear.LEFT ? "L" : "R",
+          x: test.frequencyHz,
+          y: test.thresholdDb,
+          mode: "BC",
+          masking: test.maskingUsed ? 1 : 0,
+          noResponse: 0,
+          signalType: SignalType.Steady,
+          pulsed: false,
+        })
+      );
+      setBcTestResults(existingBcResults);
+    }
+
+    // Combine both types of results
+    setTestResults([...acTestResults, ...bcTestResults]);
+  }, [consultationResponse?.data]);
 
   // Update transducer data only when valid data is received
   useEffect(() => {
@@ -333,6 +393,9 @@ export default function PureTonePage() {
 
   // Add test result
   const addTestResult = () => {
+    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+      return;
+
     const newResult: TestResult = {
       ear: selectedEar,
       x: selectedFrequency,
@@ -343,7 +406,78 @@ export default function PureTonePage() {
       signalType: selectedSignalType,
       pulsed: isPulsed,
     };
-    setTestResults((prev) => [...prev, newResult]);
+
+    // Create new arrays with the new result
+    const updatedAcResults =
+      selectedMode === "AC" ? [...acTestResults, newResult] : acTestResults;
+    const updatedBcResults =
+      selectedMode === "BC" ? [...bcTestResults, newResult] : bcTestResults;
+
+    // Update state
+    if (selectedMode === "AC") {
+      setAcTestResults(updatedAcResults);
+    } else {
+      setBcTestResults(updatedBcResults);
+    }
+    setTestResults([...updatedAcResults, ...updatedBcResults]);
+
+    // Transform test results to match ACReadingModelData schema
+    const acTests = updatedAcResults.map((result) => ({
+      id: crypto.randomUUID(),
+      audiometryId: crypto.randomUUID(),
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y,
+      maskingUsed: result.masking > 0,
+      maskingEar:
+        result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
+    }));
+
+    // Transform test results to match BCReadingModelData schema
+    const bcTests = updatedBcResults.map((result) => ({
+      id: crypto.randomUUID(),
+      audiometryId: crypto.randomUUID(),
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y,
+      maskingUsed: result.masking > 0,
+    }));
+
+    const consultationData = consultationResponse.data as ConsultationModelData;
+    updateConsultation(
+      {
+        ...consultationData,
+        audiometry: {
+          id: consultationData.audiometry?.id || crypto.randomUUID(),
+          sessionId: consultationId as string,
+          status: TestStatus.IN_PROGRESS,
+          acTests: acTests,
+          bcTests: bcTests,
+          createdAt:
+            consultationData.audiometry?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      {
+        onSuccess: (data) => {
+          if (data.success) {
+            toast.success("Test result added successfully");
+          } else {
+            toast.error(data.message);
+          }
+        },
+        onError: (error) => {
+          toast.error(`Failed to add test result: ${error.message}`);
+        },
+      }
+    );
+  };
+
+  // Clear test results
+  const clearTestResults = () => {
+    setTestResults([]);
+    setAcTestResults([]);
+    setBcTestResults([]);
   };
 
   // Handle audiogram click
@@ -587,7 +721,7 @@ export default function PureTonePage() {
           </button>
           <button
             className="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-            onClick={() => setTestResults([])}
+            onClick={clearTestResults}
           >
             Clear Results
           </button>

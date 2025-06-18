@@ -29,15 +29,15 @@ export const SpeechReadingModelDataSchema = z.object({
 });
 
 export const AudiometryTestModelDataSchema = z.object({
-  id: z.string(),
+  id: z.string().optional(),
   sessionId: z.string(),
   status: z.nativeEnum(TestStatus),
   acTests: z.array(ACReadingModelDataSchema).optional().nullable(),
   bcTests: z.array(BCReadingModelDataSchema).optional().nullable(),
   speechTests: z.array(SpeechReadingModelDataSchema).optional().nullable(),
   notes: z.string().optional().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
 });
 
 export type ACReadingModelData = z.infer<typeof ACReadingModelDataSchema>;
