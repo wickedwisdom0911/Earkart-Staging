@@ -12,11 +12,13 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceArea,
 } from "recharts";
 
 interface TympanogramPoint {
   pressure: number;
   compliance: number;
+  compensatedCompliance?: number;
   ear: "L" | "R";
 }
 
@@ -34,8 +36,10 @@ interface TympanogramGraphProps {
   finalData: TympanogramPoint[];
   isTestCompleted: boolean;
   selectedEar: "L" | "R";
-  currentPressure: number;
-  currentCompliance: number;
+  pressureMax: number;
+  pressureMin: number;
+  complianceMax: number;
+  complianceMin: number;
 }
 
 const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
@@ -43,11 +47,28 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
   finalData,
   isTestCompleted,
   selectedEar,
-  currentPressure,
-  currentCompliance,
+  pressureMax,
+  pressureMin,
+  complianceMax,
+  complianceMin,
 }) => {
   const data = isTestCompleted ? finalData : realTimeData;
   const color = selectedEar === "L" ? "#3B82F6" : "#EF4444";
+
+  // Create reference lines for normative box
+  const ReferenceLines = () => (
+    <ReferenceArea
+      x1={pressureMax}
+      x2={pressureMin}
+      y1={complianceMin}
+      y2={complianceMax}
+      fill="#ffebee"
+      stroke="#d32f2f"
+      strokeWidth={1.5}
+      fillOpacity={0.3}
+      isFront={false}
+    />
+  );
 
   return (
     <div className="border rounded p-4">
@@ -57,45 +78,40 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
             data={data}
             margin={{ top: 20, right: 20, bottom: 20, left: 40 }}
           >
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
             <XAxis
               dataKey="pressure"
-              domain={[-400, 200]}
-              tickCount={7}
+              domain={[200, -400]}
+              ticks={[200, 100, 0, -100, -200, -300, -400]}
               tickFormatter={(value: number) => `${value}`}
+              label={{ value: "Pressure (daPa)", position: "bottom" }}
+              type="number"
+              scale="linear"
             />
             <YAxis
               domain={[0, 2]}
               tickCount={5}
               tickFormatter={(value: number) => value.toFixed(1)}
+              label={{ value: "Compliance (ml)", angle: -90, position: "left" }}
             />
             <Tooltip
               formatter={(value: number) => [
                 `${value.toFixed(2)} ml`,
-                "Compliance",
+                "Compensated Compliance",
               ]}
               labelFormatter={(label: number) => `Pressure: ${label} daPa`}
             />
+            <ReferenceLines />
             <Line
               type="monotone"
-              dataKey="compliance"
+              dataKey="compensatedCompliance"
               stroke={color}
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, fill: color }}
+              name="Compensated Compliance"
+              isAnimationActive={!isTestCompleted}
             />
-            {isTestCompleted && (
-              <Line
-                type="monotone"
-                data={[
-                  { pressure: currentPressure, compliance: currentCompliance },
-                ]}
-                dataKey="compliance"
-                stroke={color}
-                strokeWidth={0}
-                dot={{ r: 6, fill: color, stroke: "white", strokeWidth: 2 }}
-              />
-            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -143,23 +159,27 @@ export default function TympanometryPage() {
       // Always update current values
       const pressure = data.tympanometryStatus.Pressure ?? 0;
       const compliance = data.tympanometryStatus.Compliance ?? 0;
+      const ecv = data.tympanometryStatus.Tymp?.ECV ?? 0;
 
       console.log(
         "Updating values - Pressure:",
         pressure,
         "Compliance:",
-        compliance
+        compliance,
+        "ECV:",
+        ecv
       );
 
-      // Force state updates
-      setCurrentPressure(() => pressure);
-      setCurrentCompliance(() => compliance);
+      // Update state immediately
+      setCurrentPressure(pressure);
+      setCurrentCompliance(compliance);
 
       // Only add points to real-time data if test is running
       if (isRunning && !isTestCompleted) {
         const newPoint: TympanogramPoint = {
           pressure,
           compliance,
+          compensatedCompliance: Math.max(0, compliance - ecv),
           ear: selectedEar,
         };
         console.log("Adding new point:", newPoint);
@@ -175,6 +195,7 @@ export default function TympanometryPage() {
         data.tympanometryData.Tymp?.PressureData &&
         data.tympanometryData.Tymp?.Y?.ComplianceData
       ) {
+        const ecv = data.tympanometryData.Tymp.ECV ?? 0;
         const finalPoints: TympanogramPoint[] =
           data.tympanometryData.Tymp.PressureData.map(
             (pressure: number, index: number) => {
@@ -183,23 +204,26 @@ export default function TympanometryPage() {
               return {
                 pressure,
                 compliance,
+                compensatedCompliance: Math.max(0, compliance - ecv),
                 ear: selectedEar,
               };
             }
           );
         console.log("Setting final points:", finalPoints);
-
-        // Force state updates
-        setFinalData(() => finalPoints);
-        setIsTestCompleted(() => true);
-        setIsRunning(() => false);
+        setFinalData(finalPoints);
+        setIsTestCompleted(true);
+        setIsRunning(false);
 
         // Update final values from data
         if (data.tympanometryData.Tymp?.Y?.Peak?.Pressure !== undefined) {
           setPeakPressure(data.tympanometryData.Tymp.Y.Peak.Pressure);
         }
-        if (data.tympanometryData.Tymp?.Y?.Peak?.Compliance !== undefined) {
-          setPeakCompliance(data.tympanometryData.Tymp.Y.Peak.Compliance);
+        if (
+          data.tympanometryData.Tymp?.Y?.Peak?.CompensatedWithECV !== undefined
+        ) {
+          setPeakCompliance(
+            data.tympanometryData.Tymp.Y.Peak.CompensatedWithECV
+          );
         }
         if (data.tympanometryData.Tymp?.Y?.Gradient !== undefined) {
           setGradient(data.tympanometryData.Tymp.Y.Gradient);
@@ -590,7 +614,7 @@ export default function TympanometryPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-600">
-                Peak Compliance
+                Peak Compliance (Compensated)
               </label>
               <p className="text-lg font-semibold">
                 {peakCompliance !== null
@@ -617,82 +641,16 @@ export default function TympanometryPage() {
           </div>
         </div>
 
-        {/* Graph - Always show */}
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Tympanogram</h3>
-          <div className="h-[400px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={isTestCompleted ? finalData : realTimeData}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="pressure"
-                  label={{
-                    value: "Pressure (daPa)",
-                    position: "bottom",
-                  }}
-                />
-                <YAxis
-                  label={{
-                    value: "Compliance (ml)",
-                    angle: -90,
-                    position: "left",
-                  }}
-                />
-                <Tooltip
-                  formatter={(value: number) => [
-                    value.toFixed(2),
-                    "Compliance",
-                  ]}
-                  labelFormatter={(label) => `Pressure: ${label} daPa`}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="compliance"
-                  stroke="#8884d8"
-                  dot={false}
-                  isAnimationActive={!isTestCompleted}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Results */}
-        {!isRunning && finalData.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-4">Results</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-white border rounded">
-                <label className="block text-sm font-medium text-gray-600">
-                  Peak Pressure
-                </label>
-                <p className="text-lg font-semibold">
-                  {finalData[finalData.length - 1].pressure} daPa
-                </p>
-              </div>
-              <div className="p-4 bg-white border rounded">
-                <label className="block text-sm font-medium text-gray-600">
-                  Peak Compliance
-                </label>
-                <p className="text-lg font-semibold">
-                  {finalData[finalData.length - 1].compliance.toFixed(2)} ml
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tympanogram Display */}
+        {/* Single Tympanogram Display */}
         <TympanogramGraph
           realTimeData={realTimeData}
           finalData={finalData}
           isTestCompleted={isTestCompleted}
           selectedEar={selectedEar}
-          currentPressure={currentPressure}
-          currentCompliance={currentCompliance}
+          pressureMax={pressureMax}
+          pressureMin={pressureMin}
+          complianceMax={complianceMax}
+          complianceMin={complianceMin}
         />
       </div>
     </div>
