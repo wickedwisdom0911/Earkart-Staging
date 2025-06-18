@@ -657,12 +657,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 }
               }
 
-              // Handle other states
+              // Handle impedance status
               if (state.impedanceStatus != null) {
-                _emitDeviceEvent(state);
+                _emitTympanometryStatus(state);
               }
               if (state.impedanceData != null) {
-                _emitDeviceEvent(state);
+                _emitTympanometryData(state);
               }
               if (state.error != null) {
                 di<ILogger>().error('Device error: ${state.error}');
@@ -710,6 +710,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "revo2Connected": revo2Device != null,
         "connectionStatus": connectionStatus,
         "transducerResponse": state.transducerResponse,
+        "impedanceStatus": state.impedanceStatus,
+        "impedanceData": state.impedanceData,
       });
     }
   }
@@ -727,6 +729,28 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       di<ILogger>().debug(
         'Device not connected or transducer response is null',
       );
+    }
+  }
+
+  void _emitTympanometryStatus(CommunicationState state) {
+    if (_isSocketInitialized && state.impedanceStatus != null) {
+      di<ILogger>().debug(
+        'Emitting tympanometry status: ${state.impedanceStatus}',
+      );
+      socket.emit("tympanometry-status", {
+        "consultationId": consultation?.id,
+        "tympanometryStatus": state.impedanceStatus,
+      });
+    }
+  }
+
+  void _emitTympanometryData(CommunicationState state) {
+    if (_isSocketInitialized && state.impedanceData != null) {
+      di<ILogger>().debug('Emitting tympanometry data: ${state.impedanceData}');
+      socket.emit("tympanometry-data", {
+        "consultationId": consultation?.id,
+        "tympanometryData": state.impedanceData,
+      });
     }
   }
 }

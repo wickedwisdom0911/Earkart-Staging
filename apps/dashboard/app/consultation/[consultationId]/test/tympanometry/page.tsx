@@ -1,4 +1,6 @@
 "use client";
+import { ImpedanceData } from "@/models/device/impedance-data.model";
+import { ImpedanceStatus } from "@/models/device/impredance-status.model";
 import { useSocket } from "@/providers/socket-provider";
 import { useParams } from "next/navigation";
 import React, { useState, useCallback } from "react";
@@ -94,6 +96,12 @@ export default function TympanometryPage() {
   // Listen for tympanometry data
   React.useEffect(() => {
     if (!socket) return;
+    socket.on("tympanometry-status", (data: ImpedanceStatus) => {
+      console.log("tympanometry-status", data);
+    });
+    socket.on("tympanometry-data", (data: ImpedanceData) => {
+      console.log("tympanometry-data", data);
+    });
 
     const handleTympanometryData = (data: TympanogramPoint) => {
       setCurrentPressure(data.pressure);
@@ -359,7 +367,7 @@ export default function TympanometryPage() {
                   Current Compliance
                 </label>
                 <p className="text-lg font-semibold">
-                  {currentCompliance.toFixed(2)} ml
+                  {currentCompliance?.toFixed(2) ?? "0.00"} ml
                 </p>
               </div>
             </div>

@@ -110,7 +110,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
     try {
       // Send a simple ping command
-      await _port!.write(Uint8List.fromList([0x00]));
+      // await _port!.write(Uint8List.fromList([0x00]));
       _consecutiveTimeouts = 0;
     } catch (e) {
       di<ILogger>().error('Connection check failed: $e');
