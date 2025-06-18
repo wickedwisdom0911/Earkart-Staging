@@ -55,21 +55,6 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
   const data = isTestCompleted ? finalData : realTimeData;
   const color = selectedEar === "L" ? "#3B82F6" : "#EF4444";
 
-  // Create reference lines for normative box
-  const ReferenceLines = () => (
-    <ReferenceArea
-      x1={pressureMax}
-      x2={pressureMin}
-      y1={complianceMin}
-      y2={complianceMax}
-      fill="#ffebee"
-      stroke="#d32f2f"
-      strokeWidth={1.5}
-      fillOpacity={0.3}
-      isFront={false}
-    />
-  );
-
   return (
     <div className="border rounded p-4">
       <div className="h-[400px] relative">
@@ -101,7 +86,17 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
               ]}
               labelFormatter={(label: number) => `Pressure: ${label} daPa`}
             />
-            <ReferenceLines />
+            <ReferenceArea
+              x1={pressureMax}
+              x2={pressureMin}
+              y1={complianceMin}
+              y2={complianceMax}
+              fill="#ffebee"
+              stroke="#d32f2f"
+              strokeWidth={1.5}
+              fillOpacity={0.3}
+              isFront={false}
+            />
             <Line
               type="monotone"
               dataKey="compensatedCompliance"
