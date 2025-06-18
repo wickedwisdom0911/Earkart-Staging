@@ -337,23 +337,21 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
     List<Map<String, dynamic>> channels = [channel0];
 
-    if (conductionType == ConductionType.Air) {
-      final channel1 = {
-        "Channel": 1,
-        "Valid": true,
-        "ConductionType": 0,
-        "TransducerID": state.transducerResponse?.transducers[0].id,
-        "TransducerName": state.transducerResponse?.transducers[0].name,
-        "EarSide": earSide == EarSide.Left ? 0 : 1,
-        "SignalType": 3,
-        "Frequency": -1,
-        "Level": maskingLevel ?? 0,
-        "Pulsed": false,
-        "Rate": 1.0,
-        "Signal": signal == true ? maskingSignal ?? false : false,
-      };
-      channels.add(channel1);
-    }
+    final channel1 = {
+      "Channel": 1,
+      "Valid": true,
+      "ConductionType": 0,
+      "TransducerID": state.transducerResponse?.transducers[0].id,
+      "TransducerName": state.transducerResponse?.transducers[0].name,
+      "EarSide": earSide == EarSide.Left ? 0 : 1,
+      "SignalType": 3,
+      "Frequency": -1,
+      "Level": maskingLevel ?? 0,
+      "Pulsed": false,
+      "Rate": 1.0,
+      "Signal": signal == true ? maskingSignal ?? false : false,
+    };
+    channels.add(channel1);
 
     final packet = _packetInterpreter.constructPacket({
       "PacketType": 4,
@@ -414,6 +412,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       "PacketType": 11,
       "PacketName": "Stop",
     });
+    emit(state.copyWith(isInBeginMode: false));
     await sendCommand(packet);
   }
 

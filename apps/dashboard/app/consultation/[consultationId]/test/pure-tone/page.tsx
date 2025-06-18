@@ -159,8 +159,12 @@ export default function PureTonePage() {
 
   const availableEarSides = useMemo<Array<"L" | "R">>(() => {
     if (!currentTransducer) return ["L"];
-    return currentTransducer.EarSides.map((side: number) =>
-      side === 0 ? "L" : "R"
+    return Array.from(
+      new Set(
+        currentTransducer.EarSides.map(
+          (side: number) => (side === 0 ? "L" : "R") // 0 is Left, both 1 and 3 are Right
+        )
+      )
     );
   }, [currentTransducer]);
 
@@ -366,7 +370,6 @@ export default function PureTonePage() {
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Pure Tone Audiometry</h1>
-          <div className="flex items-center gap-4"></div>
         </div>
 
         {/* Test Controls */}

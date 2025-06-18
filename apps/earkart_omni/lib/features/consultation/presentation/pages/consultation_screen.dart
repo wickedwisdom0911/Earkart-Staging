@@ -248,6 +248,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.on("start-test", (data) {
       di<ILogger>().debug('Start test: $data');
       if (data["testId"] != null) {
+        context.read<CommunicationCubit>().sendStopCommand();
         setState(() {
           testType =
               data["testId"] == "pure-tone" ? TestType.PTA : TestType.Impedance;
@@ -289,6 +290,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         maskingSignal: data["maskingSignal"],
         maskingLevel: data["maskingLevel"],
       );
+    });
+
+    socket.on("end-test", (data) {
+      di<ILogger>().debug('End test: $data');
+
+      // context.read<CommunicationCubit>().sendStopCommand();
+      context.read<CommunicationCubit>().sendExitPacket();
     });
   }
 
@@ -510,6 +518,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         testType ?? TestType.PTA,
       );
       _emitDeviceEvent(context.read<CommunicationCubit>().state);
+    } else {
+      di<ILogger>().debug(
+        'Device not connected or transducer response is null',
+      );
     }
   }
 }
