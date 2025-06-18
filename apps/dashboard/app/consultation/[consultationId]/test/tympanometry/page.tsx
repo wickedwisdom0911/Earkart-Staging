@@ -115,6 +115,12 @@ export default function TympanometryPage() {
   const [finalData, setFinalData] = useState<TympanogramPoint[]>([]);
   const [isTestCompleted, setIsTestCompleted] = useState(false);
 
+  // Add state for all tympanometry values
+  const [peakPressure, setPeakPressure] = useState<number | null>(null);
+  const [peakCompliance, setPeakCompliance] = useState<number | null>(null);
+  const [gradient, setGradient] = useState<number | null>(null);
+  const [ecv, setECV] = useState<number | null>(null);
+
   // New state variables for controls
   const [pressureMin, setPressureMin] = useState(-150);
   const [pressureMax, setPressureMax] = useState(50);
@@ -129,17 +135,31 @@ export default function TympanometryPage() {
   React.useEffect(() => {
     if (!socket) return;
 
-    const handleTympanometryStatus = (data: ImpedanceStatus) => {
-      console.log("Received tympanometry status:", data);
-      if (isRunning && !isTestCompleted) {
-        // Update current values
-        setCurrentPressure(data.Pressure || 0);
-        setCurrentCompliance(data.Compliance || 0);
+    const handleTympanometryStatus = (data: {
+      tympanometryStatus: ImpedanceStatus;
+    }) => {
+      console.log("Received tympanometry status:", data.tympanometryStatus);
 
-        // Add new point to real-time data
+      // Always update current values
+      const pressure = data.tympanometryStatus.Pressure ?? 0;
+      const compliance = data.tympanometryStatus.Compliance ?? 0;
+
+      console.log(
+        "Updating values - Pressure:",
+        pressure,
+        "Compliance:",
+        compliance
+      );
+
+      // Force state updates
+      setCurrentPressure(() => pressure);
+      setCurrentCompliance(() => compliance);
+
+      // Only add points to real-time data if test is running
+      if (isRunning && !isTestCompleted) {
         const newPoint: TympanogramPoint = {
-          pressure: data.Pressure || 0,
-          compliance: data.Compliance || 0,
+          pressure,
+          compliance,
           ear: selectedEar,
         };
         console.log("Adding new point:", newPoint);
@@ -147,47 +167,108 @@ export default function TympanometryPage() {
       }
     };
 
-    const handleTympanometryData = (data: ImpedanceData) => {
-      console.log("Received tympanometry data:", data);
-      if (data.Tymp?.PressureData && data.Tymp?.Y?.ComplianceData) {
-        const finalPoints: TympanogramPoint[] = data.Tymp.PressureData.map(
-          (pressure: number, index: number) => {
-            const compliance = data.Tymp!.Y!.ComplianceData![index];
-            return {
-              pressure,
-              compliance,
-              ear: selectedEar,
-            };
-          }
-        );
+    const handleTympanometryData = (data: {
+      tympanometryData: ImpedanceData;
+    }) => {
+      console.log("Received tympanometry data:", data.tympanometryData);
+      if (
+        data.tympanometryData.Tymp?.PressureData &&
+        data.tympanometryData.Tymp?.Y?.ComplianceData
+      ) {
+        const finalPoints: TympanogramPoint[] =
+          data.tympanometryData.Tymp.PressureData.map(
+            (pressure: number, index: number) => {
+              const compliance =
+                data.tympanometryData.Tymp!.Y!.ComplianceData![index];
+              return {
+                pressure,
+                compliance,
+                ear: selectedEar,
+              };
+            }
+          );
         console.log("Setting final points:", finalPoints);
-        setFinalData(finalPoints);
-        setIsTestCompleted(true);
-        setIsRunning(false);
+
+        // Force state updates
+        setFinalData(() => finalPoints);
+        setIsTestCompleted(() => true);
+        setIsRunning(() => false);
+
+        // Update final values from data
+        if (data.tympanometryData.Tymp?.Y?.Peak?.Pressure !== undefined) {
+          setPeakPressure(data.tympanometryData.Tymp.Y.Peak.Pressure);
+        }
+        if (data.tympanometryData.Tymp?.Y?.Peak?.Compliance !== undefined) {
+          setPeakCompliance(data.tympanometryData.Tymp.Y.Peak.Compliance);
+        }
+        if (data.tympanometryData.Tymp?.Y?.Gradient !== undefined) {
+          setGradient(data.tympanometryData.Tymp.Y.Gradient);
+        }
+        if (data.tympanometryData.Tymp?.ECV !== undefined) {
+          setECV(data.tympanometryData.Tymp.ECV);
+        }
       }
     };
 
-    socket.on("tympanometry-status", handleTympanometryStatus);
-    socket.on("tympanometry-data", handleTympanometryData);
+    // Add socket event listeners with explicit types
+    socket.on(
+      "tympanometry-status",
+      (data: { tympanometryStatus: ImpedanceStatus }) => {
+        handleTympanometryStatus(data);
+      }
+    );
 
+    socket.on(
+      "tympanometry-data",
+      (data: { tympanometryData: ImpedanceData }) => {
+        handleTympanometryData(data);
+      }
+    );
+
+    // Cleanup function
     return () => {
-      socket.off("tympanometry-status", handleTympanometryStatus);
-      socket.off("tympanometry-data", handleTympanometryData);
+      socket.off("tympanometry-status");
+      socket.off("tympanometry-data");
     };
   }, [socket, isRunning, isTestCompleted, selectedEar]);
+
+  // Add debug logging for state changes
+  React.useEffect(() => {
+    console.log("State updated:", {
+      currentPressure,
+      currentCompliance,
+      isRunning,
+      isTestCompleted,
+      realTimeDataLength: realTimeData.length,
+      finalDataLength: finalData.length,
+    });
+  }, [
+    currentPressure,
+    currentCompliance,
+    isRunning,
+    isTestCompleted,
+    realTimeData.length,
+    finalData.length,
+  ]);
 
   // Start/Stop tympanometry test
   const startTest = useCallback(() => {
     if (!socket) return;
 
     if (!isRunning) {
+      // Reset all state values
+      setRealTimeData(() => []);
+      setFinalData(() => []);
+      setIsTestCompleted(() => false);
+      setCurrentPressure(() => 0);
+      setCurrentCompliance(() => 0);
+      setPeakPressure(() => null);
+      setPeakCompliance(() => null);
+      setGradient(() => null);
+      setECV(() => null);
+
       // Start the test
-      setIsRunning(true);
-      setRealTimeData([]);
-      setFinalData([]);
-      setIsTestCompleted(false);
-      setCurrentPressure(0);
-      setCurrentCompliance(0);
+      setIsRunning(() => true);
 
       // Emit start test event with parameters
       socket.emit("start-tympanometry", {
@@ -215,7 +296,10 @@ export default function TympanometryPage() {
       });
     } else {
       // Stop the test
-      setIsRunning(false);
+      setIsRunning(() => false);
+      socket.emit("stop-tympanometry", {
+        consultationId: params.consultationId,
+      });
       console.log("Stopped tympanometry test");
     }
   }, [
@@ -242,6 +326,10 @@ export default function TympanometryPage() {
     setIsRunning(false);
     setCurrentPressure(0);
     setCurrentCompliance(0);
+    setPeakPressure(null);
+    setPeakCompliance(null);
+    setGradient(null);
+    setECV(null);
   }, []);
 
   // Debug current state
@@ -475,27 +563,102 @@ export default function TympanometryPage() {
           </button>
         </div>
 
-        {/* Current Measurement */}
-        {isRunning && (
-          <div className="mb-6 p-4 bg-gray-100 rounded">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-600">
-                  Current Pressure
-                </label>
-                <p className="text-lg font-semibold">{currentPressure} daPa</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600">
-                  Current Compliance
-                </label>
-                <p className="text-lg font-semibold">
-                  {currentCompliance?.toFixed(2) ?? "0.00"} ml
-                </p>
-              </div>
+        {/* Current Measurement - Always show */}
+        <div className="mb-6 p-4 bg-gray-100 rounded">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-600">
+                Current Pressure
+              </label>
+              <p className="text-lg font-semibold">{currentPressure} daPa</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600">
+                Current Compliance
+              </label>
+              <p className="text-lg font-semibold">
+                {currentCompliance?.toFixed(2) ?? "0.00"} ml
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600">
+                Peak Pressure
+              </label>
+              <p className="text-lg font-semibold">
+                {peakPressure !== null ? `${peakPressure} daPa` : "--"}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600">
+                Peak Compliance
+              </label>
+              <p className="text-lg font-semibold">
+                {peakCompliance !== null
+                  ? `${peakCompliance.toFixed(2)} ml`
+                  : "--"}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600">
+                Gradient
+              </label>
+              <p className="text-lg font-semibold">
+                {gradient !== null ? `${gradient.toFixed(2)} ml/daPa` : "--"}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600">
+                ECV
+              </label>
+              <p className="text-lg font-semibold">
+                {ecv !== null ? `${ecv.toFixed(2)} ml` : "--"}
+              </p>
             </div>
           </div>
-        )}
+        </div>
+
+        {/* Graph - Always show */}
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Tympanogram</h3>
+          <div className="h-[400px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={isTestCompleted ? finalData : realTimeData}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="pressure"
+                  label={{
+                    value: "Pressure (daPa)",
+                    position: "bottom",
+                  }}
+                />
+                <YAxis
+                  label={{
+                    value: "Compliance (ml)",
+                    angle: -90,
+                    position: "left",
+                  }}
+                />
+                <Tooltip
+                  formatter={(value: number) => [
+                    value.toFixed(2),
+                    "Compliance",
+                  ]}
+                  labelFormatter={(label) => `Pressure: ${label} daPa`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="compliance"
+                  stroke="#8884d8"
+                  dot={false}
+                  isAnimationActive={!isTestCompleted}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
         {/* Results */}
         {!isRunning && finalData.length > 0 && (
