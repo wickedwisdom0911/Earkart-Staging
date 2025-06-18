@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:developer';
 
 import 'package:earkart_omni/config/utils/packet_format_interpreter.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
