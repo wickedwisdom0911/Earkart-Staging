@@ -106,7 +106,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       if (!isNowConnected) {
         _handleDeviceDisconnection();
       } else {
-        _handleDeviceConnection(r15cDevice!);
+        _handleDeviceConnection(r15cDevice);
       }
     }
 
