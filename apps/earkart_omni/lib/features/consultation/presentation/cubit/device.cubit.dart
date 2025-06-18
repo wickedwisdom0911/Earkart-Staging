@@ -11,11 +11,13 @@ class DeviceCubit extends Cubit<DeviceState> {
   UsbDevice? _r15cDevice;
   UsbDevice? _revo2Device;
 
-  DeviceCubit() : super(DeviceInitial());
+  static const _usbPollInterval = Duration(seconds: 1);
+
+  DeviceCubit() : super(const DeviceState.initial());
 
   void startDeviceMonitoring() {
     _usbTimer?.cancel();
-    _usbTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+    _usbTimer = Timer.periodic(_usbPollInterval, (timer) async {
       await _fetchDevices();
     });
   }
@@ -23,68 +25,103 @@ class DeviceCubit extends Cubit<DeviceState> {
   Future<void> _fetchDevices() async {
     try {
       final connectedDevices = await UsbSerial.listDevices();
-      bool deviceAttached = false;
-      bool deviceDetached = false;
+      final previousDevices = List<UsbDevice>.from(_devices);
 
-      // Check for newly attached devices
-      for (var newDevice in connectedDevices) {
-        if (!_devices.any(
-          (existingDevice) =>
-              existingDevice.pid == newDevice.pid &&
-              existingDevice.vid == newDevice.vid,
-        )) {
-          deviceAttached = true;
-          di<ILogger>().debug(
-            'Device attached: ${newDevice.productName} (PID: ${newDevice.pid}, VID: ${newDevice.vid})',
-          );
-        }
-      }
+      // Check for device changes
+      final deviceChanges = _detectDeviceChanges(
+        previousDevices,
+        connectedDevices,
+      );
 
-      // Check for detached devices
-      for (var existingDevice in _devices) {
-        if (!connectedDevices.any(
-          (newDevice) =>
-              newDevice.pid == existingDevice.pid &&
-              newDevice.vid == existingDevice.vid,
-        )) {
-          deviceDetached = true;
-          di<ILogger>().debug(
-            'Device detached: ${existingDevice.productName} (PID: ${existingDevice.pid}, VID: ${existingDevice.vid})',
-          );
-        }
+      if (deviceChanges.hasChanges) {
+        _handleDeviceChanges(deviceChanges);
       }
 
       _devices = connectedDevices;
 
-      // Find R15C device
-      try {
-        _r15cDevice = connectedDevices.firstWhere(
-          (device) => device.pid == 206 && device.vid == 1118,
-          orElse: () => throw Exception('Device not found'),
-        );
-      } catch (e) {
-        _r15cDevice = null;
-      }
-
-      // Find Revo2 device
-      try {
-        _revo2Device = connectedDevices.firstWhere(
-          (device) => device.pid == 8325 && device.vid == 7119,
-          orElse: () => throw Exception('Device not found'),
-        );
-      } catch (e) {
-        _revo2Device = null;
-      }
+      // Update device references
+      _updateDeviceReferences(connectedDevices);
 
       emit(
-        DeviceSuccess(
+        DeviceState.success(
           devices: _devices,
           r15cDevice: _r15cDevice,
           revo2Device: _revo2Device,
         ),
       );
     } catch (e) {
-      emit(DeviceError(message: e.toString()));
+      di<ILogger>().error('Error fetching devices: $e');
+      emit(DeviceState.error(message: e.toString()));
+    }
+  }
+
+  DeviceChanges _detectDeviceChanges(
+    List<UsbDevice> previous,
+    List<UsbDevice> current,
+  ) {
+    final attached =
+        current
+            .where(
+              (device) =>
+                  !previous.any(
+                    (prev) => prev.pid == device.pid && prev.vid == device.vid,
+                  ),
+            )
+            .toList();
+
+    final detached =
+        previous
+            .where(
+              (device) =>
+                  !current.any(
+                    (curr) => curr.pid == device.pid && curr.vid == device.vid,
+                  ),
+            )
+            .toList();
+
+    return DeviceChanges(attached: attached, detached: detached);
+  }
+
+  void _handleDeviceChanges(DeviceChanges changes) {
+    // Log device changes
+    for (final device in changes.attached) {
+      final deviceType = _getDeviceType(device);
+      if (deviceType != null) {
+        di<ILogger>().info('Device attached: $deviceType');
+      }
+    }
+
+    for (final device in changes.detached) {
+      final deviceType = _getDeviceType(device);
+      if (deviceType != null) {
+        di<ILogger>().info('Device detached: $deviceType');
+      }
+    }
+  }
+
+  String? _getDeviceType(UsbDevice device) {
+    if (device.pid == 206 && device.vid == 1118) return 'r15c';
+    if (device.pid == 8325 && device.vid == 7119) return 'revo2';
+    return null;
+  }
+
+  void _updateDeviceReferences(List<UsbDevice> devices) {
+    try {
+      _r15cDevice = devices.firstWhere(
+        (device) => device.pid == 206 && device.vid == 1118,
+        orElse: () => throw Exception('R15C device not found'),
+      );
+    } catch (e) {
+      _r15cDevice = null;
+    }
+
+    try {
+      _revo2Device = devices.firstWhere(
+        (device) => device.pid == 8325 && device.vid == 7119,
+        orElse: () => throw Exception('Revo2 device not found'),
+      );
+    } catch (e) {
+      _revo2Device = null;
     }
   }
 
@@ -98,4 +135,13 @@ class DeviceCubit extends Cubit<DeviceState> {
     stopDeviceMonitoring();
     return super.close();
   }
+}
+
+class DeviceChanges {
+  final List<UsbDevice> attached;
+  final List<UsbDevice> detached;
+
+  DeviceChanges({required this.attached, required this.detached});
+
+  bool get hasChanges => attached.isNotEmpty || detached.isNotEmpty;
 }

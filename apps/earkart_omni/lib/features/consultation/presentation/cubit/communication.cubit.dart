@@ -27,11 +27,16 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   StreamSubscription<Uint8List>? _subscription;
   final _commandQueue = Queue<_Command>();
   bool _processing = false;
+  Timer? _connectionCheckTimer;
+  Timer? _commandTimeoutTimer;
 
   static const int MAX_CONSECUTIVE_ERRORS = 15;
   static const int MAX_RETRY_ATTEMPTS = 3;
   static const int RETRY_DELAY_MS = 500;
+  static const int COMMAND_TIMEOUT_MS = 2000;
+  static const int CONNECTION_CHECK_INTERVAL_MS = 5000;
   int _errorCount = 0;
+  int _consecutiveTimeouts = 0;
 
   CommunicationCubit() : super(const CommunicationState());
 
@@ -40,37 +45,22 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       di<ILogger>().debug('Initializing port for device: ${device.deviceId}');
       emit(state.copyWith(connectionStatus: 'Initializing...', error: null));
 
+      // Close existing port if any
+      await _cleanupPort();
+
       _port = await device.create();
       if (_port == null) {
-        di<ILogger>().error(
-          'Failed to create port for device: ${device.deviceId}',
-        );
-        emit(
-          state.copyWith(
-            error: 'Failed to create port',
-            connectionStatus: 'Failed',
-          ),
-        );
-        return false;
+        throw Exception('Failed to create port');
       }
 
       bool openResult = await _port!.open();
       if (!openResult) {
-        di<ILogger>().error(
-          'Failed to open port for device: ${device.deviceId}',
-        );
-        emit(
-          state.copyWith(
-            error: 'Failed to open port',
-            connectionStatus: 'Failed',
-          ),
-        );
-        return false;
+        throw Exception('Failed to open port');
       }
 
-      di<ILogger>().debug('Port opened successfully, configuring device...');
       await _configureFTDIDevice();
       _setupListener();
+      _startConnectionMonitoring();
 
       di<ILogger>().info('Device initialized successfully');
       emit(
@@ -89,7 +79,47 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           connectionStatus: 'Error',
         ),
       );
+      await _cleanupPort();
       return false;
+    }
+  }
+
+  Future<void> _cleanupPort() async {
+    _subscription?.cancel();
+    _subscription = null;
+    if (_port != null) {
+      try {
+        await _port!.close();
+      } catch (e) {
+        di<ILogger>().error('Error closing port: $e');
+      }
+      _port = null;
+    }
+  }
+
+  void _startConnectionMonitoring() {
+    _connectionCheckTimer?.cancel();
+    _connectionCheckTimer = Timer.periodic(
+      const Duration(milliseconds: CONNECTION_CHECK_INTERVAL_MS),
+      (_) => _checkConnection(),
+    );
+  }
+
+  Future<void> _checkConnection() async {
+    if (_port == null || !state.isConnected) return;
+
+    try {
+      // Send a simple ping command
+      await _port!.write(Uint8List.fromList([0x00]));
+      _consecutiveTimeouts = 0;
+    } catch (e) {
+      di<ILogger>().error('Connection check failed: $e');
+      _consecutiveTimeouts++;
+
+      if (_consecutiveTimeouts >= 3) {
+        di<ILogger>().error('Connection lost, attempting to reset...');
+        await _resetConnection();
+      }
     }
   }
 
@@ -132,8 +162,15 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   void _handleError(dynamic error) {
+    _errorCount++;
     di<ILogger>().error('Communication error: $error');
-    emit(state.copyWith(error: 'Communication error: $error'));
+
+    if (_errorCount >= MAX_CONSECUTIVE_ERRORS) {
+      di<ILogger>().error('Too many consecutive errors, resetting connection');
+      _resetConnection();
+    } else {
+      emit(state.copyWith(error: 'Communication error: $error'));
+    }
   }
 
   void _handleIncomingData(Uint8List data) {
@@ -229,18 +266,25 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   Future<void> sendCommand(Uint8List packet) async {
     if (_port == null) {
-      di<ILogger>().error(
-        'Attempted to send command but port is not initialized',
-      );
-      emit(state.copyWith(error: 'Port not initialized'));
-      return;
+      throw Exception('Port not initialized');
     }
 
-    di<ILogger>().debug('Sending command packet: ${packet.length} bytes');
     return _withRetry(() async {
       final completer = Completer<void>();
       _commandQueue.add(_Command(packet, completer));
       _processQueue();
+
+      // Set command timeout
+      _commandTimeoutTimer?.cancel();
+      _commandTimeoutTimer = Timer(
+        const Duration(milliseconds: COMMAND_TIMEOUT_MS),
+        () {
+          if (!completer.isCompleted) {
+            completer.completeError('Command timeout');
+          }
+        },
+      );
+
       return completer.future;
     });
   }
@@ -249,25 +293,23 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     if (_processing || _commandQueue.isEmpty) return;
     _processing = true;
 
-    di<ILogger>().debug(
-      'Processing command queue: ${_commandQueue.length} commands',
-    );
     while (_commandQueue.isNotEmpty) {
-      final command = _commandQueue.removeFirst();
+      final command = _commandQueue.first;
       try {
         await _port!.write(command.packet);
         await Future.delayed(const Duration(milliseconds: 50));
         command.completer.complete();
-        di<ILogger>().debug('Command sent successfully');
+        _commandQueue.removeFirst();
+        _errorCount = 0; // Reset error count on successful command
       } catch (e) {
         di<ILogger>().error('Error sending command: $e');
         command.completer.completeError(e);
         _handleError(e);
+        break;
       }
     }
 
     _processing = false;
-    di<ILogger>().debug('Command queue processing complete');
   }
 
   Future<void> sendSyncPacket() async {
@@ -457,10 +499,9 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   @override
   Future<void> close() {
-    di<ILogger>().debug('Closing communication cubit');
-    _subscription?.cancel();
-    _port?.close();
-    _port = null;
+    _connectionCheckTimer?.cancel();
+    _commandTimeoutTimer?.cancel();
+    _cleanupPort();
     return super.close();
   }
 
@@ -490,7 +531,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   Future<void> _resetConnection() async {
     try {
       di<ILogger>().info('Starting connection reset...');
-      _subscription?.cancel();
+      await _cleanupPort();
 
       emit(
         state.copyWith(
@@ -505,30 +546,27 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         ),
       );
 
-      await _withRetry(() async {
-        await _port?.close();
-        await Future.delayed(const Duration(milliseconds: 1000));
-      });
+      // Wait for device to stabilize
+      await Future.delayed(const Duration(seconds: 1));
 
-      await _withRetry(() async {
+      // Attempt to reopen port
+      if (_port != null) {
         bool openResult = await _port!.open();
         if (!openResult) throw Exception('Failed to reopen port');
-        await Future.delayed(const Duration(milliseconds: 500));
-      });
 
-      await _configureFTDIDevice();
-      _setupListener();
+        await _configureFTDIDevice();
+        _setupListener();
 
-      di<ILogger>().info('Connection reset complete');
-      emit(
-        state.copyWith(
-          isConnected: true,
-          connectionStatus: 'Connection reset complete',
-          error: null,
-        ),
-      );
+        emit(
+          state.copyWith(
+            isConnected: true,
+            connectionStatus: 'Connection reset complete',
+            error: null,
+          ),
+        );
 
-      await sendSyncPacket();
+        await sendSyncPacket();
+      }
     } catch (e) {
       di<ILogger>().error('Reset failed: $e');
       emit(
@@ -538,7 +576,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           connectionStatus: 'Failed',
         ),
       );
-      rethrow;
     }
   }
 }

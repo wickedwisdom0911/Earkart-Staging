@@ -40,8 +40,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   @override
   void initState() {
     super.initState();
-    context.read<ConsultationCubit>().getCurrentConsultation();
+    _initializeScreen();
+  }
 
+  void _initializeScreen() {
+    // Get current consultation first
+    context.read<ConsultationCubit>().getCurrentConsultation();
+    // Then check permissions and initialize devices
     _checkAndRequestPermissions();
   }
 
@@ -50,34 +55,209 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     final usbStatus = await Permission.bluetooth.request();
 
     if (storageStatus.isGranted && usbStatus.isGranted) {
-      context.read<DeviceCubit>().startDeviceMonitoring();
-    } else if (storageStatus.isDenied ||
-        storageStatus.isPermanentlyDenied ||
-        usbStatus.isDenied ||
-        usbStatus.isPermanentlyDenied) {
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder:
-              (context) => AlertDialog(
-                title: const Text('Permission Required'),
-                content: const Text(
-                  'Storage and USB permissions are required to detect USB devices. Please grant the permissions in settings.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      openAppSettings();
-                    },
-                    child: const Text('Open Settings'),
-                  ),
-                ],
-              ),
-        );
+      _initializeDeviceMonitoring();
+    } else {
+      _showPermissionDialog();
+    }
+  }
+
+  void _initializeDeviceMonitoring() {
+    // Start device monitoring
+    context.read<DeviceCubit>().startDeviceMonitoring();
+
+    // Setup listeners for device and communication state changes
+    _setupDeviceListeners();
+  }
+
+  void _setupDeviceListeners() {
+    // Listen for device state changes
+    context.read<DeviceCubit>().stream.listen((deviceState) {
+      deviceState.maybeWhen(
+        success: (devices, r15cDevice, revo2Device) {
+          _handleDeviceStateChange(r15cDevice, revo2Device);
+        },
+        error: (message) {
+          _showErrorSnackBar('Device error: $message');
+        },
+        orElse: () {},
+      );
+    });
+
+    // Listen for communication state changes
+    context.read<CommunicationCubit>().stream.listen((commState) {
+      _handleCommunicationStateChange(commState);
+    });
+  }
+
+  void _handleDeviceStateChange(UsbDevice? r15cDevice, UsbDevice? revo2Device) {
+    final wasConnected = this.r15cDevice != null;
+    final isNowConnected = r15cDevice != null;
+
+    // Update device references
+    this.r15cDevice = r15cDevice;
+    this.revo2Device = revo2Device;
+
+    // Handle device state changes
+    if (wasConnected != isNowConnected) {
+      di<ILogger>().debug(
+        isNowConnected ? 'R15C device attached' : 'R15C device detached',
+      );
+
+      if (!isNowConnected) {
+        _handleDeviceDisconnection();
+      } else {
+        _handleDeviceConnection(r15cDevice!);
       }
     }
+
+    // Emit device event to socket if connected
+    if (_isSocketInitialized) {
+      _emitDeviceEvent(context.read<CommunicationCubit>().state);
+    }
+  }
+
+  void _handleDeviceDisconnection() {
+    // Reset communication state
+    context.read<CommunicationCubit>().resetState();
+
+    // Show disconnection message
+    if (mounted) {
+      _showErrorSnackBar('Device disconnected. Attempting to reconnect...');
+    }
+  }
+
+  void _handleDeviceConnection(UsbDevice device) {
+    di<ILogger>().debug('Initializing newly attached R15C device');
+
+    // Initialize device with retry
+    _initializeDeviceWithRetry(device);
+  }
+
+  Future<void> _initializeDeviceWithRetry(UsbDevice device) async {
+    int retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = Duration(seconds: 2);
+
+    while (retryCount < maxRetries) {
+      final success = await context.read<CommunicationCubit>().initializePort(
+        device,
+      );
+      if (success) {
+        di<ILogger>().info('Device initialized successfully');
+        return;
+      }
+
+      retryCount++;
+      if (retryCount < maxRetries) {
+        di<ILogger>().debug(
+          'Retrying device initialization (attempt $retryCount)',
+        );
+        await Future.delayed(retryDelay);
+      }
+    }
+
+    if (mounted) {
+      _showErrorSnackBar(
+        'Failed to initialize device after $maxRetries attempts',
+      );
+    }
+  }
+
+  void _handleCommunicationStateChange(CommunicationState state) {
+    if (r15cDevice != null) {
+      if (!state.isConnected) {
+        _handleDisconnectedState();
+      } else if (state.isConnected && !state.isSynced) {
+        _handleConnectedState();
+      } else if (state.isSynced && state.transducerResponse == null) {
+        _handleSyncedState();
+      } else if (state.transducerResponse != null) {
+        _handleReadyState();
+      }
+    }
+
+    // Handle error states
+    if (state.error != null) {
+      _handleCommunicationError(state.error!);
+    }
+  }
+
+  void _handleDisconnectedState() {
+    di<ILogger>().debug('Device not connected, initializing port...');
+    if (r15cDevice != null) {
+      _initializeDeviceWithRetry(r15cDevice!);
+    }
+    _emitDeviceEvent(context.read<CommunicationCubit>().state);
+  }
+
+  void _handleConnectedState() {
+    di<ILogger>().debug(
+      'Device connected but not synced, sending sync packet...',
+    );
+    context.read<CommunicationCubit>().sendSyncPacket();
+    _emitDeviceEvent(context.read<CommunicationCubit>().state);
+  }
+
+  void _handleSyncedState() {
+    di<ILogger>().debug(
+      'Device synced but not ready, sending query info packet...',
+    );
+    context.read<CommunicationCubit>().sendQueryInfoPacket();
+    _emitDeviceEvent(context.read<CommunicationCubit>().state);
+  }
+
+  void _handleReadyState() {
+    di<ILogger>().debug('Device ready with transducer response');
+    _handleBeginPacket(testType);
+    _emitDeviceEvent(context.read<CommunicationCubit>().state);
+  }
+
+  void _handleCommunicationError(String error) {
+    di<ILogger>().error('Device error: $error');
+    _showErrorSnackBar('Device error: $error');
+    _emitDeviceEvent(context.read<CommunicationCubit>().state);
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'Retry',
+          onPressed: () {
+            if (r15cDevice != null) {
+              _initializeDeviceWithRetry(r15cDevice!);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showPermissionDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Permission Required'),
+            content: const Text(
+              'Storage and USB permissions are required to detect USB devices. Please grant the permissions in settings.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  openAppSettings();
+                },
+                child: const Text('Open Settings'),
+              ),
+            ],
+          ),
+    );
   }
 
   @override
