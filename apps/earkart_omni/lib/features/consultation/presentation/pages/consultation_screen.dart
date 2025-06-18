@@ -37,6 +37,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   UsbDevice? r15cDevice;
   UsbDevice? revo2Device;
   TestType? testType;
+  // Only track status, not data
+  dynamic _lastImpedanceStatus;
   @override
   void initState() {
     super.initState();
@@ -622,6 +624,16 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
           BlocListener<CommunicationCubit, CommunicationState>(
             listener: (context, state) {
+              // Handle impedance status
+              if (state.impedanceStatus != null) {
+                _emitTympanometryStatus(state);
+              }
+
+              // Only emit impedance data if it's a new data event
+              if (state.impedanceData != null && state.isNewImpedanceData) {
+                _emitTympanometryData(state);
+              }
+
               if (r15cDevice != null) {
                 // Handle connection state
                 if (!state.isConnected) {
@@ -657,13 +669,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 }
               }
 
-              // Handle impedance status
-              if (state.impedanceStatus != null) {
-                _emitTympanometryStatus(state);
-              }
-              if (state.impedanceData != null) {
-                _emitTympanometryData(state);
-              }
+              // Handle error states
               if (state.error != null) {
                 di<ILogger>().error('Device error: ${state.error}');
                 _emitDeviceEvent(state);
@@ -710,8 +716,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "revo2Connected": revo2Device != null,
         "connectionStatus": connectionStatus,
         "transducerResponse": state.transducerResponse,
-        "impedanceStatus": state.impedanceStatus,
-        "impedanceData": state.impedanceData,
       });
     }
   }
@@ -733,7 +737,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   }
 
   void _emitTympanometryStatus(CommunicationState state) {
-    if (_isSocketInitialized && state.impedanceStatus != null) {
+    if (_isSocketInitialized &&
+        state.impedanceStatus != null &&
+        state.impedanceStatus != _lastImpedanceStatus) {
       di<ILogger>().debug(
         'Emitting tympanometry status: ${state.impedanceStatus}',
       );
@@ -741,6 +747,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "consultationId": consultation?.id,
         "tympanometryStatus": state.impedanceStatus,
       });
+      _lastImpedanceStatus = state.impedanceStatus;
     }
   }
 

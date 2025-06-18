@@ -25,6 +25,7 @@ mixin _$CommunicationState {
       throw _privateConstructorUsedError;
   ImpedanceStatus? get impedanceStatus => throw _privateConstructorUsedError;
   ImpedanceData? get impedanceData => throw _privateConstructorUsedError;
+  bool get isNewImpedanceData => throw _privateConstructorUsedError;
   String? get error => throw _privateConstructorUsedError;
 
   /// Create a copy of CommunicationState
@@ -49,6 +50,7 @@ abstract class $CommunicationStateCopyWith<$Res> {
       TransducerResponse? transducerResponse,
       ImpedanceStatus? impedanceStatus,
       ImpedanceData? impedanceData,
+      bool isNewImpedanceData,
       String? error});
 }
 
@@ -75,6 +77,7 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
     Object? transducerResponse = freezed,
     Object? impedanceStatus = freezed,
     Object? impedanceData = freezed,
+    Object? isNewImpedanceData = null,
     Object? error = freezed,
   }) {
     return _then(_value.copyWith(
@@ -110,6 +113,10 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
           ? _value.impedanceData
           : impedanceData // ignore: cast_nullable_to_non_nullable
               as ImpedanceData?,
+      isNewImpedanceData: null == isNewImpedanceData
+          ? _value.isNewImpedanceData
+          : isNewImpedanceData // ignore: cast_nullable_to_non_nullable
+              as bool,
       error: freezed == error
           ? _value.error
           : error // ignore: cast_nullable_to_non_nullable
@@ -135,6 +142,7 @@ abstract class _$$CommunicationStateImplCopyWith<$Res>
       TransducerResponse? transducerResponse,
       ImpedanceStatus? impedanceStatus,
       ImpedanceData? impedanceData,
+      bool isNewImpedanceData,
       String? error});
 }
 
@@ -159,6 +167,7 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
     Object? transducerResponse = freezed,
     Object? impedanceStatus = freezed,
     Object? impedanceData = freezed,
+    Object? isNewImpedanceData = null,
     Object? error = freezed,
   }) {
     return _then(_$CommunicationStateImpl(
@@ -194,6 +203,10 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
           ? _value.impedanceData
           : impedanceData // ignore: cast_nullable_to_non_nullable
               as ImpedanceData?,
+      isNewImpedanceData: null == isNewImpedanceData
+          ? _value.isNewImpedanceData
+          : isNewImpedanceData // ignore: cast_nullable_to_non_nullable
+              as bool,
       error: freezed == error
           ? _value.error
           : error // ignore: cast_nullable_to_non_nullable
@@ -214,6 +227,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
       this.transducerResponse,
       this.impedanceStatus,
       this.impedanceData,
+      this.isNewImpedanceData = false,
       this.error});
 
   @override
@@ -238,11 +252,14 @@ class _$CommunicationStateImpl implements _CommunicationState {
   @override
   final ImpedanceData? impedanceData;
   @override
+  @JsonKey()
+  final bool isNewImpedanceData;
+  @override
   final String? error;
 
   @override
   String toString() {
-    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, isInBeginMode: $isInBeginMode, connectionStatus: $connectionStatus, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, error: $error)';
+    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, isInBeginMode: $isInBeginMode, connectionStatus: $connectionStatus, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, isNewImpedanceData: $isNewImpedanceData, error: $error)';
   }
 
   @override
@@ -266,6 +283,8 @@ class _$CommunicationStateImpl implements _CommunicationState {
                 other.impedanceStatus == impedanceStatus) &&
             (identical(other.impedanceData, impedanceData) ||
                 other.impedanceData == impedanceData) &&
+            (identical(other.isNewImpedanceData, isNewImpedanceData) ||
+                other.isNewImpedanceData == isNewImpedanceData) &&
             (identical(other.error, error) || other.error == error));
   }
 
@@ -280,6 +299,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
       transducerResponse,
       impedanceStatus,
       impedanceData,
+      isNewImpedanceData,
       error);
 
   /// Create a copy of CommunicationState
@@ -302,6 +322,7 @@ abstract class _CommunicationState implements CommunicationState {
       final TransducerResponse? transducerResponse,
       final ImpedanceStatus? impedanceStatus,
       final ImpedanceData? impedanceData,
+      final bool isNewImpedanceData,
       final String? error}) = _$CommunicationStateImpl;
 
   @override
@@ -320,6 +341,8 @@ abstract class _CommunicationState implements CommunicationState {
   ImpedanceStatus? get impedanceStatus;
   @override
   ImpedanceData? get impedanceData;
+  @override
+  bool get isNewImpedanceData;
   @override
   String? get error;
 

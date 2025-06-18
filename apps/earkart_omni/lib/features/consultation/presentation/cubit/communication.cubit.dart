@@ -253,7 +253,15 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         case 15: // Impedance Data
           di<ILogger>().debug('Received impedance data');
           final impedanceData = ImpedanceData.fromJson(json);
-          emit(state.copyWith(impedanceData: impedanceData, error: null));
+          emit(
+            state.copyWith(
+              impedanceData: impedanceData,
+              isNewImpedanceData: true,
+              error: null,
+            ),
+          );
+          // Reset the flag after emitting
+          emit(state.copyWith(isNewImpedanceData: false));
           break;
       }
     } catch (e) {

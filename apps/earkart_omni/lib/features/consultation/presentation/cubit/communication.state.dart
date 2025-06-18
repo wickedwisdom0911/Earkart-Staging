@@ -16,6 +16,7 @@ class CommunicationState with _$CommunicationState {
     TransducerResponse? transducerResponse,
     ImpedanceStatus? impedanceStatus,
     ImpedanceData? impedanceData,
+    @Default(false) bool isNewImpedanceData,
     String? error,
   }) = _CommunicationState;
 }

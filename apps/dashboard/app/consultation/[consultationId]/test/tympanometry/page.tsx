@@ -4,6 +4,15 @@ import { ImpedanceStatus } from "@/models/device/impredance-status.model";
 import { useSocket } from "@/providers/socket-provider";
 import { useParams } from "next/navigation";
 import React, { useState, useCallback } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 interface TympanogramPoint {
   pressure: number;
@@ -11,8 +20,6 @@ interface TympanogramPoint {
   ear: "L" | "R";
 }
 
-const PRESSURE_RANGE = Array.from({ length: 401 }, (_, i) => i - 200); // -200 to +200 daPa
-const COMPLIANCE_RANGE = Array.from({ length: 21 }, (_, i) => i * 0.1); // 0 to 2.0 ml
 const PROBE_TONES = [226, 1000]; // Hz
 
 const RANGE_PRESETS = [
@@ -22,21 +29,91 @@ const RANGE_PRESETS = [
   { label: "100/-200", start: 100, stop: -200 },
 ];
 
+interface TympanogramGraphProps {
+  realTimeData: TympanogramPoint[];
+  finalData: TympanogramPoint[];
+  isTestCompleted: boolean;
+  selectedEar: "L" | "R";
+  currentPressure: number;
+  currentCompliance: number;
+}
+
+const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
+  realTimeData,
+  finalData,
+  isTestCompleted,
+  selectedEar,
+  currentPressure,
+  currentCompliance,
+}) => {
+  const data = isTestCompleted ? finalData : realTimeData;
+  const color = selectedEar === "L" ? "#3B82F6" : "#EF4444";
+
+  return (
+    <div className="border rounded p-4">
+      <div className="h-[400px] relative">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={data}
+            margin={{ top: 20, right: 20, bottom: 20, left: 40 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey="pressure"
+              domain={[-400, 200]}
+              tickCount={7}
+              tickFormatter={(value: number) => `${value}`}
+            />
+            <YAxis
+              domain={[0, 2]}
+              tickCount={5}
+              tickFormatter={(value: number) => value.toFixed(1)}
+            />
+            <Tooltip
+              formatter={(value: number) => [
+                `${value.toFixed(2)} ml`,
+                "Compliance",
+              ]}
+              labelFormatter={(label: number) => `Pressure: ${label} daPa`}
+            />
+            <Line
+              type="monotone"
+              dataKey="compliance"
+              stroke={color}
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4, fill: color }}
+            />
+            {isTestCompleted && (
+              <Line
+                type="monotone"
+                data={[
+                  { pressure: currentPressure, compliance: currentCompliance },
+                ]}
+                dataKey="compliance"
+                stroke={color}
+                strokeWidth={0}
+                dot={{ r: 6, fill: color, stroke: "white", strokeWidth: 2 }}
+              />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
 export default function TympanometryPage() {
   const socket = useSocket();
   const params = useParams();
   const [selectedEar, setSelectedEar] = useState<"L" | "R">("L");
   const [selectedProbeTone, setSelectedProbeTone] = useState(226);
   const [isRunning, setIsRunning] = useState(false);
-  const [tympanogramData, setTympanogramData] = useState<TympanogramPoint[]>(
-    []
-  );
   const [currentPressure, setCurrentPressure] = useState(0);
   const [currentCompliance, setCurrentCompliance] = useState(0);
-  const [peakPressure, setPeakPressure] = useState<number | null>(null);
-  const [peakCompliance, setPeakCompliance] = useState<number | null>(null);
-  const [gradient, setGradient] = useState<number | null>(null);
-  const [earCanalVolume, setEarCanalVolume] = useState<number | null>(null);
+  const [realTimeData, setRealTimeData] = useState<TympanogramPoint[]>([]);
+  const [finalData, setFinalData] = useState<TympanogramPoint[]>([]);
+  const [isTestCompleted, setIsTestCompleted] = useState(false);
 
   // New state variables for controls
   const [pressureMin, setPressureMin] = useState(-150);
@@ -47,6 +124,58 @@ export default function TympanometryPage() {
   const [stop, setStop] = useState(-200);
   const [autoSpeed, setAutoSpeed] = useState(true);
   const speed = 200;
+
+  // Update real-time data when receiving impedance status
+  React.useEffect(() => {
+    if (!socket) return;
+
+    const handleTympanometryStatus = (data: ImpedanceStatus) => {
+      console.log("Received tympanometry status:", data);
+      if (isRunning && !isTestCompleted) {
+        // Update current values
+        setCurrentPressure(data.Pressure || 0);
+        setCurrentCompliance(data.Compliance || 0);
+
+        // Add new point to real-time data
+        const newPoint: TympanogramPoint = {
+          pressure: data.Pressure || 0,
+          compliance: data.Compliance || 0,
+          ear: selectedEar,
+        };
+        console.log("Adding new point:", newPoint);
+        setRealTimeData((prev) => [...prev, newPoint]);
+      }
+    };
+
+    const handleTympanometryData = (data: ImpedanceData) => {
+      console.log("Received tympanometry data:", data);
+      if (data.Tymp?.PressureData && data.Tymp?.Y?.ComplianceData) {
+        const finalPoints: TympanogramPoint[] = data.Tymp.PressureData.map(
+          (pressure: number, index: number) => {
+            const compliance = data.Tymp!.Y!.ComplianceData![index];
+            return {
+              pressure,
+              compliance,
+              ear: selectedEar,
+            };
+          }
+        );
+        console.log("Setting final points:", finalPoints);
+        setFinalData(finalPoints);
+        setIsTestCompleted(true);
+        setIsRunning(false);
+      }
+    };
+
+    socket.on("tympanometry-status", handleTympanometryStatus);
+    socket.on("tympanometry-data", handleTympanometryData);
+
+    return () => {
+      socket.off("tympanometry-status", handleTympanometryStatus);
+      socket.off("tympanometry-data", handleTympanometryData);
+    };
+  }, [socket, isRunning, isTestCompleted, selectedEar]);
+
   // Start/Stop tympanometry test
   const startTest = useCallback(() => {
     if (!socket) return;
@@ -54,11 +183,11 @@ export default function TympanometryPage() {
     if (!isRunning) {
       // Start the test
       setIsRunning(true);
-      setTympanogramData([]);
-      setPeakPressure(null);
-      setPeakCompliance(null);
-      setGradient(null);
-      setEarCanalVolume(null);
+      setRealTimeData([]);
+      setFinalData([]);
+      setIsTestCompleted(false);
+      setCurrentPressure(0);
+      setCurrentCompliance(0);
 
       // Emit start test event with parameters
       socket.emit("start-tympanometry", {
@@ -73,10 +202,21 @@ export default function TympanometryPage() {
         PressureMin: pressureMin,
         PressureMax: pressureMax,
       });
+      console.log("Started tympanometry test with params:", {
+        ProbeToneFrequency: selectedProbeTone,
+        AutoSpeed: autoSpeed,
+        Speed: speed,
+        Start: start,
+        Stop: stop,
+        ComplianceMin: complianceMin,
+        ComplianceMax: complianceMax,
+        PressureMin: pressureMin,
+        PressureMax: pressureMax,
+      });
     } else {
       // Stop the test
-
       setIsRunning(false);
+      console.log("Stopped tympanometry test");
     }
   }, [
     socket,
@@ -93,43 +233,26 @@ export default function TympanometryPage() {
     isRunning,
   ]);
 
-  // Listen for tympanometry data
-  React.useEffect(() => {
-    if (!socket) return;
-    socket.on("tympanometry-status", (data: ImpedanceStatus) => {
-      console.log("tympanometry-status", data);
-    });
-    socket.on("tympanometry-data", (data: ImpedanceData) => {
-      console.log("tympanometry-data", data);
-    });
+  // Reset test data
+  const resetTest = useCallback(() => {
+    console.log("Resetting test data");
+    setRealTimeData([]);
+    setFinalData([]);
+    setIsTestCompleted(false);
+    setIsRunning(false);
+    setCurrentPressure(0);
+    setCurrentCompliance(0);
+  }, []);
 
-    const handleTympanometryData = (data: TympanogramPoint) => {
-      setCurrentPressure(data.pressure);
-      setCurrentCompliance(data.compliance);
-      setTympanogramData((prev) => [...prev, data]);
-    };
-
-    const handleTestComplete = (results: {
-      peakPressure: number;
-      peakCompliance: number;
-      gradient: number;
-      earCanalVolume: number;
-    }) => {
-      setPeakPressure(results.peakPressure);
-      setPeakCompliance(results.peakCompliance);
-      setGradient(results.gradient);
-      setEarCanalVolume(results.earCanalVolume);
-      setIsRunning(false);
-    };
-
-    socket.on("tympanometry-status", handleTympanometryData);
-    socket.on("tympanometry-data", handleTestComplete);
-
-    return () => {
-      socket.off("tympanometry-status", handleTympanometryData);
-      socket.off("tympanometry-data", handleTestComplete);
-    };
-  }, [socket]);
+  // Debug current state
+  console.log("Current state:", {
+    isRunning,
+    isTestCompleted,
+    realTimeDataLength: realTimeData.length,
+    finalDataLength: finalData.length,
+    currentPressure,
+    currentCompliance,
+  });
 
   return (
     <div className="p-6">
@@ -346,7 +469,7 @@ export default function TympanometryPage() {
           </button>
           <button
             className="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-            onClick={() => setTympanogramData([])}
+            onClick={resetTest}
           >
             Clear Results
           </button>
@@ -375,7 +498,7 @@ export default function TympanometryPage() {
         )}
 
         {/* Results */}
-        {!isRunning && tympanogramData.length > 0 && (
+        {!isRunning && finalData.length > 0 && (
           <div className="mb-6">
             <h2 className="text-xl font-semibold mb-4">Results</h2>
             <div className="grid grid-cols-2 gap-4">
@@ -383,30 +506,16 @@ export default function TympanometryPage() {
                 <label className="block text-sm font-medium text-gray-600">
                   Peak Pressure
                 </label>
-                <p className="text-lg font-semibold">{peakPressure} daPa</p>
+                <p className="text-lg font-semibold">
+                  {finalData[finalData.length - 1].pressure} daPa
+                </p>
               </div>
               <div className="p-4 bg-white border rounded">
                 <label className="block text-sm font-medium text-gray-600">
                   Peak Compliance
                 </label>
                 <p className="text-lg font-semibold">
-                  {peakCompliance?.toFixed(2)} ml
-                </p>
-              </div>
-              <div className="p-4 bg-white border rounded">
-                <label className="block text-sm font-medium text-gray-600">
-                  Gradient
-                </label>
-                <p className="text-lg font-semibold">
-                  {gradient?.toFixed(0)} daPa
-                </p>
-              </div>
-              <div className="p-4 bg-white border rounded">
-                <label className="block text-sm font-medium text-gray-600">
-                  Ear Canal Volume
-                </label>
-                <p className="text-lg font-semibold">
-                  {earCanalVolume?.toFixed(2)} ml
+                  {finalData[finalData.length - 1].compliance.toFixed(2)} ml
                 </p>
               </div>
             </div>
@@ -414,56 +523,14 @@ export default function TympanometryPage() {
         )}
 
         {/* Tympanogram Display */}
-        <div className="border rounded p-4">
-          <div className="h-[400px] relative">
-            {/* Y-axis (Compliance) */}
-            <div className="absolute left-0 top-0 bottom-0 w-12 flex flex-col justify-between text-sm">
-              {COMPLIANCE_RANGE.filter((_, i) => i % 2 === 0).map((value) => (
-                <div key={value} className="text-right pr-2">
-                  {value.toFixed(1)}
-                </div>
-              ))}
-            </div>
-
-            {/* X-axis (Pressure) */}
-            <div className="absolute left-12 right-0 bottom-0 h-8 flex justify-between text-sm">
-              {PRESSURE_RANGE.filter((_, i) => i % 100 === 0).map((value) => (
-                <div key={value} className="text-center">
-                  {value}
-                </div>
-              ))}
-            </div>
-
-            {/* Graph Area */}
-            <div className="absolute left-12 right-4 top-0 bottom-8">
-              {/* Grid Lines */}
-              <div className="absolute inset-0 grid grid-cols-10 grid-rows-10">
-                {Array.from({ length: 11 }).map((_, i) => (
-                  <React.Fragment key={i}>
-                    <div className="border-t border-gray-200" />
-                    <div className="border-l border-gray-200" />
-                  </React.Fragment>
-                ))}
-              </div>
-
-              {/* Tympanogram Curve */}
-              <svg className="w-full h-full">
-                <path
-                  d={tympanogramData
-                    .map((point, i) => {
-                      const x = ((point.pressure + 200) / 400) * 100;
-                      const y = 100 - (point.compliance / 2) * 100;
-                      return `${i === 0 ? "M" : "L"} ${x}% ${y}%`;
-                    })
-                    .join(" ")}
-                  fill="none"
-                  stroke={selectedEar === "L" ? "#3B82F6" : "#EF4444"}
-                  strokeWidth="2"
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
+        <TympanogramGraph
+          realTimeData={realTimeData}
+          finalData={finalData}
+          isTestCompleted={isTestCompleted}
+          selectedEar={selectedEar}
+          currentPressure={currentPressure}
+          currentCompliance={currentCompliance}
+        />
       </div>
     </div>
   );
