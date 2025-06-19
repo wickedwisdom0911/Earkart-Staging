@@ -10,6 +10,9 @@ import { TestStatus, Ear } from "@/models/enums";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
 
 enum SignalType {
   Steady = "Steady",
@@ -84,6 +87,7 @@ export default function PureTonePage() {
   const { data: consultationResponse } = useGetConsultation(
     consultationId as string
   );
+  const router = useRouter();
 
   // Populate test results from existing audiometry data
   useEffect(() => {
@@ -548,12 +552,47 @@ export default function PureTonePage() {
     }
   };
 
+  // Handle test submission
+  const handleSubmit = () => {
+    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+      return;
+
+    const consultationData = consultationResponse.data as ConsultationModelData;
+    updateConsultation(
+      {
+        ...consultationData,
+        audiometry: {
+          ...consultationData.audiometry,
+          id: consultationData.audiometry?.id,
+          sessionId: consultationId as string,
+          status: TestStatus.COMPLETED,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      {
+        onSuccess: (data) => {
+          if (data.success) {
+            toast.success("Test completed successfully");
+            router.push(
+              ROUTES.AUDIOMETRY_TEST_REPORT(consultationId as string)
+            );
+          } else {
+            toast.error(data.message);
+          }
+        },
+        onError: (error) => {
+          toast.error(`Failed to complete test: ${error.message}`);
+        },
+      }
+    );
+  };
+
   if (!currentTransducer) {
     return <PureToneLoadingSkeleton />;
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 w-full">
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Pure Tone Audiometry</h1>
@@ -789,6 +828,9 @@ export default function PureTonePage() {
           onIndexChange={handleAudiogramClick}
         />
       </div>
+      <Button className="flex mt-4 mx-auto" onClick={handleSubmit}>
+        Submit Test
+      </Button>
     </div>
   );
 }

@@ -98,7 +98,7 @@ export default function ConsultationLayout({
           channel={resolvedParams.consultationId}
           patientName={consultationData.patient?.name || "Patient"}
         />
-        <main className="flex-1 overflow-y-scroll">{children}</main>
+        <main className="flex-1 w-full overflow-y-scroll">{children}</main>
       </div>
     </DashboardBodyWrapper>
   );

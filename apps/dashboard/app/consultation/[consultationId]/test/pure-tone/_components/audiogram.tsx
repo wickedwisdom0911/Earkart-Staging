@@ -13,6 +13,8 @@ interface PureToneGraphProps {
   selectedLabelIndexes: { x: number; y: number };
   resultMarkings: ResultMarking[];
   onIndexChange: (x: number, y: number) => void;
+  width?: number;
+  height?: number;
 }
 
 const FREQUENCIES = [
@@ -46,9 +48,9 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
   selectedLabelIndexes,
   resultMarkings,
   onIndexChange,
+  width = 800,
+  height = 600,
 }) => {
-  const width = 800;
-  const height = 600;
   const margin = { top: 40, right: 40, bottom: 40, left: 60 };
   const graphWidth = width - margin.left - margin.right;
   const graphHeight = height - margin.top - margin.bottom;

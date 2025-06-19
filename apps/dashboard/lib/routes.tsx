@@ -18,4 +18,6 @@ export const ROUTES = {
     `/consultation/${consultationId}/test-selection`,
   CONSULTATION_TEST: (consultationId: string, testId: string) =>
     `/consultation/${consultationId}/test/${testId}`,
+  AUDIOMETRY_TEST_REPORT: (consultationId: string) =>
+    `/consultation/${consultationId}/test/report/audiometry`,
 };
