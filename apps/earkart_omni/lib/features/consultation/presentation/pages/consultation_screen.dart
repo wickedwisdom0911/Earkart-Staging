@@ -580,6 +580,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
           BlocListener<DeviceCubit, DeviceState>(
             listener: (context, state) {
+              di<ILogger>().debug('Device state: $state');
               state.maybeWhen(
                 success: (devices, r15cDevice, revo2Device) {
                   final wasConnected = this.r15cDevice != null;

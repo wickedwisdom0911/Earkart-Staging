@@ -2,7 +2,7 @@
 import { ImpedanceData } from "@/models/device/impedance-data.model";
 import { ImpedanceStatus } from "@/models/device/impredance-status.model";
 import { useSocket } from "@/providers/socket-provider";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import React, { useState, useCallback } from "react";
 import {
   LineChart,
@@ -14,6 +14,16 @@ import {
   ResponsiveContainer,
   ReferenceArea,
 } from "recharts";
+import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
+import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
+import { ConsultationModelData } from "@/models/consultation.model";
+import {
+  TympanometryTestModelData,
+  TympanometryReadingModelData,
+} from "@/models/tympanometry.model";
+import { TestStatus, Ear, TympType } from "@/models/enums";
+import { toast } from "sonner";
+import { ROUTES } from "@/lib/routes";
 
 interface TympanogramPoint {
   pressure: number;
@@ -116,7 +126,13 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
 
 export default function TympanometryPage() {
   const socket = useSocket();
+  const router = useRouter();
   const params = useParams();
+  const updateConsultationMutation = useUpdateConsultation();
+  const { data: consultation } = useGetConsultation(
+    params.consultationId as string
+  );
+
   const [selectedEar, setSelectedEar] = useState<"L" | "R">("L");
   const [selectedProbeTone, setSelectedProbeTone] = useState(226);
   const [isRunning, setIsRunning] = useState(false);
@@ -131,6 +147,8 @@ export default function TympanometryPage() {
   const [peakCompliance, setPeakCompliance] = useState<number | null>(null);
   const [gradient, setGradient] = useState<number | null>(null);
   const [ecv, setECV] = useState<number | null>(null);
+  const [manualTympType, setManualTympType] = useState<TympType>(TympType.A);
+  const [completedEars, setCompletedEars] = useState<Set<"L" | "R">>(new Set());
 
   // New state variables for controls
   const [pressureMin, setPressureMin] = useState(-150);
@@ -141,6 +159,115 @@ export default function TympanometryPage() {
   const [stop, setStop] = useState(-200);
   const [autoSpeed, setAutoSpeed] = useState(true);
   const speed = 200;
+
+  // Function to save tympanometry results to consultation
+  const saveTympanometryResults = useCallback(async () => {
+    if (!consultation?.data || !isTestCompleted || !finalData.length) {
+      console.log("Cannot save results: missing data");
+      return;
+    }
+
+    const consultationData = consultation.data as ConsultationModelData;
+
+    // Create tympanometry reading data
+    const tympanometryReading: TympanometryReadingModelData = {
+      tympanometryId: "", // Will be set by backend
+      ear: selectedEar === "L" ? Ear.LEFT : Ear.RIGHT,
+      peakPressure: peakPressure ?? 0,
+      staticCompliance: peakCompliance ?? 0,
+      earCanalVolume: ecv ?? 0,
+      tympType: manualTympType,
+    };
+
+    // Get existing readings or create new array
+    const existingReadings = consultationData.tympanometry?.readings || [];
+
+    // Check if a reading for this ear already exists
+    const existingReadingIndex = existingReadings.findIndex(
+      (reading) => reading.ear === tympanometryReading.ear
+    );
+
+    let updatedReadings: TympanometryReadingModelData[];
+    if (existingReadingIndex >= 0) {
+      // Update existing reading for this ear
+      updatedReadings = [...existingReadings];
+      updatedReadings[existingReadingIndex] = tympanometryReading;
+    } else {
+      // Add new reading for this ear
+      updatedReadings = [...existingReadings, tympanometryReading];
+    }
+
+    // Create tympanometry test data
+    const tympanometryTest: TympanometryTestModelData = {
+      sessionId: consultationData.id,
+      status: TestStatus.COMPLETED,
+      readings: updatedReadings,
+      notes: consultationData.tympanometry?.notes
+        ? `${consultationData.tympanometry.notes}\nTympanometry test completed for ${selectedEar} ear. Probe tone: ${selectedProbeTone}Hz.`
+        : `Tympanometry test completed for ${selectedEar} ear. Probe tone: ${selectedProbeTone}Hz.`,
+      createdAt:
+        consultationData.tympanometry?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Update consultation with tympanometry data
+    const updatedConsultation: ConsultationModelData = {
+      ...consultationData,
+      tympanometry: tympanometryTest,
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      await updateConsultationMutation.mutateAsync(updatedConsultation);
+      console.log("Tympanometry results saved successfully");
+
+      // Add current ear to completed set
+      const newCompletedEars = new Set(completedEars);
+      newCompletedEars.add(selectedEar);
+      setCompletedEars(newCompletedEars);
+
+      // Check if both ears are completed
+      if (newCompletedEars.size === 2) {
+        toast.success("Both ears completed! Proceeding to report...");
+        router.push(ROUTES.TYM_REPORT(params.consultationId as string));
+      } else {
+        const remainingEar = selectedEar === "L" ? "Right" : "Left";
+        toast.success(
+          `${selectedEar === "L" ? "Left" : "Right"} ear completed! Please test the ${remainingEar} ear.`
+        );
+
+        // Switch to the other ear automatically
+        setSelectedEar(selectedEar === "L" ? "R" : "L");
+        // Reset test state for the next ear
+        setRealTimeData([]);
+        setFinalData([]);
+        setIsTestCompleted(false);
+        setCurrentPressure(0);
+        setCurrentCompliance(0);
+        setPeakPressure(null);
+        setPeakCompliance(null);
+        setGradient(null);
+        setECV(null);
+      }
+    } catch (error) {
+      console.error("Failed to save tympanometry results:", error);
+      toast.error("Failed to save tympanometry results. Please try again.");
+    }
+  }, [
+    consultation,
+    isTestCompleted,
+    finalData.length,
+    selectedEar,
+    peakPressure,
+    peakCompliance,
+    ecv,
+    selectedProbeTone,
+    updateConsultationMutation,
+    manualTympType,
+    router,
+    params.consultationId,
+    completedEars,
+  ]);
 
   // Update real-time data when receiving impedance status
   React.useEffect(() => {
@@ -249,7 +376,13 @@ export default function TympanometryPage() {
       socket.off("tympanometry-status");
       socket.off("tympanometry-data");
     };
-  }, [socket, isRunning, isTestCompleted, selectedEar]);
+  }, [
+    socket,
+    isRunning,
+    isTestCompleted,
+    selectedEar,
+    saveTympanometryResults,
+  ]);
 
   // Add debug logging for state changes
   React.useEffect(() => {
@@ -366,23 +499,116 @@ export default function TympanometryPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-4">Tympanometry</h1>
 
+        {/* Status Indicator */}
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-3">
+            <div className="flex gap-2">
+              <div
+                className={`w-3 h-3 rounded-full ${completedEars.has("L") ? "bg-green-500" : selectedEar === "L" ? "bg-blue-500" : "bg-gray-300"}`}
+              ></div>
+              <div
+                className={`w-3 h-3 rounded-full ${completedEars.has("R") ? "bg-green-500" : selectedEar === "R" ? "bg-blue-500" : "bg-gray-300"}`}
+              ></div>
+            </div>
+            <div className="flex-1">
+              {completedEars.size === 0 && (
+                <p className="text-blue-800">
+                  Ready to start tympanometry testing. Select an ear and begin
+                  the test.
+                </p>
+              )}
+              {completedEars.size === 1 && (
+                <p className="text-blue-800">
+                  {completedEars.has("L")
+                    ? "Left ear completed! Now testing right ear."
+                    : "Right ear completed! Now testing left ear."}
+                </p>
+              )}
+              {completedEars.size === 2 && (
+                <p className="text-green-800 font-medium">
+                  Both ears completed! You can now view the full report.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Test Controls */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium mb-2">Ear</label>
             <div className="flex gap-4">
               <button
-                className={`px-4 py-2 rounded ${selectedEar === "L" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+                className={`px-4 py-2 rounded flex items-center gap-2 ${
+                  selectedEar === "L"
+                    ? "bg-blue-500 text-white"
+                    : completedEars.has("L")
+                      ? "bg-green-500 text-white"
+                      : "bg-gray-200"
+                }`}
                 onClick={() => setSelectedEar("L")}
               >
+                {completedEars.has("L") && (
+                  <svg
+                    className="h-4 w-4"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
                 Left
+                {completedEars.has("L") && <span className="text-xs">✓</span>}
               </button>
               <button
-                className={`px-4 py-2 rounded ${selectedEar === "R" ? "bg-red-500 text-white" : "bg-gray-200"}`}
+                className={`px-4 py-2 rounded flex items-center gap-2 ${
+                  selectedEar === "R"
+                    ? "bg-red-500 text-white"
+                    : completedEars.has("R")
+                      ? "bg-green-500 text-white"
+                      : "bg-gray-200"
+                }`}
                 onClick={() => setSelectedEar("R")}
               >
+                {completedEars.has("R") && (
+                  <svg
+                    className="h-4 w-4"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
                 Right
+                {completedEars.has("R") && <span className="text-xs">✓</span>}
               </button>
+            </div>
+            {/* Progress indicator */}
+            <div className="mt-2">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <span>Progress:</span>
+                <div className="flex-1 bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(completedEars.size / 2) * 100}%` }}
+                  ></div>
+                </div>
+                <span>{completedEars.size}/2 ears completed</span>
+              </div>
+              {completedEars.has(selectedEar) && (
+                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                  ⚠️ This ear has already been tested. You can retest if needed,
+                  or switch to the other ear.
+                </div>
+              )}
             </div>
           </div>
 
@@ -580,6 +806,18 @@ export default function TympanometryPage() {
           >
             Clear Results
           </button>
+          {completedEars.size > 0 && (
+            <button
+              className="px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
+              onClick={() => {
+                setCompletedEars(new Set());
+                resetTest();
+                toast.info("All test progress cleared. You can start over.");
+              }}
+            >
+              Reset All Progress
+            </button>
+          )}
         </div>
 
         {/* Current Measurement - Always show */}
@@ -633,6 +871,16 @@ export default function TympanometryPage() {
                 {ecv !== null ? `${ecv.toFixed(2)} ml` : "--"}
               </p>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600">
+                Tympanogram Type
+              </label>
+              <p className="text-lg font-semibold">
+                {peakPressure !== null && peakCompliance !== null
+                  ? manualTympType
+                  : "--"}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -647,6 +895,74 @@ export default function TympanometryPage() {
           complianceMax={complianceMax}
           complianceMin={complianceMin}
         />
+
+        {/* Tymp Type Selection */}
+        <div className="mt-6">
+          <label className="block text-sm font-medium mb-2">Tymp Type</label>
+          <select
+            className="w-full p-2 border rounded max-w-xs"
+            value={manualTympType}
+            onChange={(e) => setManualTympType(e.target.value as TympType)}
+          >
+            <option value={TympType.A}>Type A - Normal</option>
+            <option value={TympType.As}>Type As - Shallow</option>
+            <option value={TympType.Ad}>Type Ad - Deep</option>
+            <option value={TympType.B}>Type B - Flat</option>
+            <option value={TympType.C}>Type C - Negative Pressure</option>
+          </select>
+        </div>
+
+        {/* Test Submission Buttons */}
+        {(isTestCompleted || finalData.length > 0) && (
+          <div className="mt-6 flex gap-4">
+            <button
+              className={`px-6 py-2 rounded flex items-center gap-2 ${
+                updateConsultationMutation.isPending
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-green-500 hover:bg-green-600"
+              } text-white`}
+              onClick={saveTympanometryResults}
+              disabled={updateConsultationMutation.isPending}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              {updateConsultationMutation.isPending
+                ? "Submitting..."
+                : completedEars.size === 1
+                  ? "Save & Continue to Next Ear"
+                  : "Complete Test & View Report"}
+            </button>
+            {completedEars.size === 2 && (
+              <button
+                className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
+                onClick={() =>
+                  router.push(
+                    ROUTES.TYM_REPORT(params.consultationId as string)
+                  )
+                }
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                View Report
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

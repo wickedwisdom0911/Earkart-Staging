@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TestStatus, Ear, TympType } from "./enums";
 
 export const TympanometryReadingModelDataSchema = z.object({
-  id: z.string(),
+  id: z.string().optional(),
   tympanometryId: z.string(),
   ear: z.nativeEnum(Ear),
   peakPressure: z.number(),
@@ -12,7 +12,7 @@ export const TympanometryReadingModelDataSchema = z.object({
 });
 
 export const TympanometryTestModelDataSchema = z.object({
-  id: z.string(),
+  id: z.string().optional(),
   sessionId: z.string(),
   status: z.nativeEnum(TestStatus),
   readings: z.array(TympanometryReadingModelDataSchema).optional().nullable(),

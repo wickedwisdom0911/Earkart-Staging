@@ -20,4 +20,6 @@ export const ROUTES = {
     `/consultation/${consultationId}/test/${testId}`,
   AUDIOMETRY_TEST_REPORT: (consultationId: string) =>
     `/consultation/${consultationId}/test/report/audiometry`,
+  TYM_REPORT: (consultationId: string) =>
+    `/consultation/${consultationId}/test/report/tympanometry`,
 };
