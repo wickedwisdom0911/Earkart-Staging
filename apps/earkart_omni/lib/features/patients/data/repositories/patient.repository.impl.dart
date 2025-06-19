@@ -17,7 +17,7 @@ class PatientRepositoryImpl implements IPatientRepository {
   }
 
   @override
-  Future<Either<Failure, PatientEntity>> getCurrentPatient() async {
+  Future<Either<Failure, PatientEntity?>> getCurrentPatient() async {
     return await patientRemoteSource.getCurrentPatient();
   }
 

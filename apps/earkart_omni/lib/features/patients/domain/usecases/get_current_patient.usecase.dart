@@ -8,7 +8,7 @@ class GetCurrentPatientUsecase {
 
   GetCurrentPatientUsecase({required this.patientRepository});
 
-  Future<Either<Failure, PatientEntity>> call() async {
+  Future<Either<Failure, PatientEntity?>> call() async {
     return await patientRepository.getCurrentPatient();
   }
 }

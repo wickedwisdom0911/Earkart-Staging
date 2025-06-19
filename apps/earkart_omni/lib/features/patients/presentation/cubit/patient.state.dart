@@ -10,7 +10,7 @@ abstract class PatientState with _$PatientState {
   const factory PatientState.success({required PatientEntity patient}) =
       PatientSuccess;
   const factory PatientState.currentPatientSuccess({
-    required PatientEntity patient,
+    required PatientEntity? patient,
   }) = CurrentPatientSuccess;
   const factory PatientState.allPatientsSuccess({
     required List<PatientEntity> patients,

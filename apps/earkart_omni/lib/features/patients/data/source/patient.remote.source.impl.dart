@@ -55,12 +55,13 @@ class PatientRemoteSourceImpl implements IPatientSource {
   }
 
   @override
-  Future<Either<Failure, PatientEntity>> getCurrentPatient() async {
-    final patient = patientEntityDataSource.getPatientEntity();
-    if (patient != null) {
+  Future<Either<Failure, PatientEntity?>> getCurrentPatient() async {
+    try {
+      final patient = patientEntityDataSource.getPatientEntity();
       return right(patient);
+    } catch (e) {
+      return left(UnKnownFailure(error: e.toString()));
     }
-    return left(UnKnownFailure(error: "Failed to get current patient"));
   }
 
   @override

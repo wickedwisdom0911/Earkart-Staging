@@ -260,6 +260,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
             addVerticalSpace(20),
             BlocConsumer<PatientCubit, PatientState>(
               listener: (context, state) {
+                di<ILogger>().info(state.toString());
                 if (state is PatientSuccess) {
                   Navigator.pushNamed(
                     context,
@@ -268,6 +269,8 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                 }
               },
               builder: (context, state) {
+                di<ILogger>().info(state.toString());
+
                 return GradientButton(
                   child:
                       state is PatientLoading
