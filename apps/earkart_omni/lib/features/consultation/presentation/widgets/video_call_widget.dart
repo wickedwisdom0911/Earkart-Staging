@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
+import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -254,6 +256,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       await _stopPreview();
       await _engine.leaveChannel();
       debugPrint('Successfully left channel');
+      context.read<PatientCubit>().deletePatientSession();
+      context.read<ConsultationCubit>().deleteCurrentConsultationSession();
+      ;
     } catch (e) {
       debugPrint('Error leaving channel: $e');
     }
