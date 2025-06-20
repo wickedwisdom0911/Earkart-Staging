@@ -55,7 +55,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   Future<void> _checkAndRequestPermissions() async {
     final storageStatus = await Permission.manageExternalStorage.request();
     final usbStatus = await Permission.bluetooth.request();
-
     if (storageStatus.isGranted && usbStatus.isGranted) {
       _initializeDeviceMonitoring();
     } else {
@@ -533,6 +532,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               : "Consultation by Earkart",
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
+        actions: [
+          BlocBuilder<DeviceCubit, DeviceState>(
+            builder: (context, deviceState) {
+              return BlocBuilder<CommunicationCubit, CommunicationState>(
+                builder: (context, commState) {
+                  return _buildR15CStatusIcon();
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: MultiBlocListener(
         listeners: [
@@ -760,5 +770,102 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "tympanometryData": state.impedanceData,
       });
     }
+  }
+
+  Widget _buildR15CStatusIcon() {
+    final communicationState = context.read<CommunicationCubit>().state;
+
+    // Device not connected
+    if (r15cDevice == null) {
+      return IconButton(
+        icon: const Icon(Icons.usb_off, color: Colors.red),
+        tooltip: 'R15C Device: Not Connected',
+        onPressed: () {
+          _showErrorSnackBar('R15C device not connected');
+        },
+      );
+    }
+
+    // Device has error
+    if (communicationState.error != null) {
+      return IconButton(
+        icon: const Icon(Icons.error_outline, color: Colors.red),
+        tooltip: 'R15C Device: Error - ${communicationState.error}',
+        onPressed: () {
+          _showErrorSnackBar('R15C device error: ${communicationState.error}');
+        },
+      );
+    }
+
+    // Device in begin mode (active testing)
+    if (communicationState.isInBeginMode) {
+      final testTypeText =
+          testType == TestType.PTA ? 'Pure Tone Audiometry' : 'Impedance';
+
+      // Special case for impedance testing in progress
+      if (testType == TestType.Impedance &&
+          communicationState.impedanceStatus != null) {
+        return IconButton(
+          icon: const Icon(Icons.waves, color: Colors.green),
+          tooltip:
+              'R15C Device: Impedance Testing - ${communicationState.impedanceStatus}',
+          onPressed: () {
+            _showErrorSnackBar(
+              'R15C device is performing impedance testing - ${communicationState.impedanceStatus}',
+            );
+          },
+        );
+      }
+
+      return IconButton(
+        icon: const Icon(Icons.play_circle_filled, color: Colors.green),
+        tooltip: 'R15C Device: Active Testing - $testTypeText',
+        onPressed: () {
+          _showErrorSnackBar('R15C device is actively testing - $testTypeText');
+        },
+      );
+    }
+
+    // Device ready with transducer response
+    if (communicationState.transducerResponse != null) {
+      return IconButton(
+        icon: const Icon(Icons.check_circle, color: Colors.green),
+        tooltip: 'R15C Device: Ready',
+        onPressed: () {
+          _showErrorSnackBar('R15C device is ready for testing');
+        },
+      );
+    }
+
+    // Device synced but not ready
+    if (communicationState.isSynced) {
+      return IconButton(
+        icon: const Icon(Icons.sync, color: Colors.orange),
+        tooltip: 'R15C Device: Syncing',
+        onPressed: () {
+          _showErrorSnackBar('R15C device is syncing');
+        },
+      );
+    }
+
+    // Device connected but not synced
+    if (communicationState.isConnected) {
+      return IconButton(
+        icon: const Icon(Icons.usb, color: Colors.blue),
+        tooltip: 'R15C Device: Connected',
+        onPressed: () {
+          _showErrorSnackBar('R15C device is connected');
+        },
+      );
+    }
+
+    // Default state - connecting
+    return IconButton(
+      icon: const Icon(Icons.hourglass_empty, color: Colors.grey),
+      tooltip: 'R15C Device: Connecting',
+      onPressed: () {
+        _showErrorSnackBar('R15C device is connecting');
+      },
+    );
   }
 }

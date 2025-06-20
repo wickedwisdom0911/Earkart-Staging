@@ -55,7 +55,6 @@ export default function ConsultationLayout({
   if (!consultation?.data) return <div>No data</div>;
 
   const consultationData = consultation.data as ConsultationModelData;
-  console.log(consultationData);
 
   return (
     <DashboardBodyWrapper

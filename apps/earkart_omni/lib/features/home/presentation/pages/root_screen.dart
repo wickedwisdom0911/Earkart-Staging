@@ -13,6 +13,7 @@ import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class RootScreen extends StatefulWidget {
   static const routeName = '/';
@@ -36,6 +37,47 @@ class _RootScreenState extends State<RootScreen> {
     context.read<AuthCubit>().getCentreData();
     context.read<PatientCubit>().getCurrentPatient();
     context.read<ConsultationCubit>().getCurrentConsultation();
+    _checkAndRequestPermissions();
+  }
+
+  Future<void> _checkAndRequestPermissions() async {
+    final storageStatus = await Permission.manageExternalStorage.request();
+    final cameraStatus = await Permission.camera.request();
+    final microphoneStatus = await Permission.microphone.request();
+    final usbStatus = await Permission.bluetooth.request();
+
+    if (storageStatus.isGranted &&
+        usbStatus.isGranted &&
+        cameraStatus.isGranted &&
+        microphoneStatus.isGranted) {
+      return;
+    } else {
+      _showPermissionDialog();
+    }
+  }
+
+  void _showPermissionDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Permission Required'),
+            content: const Text(
+              'Storage and USB permissions are required to detect USB devices. Please grant the permissions in settings.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  openAppSettings();
+                },
+                child: const Text('Open Settings'),
+              ),
+            ],
+          ),
+    );
   }
 
   @override

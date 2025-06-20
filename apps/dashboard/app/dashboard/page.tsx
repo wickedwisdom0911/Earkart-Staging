@@ -46,9 +46,9 @@ export default function DashboardPage() {
     if (!socket) return;
 
     // Handler functions
-    socket.onAny((event, ...args) => {
-      console.log(`[SOCKET EVENT]: ${event}`, ...args);
-    });
+    // socket.onAny((event, ...args) => {
+    //   console.log(`[SOCKET EVENT]: ${event}`, ...args);
+    // });
     const onNewConsultation = (data: ConsultationModelData) => {
       setAllConsulations((prev) => {
         // Only add if not already present

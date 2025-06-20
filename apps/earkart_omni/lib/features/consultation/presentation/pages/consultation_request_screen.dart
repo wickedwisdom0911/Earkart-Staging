@@ -10,6 +10,7 @@ import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ConsultationRequestScreen extends StatefulWidget {
   static const routeName = '/consultation-request';
@@ -23,6 +24,7 @@ class ConsultationRequestScreen extends StatefulWidget {
 class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
+  String _cameraError = '';
 
   @override
   void initState() {
@@ -45,28 +47,96 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
 
   Future<void> _initCamera() async {
     try {
+      print('Starting camera initialization...');
+
+      // Check camera permission first
+      final cameraStatus = await Permission.camera.status;
+      print('Camera permission status: $cameraStatus');
+
+      if (!cameraStatus.isGranted) {
+        final result = await Permission.camera.request();
+        print('Camera permission request result: $result');
+        if (!result.isGranted) {
+          setState(() {
+            _cameraError = 'Camera permission denied';
+            _isCameraInitialized = false;
+          });
+          return;
+        }
+      }
+
+      // Get available cameras
       final cameras = await availableCameras();
-      final frontCamera = cameras.firstWhere(
-        (camera) => camera.lensDirection == CameraLensDirection.front,
-      );
+      print('Available cameras: ${cameras.length}');
+      for (var camera in cameras) {
+        print('Camera: ${camera.name}, direction: ${camera.lensDirection}');
+      }
+
+      if (cameras.isEmpty) {
+        setState(() {
+          _cameraError = 'No cameras available';
+          _isCameraInitialized = false;
+        });
+        return;
+      }
+
+      // Try to find front camera, fallback to any camera
+      CameraDescription selectedCamera;
+      try {
+        selectedCamera = cameras.firstWhere(
+          (camera) => camera.lensDirection == CameraLensDirection.front,
+        );
+        print('Selected front camera: ${selectedCamera.name}');
+      } catch (e) {
+        selectedCamera = cameras.first;
+        print('No front camera found, using: ${selectedCamera.name}');
+      }
+
+      // Dispose existing controller if any
+      if (_cameraController != null) {
+        print('Disposing existing camera controller...');
+        await _cameraController!.dispose();
+      }
+
+      // Create and initialize camera controller
+      print('Creating camera controller...');
       _cameraController = CameraController(
-        frontCamera,
-        ResolutionPreset.veryHigh,
+        selectedCamera,
+        ResolutionPreset.medium, // Use medium for better performance
         enableAudio: false,
-        fps: 60,
+        imageFormatGroup: ImageFormatGroup.jpeg,
       );
+
+      // Initialize the controller
+      print('Initializing camera controller...');
       await _cameraController!.initialize();
+      print('Camera controller initialized successfully');
+
+      // Check if widget is still mounted
       if (mounted) {
         setState(() {
           _isCameraInitialized = true;
+          _cameraError = '';
         });
+        print('Camera state updated: initialized = true');
       }
     } catch (e) {
-      // Handle error or show a placeholder
-      setState(() {
-        _isCameraInitialized = false;
-      });
+      print('Camera initialization error: $e');
+      if (mounted) {
+        setState(() {
+          _cameraError = 'Failed to initialize camera: ${e.toString()}';
+          _isCameraInitialized = false;
+        });
+      }
     }
+  }
+
+  Future<void> _retryCamera() async {
+    setState(() {
+      _cameraError = '';
+      _isCameraInitialized = false;
+    });
+    await _initCamera();
   }
 
   @override
@@ -76,6 +146,118 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
       _cameraController = null;
     }
     super.dispose();
+  }
+
+  Widget _buildCameraPreview() {
+    if (_cameraError.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.camera_alt, size: 64, color: Colors.white70),
+            const SizedBox(height: 12),
+            Text(
+              _cameraError,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _retryCamera,
+              child: const Text('Retry Camera'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!_isCameraInitialized || _cameraController == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            CircularProgressIndicator(color: Colors.white),
+            SizedBox(height: 12),
+            Text(
+              'Initializing camera...',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Check if controller is properly initialized
+    if (!_cameraController!.value.isInitialized) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: Colors.white),
+            const SizedBox(height: 12),
+            Text(
+              'Camera not initialized\nController state: ${_cameraController!.value.toString()}',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _retryCamera,
+              child: const Text('Retry Camera'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Check if camera is ready to show preview
+    if (!_cameraController!.value.isInitialized ||
+        _cameraController!.value.hasError) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.white70),
+            const SizedBox(height: 12),
+            Text(
+              'Camera error: ${_cameraController!.value.errorDescription ?? "Unknown error"}',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _retryCamera,
+              child: const Text('Retry Camera'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(32),
+      child: Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
+        child: SizedBox.expand(child: CameraPreview(_cameraController!)),
+      ),
+    );
   }
 
   @override
@@ -126,44 +308,7 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                             ),
                             borderRadius: BorderRadius.circular(32),
                           ),
-                          child:
-                              _isCameraInitialized && _cameraController != null
-                                  ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(32),
-                                    child: Transform(
-                                      alignment: Alignment.center,
-                                      transform:
-                                          Matrix4.identity()
-                                            ..scale(-1.0, 1.0, 1.0),
-                                      child: SizedBox.expand(
-                                        child: CameraPreview(
-                                          _cameraController!,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  : Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: const [
-                                        Icon(
-                                          Icons.camera_alt,
-                                          size: 64,
-                                          color: Colors.white70,
-                                        ),
-                                        SizedBox(height: 12),
-                                        Text(
-                                          'Camera initializing...',
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                          child: _buildCameraPreview(),
                         ),
                       ),
                       // Patient Info and Button (right half)
