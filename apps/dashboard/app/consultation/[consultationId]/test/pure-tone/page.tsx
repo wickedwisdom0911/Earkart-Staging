@@ -59,6 +59,7 @@ interface TransducerData {
 }
 
 export default function PureTonePage() {
+  const [isPatientResponse, setIsPatientResponse] = useState(false);
   const [selectedEar, setSelectedEar] = useState<"L" | "R">("R");
   const [selectedMode, setSelectedMode] = useState<"AC" | "BC">("AC");
   const [selectedFrequency, setSelectedFrequency] = useState(1000);
@@ -91,6 +92,12 @@ export default function PureTonePage() {
 
   // Populate test results from existing audiometry data
   useEffect(() => {
+    if (socket) {
+      socket.on("patient-response", (data) => {
+        setIsPatientResponse(data.patientResponse);
+      });
+    }
+
     if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
       return;
 
@@ -137,6 +144,17 @@ export default function PureTonePage() {
     // Combine both types of results
     setTestResults([...acTestResults, ...bcTestResults]);
   }, [consultationResponse?.data]);
+
+  // Auto-hide patient response indicator after 3 seconds
+  useEffect(() => {
+    if (isPatientResponse) {
+      const timer = setTimeout(() => {
+        setIsPatientResponse(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isPatientResponse]);
 
   // Update transducer data only when valid data is received
   useEffect(() => {
@@ -593,6 +611,18 @@ export default function PureTonePage() {
 
   return (
     <div className="p-6 w-full">
+      {/* Patient Response Indicator */}
+      {isPatientResponse && (
+        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded-md">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+            <span className="text-yellow-800 font-medium">
+              Patient Responded
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Pure Tone Audiometry</h1>

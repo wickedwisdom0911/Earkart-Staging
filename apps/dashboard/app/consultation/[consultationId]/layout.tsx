@@ -24,7 +24,7 @@ export default function ConsultationLayout({
     error,
   } = useGetConsultation(resolvedParams.consultationId);
   const { deviceState } = useDevice();
-  const { r15c, revo2 } = deviceState;
+  const { r15c } = deviceState;
 
   // Add socket connection handling
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function ConsultationLayout({
           </div>
 
           {/* Revo2 Device Status */}
-          <div className="flex items-center gap-2">
+          {/* <div className="flex items-center gap-2">
             <div
               className={`w-3 h-3 rounded-full ${
                 revo2.isConnected ? "bg-green-500" : "bg-red-500"
@@ -88,7 +88,7 @@ export default function ConsultationLayout({
               {revo2.connectionStatus.charAt(0).toUpperCase() +
                 revo2.connectionStatus.slice(1)}
             </span>
-          </div>
+          </div> */}
         </div>
       }
     >

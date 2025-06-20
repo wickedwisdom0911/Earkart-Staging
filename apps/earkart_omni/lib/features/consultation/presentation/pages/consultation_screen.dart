@@ -635,6 +635,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
           BlocListener<CommunicationCubit, CommunicationState>(
             listener: (context, state) {
+              if (!state.isReleased) {
+                _emitPatientResponseEvent(state.isReleased);
+              }
+              if (state.isReleased) {
+                _emitPatientResponseEvent(state.isReleased);
+              }
               // Handle impedance status
               if (state.impedanceStatus != null) {
                 _emitTympanometryStatus(state);
@@ -768,6 +774,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       socket.emit("tympanometry-data", {
         "consultationId": consultation?.id,
         "tympanometryData": state.impedanceData,
+      });
+    }
+  }
+
+  _emitPatientResponseEvent(bool isReleased) {
+    if (_isSocketInitialized) {
+      socket.emit("patient-response", {
+        "consultationId": consultation?.id,
+        "patientResponse": !isReleased,
       });
     }
   }
