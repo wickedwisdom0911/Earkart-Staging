@@ -35,6 +35,10 @@ export default function DashboardPage() {
 
   // NEW: Track socket connection status
   const [isSocketConnected, setIsSocketConnected] = useState(false);
+  // NEW: Track loading state for join consultation buttons
+  const [joiningConsultationId, setJoiningConsultationId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (Array.isArray(consultations?.data)) {
@@ -61,9 +65,25 @@ export default function DashboardPage() {
     const handleConnect = () => setIsSocketConnected(true);
     const handleDisconnect = () => setIsSocketConnected(false);
 
+    // Handle join consultation responses
+    const handleJoined = (data: string) => {
+      console.log("Joined consultation:", data);
+      if (joiningConsultationId && data === joiningConsultationId) {
+        setJoiningConsultationId(null);
+        router.push(ROUTES.CONSULTATION(data));
+      }
+    };
+
+    const handleJoinError = (error: unknown) => {
+      console.error("Failed to join consultation:", error);
+      setJoiningConsultationId(null);
+    };
+
     socket.on("new_consultation", onNewConsultation);
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
+    socket.on("joined", handleJoined);
+    socket.on("join_error", handleJoinError);
 
     // Set initial status
     setIsSocketConnected(socket.connected);
@@ -73,19 +93,19 @@ export default function DashboardPage() {
       socket.off("new_consultation", onNewConsultation);
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
+      socket.off("joined", handleJoined);
+      socket.off("join_error", handleJoinError);
     };
-  }, [socket]);
+  }, [socket, joiningConsultationId, router]);
 
   const joinRoom = (consultationId: string) => {
     console.log(consultationId);
 
+    // Set loading state
+    setJoiningConsultationId(consultationId);
+
+    // Emit join request
     socket?.emit("join_consultation", { consultationId });
-    socket?.on("joined", (data) => {
-      console.log("Joined consultation:", data);
-      if (data === consultationId) {
-        router.push(ROUTES.CONSULTATION(data));
-      }
-    });
   };
 
   const renderConsultationCard = (consultation: ConsultationModelData) => {
@@ -192,10 +212,20 @@ export default function DashboardPage() {
               consultation.status === SessionStatus.PENDING && (
                 <button
                   onClick={() => joinRoom(consultation.id)}
-                  className="w-full bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={joiningConsultationId === consultation.id}
+                  className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Video className="w-5 h-5" />
-                  Join Consultation
+                  {joiningConsultationId === consultation.id ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Joining...
+                    </>
+                  ) : (
+                    <>
+                      <Video className="w-5 h-5" />
+                      Join Consultation
+                    </>
+                  )}
                 </button>
               )}
             {consultation.audiologist &&
@@ -204,10 +234,20 @@ export default function DashboardPage() {
                 consultation.status === SessionStatus.PENDING) && (
                 <button
                   onClick={() => joinRoom(consultation.id)}
-                  className="w-full bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={joiningConsultationId === consultation.id}
+                  className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Video className="w-5 h-5" />
-                  Rejoin Consultation
+                  {joiningConsultationId === consultation.id ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Rejoining...
+                    </>
+                  ) : (
+                    <>
+                      <Video className="w-5 h-5" />
+                      Rejoin Consultation
+                    </>
+                  )}
                 </button>
               )}
           </div>
