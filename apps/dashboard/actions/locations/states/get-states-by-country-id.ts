@@ -1,7 +1,7 @@
 "use server";
 
 import { apiRequest } from "@/lib/api";
-import getBaseUrl from "@/lib/environment";
+import { getBaseUrl } from "@/lib/environment";
 import { verifySession } from "@/lib/session";
 import { StateModel, StateModelSchema } from "@/models/state.model";
 

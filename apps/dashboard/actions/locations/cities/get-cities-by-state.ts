@@ -1,7 +1,7 @@
 "use server";
 
 import { apiRequest } from "@/lib/api";
-import getBaseUrl from "@/lib/environment";
+import { getBaseUrl } from "@/lib/environment";
 import { CityModel, CityModelSchema } from "@/models/city.model";
 
 export default async function getCitiesByState(

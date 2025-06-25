@@ -1,7 +1,7 @@
 "use server";
 
 import { apiRequest } from "@/lib/api";
-import getBaseUrl from "@/lib/environment";
+import { getBaseUrl } from "@/lib/environment";
 import { createSession } from "@/lib/session";
 import { UserModel, userModelSchema } from "@/models/user.model";
 

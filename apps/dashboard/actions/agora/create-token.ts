@@ -1,6 +1,6 @@
 "use server";
 import { apiRequest } from "@/lib/api";
-import getBaseUrl from "@/lib/environment";
+import { getBaseUrl } from "@/lib/environment";
 import { verifySession } from "@/lib/session";
 import { AgoraModel, AgoraModelSchema } from "@/models/agora.model";
 
