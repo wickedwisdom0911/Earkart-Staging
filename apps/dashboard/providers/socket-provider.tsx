@@ -1,6 +1,6 @@
 "use client";
 import { useGetUser } from "@/hooks/auth/use-get-user";
-import { getSocketUrl } from "@/lib/environment";
+import { useGetSocketUrl } from "@/hooks/use-get-socket-url";
 import React, {
   createContext,
   useContext,
@@ -16,13 +16,12 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const socketRef = useRef<Socket | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const { data: user } = useGetUser();
-
+  const { data: socketUrl } = useGetSocketUrl();
   useEffect(() => {
     if (!user?.token) return;
 
     const initializeSocket = async () => {
       if (!socketRef.current) {
-        const socketUrl = await getSocketUrl();
         socketRef.current = io(socketUrl, {
           auth: {
             token: user.token,
