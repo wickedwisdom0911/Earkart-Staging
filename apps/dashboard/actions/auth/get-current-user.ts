@@ -7,6 +7,6 @@ export default async function getCurrentUser(): Promise<UserModelData | null> {
   if (user != null) {
     return user;
   } else {
-    throw new Error("User not found");
+    return null;
   }
 }
