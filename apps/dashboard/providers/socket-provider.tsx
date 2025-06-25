@@ -1,5 +1,6 @@
 "use client";
 import { useGetUser } from "@/hooks/auth/use-get-user";
+import { getSocketUrl } from "@/lib/environment";
 import React, {
   createContext,
   useContext,
@@ -19,32 +20,37 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!user?.token) return;
 
-    if (!socketRef.current) {
-      socketRef.current = io(process.env.BASE_SOCKET_URL_DEV!, {
-        auth: {
-          token: user.token,
-        },
-        // Optional: customize reconnection behavior
-        reconnection: true,
-        reconnectionAttempts: 5, // Number of attempts before giving up
-        reconnectionDelay: 1000, // Initial delay (ms)
-        reconnectionDelayMax: 5000, // Max delay (ms)
-      });
+    const initializeSocket = async () => {
+      if (!socketRef.current) {
+        const socketUrl = await getSocketUrl();
+        socketRef.current = io(socketUrl, {
+          auth: {
+            token: user.token,
+          },
+          // Optional: customize reconnection behavior
+          reconnection: true,
+          reconnectionAttempts: 5, // Number of attempts before giving up
+          reconnectionDelay: 1000, // Initial delay (ms)
+          reconnectionDelayMax: 5000, // Max delay (ms)
+        });
 
-      socketRef.current.on("connect", () => {
-        console.log("Connected to socket -", socketRef.current?.id);
-      });
+        socketRef.current.on("connect", () => {
+          console.log("Connected to socket -", socketRef.current?.id);
+        });
 
-      socketRef.current.on("disconnect", (reason) => {
-        console.log("Socket disconnected:", reason);
-      });
+        socketRef.current.on("disconnect", (reason) => {
+          console.log("Socket disconnected:", reason);
+        });
 
-      socketRef.current.on("reconnect_attempt", (attempt) => {
-        console.log("Reconnection attempt:", attempt);
-      });
+        socketRef.current.on("reconnect_attempt", (attempt) => {
+          console.log("Reconnection attempt:", attempt);
+        });
 
-      setSocket(socketRef.current);
-    }
+        setSocket(socketRef.current);
+      }
+    };
+
+    initializeSocket();
 
     return () => {
       socketRef.current?.disconnect();
