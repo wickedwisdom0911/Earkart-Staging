@@ -22,7 +22,7 @@ import {
   CreateCenterProfile,
   CreateCenterProfileSchema,
 } from "@/models/centre.model";
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { UserModelData } from "@/models/user.model";
 import StatusToggle from "@/components/ui/status-toggle";
@@ -39,6 +39,86 @@ import useCreateCentre from "@/hooks/centre/use-create-centre";
 import useUpdateCentre from "@/hooks/centre/use-update-centre";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+
+// Custom hook for location management
+const useLocationState = (isEdit: boolean, centre?: CentreModelData) => {
+  const [locationState, setLocationState] = useState({
+    countryId: null as string | null,
+    stateId: null as string | null,
+    districtId: null as string | null,
+  });
+
+  // Derived location data using useMemo
+  const locationData = useMemo(() => {
+    if (!isEdit || !centre?.city) return null;
+
+    const city = centre.city;
+    const district = city.district;
+    const state = district?.state;
+    const country = state?.country;
+
+    if (!country?.id || !state?.id || !district?.id || !city.id) return null;
+
+    return {
+      countryId: country.id,
+      stateId: state.id,
+      districtId: district.id,
+      cityId: city.id,
+    };
+  }, [isEdit, centre]);
+
+  // Initialize location state when data is available
+  useEffect(() => {
+    if (locationData) {
+      setLocationState({
+        countryId: locationData.countryId,
+        stateId: locationData.stateId,
+        districtId: locationData.districtId,
+      });
+    }
+  }, [locationData]);
+
+  // Location change handlers
+  const handleCountryChange = useCallback((countryId: string | null) => {
+    setLocationState({
+      countryId,
+      stateId: null,
+      districtId: null,
+    });
+  }, []);
+
+  const handleStateChange = useCallback((stateId: string | null) => {
+    setLocationState((prev) => ({
+      ...prev,
+      stateId,
+      districtId: null,
+    }));
+  }, []);
+
+  const handleDistrictChange = useCallback((districtId: string | null) => {
+    setLocationState((prev) => ({
+      ...prev,
+      districtId,
+    }));
+  }, []);
+
+  const resetLocation = useCallback(() => {
+    setLocationState({
+      countryId: null,
+      stateId: null,
+      districtId: null,
+    });
+  }, []);
+
+  return {
+    locationState,
+    locationData,
+    handleCountryChange,
+    handleStateChange,
+    handleDistrictChange,
+    resetLocation,
+  };
+};
 
 const steps = [
   {
@@ -66,10 +146,14 @@ export default function HandleCentreDialog({
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(0);
 
-  // Cascading selector state
-  const [countryId, setCountryId] = useState<string | null>(null);
-  const [stateId, setStateId] = useState<string | null>(null);
-  const [cityId, setCityId] = useState<string | null>(null);
+  const {
+    locationState,
+    locationData,
+    handleCountryChange,
+    handleStateChange,
+    handleDistrictChange,
+    resetLocation,
+  } = useLocationState(isEdit, centre);
 
   const form = useForm<CreateCenterProfile>({
     resolver: zodResolver(CreateCenterProfileSchema),
@@ -89,6 +173,7 @@ export default function HandleCentreDialog({
           centre?.code && centre?.code.startsWith(CENTRE_CODE_PREFIX)
             ? centre.code.slice(CENTRE_CODE_PREFIX.length)
             : "",
+        cityId: centre?.city?.id || "",
       },
     },
   });
@@ -103,31 +188,29 @@ export default function HandleCentreDialog({
     isPending: isUpdating,
     isError: isUpdateError,
   } = useUpdateCentre();
-  // Reset state/city/district when parent changes
+
+  // Set cityId in form when initial values are available
   useEffect(() => {
-    setStateId("");
-    setCityId("");
-    form.setValue("centre.districtId", "");
-  }, [countryId, form]);
-  useEffect(() => {
-    setCityId("");
-    form.setValue("centre.districtId", "");
-  }, [stateId, form]);
-  useEffect(() => {
-    form.setValue("centre.districtId", "");
-  }, [cityId, form]);
+    if (isEdit && locationData?.cityId) {
+      form.setValue("centre.cityId", locationData.cityId);
+    }
+  }, [isEdit, locationData, form]);
 
   const toggleDialog = () => {
     setIsOpen(!isOpen);
     setStep(0);
+    // Reset location selectors when dialog closes
+    if (isOpen) {
+      resetLocation();
+    }
   };
   const handleSubmit = (data: CreateCenterProfile) => {
     // Combine prefix and suffix for centre code
     const fullCode = CENTRE_CODE_PREFIX + (data.centre.code || "");
     data.centre.code = fullCode;
     if (isEdit) {
-      if (data.centre.districtId === "") {
-        data.centre.districtId = data.centre.district?.id || "";
+      if (data.centre.cityId === "") {
+        data.centre.cityId = data.centre.city?.id || "";
       }
       updateCentre(
         {
@@ -196,7 +279,7 @@ export default function HandleCentreDialog({
         name="user.name"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Name</FormLabel>
+            <FormLabel>Clinic Name</FormLabel>
             <FormControl>
               <Input {...field} placeholder="Enter user name" />
             </FormControl>
@@ -235,17 +318,14 @@ export default function HandleCentreDialog({
         name="user.dob"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Date of Birth</FormLabel>
+            <FormLabel>Date of Enrollment</FormLabel>
             <FormControl>
               <DatetimePicker
                 value={field.value ? new Date(field.value) : undefined}
                 onChange={(date) =>
                   field.onChange(date ? date.toISOString() : "")
                 }
-                format={[
-                  ["days", "months", "years"],
-                  ["hours", "minutes", "seconds", "am/pm"],
-                ]}
+                format={[["days", "months", "years"], []]}
               />
             </FormControl>
             <FormMessage />
@@ -285,65 +365,52 @@ export default function HandleCentreDialog({
     <div className="flex flex-col overflow-y-scroll p-2 gap-6">
       {/* Cascading Selectors Grid */}
       <div className="grid grid-cols-2 gap-4">
-        <CountrySelector value={countryId} onChange={setCountryId} />
-        {countryId && (
+        <CountrySelector
+          value={locationState.countryId}
+          onChange={handleCountryChange}
+          initialValue={
+            isEdit ? locationData?.countryId : locationState.countryId
+          }
+        />
+        {(locationState.countryId || (isEdit && locationData?.countryId)) && (
           <StateSelector
-            value={stateId}
-            onChange={setStateId}
-            countryId={countryId}
-            initialValue={stateId}
+            value={locationState.stateId}
+            onChange={handleStateChange}
+            countryId={locationState.countryId || locationData?.countryId || ""}
+            initialValue={
+              isEdit ? locationData?.stateId : locationState.stateId
+            }
           />
         )}
-        {stateId && (
-          <CitySelector
-            value={cityId}
-            onChange={setCityId}
-            stateId={stateId}
-            initialValue={cityId}
+        {(locationState.stateId || (isEdit && locationData?.stateId)) && (
+          <DistrictSelector
+            value={locationState.districtId}
+            onChange={handleDistrictChange}
+            stateId={locationState.stateId || locationData?.stateId || ""}
+            initialValue={
+              isEdit ? locationData?.districtId : locationState.districtId
+            }
           />
         )}
-        {cityId && (
+        {(locationState.districtId || (isEdit && locationData?.districtId)) && (
           <FormField
             control={form.control}
-            name="centre.districtId"
+            name="centre.cityId"
             render={({ field }) => (
-              <DistrictSelector
+              <CitySelector
                 value={field.value}
                 onChange={field.onChange}
-                cityId={cityId}
-                initialValue={field.value}
+                districtId={
+                  locationState.districtId || locationData?.districtId || ""
+                }
+                initialValue={isEdit ? locationData?.cityId : field.value}
               />
             )}
           />
         )}
       </div>
       {/* Other centre fields */}
-      <FormField
-        control={form.control}
-        name="centre.code"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Centre Code</FormLabel>
-            <FormControl>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-1 bg-gray-200 rounded text-gray-700 select-none">
-                  {CENTRE_CODE_PREFIX}
-                </span>
-                <Input
-                  {...field}
-                  placeholder="Enter centre code"
-                  value={field.value || ""}
-                  onChange={(e) =>
-                    field.onChange(e.target.value.replace(/\s/g, ""))
-                  }
-                  className="flex-1"
-                />
-              </div>
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+
       <FormField
         control={form.control}
         name="centre.address"

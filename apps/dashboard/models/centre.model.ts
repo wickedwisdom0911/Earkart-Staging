@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PaymentCycle, StatusEnum, WeekDays } from "./enums";
-import { DistrictModelDataSchema } from "./district.model";
+import { CityModelDataSchema } from "./city.model";
 import { userModelDataSchema } from "./user.model";
 
 export const DeviceModelDataSchema = z.object({
@@ -17,9 +17,10 @@ export const CentreModelDataSchema = z.object({
   user: userModelDataSchema.optional(),
   creator: userModelDataSchema.optional(),
   updater: userModelDataSchema.optional(),
-  code: z.string(),
+  code: z.string().optional(),
+  codeSequence: z.number().optional(),
   address: z.string(),
-  districtId: z.string(),
+  cityId: z.string(),
   pincode: z.string(),
   contactNumber: z.string(),
   entName: z.string(),
@@ -35,7 +36,7 @@ export const CentreModelDataSchema = z.object({
   breakTimeEnd: z.string(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
-  district: DistrictModelDataSchema.optional(),
+  city: CityModelDataSchema.optional(),
   device: DeviceModelDataSchema.optional().nullable(),
 });
 
