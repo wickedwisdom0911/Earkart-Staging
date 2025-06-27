@@ -1,15 +1,15 @@
 import { z } from "zod";
-import { StateModelDataSchema } from "./state.model";
 import { StatusEnum } from "./enums";
+import { DistrictModelDataSchema } from "./district.model";
 
 export const CityModelDataSchema = z.object({
   id: z.string().optional(),
   name: z.string(),
-  stateId: z.string(),
+  districtId: z.string(),
+  district: DistrictModelDataSchema.optional(),
   status: z.nativeEnum(StatusEnum),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
-  state: StateModelDataSchema.optional(),
 });
 export const CreateCityModelSchema = z.object({
   success: z.boolean(),

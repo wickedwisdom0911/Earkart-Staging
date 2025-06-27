@@ -1,6 +1,6 @@
 "use client";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
-import useGetDistrictsByCity from "@/hooks/locations/districts/use-get-districts-by-city";
+import useGetDistrictsByCity from "@/hooks/locations/districts/use-get-districts-by-state";
 import { useParams } from "next/navigation";
 import HandleDistrictDialog from "./_components/handle-district-dialog";
 import { Loader2, Plus, Trash } from "lucide-react";

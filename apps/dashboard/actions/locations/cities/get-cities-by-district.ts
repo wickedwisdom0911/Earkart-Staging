@@ -4,11 +4,11 @@ import { apiRequest } from "@/lib/api";
 import { getBaseUrl } from "@/lib/environment";
 import { CityModel, CityModelSchema } from "@/models/city.model";
 
-export default async function getCitiesByState(
-  stateCode: string
+export default async function getCitiesByDistrict(
+  districtId: string
 ): Promise<CityModel> {
   const baseUrl = await getBaseUrl();
-  const url = `${baseUrl}city/get-cities-by-state-id`;
+  const url = `${baseUrl}city/get-cities-by-district-id`;
   const response = await apiRequest<CityModel>(
     url,
     {
@@ -17,7 +17,7 @@ export default async function getCitiesByState(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        stateId: stateCode,
+        districtId,
       }),
     },
     CityModelSchema

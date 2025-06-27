@@ -1,7 +1,7 @@
 "use client";
 
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
-import useGetCitiesByState from "@/hooks/locations/cities/use-get-cities-by-state";
+import useGetCitiesByState from "@/hooks/locations/cities/use-get-cities-by-district";
 import { useParams } from "next/navigation";
 import { Edit, Plus, Trash } from "lucide-react";
 import DeleteLocationDialog from "../../../../_components/delete-location-dialog";

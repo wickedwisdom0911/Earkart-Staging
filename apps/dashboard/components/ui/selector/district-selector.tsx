@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/command";
 import { useEffect, useMemo } from "react";
 import { DistrictModelData } from "@/models/district.model";
-import useGetDistrictsByCity from "@/hooks/locations/districts/use-get-districts-by-city";
+import useGetDistrictsByCity from "@/hooks/locations/districts/use-get-districts-by-state";
 
 interface DistrictSelectorProps {
   value?: string | null;

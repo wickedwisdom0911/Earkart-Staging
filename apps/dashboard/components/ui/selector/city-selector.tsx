@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/command";
 import { useEffect, useMemo } from "react";
 import { CityModelData } from "@/models/city.model";
-import useGetCitiesByState from "@/hooks/locations/cities/use-get-cities-by-state";
+import useGetCitiesByState from "@/hooks/locations/cities/use-get-cities-by-district";
 
 interface CitySelectorProps {
   value?: string | null;

@@ -12,7 +12,7 @@ import {
 export default async function createCity(
   city: CityModelData
 ): Promise<CreateCityModel> {
-  const { name, stateId, status } = city;
+  const { name, districtId, status } = city;
   const baseUrl = await getBaseUrl();
   const url = `${baseUrl}city/create-city`;
   const user = await verifySession();
@@ -23,7 +23,7 @@ export default async function createCity(
     url,
     {
       method: "POST",
-      body: JSON.stringify({ name, stateId, status }),
+      body: JSON.stringify({ name, districtId, status }),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${user.token}`,

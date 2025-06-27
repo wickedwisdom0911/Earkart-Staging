@@ -10,7 +10,7 @@ import {
 } from "@/models/district.model";
 
 export default async function createDistrict(district: DistrictModelData) {
-  const { cityId, name, status } = district;
+  const { stateId, name, status } = district;
   const baseUrl = await getBaseUrl();
   const url = `${baseUrl}district/create-district`;
   const user = await verifySession();
@@ -21,7 +21,7 @@ export default async function createDistrict(district: DistrictModelData) {
     url,
     {
       method: "POST",
-      body: JSON.stringify({ cityId, name, status }),
+      body: JSON.stringify({ stateId, name, status }),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${user.token}`,
