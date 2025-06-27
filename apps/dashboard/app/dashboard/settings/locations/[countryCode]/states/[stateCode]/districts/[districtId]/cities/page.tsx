@@ -4,22 +4,20 @@ import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import useGetCitiesByState from "@/hooks/locations/cities/use-get-cities-by-district";
 import { useParams } from "next/navigation";
 import { Edit, Plus, Trash } from "lucide-react";
-import DeleteLocationDialog from "../../../../_components/delete-location-dialog";
-import { ROUTES } from "@/lib/routes";
-import Link from "next/link";
 import HandleCityDialog from "./_components/handle-city-dialog";
 import { Button } from "@/components/ui/button";
+import DeleteLocationDialog from "@/app/dashboard/settings/locations/_components/delete-location-dialog";
 
 export default function CitiesPage() {
-  const { countryCode, stateCode } = useParams();
-  const { data: cities } = useGetCitiesByState(stateCode as string);
+  const { districtId } = useParams();
+  const { data: cities } = useGetCitiesByState(districtId as string);
 
   return (
     <DashboardBodyWrapper
       pageTitle="Cities"
       button={
         <HandleCityDialog
-          stateId={stateCode as string}
+          districtId={districtId as string}
           trigger={
             <Button className="flex items-center gap-2 bg-primary-500 text-white cursor-pointer">
               <Plus className="w-4 h-4 " />
@@ -36,7 +34,7 @@ export default function CitiesPage() {
               <h3 className="text-lg font-bold">{city.name}</h3>
               <div className="flex items-center gap-2">
                 <HandleCityDialog
-                  stateId={stateCode as string}
+                  districtId={districtId as string}
                   trigger={<Edit className="w-4 h-4 cursor-pointer stroke-1" />}
                   city={city}
                 />
@@ -48,19 +46,11 @@ export default function CitiesPage() {
                 />
               </div>
             </div>
-            <p className="text-sm text-gray-500">{city.state?.name || "N/A"}</p>
+            <p className="text-sm text-gray-500">
+              {city.district?.name || "N/A"}
+            </p>
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm text-gray-500">{city.status}</p>
-              <Link
-                href={ROUTES.DISTRICTS(
-                  countryCode as string,
-                  stateCode as string,
-                  city.id || ""
-                )}
-                className="text-sm  bg-primary-500 text-white px-2 py-1 rounded-md hover:bg-primary-600 transition-all duration-200"
-              >
-                View Districts
-              </Link>
             </div>
           </div>
         ))}

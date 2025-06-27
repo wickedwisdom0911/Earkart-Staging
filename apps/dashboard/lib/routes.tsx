@@ -5,10 +5,10 @@ export const ROUTES = {
   LANGUAGES: "/dashboard/settings/languages",
   DEVICES: "/dashboard/settings/devices",
   STATES: (code: string) => `/dashboard/settings/locations/${code}/states`,
-  CITIES: (code: string, stateCode: string) =>
-    `/dashboard/settings/locations/${code}/states/${stateCode}/cities`,
-  DISTRICTS: (code: string, stateCode: string, cityCode: string) =>
-    `/dashboard/settings/locations/${code}/states/${stateCode}/cities/${cityCode}/districts`,
+  DISTRICTS: (code: string, stateCode: string) =>
+    `/dashboard/settings/locations/${code}/states/${stateCode}/districts`,
+  CITIES: (code: string, stateCode: string, districtCode: string) =>
+    `/dashboard/settings/locations/${code}/states/${stateCode}/districts/${districtCode}/cities`,
   DEVICE: (deviceCode: string) => `/dashboard/settings/devices/${deviceCode}`,
   CENTRE: (centreId: string) => `/dashboard/centres/${centreId}`,
   AUDIOLOGIST: (audiologistId: string) =>

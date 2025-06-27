@@ -59,7 +59,7 @@ export default function StatesPage() {
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm text-gray-500">{state.status}</p>
               <Link
-                href={ROUTES.CITIES(countryCode as string, state.id || "")}
+                href={ROUTES.DISTRICTS(countryCode as string, state.id || "")}
                 className="text-sm  bg-primary-500 text-white px-2 py-1 rounded-md hover:bg-primary-600 transition-all duration-200"
               >
                 View Cities

@@ -30,11 +30,11 @@ import useUpdateDistrict from "@/hooks/locations/districts/use-update-district";
 export default function HandleDistrictDialog({
   trigger,
   district,
-  cityId,
+  stateId,
 }: {
   trigger: ReactNode;
   district?: DistrictModelData;
-  cityId: string;
+  stateId: string;
 }) {
   const isEdit = !!district;
   const [isOpen, setIsOpen] = useState(false);
@@ -46,11 +46,11 @@ export default function HandleDistrictDialog({
       id: district?.id || "",
       name: district?.name || "",
       status: district?.status || StatusEnum.ACTIVE,
-      cityId: cityId,
+      stateId: stateId,
     },
   });
   function onSubmit(data: z.infer<typeof DistrictModelDataSchema>) {
-    const payload = { ...data, cityId };
+    const payload = { ...data, stateId };
     if (isEdit) {
       updateDistrict(payload, {
         onSuccess: (response) => {
