@@ -8,9 +8,9 @@ export default function AudiologistProfile() {
   const { data, isLoading, error } = useGetAudiologist(audiologistId as string);
   const audiologist = data?.data;
   const user = audiologist?.user;
-  const district = audiologist?.district;
-  const city = district?.city;
-  const state = city?.state;
+  const district = audiologist?.city?.district;
+  const city = audiologist?.city;
+  const state = city?.district?.state;
   const country = state?.country;
 
   return (
