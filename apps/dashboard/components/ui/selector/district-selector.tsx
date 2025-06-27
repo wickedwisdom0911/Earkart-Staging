@@ -17,23 +17,23 @@ import {
 } from "@/components/ui/command";
 import { useEffect, useMemo } from "react";
 import { DistrictModelData } from "@/models/district.model";
-import useGetDistrictsByCity from "@/hooks/locations/districts/use-get-districts-by-state";
+import useGetDistrictsByState from "@/hooks/locations/districts/use-get-districts-by-state";
 
 interface DistrictSelectorProps {
   value?: string | null;
   onChange: (districtId: string | null) => void;
   initialValue?: string | null;
-  cityId: string;
+  stateId: string;
 }
 
 export default function DistrictSelector({
   value,
   onChange,
   initialValue,
-  cityId,
+  stateId,
 }: DistrictSelectorProps) {
   const [open, setOpen] = React.useState(false);
-  const { data, isLoading } = useGetDistrictsByCity(cityId);
+  const { data, isLoading } = useGetDistrictsByState(stateId);
 
   const [selectedDistrict, setSelectedDistrict] =
     React.useState<DistrictModelData | null>(null);

@@ -3,7 +3,7 @@ import { WeekDays } from "./enums";
 import { PaymentCycle } from "./enums";
 import { userModelDataSchema } from "./user.model";
 import { LanguageModelDataSchema } from "./language.model";
-import { DistrictModelDataSchema } from "./district.model";
+import { CityModelDataSchema } from "./city.model";
 export const AudiologistModelDataSchema = z.object({
   id: z.string().optional(),
   userId: z.string().optional(),
@@ -12,7 +12,7 @@ export const AudiologistModelDataSchema = z.object({
   updater: userModelDataSchema.optional().nullable(),
   languages: z.array(LanguageModelDataSchema).optional().nullable(),
   address: z.string(),
-  districtId: z.string(),
+  cityId: z.string(),
   pincode: z.string(),
   contactNumber: z.string(),
   rciNumber: z.string(),
@@ -30,7 +30,7 @@ export const AudiologistModelDataSchema = z.object({
   breakTimeEnd: z.string(),
   createdAt: z.string().optional().nullable(),
   updatedAt: z.string().optional().nullable(),
-  district: DistrictModelDataSchema.optional().nullable(),
+  city: CityModelDataSchema.optional().nullable(),
 });
 export const AudiologistFormSchema = z.object({
   id: z.string().optional(),
@@ -40,7 +40,7 @@ export const AudiologistFormSchema = z.object({
   updater: userModelDataSchema.optional().nullable(),
   languages: z.array(z.string()),
   address: z.string(),
-  districtId: z.string(),
+  cityId: z.string(),
   pincode: z.string(),
   contactNumber: z.string(),
   rciNumber: z.string(),
@@ -58,7 +58,7 @@ export const AudiologistFormSchema = z.object({
   breakTimeEnd: z.string(),
   createdAt: z.string().optional().nullable(),
   updatedAt: z.string().optional().nullable(),
-  district: DistrictModelDataSchema.optional().nullable(),
+  city: CityModelDataSchema.optional().nullable(),
 });
 
 export const createAudiologistModelSchema = z.object({

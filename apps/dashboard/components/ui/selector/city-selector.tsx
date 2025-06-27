@@ -17,23 +17,23 @@ import {
 } from "@/components/ui/command";
 import { useEffect, useMemo } from "react";
 import { CityModelData } from "@/models/city.model";
-import useGetCitiesByState from "@/hooks/locations/cities/use-get-cities-by-district";
+import useGetCitiesByDistrict from "@/hooks/locations/cities/use-get-cities-by-district";
 
 interface CitySelectorProps {
   value?: string | null;
   onChange: (cityId: string | null) => void;
   initialValue?: string | null;
-  stateId: string;
+  districtId: string;
 }
 
 export default function CitySelector({
   value,
   onChange,
   initialValue,
-  stateId,
+  districtId,
 }: CitySelectorProps) {
   const [open, setOpen] = React.useState(false);
-  const { data, isLoading } = useGetCitiesByState(stateId);
+  const { data, isLoading } = useGetCitiesByDistrict(districtId);
 
   const [selectedCity, setSelectedCity] = React.useState<CityModelData | null>(
     null

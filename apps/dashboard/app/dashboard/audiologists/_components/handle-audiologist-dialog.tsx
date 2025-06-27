@@ -31,8 +31,8 @@ import GenderSelect from "@/components/ui/selector/gender-select";
 import { DatetimePicker } from "@/components/DateTimePicker";
 import CountrySelector from "@/components/ui/selector/country-selector";
 import StateSelector from "@/components/ui/selector/state-selector";
-import CitySelector from "@/components/ui/selector/city-selector";
 import DistrictSelector from "@/components/ui/selector/district-selector";
+import CitySelector from "@/components/ui/selector/city-selector";
 import PaymentCycleSelector from "@/components/ui/selector/payment-cycle-selector";
 import WorkingDaysSelector from "@/components/ui/selector/working-days-selector";
 import useCreateAudiologist from "@/hooks/audiologist/use-create-audiologist";
@@ -69,8 +69,8 @@ export default function HandleAudiologistDialog({
   // Cascading selector state
   const [countryId, setCountryId] = useState<string | null>(null);
   const [stateId, setStateId] = useState<string | null>(null);
-  const [cityId, setCityId] = useState<string | null>(null);
-
+  const [districtId, setDistrictId] = useState<string | null>(null);
+  console.log(audiologist);
   const form = useForm<CreateAudiologistProfile>({
     resolver: zodResolver(CreateAudiologistProfileSchema),
     defaultValues: {
@@ -104,26 +104,25 @@ export default function HandleAudiologistDialog({
   // Reset state/city/district when parent changes
   useEffect(() => {
     setStateId("");
-    setCityId("");
-    form.setValue("audiologist.districtId", "");
+    setDistrictId("");
+    form.setValue("audiologist.cityId", "");
   }, [countryId, form]);
   useEffect(() => {
-    setCityId("");
-    form.setValue("audiologist.districtId", "");
+    setDistrictId("");
+    form.setValue("audiologist.cityId", "");
   }, [stateId, form]);
   useEffect(() => {
-    form.setValue("audiologist.districtId", "");
-  }, [cityId, form]);
+    form.setValue("audiologist.cityId", "");
+  }, [districtId, form]);
 
   const toggleDialog = () => {
     setIsOpen(!isOpen);
     setStep(0);
   };
   const handleSubmit = (data: CreateAudiologistProfile) => {
-    console.log(data);
     if (isEdit) {
-      if (data.audiologist.districtId === "") {
-        data.audiologist.districtId = data.audiologist.district?.id || "";
+      if (data.audiologist.cityId === "") {
+        data.audiologist.cityId = data.audiologist.city?.id || "";
       }
       updateAudiologist(
         {
@@ -238,10 +237,7 @@ export default function HandleAudiologistDialog({
                 onChange={(date) =>
                   field.onChange(date ? date.toISOString() : "")
                 }
-                format={[
-                  ["days", "months", "years"],
-                  ["hours", "minutes", "seconds", "am/pm"],
-                ]}
+                format={[["days", "months", "years"], []]}
               />
             </FormControl>
             <FormMessage />
@@ -304,7 +300,11 @@ export default function HandleAudiologistDialog({
     <div className="flex flex-col overflow-y-scroll p-2 gap-6">
       {/* Cascading Selectors Grid */}
       <div className="grid grid-cols-2 gap-4">
-        <CountrySelector value={countryId} onChange={setCountryId} />
+        <CountrySelector
+          value={countryId}
+          onChange={setCountryId}
+          initialValue={countryId}
+        />
         {countryId && (
           <StateSelector
             value={stateId}
@@ -314,22 +314,22 @@ export default function HandleAudiologistDialog({
           />
         )}
         {stateId && (
-          <CitySelector
-            value={cityId}
-            onChange={setCityId}
-            stateId={stateId}
-            initialValue={cityId}
+          <DistrictSelector
+            value={districtId}
+            onChange={setDistrictId}
+            stateId={stateId || ""}
+            initialValue={districtId}
           />
         )}
-        {cityId && (
+        {districtId && (
           <FormField
             control={form.control}
-            name="audiologist.districtId"
+            name="audiologist.cityId"
             render={({ field }) => (
-              <DistrictSelector
+              <CitySelector
                 value={field.value}
                 onChange={field.onChange}
-                cityId={cityId}
+                districtId={districtId}
                 initialValue={field.value}
               />
             )}

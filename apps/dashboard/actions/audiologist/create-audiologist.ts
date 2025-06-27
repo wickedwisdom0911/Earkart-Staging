@@ -19,14 +19,11 @@ export async function createAudiologist(
   if (!user?.token) {
     throw new Error("Unauthorized");
   }
-  console.log(data);
   const response = await apiRequest<CreateAudiologistModel>(
     url,
     {
       method: "POST",
-      body: JSON.stringify({
-        data,
-      }),
+      body: JSON.stringify(data),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${user.token}`,

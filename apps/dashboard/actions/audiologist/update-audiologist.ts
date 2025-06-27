@@ -22,9 +22,7 @@ export async function updateAudiologist(
     url,
     {
       method: "POST",
-      body: JSON.stringify({
-        data,
-      }),
+      body: JSON.stringify(data),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${user.token}`,
