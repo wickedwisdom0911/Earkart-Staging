@@ -22,7 +22,7 @@ import {
   CreateAudiologistProfile,
   CreateAudiologistProfileSchema,
 } from "@/models/audiologist.model";
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { UserModelData } from "@/models/user.model";
 import StatusToggle from "@/components/ui/status-toggle";
@@ -65,12 +65,49 @@ export default function HandleAudiologistDialog({
   const isEdit = !!audiologist;
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(0);
+  const dialogOpenRef = useRef(false);
 
   // Cascading selector state
   const [countryId, setCountryId] = useState<string | null>(null);
   const [stateId, setStateId] = useState<string | null>(null);
   const [districtId, setDistrictId] = useState<string | null>(null);
-  console.log(audiologist);
+  const [isPopulatingForEdit, setIsPopulatingForEdit] = useState(false);
+
+  // Store initial values for edit mode
+  const [initialCountryId, setInitialCountryId] = useState<string | null>(null);
+  const [initialStateId, setInitialStateId] = useState<string | null>(null);
+  const [initialDistrictId, setInitialDistrictId] = useState<string | null>(
+    null
+  );
+  const [initialCityId, setInitialCityId] = useState<string | null>(null);
+
+  // Update ref when dialog opens/closes
+  useEffect(() => {
+    dialogOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  // Extract initial values when audiologist data is available
+  useEffect(() => {
+    if (isEdit && audiologist?.city) {
+      const city = audiologist.city;
+      const district = city.district;
+      const state = district?.state;
+      const country = state?.country;
+
+      if (country?.id && state?.id && district?.id && city.id) {
+        setInitialCountryId(country.id);
+        setInitialStateId(state.id);
+        setInitialDistrictId(district.id);
+        setInitialCityId(city.id);
+
+        // Also set the current values for the selectors
+        setCountryId(country.id);
+        setStateId(state.id);
+        setDistrictId(district.id);
+      }
+    }
+  }, [isEdit, audiologist]);
+
   const form = useForm<CreateAudiologistProfile>({
     resolver: zodResolver(CreateAudiologistProfileSchema),
     defaultValues: {
@@ -83,13 +120,22 @@ export default function HandleAudiologistDialog({
         role: audiologistUser?.role || Role.AUDIOLOGIST,
         dob: audiologistUser?.dob,
       },
+
       audiologist: {
         ...audiologist,
         languages: audiologist?.languages?.map((lang) => lang.id) || [],
         qualifications: audiologist?.qualifications || [],
+        cityId: audiologist?.city?.id || "",
       },
     },
   });
+
+  // Set cityId in form when initial values are available
+  useEffect(() => {
+    if (isEdit && initialCityId) {
+      form.setValue("audiologist.cityId", initialCityId);
+    }
+  }, [isEdit, initialCityId, form]);
 
   const {
     mutate: createCentre,
@@ -103,21 +149,39 @@ export default function HandleAudiologistDialog({
   } = useUpdateAudiologist();
   // Reset state/city/district when parent changes
   useEffect(() => {
-    setStateId("");
-    setDistrictId("");
-    form.setValue("audiologist.cityId", "");
-  }, [countryId, form]);
+    if (!isPopulatingForEdit) {
+      setStateId("");
+      setDistrictId("");
+      form.setValue("audiologist.cityId", "");
+    }
+  }, [countryId, form, isPopulatingForEdit]);
   useEffect(() => {
-    setDistrictId("");
-    form.setValue("audiologist.cityId", "");
-  }, [stateId, form]);
+    if (!isPopulatingForEdit) {
+      setDistrictId("");
+      form.setValue("audiologist.cityId", "");
+    }
+  }, [stateId, form, isPopulatingForEdit]);
   useEffect(() => {
-    form.setValue("audiologist.cityId", "");
-  }, [districtId, form]);
+    if (!isPopulatingForEdit) {
+      form.setValue("audiologist.cityId", "");
+    }
+  }, [districtId, form, isPopulatingForEdit]);
 
   const toggleDialog = () => {
     setIsOpen(!isOpen);
     setStep(0);
+    // Reset location selectors when dialog closes
+    if (isOpen) {
+      setCountryId(null);
+      setStateId(null);
+      setDistrictId(null);
+      setIsPopulatingForEdit(false);
+      // Reset initial values
+      setInitialCountryId(null);
+      setInitialStateId(null);
+      setInitialDistrictId(null);
+      setInitialCityId(null);
+    }
   };
   const handleSubmit = (data: CreateAudiologistProfile) => {
     if (isEdit) {
@@ -303,25 +367,25 @@ export default function HandleAudiologistDialog({
         <CountrySelector
           value={countryId}
           onChange={setCountryId}
-          initialValue={countryId}
+          initialValue={isEdit ? initialCountryId : countryId}
         />
-        {countryId && (
+        {(countryId || (isEdit && initialCountryId)) && (
           <StateSelector
             value={stateId}
             onChange={setStateId}
-            countryId={countryId}
-            initialValue={stateId}
+            countryId={countryId || initialCountryId || ""}
+            initialValue={isEdit ? initialStateId : stateId}
           />
         )}
-        {stateId && (
+        {(stateId || (isEdit && initialStateId)) && (
           <DistrictSelector
             value={districtId}
             onChange={setDistrictId}
-            stateId={stateId || ""}
-            initialValue={districtId}
+            stateId={stateId || initialStateId || ""}
+            initialValue={isEdit ? initialDistrictId : districtId}
           />
         )}
-        {districtId && (
+        {(districtId || (isEdit && initialDistrictId)) && (
           <FormField
             control={form.control}
             name="audiologist.cityId"
@@ -329,8 +393,8 @@ export default function HandleAudiologistDialog({
               <CitySelector
                 value={field.value}
                 onChange={field.onChange}
-                districtId={districtId}
-                initialValue={field.value}
+                districtId={districtId || initialDistrictId || ""}
+                initialValue={isEdit ? initialCityId : field.value}
               />
             )}
           />
