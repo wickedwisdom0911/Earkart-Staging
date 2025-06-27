@@ -77,6 +77,7 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
                             transition={{ duration: 0.2 }}
                           >
                             <SidebarMenuSubButton
+                              asChild
                               isActive={pathname.includes(subItem.url!)}
                               className={cn(
                                 "hover:bg-primary-100 rounded-md transition-all duration-200",

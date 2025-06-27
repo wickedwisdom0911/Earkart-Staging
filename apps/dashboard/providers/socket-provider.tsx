@@ -16,9 +16,11 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const socketRef = useRef<Socket | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const { data: user } = useGetUser();
-  const { data: socketUrl } = useGetSocketUrl();
+  const { data: socketUrl, isLoading: socketUrlLoading } = useGetSocketUrl();
+
   useEffect(() => {
-    if (!user?.token) return;
+    // Don't initialize socket if user token is missing or socket URL is still loading
+    if (!user?.token || socketUrlLoading || !socketUrl) return;
 
     const initializeSocket = async () => {
       if (!socketRef.current) {
@@ -56,7 +58,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       socketRef.current = null;
       setSocket(null);
     };
-  }, [user]);
+  }, [user, socketUrl, socketUrlLoading]); // Added socketUrl and socketUrlLoading to dependencies
 
   return (
     <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>
