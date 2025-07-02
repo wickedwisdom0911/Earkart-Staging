@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { InputTags } from "@/components/ui/MultiInput";
 import LanguageSelector from "@/components/ui/selector/language-selector";
+import { Switch } from "@/components/ui/switch";
 
 const steps = [
   {
@@ -126,6 +127,7 @@ export default function HandleAudiologistDialog({
         languages: audiologist?.languages?.map((lang) => lang.id) || [],
         qualifications: audiologist?.qualifications || [],
         cityId: audiologist?.city?.id || "",
+        isInHouse: audiologist?.isInHouse || false,
       },
     },
   });
@@ -400,6 +402,24 @@ export default function HandleAudiologistDialog({
           />
         )}
       </div>
+
+      <FormField
+        control={form.control}
+        name="audiologist.isInHouse"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Is In House</FormLabel>
+            <FormControl>
+              <Switch
+                className="cursor-pointer"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
       <FormField
         control={form.control}
