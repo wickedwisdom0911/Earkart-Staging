@@ -91,6 +91,7 @@ export default function LoginPage() {
             <h1 className="text-3xl sm:text-4xl font-extrabold text-center text-primary-700 tracking-tight leading-tight">
               OMNI
             </h1>
+            2
             <span className="text-xs sm:text-sm text-muted-foreground text-center">
               by earKart Limited
             </span>

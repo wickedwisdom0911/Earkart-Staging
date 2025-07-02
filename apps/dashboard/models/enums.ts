@@ -71,3 +71,12 @@ export enum SessionStatus {
   FAILED = "FAILED",
   CANCELLED = "CANCELLED",
 }
+
+export enum AnswerType {
+  SHORT_TEXT = "SHORT_TEXT",
+  LONG_TEXT = "LONG_TEXT",
+  NUMBER = "NUMBER",
+  DATE = "DATE",
+  MULTIPLE_CHOICE = "MULTIPLE_CHOICE",
+  CHECKBOX = "CHECKBOX",
+}
