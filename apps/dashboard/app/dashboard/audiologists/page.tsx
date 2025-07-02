@@ -33,7 +33,11 @@ export default function Audiologists() {
             data.data.map((audiologist: AudiologistModelData) => (
               <div
                 key={audiologist.id}
-                className="relative bg-white dark:bg-neutral-900 rounded-xl shadow-md p-6 flex flex-col gap-3 border border-gray-100 dark:border-neutral-800 hover:shadow-lg transition-shadow "
+                className={`relative rounded-xl shadow-md p-6 flex flex-col gap-3 border hover:shadow-lg transition-shadow ${
+                  audiologist.isInHouse
+                    ? "bg-white dark:bg-neutral-900 border-gray-100 dark:border-neutral-800"
+                    : "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800"
+                }`}
               >
                 {/* Edit/Delete Actions */}
                 <div className="absolute top-4 right-4 flex gap-2 z-10">
@@ -102,6 +106,15 @@ export default function Audiologists() {
                       {audiologist.user.status}
                     </span>
                   )}
+                  <span
+                    className={`px-2 py-0.5 w-fit rounded text-xs font-semibold ${
+                      audiologist.isInHouse
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-orange-100 text-orange-700"
+                    }`}
+                  >
+                    {audiologist.isInHouse ? "In-House" : "External"}
+                  </span>
                   <span className="text-gray-500 dark:text-gray-400 text-sm mb-2 truncate">
                     {audiologist.user?.role}
                   </span>
