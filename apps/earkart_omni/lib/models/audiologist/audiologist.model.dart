@@ -65,6 +65,8 @@ class AudiologistModelData extends AudiologistEntity {
   @override
   final DateTime? breakTimeEnd;
   @override
+  final bool isInHouse;
+  @override
   final DateTime? createdAt;
   @override
   final DateTime? updatedAt;
@@ -101,6 +103,7 @@ class AudiologistModelData extends AudiologistEntity {
     this.workingTimeEnd,
     this.breakTimeStart,
     this.breakTimeEnd,
+    this.isInHouse = false,
     this.createdAt,
     this.updatedAt,
     this.user,
@@ -128,6 +131,7 @@ class AudiologistModelData extends AudiologistEntity {
          workingTimeEnd: workingTimeEnd,
          breakTimeStart: breakTimeStart,
          breakTimeEnd: breakTimeEnd,
+         isInHouse: isInHouse,
          createdAt: createdAt,
          updatedAt: updatedAt,
          user: user,
@@ -164,6 +168,7 @@ class AudiologistModelData extends AudiologistEntity {
         workingTimeEnd: DateTime.parse(json['workingTimeEnd']),
         breakTimeStart: DateTime.parse(json['breakTimeStart']),
         breakTimeEnd: DateTime.parse(json['breakTimeEnd']),
+        isInHouse: json['isInHouse'],
         createdAt: DateTime.parse(json['createdAt']),
         updatedAt: DateTime.parse(json['updatedAt']),
         user: json['user'],
@@ -194,6 +199,7 @@ class AudiologistModelData extends AudiologistEntity {
     'workingTimeEnd': workingTimeEnd?.toIso8601String(),
     'breakTimeStart': breakTimeStart?.toIso8601String(),
     'breakTimeEnd': breakTimeEnd?.toIso8601String(),
+    'isInHouse': isInHouse,
     'createdAt': createdAt?.toIso8601String(),
     'updatedAt': updatedAt?.toIso8601String(),
     'user': user,

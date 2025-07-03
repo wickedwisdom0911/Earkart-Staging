@@ -2,6 +2,8 @@ import 'package:dartz/dartz.dart';
 import 'package:earkart_omni/config/services/dio_exceptions.dart';
 import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
+import 'package:earkart_omni/config/utils/custom_logger.dart';
+import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/remote/auth.remote.source.dart';
@@ -71,6 +73,7 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
         if (result.success) {
           if (result.data != null) {
             await centreEntityDataSource.addCentreEntity(result.data!);
+
             return right(result.data!);
           }
         }

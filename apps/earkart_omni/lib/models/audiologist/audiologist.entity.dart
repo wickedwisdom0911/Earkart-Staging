@@ -49,20 +49,22 @@ class AudiologistEntity extends Equatable {
   @HiveField(18)
   final DateTime? breakTimeEnd;
   @HiveField(19)
-  final DateTime? createdAt;
+  final bool isInHouse;
   @HiveField(20)
+  final DateTime? createdAt;
+  @HiveField(21)
   final DateTime? updatedAt;
 
   // Relations
-  @HiveField(21)
-  final UserEntity? user;
   @HiveField(22)
-  final DistrictEntity? district;
+  final UserEntity? user;
   @HiveField(23)
-  final UserEntity? creator;
+  final DistrictEntity? district;
   @HiveField(24)
-  final UserEntity? updater;
+  final UserEntity? creator;
   @HiveField(25)
+  final UserEntity? updater;
+  @HiveField(26)
   final List<LanguageEntity>? languages;
 
   const AudiologistEntity({
@@ -92,6 +94,7 @@ class AudiologistEntity extends Equatable {
     this.creator,
     this.updater,
     this.languages,
+    this.isInHouse = false,
   });
 
   factory AudiologistEntity.fromJson(
@@ -139,6 +142,7 @@ class AudiologistEntity extends Equatable {
         json['breakTimeEnd'] != null
             ? DateTime.parse(json['breakTimeEnd'])
             : null,
+    isInHouse: json['isInHouse'],
     createdAt:
         json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
     updatedAt:
@@ -178,6 +182,7 @@ class AudiologistEntity extends Equatable {
     'workingTimeEnd': workingTimeEnd?.toIso8601String(),
     'breakTimeStart': breakTimeStart?.toIso8601String(),
     'breakTimeEnd': breakTimeEnd?.toIso8601String(),
+    'isInHouse': isInHouse,
     'createdAt': createdAt?.toIso8601String(),
     'updatedAt': updatedAt?.toIso8601String(),
     'user': user?.toJson(),
@@ -208,6 +213,7 @@ class AudiologistEntity extends Equatable {
     workingTimeEnd,
     breakTimeStart,
     breakTimeEnd,
+    isInHouse,
     createdAt,
     updatedAt,
     user,

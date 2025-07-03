@@ -546,3 +546,52 @@ class TympTypeAdapter extends TypeAdapter<TympType> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+class PatienSoldStatusAdapter extends TypeAdapter<PatienSoldStatus> {
+  @override
+  final int typeId = 34;
+
+  @override
+  PatienSoldStatus read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return PatienSoldStatus.unknown;
+      case 1:
+        return PatienSoldStatus.sold;
+      case 2:
+        return PatienSoldStatus.inProgress;
+      case 3:
+        return PatienSoldStatus.notInterested;
+      default:
+        return PatienSoldStatus.unknown;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, PatienSoldStatus obj) {
+    switch (obj) {
+      case PatienSoldStatus.unknown:
+        writer.writeByte(0);
+        break;
+      case PatienSoldStatus.sold:
+        writer.writeByte(1);
+        break;
+      case PatienSoldStatus.inProgress:
+        writer.writeByte(2);
+        break;
+      case PatienSoldStatus.notInterested:
+        writer.writeByte(3);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PatienSoldStatusAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
