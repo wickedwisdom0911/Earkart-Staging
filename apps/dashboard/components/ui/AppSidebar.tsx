@@ -18,6 +18,8 @@ import {
   LogOut,
   SettingsIcon,
   UserIcon,
+  UserPlusIcon,
+  UsersIcon,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -69,6 +71,17 @@ const adminSidebarItems: SidebarItem[] = [
     icon: <SettingsIcon className="text-slate-600" />,
     url: "/dashboard/settings",
   },
+  {
+    name: "Users",
+    icon: <UsersIcon className="text-slate-600" />,
+    url: "/dashboard/users",  
+  },
+
+  {
+    name: "Patients",
+    icon: <UserPlusIcon className="text-slate-600" />,
+    url: "/dashboard/patients",
+  },
 ];
 const audiologistSidebarItems: SidebarItem[] = [
   {
@@ -92,7 +105,14 @@ const audiologistSidebarItems: SidebarItem[] = [
     name: "Settings",
     icon: <SettingsIcon className="text-slate-600" />,
     url: "/dashboard/settings",
-  },
+},
+
+{
+  name: "Patients",
+  icon: <UserPlusIcon className="text-slate-600" />,
+  url: "/dashboard/patients",
+},
+ 
 ];
 export function AppSidebar() {
   const socket = useSocket();

@@ -33,5 +33,14 @@ export const patientModelSchema = z.object({
   data: patientModeldataSchema.optional().nullable(),
 });
 
+export const patientListResponseSchema = z.object({
+  success: patientModelSchema.shape.success,
+  message: patientModelSchema.shape.message,
+  data: z.array(patientModeldataSchema),
+});
+
+export type PatientListResponse = z.infer<typeof patientListResponseSchema>;
+
 export type PatientModelData = z.infer<typeof patientModeldataSchema>;
 export type PatientModel = z.infer<typeof patientModelSchema>;
+
