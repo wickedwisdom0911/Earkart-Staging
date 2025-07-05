@@ -19,8 +19,11 @@ export async function apiRequest<T>(
         errorData?.message || "An error occurred while fetching data."
       );
     }
-
+    
     const result = await response.json();
+
+    console.log("result", result)
+
     // Validate using the provided schema
     return schema.parse(result);
   } catch (error) {
