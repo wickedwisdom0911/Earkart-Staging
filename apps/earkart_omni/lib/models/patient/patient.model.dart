@@ -68,6 +68,8 @@ class PatientModelData extends PatientEntity {
     super.creator,
     super.updater,
     super.language,
+    super.soldStatus,
+    super.handledBy,
   });
 
   factory PatientModelData.fromJson(Map<String, dynamic> json) {
@@ -101,6 +103,8 @@ class PatientModelData extends PatientEntity {
           json['language'] != null
               ? LanguageEntity.fromJson(json['language'])
               : null,
+      soldStatus: patienSoldStatusFromApi(json['soldStatus']),
+      handledBy: json['handledBy'],
     );
   }
 
@@ -128,6 +132,8 @@ class PatientModelData extends PatientEntity {
       'updater': updater?.toJson(),
       'language': language?.toJson(),
       'district': district?.toJson(),
+      'soldStatus': toUpperSnakeCase(soldStatus?.name ?? ''),
+      'handledBy': handledBy,
     };
   }
 }

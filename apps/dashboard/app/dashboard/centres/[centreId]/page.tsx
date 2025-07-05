@@ -11,9 +11,9 @@ export default function CentrePage() {
   const { data, isLoading, error } = useGetCentre(centreId as string);
   const centre = data?.data;
   const user = centre?.user;
-  const district = centre?.district;
-  const city = district?.city;
-  const state = city?.state;
+  const city = centre?.city;
+  const district = city?.district;
+  const state = district?.state;
   const country = state?.country;
 
   return (
@@ -27,17 +27,30 @@ export default function CentrePage() {
               <div>
                 <div className="text-3xl font-extrabold flex items-center gap-3 text-primary-700 dark:text-primary-300 mb-1">
                   {user?.name || "Centre Name"}
-                  {user?.status && (
+                  <div className="flex gap-2">
+                    {user?.status && (
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                          user.status === "ACTIVE"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {user.status}
+                      </span>
+                    )}
                     <span
                       className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                        user.status === "ACTIVE"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
+                        centre.isOurAssistant
+                          ? "bg-purple-100 text-purple-700"
+                          : "bg-gray-100 text-gray-700"
                       }`}
                     >
-                      {user.status}
+                      {centre.isOurAssistant
+                        ? "Our Assistant"
+                        : "External Assistant"}
                     </span>
-                  )}
+                  </div>
                 </div>
                 <div className="text-lg text-gray-500 dark:text-gray-400 mb-1">
                   {centre.entName || "ENT Name"}

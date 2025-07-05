@@ -72,7 +72,7 @@ class StateEntityAdapter extends TypeAdapter<StateEntity> {
       id: fields[0] as String?,
       name: fields[1] as String,
       countryId: fields[2] as String,
-      cities: (fields[3] as List?)?.cast<CityEntity>(),
+      districts: (fields[3] as List?)?.cast<DistrictEntity>(),
       status: fields[4] as Status,
       createdAt: fields[5] as DateTime,
       updatedAt: fields[6] as DateTime,
@@ -91,7 +91,7 @@ class StateEntityAdapter extends TypeAdapter<StateEntity> {
       ..writeByte(2)
       ..write(obj.countryId)
       ..writeByte(3)
-      ..write(obj.cities)
+      ..write(obj.districts)
       ..writeByte(4)
       ..write(obj.status)
       ..writeByte(5)
@@ -126,7 +126,7 @@ class CityEntityAdapter extends TypeAdapter<CityEntity> {
     return CityEntity(
       id: fields[0] as String?,
       name: fields[1] as String,
-      stateId: fields[2] as String,
+      districtId: fields[2] as String,
       status: fields[3] as Status,
       createdAt: fields[4] as DateTime,
       updatedAt: fields[5] as DateTime,
@@ -144,7 +144,7 @@ class CityEntityAdapter extends TypeAdapter<CityEntity> {
       ..writeByte(1)
       ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.stateId)
+      ..write(obj.districtId)
       ..writeByte(3)
       ..write(obj.status)
       ..writeByte(4)
@@ -181,11 +181,11 @@ class DistrictEntityAdapter extends TypeAdapter<DistrictEntity> {
     return DistrictEntity(
       id: fields[0] as String?,
       name: fields[1] as String,
-      cityId: fields[2] as String,
+      stateId: fields[2] as String,
       status: fields[3] as Status,
       createdAt: fields[4] as DateTime,
       updatedAt: fields[5] as DateTime,
-      city: fields[6] as CityEntity?,
+      cities: (fields[6] as List?)?.cast<CityEntity>(),
     );
   }
 
@@ -198,7 +198,7 @@ class DistrictEntityAdapter extends TypeAdapter<DistrictEntity> {
       ..writeByte(1)
       ..write(obj.name)
       ..writeByte(2)
-      ..write(obj.cityId)
+      ..write(obj.stateId)
       ..writeByte(3)
       ..write(obj.status)
       ..writeByte(4)
@@ -206,7 +206,7 @@ class DistrictEntityAdapter extends TypeAdapter<DistrictEntity> {
       ..writeByte(5)
       ..write(obj.updatedAt)
       ..writeByte(6)
-      ..write(obj.city);
+      ..write(obj.cities);
   }
 
   @override

@@ -39,6 +39,7 @@ import useCreateCentre from "@/hooks/centre/use-create-centre";
 import useUpdateCentre from "@/hooks/centre/use-update-centre";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 // Custom hook for location management
 const useLocationState = (isEdit: boolean, centre?: CentreModelData) => {
@@ -205,16 +206,13 @@ export default function HandleCentreDialog({
     }
   };
   const handleSubmit = (data: CreateCenterProfile) => {
-    // Combine prefix and suffix for centre code
-    const fullCode = CENTRE_CODE_PREFIX + (data.centre.code || "");
-    data.centre.code = fullCode;
     if (isEdit) {
       if (data.centre.cityId === "") {
         data.centre.cityId = data.centre.city?.id || "";
       }
+      console.log(data);
       updateCentre(
         {
-          ...data,
           centre: { ...data.centre, id: centre?.id },
           user: { ...data.user, id: centreUser?.id },
         },
@@ -491,6 +489,24 @@ export default function HandleCentreDialog({
                 {...field}
                 placeholder="Enter assistant contact number"
                 type="number"
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="centre.isOurAssistant"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Is Our Assistant</FormLabel>
+            <FormControl>
+              <Switch
+                className="cursor-pointer"
+                checked={field.value}
+                onCheckedChange={field.onChange}
               />
             </FormControl>
             <FormMessage />

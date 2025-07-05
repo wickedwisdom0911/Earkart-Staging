@@ -37,28 +37,30 @@ class CentreEntity extends Equatable {
   @HiveField(12)
   final String assistantContactNumber;
   @HiveField(13)
-  final PaymentCycle paymentCycle;
+  final bool isOurAssistant;
   @HiveField(14)
-  final String? createdBy;
+  final PaymentCycle paymentCycle;
   @HiveField(15)
-  final String? updatedBy;
+  final String? createdBy;
   @HiveField(16)
-  final List<WeekDays> workingDays;
+  final String? updatedBy;
   @HiveField(17)
-  final String workingTimeStart;
+  final List<WeekDays> workingDays;
   @HiveField(18)
-  final String workingTimeEnd;
+  final String workingTimeStart;
   @HiveField(19)
-  final String breakTimeStart;
+  final String workingTimeEnd;
   @HiveField(20)
-  final String breakTimeEnd;
+  final String breakTimeStart;
   @HiveField(21)
-  final DateTime? createdAt;
+  final String breakTimeEnd;
   @HiveField(22)
-  final DateTime? updatedAt;
+  final DateTime? createdAt;
   @HiveField(23)
-  final DistrictEntity? district; // Replace with DistrictEntity if available
+  final DateTime? updatedAt;
   @HiveField(24)
+  final CityEntity? city; // Replace with DistrictEntity if available
+  @HiveField(25)
   final DeviceEntity? device;
 
   const CentreEntity({
@@ -75,6 +77,7 @@ class CentreEntity extends Equatable {
     required this.entName,
     required this.assistantName,
     required this.assistantContactNumber,
+    required this.isOurAssistant,
     required this.paymentCycle,
     this.createdBy,
     this.updatedBy,
@@ -85,7 +88,7 @@ class CentreEntity extends Equatable {
     required this.breakTimeEnd,
     this.createdAt,
     this.updatedAt,
-    this.district,
+    this.city,
     this.device,
   });
 
@@ -106,6 +109,7 @@ class CentreEntity extends Equatable {
       entName: json['entName'],
       assistantName: json['assistantName'],
       assistantContactNumber: json['assistantContactNumber'],
+      isOurAssistant: json['isOurAssistant'],
       paymentCycle: paymentCycleFromApi(json['paymentCycle']),
       createdBy: json['createdBy'],
       updatedBy: json['updatedBy'],
@@ -126,10 +130,7 @@ class CentreEntity extends Equatable {
           json['updatedAt'] != null
               ? DateTime.tryParse(json['updatedAt'])
               : null,
-      district:
-          json['district'] != null
-              ? DistrictEntity.fromJson(json['district'])
-              : null,
+      city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
       device:
           json['device'] != null ? DeviceEntity.fromJson(json['device']) : null,
     );
@@ -150,6 +151,7 @@ class CentreEntity extends Equatable {
       'entName': entName,
       'assistantName': assistantName,
       'assistantContactNumber': assistantContactNumber,
+      'isOurAssistant': isOurAssistant,
       'paymentCycle': paymentCycle.name,
       'createdBy': createdBy,
       'updatedBy': updatedBy,
@@ -160,7 +162,7 @@ class CentreEntity extends Equatable {
       'breakTimeEnd': breakTimeEnd,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
-      'district': district?.toJson(),
+      'city': city?.toJson(),
       'device': device?.toJson(),
     };
   }
@@ -180,6 +182,7 @@ class CentreEntity extends Equatable {
     entName,
     assistantName,
     assistantContactNumber,
+    isOurAssistant,
     paymentCycle,
     createdBy,
     updatedBy,
@@ -190,7 +193,7 @@ class CentreEntity extends Equatable {
     breakTimeEnd,
     createdAt,
     updatedAt,
-    district,
+    city,
     device,
   ];
 }

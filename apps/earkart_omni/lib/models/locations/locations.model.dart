@@ -116,7 +116,7 @@ class StateModelData extends StateEntity {
     super.id,
     required super.name,
     required super.countryId,
-    super.cities,
+    super.districts,
     required super.status,
     required super.createdAt,
     required super.updatedAt,
@@ -128,10 +128,12 @@ class StateModelData extends StateEntity {
       id: json['id'],
       name: json['name'],
       countryId: json['countryId'],
-      cities:
-          json['cities'] != null
-              ? List<CityEntity>.from(
-                (json['cities'] as List).map((x) => CityEntity.fromJson(x)),
+      districts:
+          json['districts'] != null
+              ? List<DistrictEntity>.from(
+                (json['districts'] as List).map(
+                  (x) => DistrictEntity.fromJson(x),
+                ),
               )
               : null,
       status: statusFromApi(json['status']),
@@ -150,7 +152,7 @@ class StateModelData extends StateEntity {
       'id': id,
       'name': name,
       'countryId': countryId,
-      'cities': cities?.map((x) => x.toJson()).toList(),
+      'districts': districts?.map((x) => x.toJson()).toList(),
       'status': status.name.toUpperCase(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -196,7 +198,7 @@ class CityModelData extends CityEntity {
   const CityModelData({
     super.id,
     required super.name,
-    required super.stateId,
+    required super.districtId,
     required super.status,
     required super.createdAt,
     required super.updatedAt,
@@ -208,7 +210,7 @@ class CityModelData extends CityEntity {
     return CityModelData(
       id: json['id'],
       name: json['name'],
-      stateId: json['stateId'],
+      districtId: json['districtId'],
       status: statusFromApi(json['status']),
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
@@ -229,7 +231,7 @@ class CityModelData extends CityEntity {
     return {
       'id': id,
       'name': name,
-      'stateId': stateId,
+      'districtId': districtId,
       'status': status.name.toUpperCase(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -277,22 +279,27 @@ class DistrictModelData extends DistrictEntity {
   const DistrictModelData({
     super.id,
     required super.name,
-    required super.cityId,
+    required super.stateId,
     required super.status,
     required super.createdAt,
     required super.updatedAt,
-    super.city,
+    super.cities,
   });
 
   factory DistrictModelData.fromJson(Map<String, dynamic> json) {
     return DistrictModelData(
       id: json['id'],
       name: json['name'],
-      cityId: json['cityId'],
+      stateId: json['stateId'],
       status: statusFromApi(json['status']),
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
-      city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
+      cities:
+          json['cities'] != null
+              ? List<CityEntity>.from(
+                (json['cities'] as List).map((x) => CityEntity.fromJson(x)),
+              )
+              : null,
     );
   }
 
@@ -301,11 +308,11 @@ class DistrictModelData extends DistrictEntity {
     return {
       'id': id,
       'name': name,
-      'cityId': cityId,
+      'stateId': stateId,
       'status': status.name.toUpperCase(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
-      'city': city?.toJson(),
+      'cities': cities?.map((x) => x.toJson()).toList(),
     };
   }
 }
