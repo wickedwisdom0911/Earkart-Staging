@@ -52,6 +52,9 @@ Future<void> main() async {
 // Global timer for auto-hide functionality
 Timer? _autoHideTimer;
 
+// Global system UI observer instance to prevent memory leaks
+_SystemUIObserver? _systemUIObserver;
+
 Future<void> _setupSystemUI() async {
   // Lock orientation to landscape for optimal medical device usage
   await SystemChrome.setPreferredOrientations([
@@ -96,17 +99,24 @@ Future<void> _enableFullScreenMode() async {
 
 /// Set up auto-hide functionality for system UI
 void _setupAutoHideSystemUI() {
-  // Listen to system UI visibility changes
-  SystemChannels.platform.setMethodCallHandler((call) async {
-    if (call.method == 'SystemChrome.systemUIChange') {
-      // User interacted with system UI, start auto-hide timer
-      _startAutoHideTimer();
-    }
-    return null;
-  });
+  // Remove existing observer if any to prevent duplicates
+  if (_systemUIObserver != null) {
+    WidgetsBinding.instance.removeObserver(_systemUIObserver!);
+  }
 
-  // Also listen to app lifecycle changes
-  WidgetsBinding.instance.addObserver(_SystemUIObserver());
+  // Create and add new observer
+  _systemUIObserver = _SystemUIObserver();
+  WidgetsBinding.instance.addObserver(_systemUIObserver!);
+}
+
+/// Clean up system UI observer to prevent memory leaks
+void _cleanupSystemUIObserver() {
+  if (_systemUIObserver != null) {
+    WidgetsBinding.instance.removeObserver(_systemUIObserver!);
+    _systemUIObserver = null;
+  }
+  _autoHideTimer?.cancel();
+  _autoHideTimer = null;
 }
 
 /// Start timer to automatically hide system UI after user interaction
@@ -116,9 +126,12 @@ void _startAutoHideTimer() {
 
   // Start new timer - hide system UI after 3 seconds of inactivity
   _autoHideTimer = Timer(const Duration(seconds: 3), () async {
-    await _enableFullScreenMode();
-    // Optional: Show a brief notification that app went back to full screen
-    _showFullScreenNotification();
+    // Check if timer is still valid (not cancelled)
+    if (_autoHideTimer != null && _autoHideTimer!.isActive) {
+      await _enableFullScreenMode();
+      // Optional: Show a brief notification that app went back to full screen
+      _showFullScreenNotification();
+    }
   });
 }
 
@@ -143,6 +156,10 @@ class _SystemUIObserver extends WidgetsBindingObserver {
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
         // Cancel auto-hide timer when app is not active
+        _autoHideTimer?.cancel();
+        break;
+      case AppLifecycleState.inactive:
+        // App is inactive, cancel auto-hide timer
         _autoHideTimer?.cancel();
         break;
       default:
@@ -209,8 +226,21 @@ Future<void> _initDataSources() async {
   await di<ConsultationEntityDataSource>().init();
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void dispose() {
+    // Clean up system UI observer to prevent memory leaks
+    _cleanupSystemUIObserver();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
