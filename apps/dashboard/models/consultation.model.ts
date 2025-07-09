@@ -38,6 +38,7 @@ export const ConsultationModelDataSchema = z.object({
   patient: patientModeldataSchema.optional().nullable(),
   audiologist: AudiologistModelDataSchema.optional().nullable(),
   centre: CentreModelDataSchema.optional().nullable(),
+  questionnaire : z.any(),
   recordings: z
     .array(ConsultationRecordingModelDataSchema)
     .optional()

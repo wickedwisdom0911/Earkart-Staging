@@ -1,112 +1,130 @@
+
 "use client";
-
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useGetUser } from "@/hooks/auth/use-get-user";
-import { AudiologistActivityType, Role } from "@/models/enums";
-import useUpdateAudiologistActivity from "@/hooks/audiologist/use-update-audiologist-activity";
-import useGetAudiologistActivity from "@/hooks/audiologist/use-get-audiologist-activity";
+import useUpdateAudiologistActivity from "@/hooks/audiologist/use-update-audiologist-activity"
+import { Role, AudiologistActivityType } from "@/models/enums";
+import { formatActivityLabel } from "@/utils";
 import useStopAudiologistActivity from "@/hooks/audiologist/use-stop-audiology-activity";
+import useGetAudiologistActivity from "@/hooks/audiologist/use-get-audiologist-activity";
 
 
-interface Activity {
+type UserActivity = {
   id: string;
   type: AudiologistActivityType;
   startTime: string;
-  details?: string;
-}
+  customActivity?: string;
+};
 
-interface ContextType {
+type ActivityContextType = {
   canTrack: boolean;
-  current?: Activity;
+  userId?: string;
+  selectedLabel: string;
   elapsed: number;
-  start: (type: AudiologistActivityType, details?: string) => void;
-  stop: () => void;
-}
+  currentActivity?: UserActivity;
+  startActivity: (type: AudiologistActivityType, details?: string) => void;
+  stopActivity: () => void;
+};
 
-const StatusCtx = createContext<ContextType | null>(null);
+const ActivityContext = createContext<ActivityContextType | null>(null);
 
-export function useAudiologyStatus() {
-  const ctx = useContext(StatusCtx);
-  if (!ctx) throw new Error("Must be used within AudiologyStatusProvider");
-  return ctx;
-}
-
-export function AudiologyStatusProvider({ children }: { children: ReactNode }) {
+export function ActivityProvider({ children }: { children: ReactNode }) {
   const { data: user } = useGetUser();
-  const role = user?.role;
-  const canTrack = role === Role.AUDIOLOGIST || role === Role.HEAD_AUDIOLOGIST;
+  const { data: activityData, refetch: refetchActivity } = useGetAudiologistActivity(user?.id ?? "");
+  const { mutate: updateActivity } = useUpdateAudiologistActivity();
+  const { mutate: stopAct } = useStopAudiologistActivity();
 
-  const { data: actData } = useGetAudiologistActivity(canTrack ? user?.id || "" : "");
-  const { mutate: doStart } = useUpdateAudiologistActivity();
-  const { mutate: doStop } = useStopAudiologistActivity();
-
-  const [current, setCurrent] = useState<Activity | undefined>();
   const [elapsed, setElapsed] = useState(0);
-  const [timer, setTimer] = useState<NodeJS.Timeout>();
+  const [timerId, setTimerId] = useState<NodeJS.Timeout | null>(null);
+  const [currentActivity, setCurrentActivity] = useState<UserActivity | undefined>(undefined);
+
+  const canTrack = Boolean(
+    user && (user.role === Role.AUDIOLOGIST || user.role === Role.HEAD_AUDIOLOGIST)
+  );
 
   useEffect(() => {
-    if (!canTrack) {
-      clearInterval(timer);
-      setCurrent(undefined);
+    if (!canTrack || !activityData || activityData.endTime) {
+      if (timerId) {
+        clearInterval(timerId);
+        setTimerId(null);
+      }
+      setCurrentActivity(undefined);
       setElapsed(0);
       return;
     }
-    if (!actData || actData.endTime) {
-      clearInterval(timer);
-      setCurrent(undefined);
-      setElapsed(0);
-      return;
-    }
-    const act: Activity = {
-      id: actData.id,
-      type: actData.type as AudiologistActivityType,
-      startTime: actData.startTime,
-      details: actData.details,
-    };
-    setCurrent(act);
-    const offset = Math.floor((Date.now() - new Date(act.startTime).getTime()) / 1000);
-    setElapsed(offset);
-    const iv = setInterval(() => setElapsed(e => e + 1), 1000);
-    setTimer(iv);
-    return () => clearInterval(iv);
-  }, [canTrack, actData]);
 
-  const start = (type: AudiologistActivityType, details?: string) => {
-    if (!canTrack || !user?.id) return;
-    clearInterval(timer);
-    doStart(
+    const act: UserActivity = {
+      id: activityData.id,
+      type: activityData.type as AudiologistActivityType,
+      startTime: activityData.startTime,
+      customActivity: activityData.details || undefined,
+    };
+    setCurrentActivity(act);
+    const startMs = new Date(act.startTime).getTime();
+    setElapsed(Math.floor((Date.now() - startMs) / 1000));
+
+    const id = setInterval(() => setElapsed(e => e + 1), 1000);
+    setTimerId(id);
+    return () => clearInterval(id);
+  }, [activityData, canTrack]);
+
+  const startActivity = (type: AudiologistActivityType, details?: string) => {
+    if (!user?.id) return;
+    updateActivity(
       { audiologistId: user.id, type, details },
       {
-        onSuccess: res => {
-          if (res.success && res.data) {
-            const newAct: Activity = {
-              id: res.data.id,
-              type,
-              startTime: res.data.startTime,
-              details,
-            };
-            setCurrent(newAct);
-            setElapsed(0);
-            const iv = setInterval(() => setElapsed(e => e + 1), 1000);
-            setTimer(iv);
-          }
-        },
+        onSuccess: () => {
+          // Refresh data
+          refetchActivity();
+        }
       }
     );
   };
 
-  const stop = () => {
-    if (!canTrack || !current || !user?.id) return;
-    clearInterval(timer);
-    doStop(
-      { audiologistId: user.id, id: current.id },
-      { onSuccess: () => { setCurrent(undefined); setElapsed(0); } }
+  const stopActivity = () => {
+    if (!user?.id || !currentActivity) return;
+    stopAct(
+      { audiologistId: user.id, id: currentActivity.id },
+      {
+        onSuccess: () => {
+          // reset UI
+          if (timerId) {
+            clearInterval(timerId);
+            setTimerId(null);
+          }
+          setElapsed(0);
+          setCurrentActivity(undefined);
+          // refetch to clear API record
+          refetchActivity();
+        },
+        onError: (error) => {
+          console.error("Failed to stop activity:", error);
+        }
+      }
     );
   };
 
   return (
-    <StatusCtx.Provider value={{ canTrack, current, elapsed, start, stop }}>
+    <ActivityContext.Provider
+      value={{
+        canTrack,
+        userId: user?.id,
+        selectedLabel: currentActivity
+          ? currentActivity.customActivity || formatActivityLabel(currentActivity.type)
+          : "Idle",
+        elapsed,
+        currentActivity,
+        startActivity,
+        stopActivity,
+      }}
+    >
       {children}
-    </StatusCtx.Provider>
+    </ActivityContext.Provider>
   );
+}
+
+export function useActivity(): ActivityContextType {
+  const ctx = useContext(ActivityContext);
+  if (!ctx) throw new Error("useActivity must be used within ActivityProvider");
+  return ctx;
 }

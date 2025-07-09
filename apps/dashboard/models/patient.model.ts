@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { userModelDataSchema } from "./user.model";
 import { LanguageModelDataSchema } from "./language.model";
-import { DistrictModelDataSchema } from "./district.model";
+import { CityModelDataSchema } from "./city.model";
 
 export const patientModeldataSchema = z.object({
   id: z.string(),
@@ -13,7 +13,7 @@ export const patientModeldataSchema = z.object({
   dob: z.string(),
   password: z.string().optional().nullable(),
   address: z.string(),
-  districtId: z.string(),
+  cityId: z.string(),
   pincode: z.string(),
   createdBy: z.string().optional(),
   updatedBy: z.string().optional(),
@@ -24,7 +24,7 @@ export const patientModeldataSchema = z.object({
   creator: userModelDataSchema.optional().nullable(),
   updater: userModelDataSchema.optional().nullable(),
   language: LanguageModelDataSchema.optional().nullable(),
-  district: DistrictModelDataSchema.optional().nullable(),
+  city: CityModelDataSchema.optional().nullable(),
 });
 
 export const patientModelSchema = z.object({
