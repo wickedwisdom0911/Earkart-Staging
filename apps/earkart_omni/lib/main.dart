@@ -11,6 +11,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/consultati
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
+import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
@@ -28,11 +29,13 @@ import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/tympanometry/tympanometry_test.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
 import 'package:get/route_manager.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:async';
 
 Future<void> main() async {
   await dotenv.load(fileName: ".env");
@@ -46,19 +49,106 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
+// Global timer for auto-hide functionality
+Timer? _autoHideTimer;
+
 Future<void> _setupSystemUI() async {
-  // Lock orientation and set immersive mode
+  // Lock orientation to landscape for optimal medical device usage
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
   ]);
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+
+  // Initialize full screen immersive mode
+  await _enableFullScreenMode();
+
+  // Set up auto-hide system UI listener
+  _setupAutoHideSystemUI();
+}
+
+/// Enable full screen immersive mode for medical application
+Future<void> _enableFullScreenMode() async {
+  // Enable immersive full screen mode
+  SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.immersiveSticky,
+    overlays: [],
+  );
+
+  // Configure beautiful transparent system UI overlay
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
+      // Status Bar Configuration
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+
+      // System Navigation Bar Configuration
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+
+      // Modern Android 12+ system bar styling
+      systemStatusBarContrastEnforced: false,
+      systemNavigationBarContrastEnforced: false,
     ),
   );
+}
+
+/// Set up auto-hide functionality for system UI
+void _setupAutoHideSystemUI() {
+  // Listen to system UI visibility changes
+  SystemChannels.platform.setMethodCallHandler((call) async {
+    if (call.method == 'SystemChrome.systemUIChange') {
+      // User interacted with system UI, start auto-hide timer
+      _startAutoHideTimer();
+    }
+    return null;
+  });
+
+  // Also listen to app lifecycle changes
+  WidgetsBinding.instance.addObserver(_SystemUIObserver());
+}
+
+/// Start timer to automatically hide system UI after user interaction
+void _startAutoHideTimer() {
+  // Cancel any existing timer
+  _autoHideTimer?.cancel();
+
+  // Start new timer - hide system UI after 3 seconds of inactivity
+  _autoHideTimer = Timer(const Duration(seconds: 3), () async {
+    await _enableFullScreenMode();
+    // Optional: Show a brief notification that app went back to full screen
+    _showFullScreenNotification();
+  });
+}
+
+/// Show a subtle notification when returning to full screen mode
+void _showFullScreenNotification() {
+  // This could be enhanced with a toast or subtle indicator
+  // For now, we'll provide gentle haptic feedback
+  HapticFeedback.lightImpact();
+}
+
+/// Custom app lifecycle observer for system UI management
+class _SystemUIObserver extends WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App resumed, ensure full screen mode
+        _enableFullScreenMode();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        // Cancel auto-hide timer when app is not active
+        _autoHideTimer?.cancel();
+        break;
+      default:
+        break;
+    }
+  }
 }
 
 Future<void> _initHive() async {
@@ -138,6 +228,9 @@ class MyApp extends StatelessWidget {
         BlocProvider<CommunicationCubit>(
           create: (context) => di.call<CommunicationCubit>(),
         ),
+        BlocProvider<NetworkCubit>(
+          create: (context) => di.call<NetworkCubit>(),
+        ),
       ],
       child: GetMaterialApp(
         title: "EarKart Omni",
@@ -145,6 +238,42 @@ class MyApp extends StatelessWidget {
         theme: theme,
         initialRoute: RootScreen.routeName,
         onGenerateRoute: (settings) => generateRoute(settings),
+
+        // Beautiful app configuration with full screen management
+        builder: (context, child) {
+          return AnnotatedRegion<SystemUiOverlayStyle>(
+            value: const SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.dark,
+              systemNavigationBarColor: Colors.transparent,
+              systemNavigationBarIconBrightness: Brightness.dark,
+            ),
+            child: GestureDetector(
+              // Detect user interactions to manage auto-hide timer
+              onTap: () => _startAutoHideTimer(),
+              onPanDown: (_) => _startAutoHideTimer(),
+              onScaleStart: (_) => _startAutoHideTimer(),
+              behavior: HitTestBehavior.translucent,
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  // Ensure text scaling doesn't break medical UI layouts
+                  textScaler: TextScaler.linear(1.0),
+                ),
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
+          );
+        },
+
+        // Enhanced scrolling physics for better user experience
+        scrollBehavior: const MaterialScrollBehavior().copyWith(
+          dragDevices: {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+            PointerDeviceKind.trackpad,
+          },
+          scrollbars: false,
+        ),
       ),
     );
   }
