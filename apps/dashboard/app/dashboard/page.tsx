@@ -1,7 +1,6 @@
 "use client";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useEffect, useState } from "react";
-import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { useSocket } from "@/providers/socket-provider";
 import { format } from "date-fns";
@@ -12,6 +11,7 @@ import {
 } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
+import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import {
   User,
   Building2,

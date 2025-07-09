@@ -20,6 +20,7 @@ import {
   UserIcon,
   UserPlusIcon,
   UsersIcon,
+  PieChart,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -39,6 +40,11 @@ export interface SidebarItem {
 
 const adminSidebarItems: SidebarItem[] = [
   {
+    name: "Dashboard",
+    icon: <PieChart className="text-slate-600" />,
+    url: "/dashboard/overview",
+  },
+  {
     name: "Active Consultations",
     icon: <HomeIcon className="text-slate-600" />,
     url: "/dashboard",
@@ -47,14 +53,6 @@ const adminSidebarItems: SidebarItem[] = [
     name: "Analytics",
     icon: <BarChartIcon className="text-slate-600" />,
     url: "/dashboard/analytics",
-  },
-  {
-    name: "Reports",
-    icon: <FileIcon className="text-slate-600" />,
-    subItems: [
-      { name: "Consultation Reports", url: "/dashboard/reports/consultation" },
-      { name: "Activity Logs", url: "/dashboard/reports/activity-logs" },
-    ],
   },
   {
     name: "Audiologists",
@@ -76,14 +74,18 @@ const adminSidebarItems: SidebarItem[] = [
     icon: <UsersIcon className="text-slate-600" />,
     url: "/dashboard/users",  
   },
-
   {
     name: "Patients",
     icon: <UserPlusIcon className="text-slate-600" />,
     url: "/dashboard/patients",
   },
 ];
-const audiologistSidebarItems: SidebarItem[] = [
+const headAudiologistSidebarItems: SidebarItem[] = [
+  {
+    name: "Dashboard",
+    icon: <PieChart className="text-slate-600" />,
+    url: "/dashboard/overview",
+  },
   {
     name: "Active Consultations",
     icon: <HomeIcon className="text-slate-600" />,
@@ -92,27 +94,51 @@ const audiologistSidebarItems: SidebarItem[] = [
   {
     name: "Analytics",
     icon: <BarChartIcon className="text-slate-600" />,
-    url: "/dashboard/analytics/{audilogistId}",
+    url: "/dashboard/analytics",
   },
   {
-    name: "Reports",
-    icon: <FileIcon className="text-slate-600" />,
-    subItems: [
-      { name: "Consultation Reports", url: "/dashboard/reports/consultation" },
-    ],
+    name: "Audiologists",
+    icon: <UserIcon className="text-slate-600" />,
+    url: "/dashboard/audiologists",
   },
   {
     name: "Settings",
     icon: <SettingsIcon className="text-slate-600" />,
     url: "/dashboard/settings",
-},
+  },
+  {
+    name: "Patients",
+    icon: <UserPlusIcon className="text-slate-600" />,
+    url: "/dashboard/patients",
+  },
+];
 
-{
-  name: "Patients",
-  icon: <UserPlusIcon className="text-slate-600" />,
-  url: "/dashboard/patients",
-},
- 
+const audiologistSidebarItems: SidebarItem[] = [
+  {
+    name: "Dashboard",
+    icon: <PieChart className="text-slate-600" />,
+    url: "/dashboard/overview",
+  },
+  {
+    name: "Active Consultations",
+    icon: <HomeIcon className="text-slate-600" />,
+    url: "/dashboard",
+  },
+  {
+    name: "Analytics",
+    icon: <BarChartIcon className="text-slate-600" />,
+    url: "/dashboard/analytics",
+  },
+  {
+    name: "Settings",
+    icon: <SettingsIcon className="text-slate-600" />,
+    url: "/dashboard/settings",
+  },
+  {
+    name: "Patients",
+    icon: <UserPlusIcon className="text-slate-600" />,
+    url: "/dashboard/patients",
+  },
 ];
 export function AppSidebar() {
   const socket = useSocket();
@@ -173,6 +199,10 @@ export function AppSidebar() {
             {user?.role?.toLowerCase() === "admin" ||
             user?.role?.toLowerCase() === "super_admin"
               ? adminSidebarItems.map((item: SidebarItem) => (
+                  <AppSidebarBody key={item.name} item={item} />
+                ))
+              : user?.role?.toLowerCase() === "head_audiologist"
+              ? headAudiologistSidebarItems.map((item: SidebarItem) => (
                   <AppSidebarBody key={item.name} item={item} />
                 ))
               : audiologistSidebarItems.map((item: SidebarItem) => (

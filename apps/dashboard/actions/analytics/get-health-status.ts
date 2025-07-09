@@ -1,20 +1,25 @@
+// actions/analytics/get-health-status.ts
 "use server";
 
 import { apiRequest } from "@/lib/api";
 import { getBaseUrl } from "@/lib/environment";
 import { verifySession } from "@/lib/session";
-import { AudiologistModel, AudiologistModelSchema } from "@/models/audiologist.model";
+import { 
+  HealthData,
+  ApiHealthResponse,
+  ApiHealthResponseSchema 
+} from "@/models/dashboard.model";
 
-export default async function getAllAudiologists(): Promise<AudiologistModel> {
+export default async function getHealthStatus(): Promise<HealthData> {
   const baseUrl = await getBaseUrl();
-  const url = `${baseUrl}audiologist/get-all-audiologists`;
+  const url = `${baseUrl}health`;
   const user = await verifySession();
-  
+
   if (!user?.token) {
     throw new Error("Unauthorized");
   }
-  
-  return await apiRequest<AudiologistModel>(
+
+  const response = await apiRequest<ApiHealthResponse>(
     url,
     {
       method: "GET",
@@ -23,6 +28,9 @@ export default async function getAllAudiologists(): Promise<AudiologistModel> {
         Authorization: `Bearer ${user.token}`,
       },
     },
-    AudiologistModelSchema
+    ApiHealthResponseSchema
   );
-}
+
+  // Extract the actual data from the API response wrapper
+  return response.data;
+} 

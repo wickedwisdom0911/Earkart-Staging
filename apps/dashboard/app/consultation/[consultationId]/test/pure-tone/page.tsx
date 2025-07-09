@@ -103,9 +103,12 @@ export default function PureTonePage() {
 
     const consultationData = consultationResponse.data as ConsultationModelData;
 
+    let newAcResults: TestResult[] = [];
+    let newBcResults: TestResult[] = [];
+
     // Handle AC tests
     if (consultationData.audiometry?.acTests) {
-      const existingAcResults = consultationData.audiometry.acTests.map(
+      newAcResults = consultationData.audiometry.acTests.map(
         (test) => ({
           ear: test.ear === Ear.LEFT ? "L" : "R",
           x: test.frequencyHz,
@@ -121,12 +124,11 @@ export default function PureTonePage() {
           pulsed: false,
         })
       );
-      setAcTestResults(existingAcResults);
     }
 
     // Handle BC tests
     if (consultationData.audiometry?.bcTests) {
-      const existingBcResults = consultationData.audiometry.bcTests.map(
+      newBcResults = consultationData.audiometry.bcTests.map(
         (test) => ({
           ear: test.ear === Ear.LEFT ? "L" : "R",
           x: test.frequencyHz,
@@ -138,12 +140,13 @@ export default function PureTonePage() {
           pulsed: false,
         })
       );
-      setBcTestResults(existingBcResults);
     }
 
-    // Combine both types of results
-    setTestResults([...acTestResults, ...bcTestResults]);
-  }, [consultationResponse?.data]);
+    // Update state only once with the new results
+    setAcTestResults(newAcResults);
+    setBcTestResults(newBcResults);
+    setTestResults([...newAcResults, ...newBcResults]);
+  }, [consultationResponse?.data, socket]);
 
   // Auto-hide patient response indicator after 3 seconds
   useEffect(() => {

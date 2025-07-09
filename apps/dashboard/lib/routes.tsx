@@ -14,6 +14,8 @@ export const ROUTES = {
   CENTRE: (centreId: string) => `/dashboard/centres/${centreId}`,
   AUDIOLOGIST: (audiologistId: string) =>
     `/dashboard/audiologists/${audiologistId}`,
+  AUDIOLOGIST_ANALYTICS: (audiologistId: string) =>
+    `/dashboard/audiologists/${audiologistId}/analytics`,
   CONSULTATION: (consultationId: string) => `/consultation/${consultationId}`,
   CONSULTATION_TEST_SELECTION: (consultationId: string) =>
     `/consultation/${consultationId}/test-selection`,

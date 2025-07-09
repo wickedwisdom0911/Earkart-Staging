@@ -44,41 +44,67 @@ export function AudiologyStatusProvider({ children }: { children: ReactNode }) {
   const [elapsed, setElapsed] = useState(0);
   const [timer, setTimer] = useState<NodeJS.Timeout>();
 
+
+
   useEffect(() => {
     if (!canTrack) {
-      clearInterval(timer);
+      if (timer) {
+        clearInterval(timer);
+        setTimer(undefined);
+      }
       setCurrent(undefined);
       setElapsed(0);
       return;
     }
-    if (!actData || actData.endTime) {
-      clearInterval(timer);
+    
+    // Check if we have valid activity data and it's not ended
+    if (!actData || !actData.id || !actData.startTime || actData.endTime) {
+      if (timer) {
+        clearInterval(timer);
+        setTimer(undefined);
+      }
       setCurrent(undefined);
       setElapsed(0);
       return;
     }
+    
     const act: Activity = {
       id: actData.id,
       type: actData.type as AudiologistActivityType,
       startTime: actData.startTime,
-      details: actData.details,
+      details: actData.details || undefined,
     };
     setCurrent(act);
     const offset = Math.floor((Date.now() - new Date(act.startTime).getTime()) / 1000);
     setElapsed(offset);
+    
+    // Clear existing timer before setting a new one
+    if (timer) {
+      clearInterval(timer);
+    }
+    
     const iv = setInterval(() => setElapsed(e => e + 1), 1000);
     setTimer(iv);
-    return () => clearInterval(iv);
+    
+    return () => {
+      if (iv) clearInterval(iv);
+    };
   }, [canTrack, actData]);
 
   const start = (type: AudiologistActivityType, details?: string) => {
     if (!canTrack || !user?.id) return;
-    clearInterval(timer);
+    
+    // Clear existing timer
+    if (timer) {
+      clearInterval(timer);
+      setTimer(undefined);
+    }
+    
     doStart(
-      { audiologistId: user.id, type, details },
+      { audiologistId: user.id, type },
       {
         onSuccess: res => {
-          if (res.success && res.data) {
+          if (res.success && res.data && res.data.startTime) {
             const newAct: Activity = {
               id: res.data.id,
               type,
@@ -91,16 +117,30 @@ export function AudiologyStatusProvider({ children }: { children: ReactNode }) {
             setTimer(iv);
           }
         },
+        onError: (error) => {
+          console.error("Failed to start activity:", error);
+        }
       }
     );
   };
 
   const stop = () => {
     if (!canTrack || !current || !user?.id) return;
-    clearInterval(timer);
+    if (timer) {
+      clearInterval(timer);
+      setTimer(undefined);
+    }
     doStop(
       { audiologistId: user.id, id: current.id },
-      { onSuccess: () => { setCurrent(undefined); setElapsed(0); } }
+      { 
+        onSuccess: () => { 
+          setCurrent(undefined); 
+          setElapsed(0); 
+        },
+        onError: (error) => {
+          console.error("Failed to stop activity:", error);
+        }
+      }
     );
   };
 
