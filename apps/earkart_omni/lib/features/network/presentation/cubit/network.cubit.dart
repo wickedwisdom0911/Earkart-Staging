@@ -34,9 +34,8 @@ class NetworkCubit extends Cubit<NetworkState> {
       List<ConnectivityResult> results,
     ) {
       _logger.d('Connectivity changed: $results');
-      if (results.isNotEmpty) {
-        _handleConnectivityChange(results.first);
-      }
+      final bestResult = _selectBestConnectivityResult(results);
+      _handleConnectivityChange(bestResult);
     });
 
     // Listen to internet connection status
@@ -60,10 +59,7 @@ class NetworkCubit extends Cubit<NetworkState> {
       final connectivityResults = await _connectivity.checkConnectivity();
       final hasInternet = await _internetChecker.hasConnection;
 
-      final primaryResult =
-          connectivityResults.isNotEmpty
-              ? connectivityResults.first
-              : ConnectivityResult.none;
+      final primaryResult = _selectBestConnectivityResult(connectivityResults);
 
       _logger.d(
         'Network check - Connectivity: $primaryResult, Internet: $hasInternet',
@@ -138,6 +134,35 @@ class NetworkCubit extends Cubit<NetworkState> {
         }
       }
     }
+  }
+
+  /// Selects the best connectivity result from multiple results.
+  /// Priority: Ethernet > WiFi > Mobile > Bluetooth > None
+  ConnectivityResult _selectBestConnectivityResult(
+    List<ConnectivityResult> results,
+  ) {
+    if (results.isEmpty) {
+      return ConnectivityResult.none;
+    }
+
+    // Define priority order (lower index = higher priority)
+    const priorityOrder = [
+      ConnectivityResult.ethernet,
+      ConnectivityResult.wifi,
+      ConnectivityResult.mobile,
+      ConnectivityResult.bluetooth,
+      ConnectivityResult.none,
+    ];
+
+    // Find the result with the highest priority
+    for (final priority in priorityOrder) {
+      if (results.contains(priority)) {
+        return priority;
+      }
+    }
+
+    // Fallback to first result if no priority matches
+    return results.first;
   }
 
   Future<NetworkStatus> _buildNetworkStatus(
@@ -223,6 +248,51 @@ class NetworkCubit extends Cubit<NetworkState> {
         emit(
           NetworkError(
             message: 'Failed to open WiFi settings: ${e.toString()}',
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> openMobileDataSettings() async {
+    try {
+      // Open system settings for mobile data
+      await openAppSettings();
+      // Also check network status after a delay to see if user changed settings
+      await Future.delayed(const Duration(seconds: 2));
+      await checkNetworkStatus();
+    } catch (e) {
+      _logger.e('Error opening mobile data settings', error: e);
+      if (!isClosed) {
+        emit(
+          NetworkError(
+            message: 'Failed to open mobile data settings: ${e.toString()}',
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> openNetworkSettings({
+    NetworkConnectionType? preferredType,
+  }) async {
+    try {
+      switch (preferredType) {
+        case NetworkConnectionType.wifi:
+          await openWiFiSettings();
+          break;
+        case NetworkConnectionType.mobile:
+          await openMobileDataSettings();
+          break;
+        default:
+          await openAppSettings();
+      }
+    } catch (e) {
+      _logger.e('Error opening network settings', error: e);
+      if (!isClosed) {
+        emit(
+          NetworkError(
+            message: 'Failed to open network settings: ${e.toString()}',
           ),
         );
       }
