@@ -56,6 +56,7 @@ import 'package:earkart_omni/features/patients/domain/usecases/delete_patient_se
 import 'package:earkart_omni/features/patients/domain/usecases/get_all_patient_by_centre_code.dart';
 import 'package:earkart_omni/features/patients/domain/usecases/get_current_patient.usecase.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
+import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
@@ -256,4 +257,7 @@ Future<void> setupDI() async {
   //device
   di.registerLazySingleton<DeviceCubit>(() => DeviceCubit());
   di.registerLazySingleton<CommunicationCubit>(() => CommunicationCubit());
+
+  //network
+  di.registerLazySingleton<NetworkCubit>(() => NetworkCubit());
 }
