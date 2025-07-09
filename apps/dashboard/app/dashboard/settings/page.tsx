@@ -1,7 +1,7 @@
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import ListTile from "@/components/ui/ListTile";
 import { ROUTES } from "@/lib/routes";
-import { GlobeIcon, MapPinIcon, Tablet } from "lucide-react";
+import { ClipboardList, GlobeIcon, MapPinIcon, Tablet } from "lucide-react";
 export default function SettingsPage() {
   return (
     <DashboardBodyWrapper pageTitle="Settings">
@@ -20,6 +20,12 @@ export default function SettingsPage() {
         title="Devices"
         path={ROUTES.DEVICES}
       />
+       <ListTile
+        leadingIcon={<ClipboardList className="stroke-1" />}
+        title="Questionnaire"
+        path={ROUTES.QUESTIONNAIRE}
+      />
+   
     </DashboardBodyWrapper>
   );
 }

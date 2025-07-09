@@ -11,7 +11,6 @@ import { CentreModelData } from "@/models/centre.model";
 
 export default function CentresPage() {
   const { data, isLoading, error } = useGetAllCentres();
-  console.log(data);
   return (
     <DashboardBodyWrapper
       pageTitle="Centres"
@@ -32,7 +31,11 @@ export default function CentresPage() {
           {data.data.map((centre: CentreModelData) => (
             <div
               key={centre.id}
-              className="relative bg-white dark:bg-neutral-900 rounded-xl shadow-md p-6 flex flex-col gap-3 border border-gray-100 dark:border-neutral-800 hover:shadow-lg transition-shadow min-h-[220px]"
+              className={`relative rounded-xl shadow-md p-6 flex flex-col gap-3 border hover:shadow-lg transition-shadow min-h-[220px] ${
+                centre.isOurAssistant
+                  ? "bg-white dark:bg-neutral-900 border-gray-100 dark:border-neutral-800"
+                  : "bg-gray-50 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700"
+              }`}
             >
               {/* Edit/Delete Actions */}
               <div className="absolute top-4 right-4 flex gap-2 z-10">
@@ -119,17 +122,30 @@ export default function CentresPage() {
                   {centre.assistantContactNumber}
                 </span>
               </div>
-              {centre.user?.status && (
+              <div className="flex gap-2 items-start">
+                {centre.user?.status && (
+                  <span
+                    className={`px-2 py-0.5 w-fit rounded text-xs font-semibold ${
+                      centre.user.status == "ACTIVE"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {centre.user.status}
+                  </span>
+                )}
                 <span
-                  className={` px-2 py-0.5 w-fit rounded text-xs font-semibold ${
-                    centre.user.status === "ACTIVE"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-red-100 text-red-700"
+                  className={`px-2 py-0.5 w-fit rounded text-xs font-semibold ${
+                    centre.isOurAssistant
+                      ? "bg-purple-100 text-purple-700"
+                      : "bg-gray-100 text-gray-700"
                   }`}
                 >
-                  {centre.user.status}
+                  {centre.isOurAssistant
+                    ? "Our Assistant"
+                    : "External Assistant"}
                 </span>
-              )}
+              </div>
               <Link
                 href={ROUTES.CENTRE(centre.id || "")}
                 className="mt-4 w-full bg-primary-500 text-white py-2 rounded-md text-center"

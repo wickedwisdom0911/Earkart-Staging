@@ -34,17 +34,19 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       updatedAt: fields[14] as DateTime?,
       languageId: fields[15] as String,
       status: fields[16] as Status?,
-      district: fields[18] as DistrictEntity?,
-      creator: fields[19] as UserEntity?,
-      updater: fields[20] as UserEntity?,
-      language: fields[21] as LanguageEntity?,
+      district: fields[19] as DistrictEntity?,
+      creator: fields[20] as UserEntity?,
+      updater: fields[21] as UserEntity?,
+      language: fields[22] as LanguageEntity?,
+      soldStatus: fields[17] as PatienSoldStatus?,
+      handledBy: fields[18] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, PatientEntity obj) {
     writer
-      ..writeByte(21)
+      ..writeByte(23)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -79,13 +81,17 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       ..write(obj.languageId)
       ..writeByte(16)
       ..write(obj.status)
+      ..writeByte(17)
+      ..write(obj.soldStatus)
       ..writeByte(18)
-      ..write(obj.district)
+      ..write(obj.handledBy)
       ..writeByte(19)
-      ..write(obj.creator)
+      ..write(obj.district)
       ..writeByte(20)
-      ..write(obj.updater)
+      ..write(obj.creator)
       ..writeByte(21)
+      ..write(obj.updater)
+      ..writeByte(22)
       ..write(obj.language);
   }
 

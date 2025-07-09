@@ -255,3 +255,22 @@ PatientConsultationStatus patientConsultationStatusFromApi(String value) {
     orElse: () => PatientConsultationStatus.requested,
   );
 }
+
+@HiveType(typeId: HiveTypes.patientSoldStatusEnum)
+enum PatienSoldStatus {
+  @HiveField(0)
+  unknown,
+  @HiveField(1)
+  sold,
+  @HiveField(2)
+  inProgress,
+  @HiveField(3)
+  notInterested,
+}
+
+patienSoldStatusFromApi(String value) {
+  return PatienSoldStatus.values.firstWhere(
+    (e) => e.name.toUpperCase() == value,
+    orElse: () => PatienSoldStatus.unknown,
+  );
+}

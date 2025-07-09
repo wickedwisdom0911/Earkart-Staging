@@ -24,17 +24,28 @@ export default function AudiologistProfile() {
               <div>
                 <div className="text-3xl font-extrabold flex items-center gap-3 text-primary-700 dark:text-primary-300 mb-1">
                   {user?.name || "Audiologist Name"}
-                  {user?.status && (
+                  <div className="flex gap-2">
+                    {user?.status && (
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                          user.status === "ACTIVE"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {user.status}
+                      </span>
+                    )}
                     <span
                       className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                        user.status === "ACTIVE"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
+                        audiologist.isInHouse
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-orange-100 text-orange-700"
                       }`}
                     >
-                      {user.status}
+                      {audiologist.isInHouse ? "In-House" : "External"}
                     </span>
-                  )}
+                  </div>
                 </div>
                 <div className="text-lg text-gray-500 dark:text-gray-400 mb-1">
                   RCI: {audiologist.rciNumber}

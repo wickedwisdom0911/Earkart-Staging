@@ -3,7 +3,9 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/consultati
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
+import 'package:earkart_omni/models/user/user.entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
@@ -13,6 +15,7 @@ import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class RootScreen extends StatefulWidget {
@@ -27,6 +30,8 @@ class _RootScreenState extends State<RootScreen> {
   bool checkedCentre = false;
   bool checkedPatient = false;
   bool checkedConsultation = false;
+  bool checkedUser = false;
+  UserEntity? user;
   CentreEntity? centre;
   PatientEntity? patient;
   ConsultationEntity? consultation;
@@ -34,6 +39,7 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void initState() {
     super.initState();
+    context.read<AuthCubit>().getCurrentUser();
     context.read<AuthCubit>().getCentreData();
     context.read<PatientCubit>().getCurrentPatient();
     context.read<ConsultationCubit>().getCurrentConsultation();
@@ -86,6 +92,12 @@ class _RootScreenState extends State<RootScreen> {
       listeners: [
         BlocListener<AuthCubit, AuthState>(
           listener: (context, state) {
+            if (state is AuthSuccess) {
+              setState(() {
+                checkedUser = true;
+                user = state.user;
+              });
+            }
             if (state is AuthCentreSuccess) {
               setState(() {
                 checkedCentre = true;
@@ -131,22 +143,55 @@ class _RootScreenState extends State<RootScreen> {
           },
         ),
       ],
-      child: Builder(
-        builder: (context) {
-          if (!checkedCentre || !checkedPatient || !checkedConsultation) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (centre != null && patient == null) {
-            return const HomeScreen();
-          }
-          if (centre != null && patient != null && consultation == null) {
-            return const ConsultationRequestScreen();
-          }
-          if (centre != null && patient != null && consultation != null) {
-            return const ConsultationScreen();
-          }
-          return const LoginScreen();
-        },
+      child: Stack(
+        children: [
+          // Main app content takes full screen
+          Builder(
+            builder: (context) {
+              if (!checkedCentre ||
+                  !checkedPatient ||
+                  !checkedConsultation ||
+                  !checkedUser) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (user != null && user!.role == Role.centre) {
+                return const HomeScreen();
+              }
+              if (user != null &&
+                  user!.role == Role.centre &&
+                  centre != null &&
+                  patient == null) {
+                return const HomeScreen();
+              }
+              if (user != null &&
+                  user!.role == Role.centre &&
+                  centre != null &&
+                  patient != null &&
+                  consultation == null) {
+                return const ConsultationRequestScreen();
+              }
+              if (centre != null && patient != null && consultation != null) {
+                return const ConsultationScreen();
+              }
+              return const LoginScreen();
+            },
+          ),
+
+          // Minimal network status overlay in top-right corner
+          Positioned(
+            top: 16,
+            right: 16,
+            child: SafeArea(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: const NetworkStatusWidget(showDetails: false),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -20,6 +20,7 @@ export const AudiologistModelDataSchema = z.object({
   agreementSignDate: z.string(),
   reportingDate: z.string(),
   grade: z.string(),
+  isInHouse: z.boolean().optional(),
   createdBy: z.string().optional().nullable(),
   updatedBy: z.string().optional().nullable(),
   paymentCycle: z.nativeEnum(PaymentCycle),
@@ -48,6 +49,7 @@ export const AudiologistFormSchema = z.object({
   agreementSignDate: z.string(),
   reportingDate: z.string(),
   grade: z.string(),
+  isInHouse: z.boolean().optional(),
   createdBy: z.string().optional().nullable(),
   updatedBy: z.string().optional().nullable(),
   paymentCycle: z.nativeEnum(PaymentCycle),
@@ -75,6 +77,59 @@ export const CreateAudiologistProfileSchema = z.object({
   user: userModelDataSchema,
   audiologist: AudiologistFormSchema,
 });
+export const AudiologistActivitySchema = z.object({
+  audiologistId: z.string().optional(),
+  type: z.string(),
+});
+
+
+export const stopAudiologistActivitySchema = z.object({
+  audiologistId: z.string(),
+  id: z.string(),
+})
+
+
+export const getAudiologistActivity=z.object({
+
+  audiologistId: z.string(),
+
+
+})
+
+
+
+
+
+
+
+
+export const AudiologistActivityResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  data: z
+    .object({
+      id: z.string(),
+      audiologistId: z.string(),
+      type: z.string(),
+      startTime: z.string().datetime().optional(),  
+      endTime: z.string().datetime().nullable().optional(),
+      consultationId: z.string().nullable().optional(),
+      details: z.any().nullable().optional(),
+      createdAt: z.string().datetime(),
+      updatedAt: z.string().datetime().optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
+
+export type AudiologistActivityResponse = z.infer<typeof AudiologistActivityResponseSchema>;
+
+
+export type AudiologistActivity = z.infer<typeof AudiologistActivitySchema>;
+
+export type stopAudiologistActivity = z.infer<typeof stopAudiologistActivitySchema>
+
 
 export type AudiologistModelData = z.infer<typeof AudiologistModelDataSchema>;
 export type AudiologistModel = z.infer<typeof AudiologistModelSchema>;

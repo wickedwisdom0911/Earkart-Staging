@@ -102,7 +102,7 @@ class StateEntity extends Equatable {
   @HiveField(2)
   final String countryId;
   @HiveField(3)
-  final List<CityEntity>? cities; // List<CityEntity>
+  final List<DistrictEntity>? districts; // List<CityEntity>
   @HiveField(4)
   final Status status;
   @HiveField(5)
@@ -116,7 +116,7 @@ class StateEntity extends Equatable {
     this.id,
     required this.name,
     required this.countryId,
-    this.cities,
+    this.districts,
     required this.status,
     required this.createdAt,
     required this.updatedAt,
@@ -128,10 +128,12 @@ class StateEntity extends Equatable {
       id: json['id'],
       name: json['name'],
       countryId: json['countryId'],
-      cities:
-          json['cities'] != null
-              ? List<CityEntity>.from(
-                (json['cities'] as List).map((x) => CityEntity.fromJson(x)),
+      districts:
+          json['districts'] != null
+              ? List<DistrictEntity>.from(
+                (json['districts'] as List).map(
+                  (x) => DistrictEntity.fromJson(x),
+                ),
               )
               : null,
       status: statusFromApi(json['status']),
@@ -149,7 +151,7 @@ class StateEntity extends Equatable {
       'id': id,
       'name': name,
       'countryId': countryId,
-      'cities': cities?.map((x) => x.toJson()).toList(),
+      'districts': districts?.map((x) => x.toJson()).toList(),
       'status': status.name.toUpperCase(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -161,7 +163,7 @@ class StateEntity extends Equatable {
     String? id,
     String? name,
     String? countryId,
-    List<CityEntity>? cities,
+    List<DistrictEntity>? districts,
     Status? status,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -171,7 +173,7 @@ class StateEntity extends Equatable {
       id: id ?? this.id,
       name: name ?? this.name,
       countryId: countryId ?? this.countryId,
-      cities: cities ?? this.cities,
+      districts: districts ?? this.districts,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -184,7 +186,7 @@ class StateEntity extends Equatable {
     id,
     name,
     countryId,
-    cities,
+    districts,
     status,
     createdAt,
     updatedAt,
@@ -199,7 +201,7 @@ class CityEntity extends Equatable {
   @HiveField(1)
   final String name;
   @HiveField(2)
-  final String stateId;
+  final String districtId;
   @HiveField(3)
   final Status status;
   @HiveField(4)
@@ -214,7 +216,7 @@ class CityEntity extends Equatable {
   const CityEntity({
     this.id,
     required this.name,
-    required this.stateId,
+    required this.districtId,
     required this.status,
     required this.createdAt,
     required this.updatedAt,
@@ -226,7 +228,7 @@ class CityEntity extends Equatable {
     return CityEntity(
       id: json['id'],
       name: json['name'],
-      stateId: json['stateId'],
+      districtId: json['districtId'],
       status: statusFromApi(json['status']),
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
@@ -246,7 +248,7 @@ class CityEntity extends Equatable {
     return {
       'id': id,
       'name': name,
-      'stateId': stateId,
+      'districtId': districtId,
       'status': status.name.toUpperCase(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -258,7 +260,7 @@ class CityEntity extends Equatable {
   CityEntity copyWith({
     String? id,
     String? name,
-    String? stateId,
+    String? districtId,
     Status? status,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -268,7 +270,7 @@ class CityEntity extends Equatable {
     return CityEntity(
       id: id ?? this.id,
       name: name ?? this.name,
-      stateId: stateId ?? this.stateId,
+      districtId: districtId ?? this.districtId,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -281,7 +283,7 @@ class CityEntity extends Equatable {
   List<Object?> get props => [
     id,
     name,
-    stateId,
+    districtId,
     status,
     createdAt,
     updatedAt,
@@ -297,7 +299,7 @@ class DistrictEntity extends Equatable {
   @HiveField(1)
   final String name;
   @HiveField(2)
-  final String cityId;
+  final String stateId;
   @HiveField(3)
   final Status status;
   @HiveField(4)
@@ -305,27 +307,32 @@ class DistrictEntity extends Equatable {
   @HiveField(5)
   final DateTime updatedAt;
   @HiveField(6)
-  final CityEntity? city; // CityEntity
+  final List<CityEntity>? cities; // CityEntity
 
   const DistrictEntity({
     this.id,
     required this.name,
-    required this.cityId,
+    required this.stateId,
     required this.status,
     required this.createdAt,
     required this.updatedAt,
-    this.city,
+    this.cities,
   });
 
   factory DistrictEntity.fromJson(Map<String, dynamic> json) {
     return DistrictEntity(
       id: json['id'],
       name: json['name'],
-      cityId: json['cityId'],
+      stateId: json['stateId'],
       status: statusFromApi(json['status']),
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
-      city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
+      cities:
+          json['cities'] != null
+              ? List<CityEntity>.from(
+                (json['cities'] as List).map((x) => CityEntity.fromJson(x)),
+              )
+              : null,
     );
   }
 
@@ -333,31 +340,31 @@ class DistrictEntity extends Equatable {
     return {
       'id': id,
       'name': name,
-      'cityId': cityId,
+      'stateId': stateId,
       'status': status.name.toUpperCase(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
-      'city': city?.toJson(),
+      'cities': cities?.map((x) => x.toJson()).toList(),
     };
   }
 
   DistrictEntity copyWith({
     String? id,
     String? name,
-    String? cityId,
+    String? stateId,
     Status? status,
     DateTime? createdAt,
     DateTime? updatedAt,
-    CityEntity? city,
+    List<CityEntity>? cities,
   }) {
     return DistrictEntity(
       id: id ?? this.id,
       name: name ?? this.name,
-      cityId: cityId ?? this.cityId,
+      stateId: stateId ?? this.stateId,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      city: city ?? this.city,
+      cities: cities ?? this.cities,
     );
   }
 
@@ -365,10 +372,10 @@ class DistrictEntity extends Equatable {
   List<Object?> get props => [
     id,
     name,
-    cityId,
+    stateId,
     status,
     createdAt,
     updatedAt,
-    city,
+    cities,
   ];
 }

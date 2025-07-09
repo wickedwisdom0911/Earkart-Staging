@@ -80,3 +80,15 @@ export enum AnswerType {
   MULTIPLE_CHOICE = "MULTIPLE_CHOICE",
   CHECKBOX = "CHECKBOX",
 }
+
+
+export enum AudiologistActivityType {
+  LUNCH_BREAK = "LUNCH_BREAK",
+  BREAK = "BREAK",
+  HOME_VISIT = "HOME_VISIT",
+  TRAINING = "TRAINING",
+  HEARING_AID_FITTING = "HEARING_AID_FITTING",
+  FINE_TUNING = "FINE_TUNING",
+  OTHER = "OTHER",
+}
+

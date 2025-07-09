@@ -59,6 +59,8 @@ class CentreModelData extends CentreEntity {
   @override
   final String assistantContactNumber;
   @override
+  final bool isOurAssistant;
+  @override
   final PaymentCycle paymentCycle;
   @override
   final String? createdBy;
@@ -79,7 +81,7 @@ class CentreModelData extends CentreEntity {
   @override
   final DateTime? updatedAt;
   @override
-  final DistrictEntity? district; // Replace with your District model if available
+  final CityEntity? city;
   @override
   final DeviceEntity? device; // Replace with your DeviceModelData if available
 
@@ -97,6 +99,7 @@ class CentreModelData extends CentreEntity {
     required this.entName,
     required this.assistantName,
     required this.assistantContactNumber,
+    required this.isOurAssistant,
     required this.paymentCycle,
     this.createdBy,
     this.updatedBy,
@@ -107,7 +110,7 @@ class CentreModelData extends CentreEntity {
     required this.breakTimeEnd,
     this.createdAt,
     this.updatedAt,
-    this.district,
+    this.city,
     this.device,
   }) : super(
          id: id,
@@ -123,6 +126,7 @@ class CentreModelData extends CentreEntity {
          entName: entName,
          assistantName: assistantName,
          assistantContactNumber: assistantContactNumber,
+         isOurAssistant: isOurAssistant,
          paymentCycle: paymentCycle,
          workingDays: workingDays,
          workingTimeStart: workingTimeStart,
@@ -131,7 +135,7 @@ class CentreModelData extends CentreEntity {
          breakTimeEnd: breakTimeEnd,
          createdAt: createdAt,
          updatedAt: updatedAt,
-         district: district,
+         city: city,
          device: device,
        );
 
@@ -152,6 +156,7 @@ class CentreModelData extends CentreEntity {
       entName: json['entName'],
       assistantName: json['assistantName'],
       assistantContactNumber: json['assistantContactNumber'],
+      isOurAssistant: json['isOurAssistant'],
       paymentCycle: paymentCycleFromApi(json['paymentCycle']),
       createdBy: json['createdBy'],
       updatedBy: json['updatedBy'],
@@ -171,10 +176,7 @@ class CentreModelData extends CentreEntity {
           json['updatedAt'] != null
               ? DateTime.tryParse(json['updatedAt'])
               : null,
-      district:
-          json['district'] != null
-              ? DistrictEntity.fromJson(json['district'])
-              : null,
+      city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
       device:
           json['device'] != null ? DeviceEntity.fromJson(json['device']) : null,
     );
@@ -204,7 +206,7 @@ class CentreModelData extends CentreEntity {
       'workingTimeEnd': workingTimeEnd,
       'breakTimeStart': breakTimeStart,
       'breakTimeEnd': breakTimeEnd,
-      'district': district?.toJson(),
+      'city': city?.toJson(),
       'device': device?.toJson(),
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),

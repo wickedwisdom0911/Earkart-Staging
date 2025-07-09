@@ -26,6 +26,7 @@ export const CentreModelDataSchema = z.object({
   entName: z.string(),
   assistantName: z.string(),
   assistantContactNumber: z.string(),
+  isOurAssistant: z.boolean().optional(),
   paymentCycle: z.nativeEnum(PaymentCycle),
   createdBy: z.string().optional(),
   updatedBy: z.string().optional(),

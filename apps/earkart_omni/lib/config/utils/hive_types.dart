@@ -33,4 +33,5 @@ class HiveTypes {
   static const int audiologistEntity = 31;
   static const int earEnum = 32;
   static const int tympTypeEnum = 33;
+  static const int patientSoldStatusEnum = 34;
 }

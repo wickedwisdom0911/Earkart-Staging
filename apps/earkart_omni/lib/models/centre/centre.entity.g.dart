@@ -30,25 +30,26 @@ class CentreEntityAdapter extends TypeAdapter<CentreEntity> {
       entName: fields[10] as String,
       assistantName: fields[11] as String,
       assistantContactNumber: fields[12] as String,
-      paymentCycle: fields[13] as PaymentCycle,
-      createdBy: fields[14] as String?,
-      updatedBy: fields[15] as String?,
-      workingDays: (fields[16] as List).cast<WeekDays>(),
-      workingTimeStart: fields[17] as String,
-      workingTimeEnd: fields[18] as String,
-      breakTimeStart: fields[19] as String,
-      breakTimeEnd: fields[20] as String,
-      createdAt: fields[21] as DateTime?,
-      updatedAt: fields[22] as DateTime?,
-      district: fields[23] as DistrictEntity?,
-      device: fields[24] as DeviceEntity?,
+      isOurAssistant: fields[13] as bool,
+      paymentCycle: fields[14] as PaymentCycle,
+      createdBy: fields[15] as String?,
+      updatedBy: fields[16] as String?,
+      workingDays: (fields[17] as List).cast<WeekDays>(),
+      workingTimeStart: fields[18] as String,
+      workingTimeEnd: fields[19] as String,
+      breakTimeStart: fields[20] as String,
+      breakTimeEnd: fields[21] as String,
+      createdAt: fields[22] as DateTime?,
+      updatedAt: fields[23] as DateTime?,
+      city: fields[24] as CityEntity?,
+      device: fields[25] as DeviceEntity?,
     );
   }
 
   @override
   void write(BinaryWriter writer, CentreEntity obj) {
     writer
-      ..writeByte(25)
+      ..writeByte(26)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -76,28 +77,30 @@ class CentreEntityAdapter extends TypeAdapter<CentreEntity> {
       ..writeByte(12)
       ..write(obj.assistantContactNumber)
       ..writeByte(13)
-      ..write(obj.paymentCycle)
+      ..write(obj.isOurAssistant)
       ..writeByte(14)
-      ..write(obj.createdBy)
+      ..write(obj.paymentCycle)
       ..writeByte(15)
-      ..write(obj.updatedBy)
+      ..write(obj.createdBy)
       ..writeByte(16)
-      ..write(obj.workingDays)
+      ..write(obj.updatedBy)
       ..writeByte(17)
-      ..write(obj.workingTimeStart)
+      ..write(obj.workingDays)
       ..writeByte(18)
-      ..write(obj.workingTimeEnd)
+      ..write(obj.workingTimeStart)
       ..writeByte(19)
-      ..write(obj.breakTimeStart)
+      ..write(obj.workingTimeEnd)
       ..writeByte(20)
-      ..write(obj.breakTimeEnd)
+      ..write(obj.breakTimeStart)
       ..writeByte(21)
-      ..write(obj.createdAt)
+      ..write(obj.breakTimeEnd)
       ..writeByte(22)
-      ..write(obj.updatedAt)
+      ..write(obj.createdAt)
       ..writeByte(23)
-      ..write(obj.district)
+      ..write(obj.updatedAt)
       ..writeByte(24)
+      ..write(obj.city)
+      ..writeByte(25)
       ..write(obj.device);
   }
 

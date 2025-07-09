@@ -36,20 +36,21 @@ class AudiologistEntityAdapter extends TypeAdapter<AudiologistEntity> {
       workingTimeEnd: fields[16] as DateTime?,
       breakTimeStart: fields[17] as DateTime?,
       breakTimeEnd: fields[18] as DateTime?,
-      createdAt: fields[19] as DateTime?,
-      updatedAt: fields[20] as DateTime?,
-      user: fields[21] as UserEntity?,
-      district: fields[22] as DistrictEntity?,
-      creator: fields[23] as UserEntity?,
-      updater: fields[24] as UserEntity?,
-      languages: (fields[25] as List?)?.cast<LanguageEntity>(),
+      createdAt: fields[20] as DateTime?,
+      updatedAt: fields[21] as DateTime?,
+      user: fields[22] as UserEntity?,
+      district: fields[23] as DistrictEntity?,
+      creator: fields[24] as UserEntity?,
+      updater: fields[25] as UserEntity?,
+      languages: (fields[26] as List?)?.cast<LanguageEntity>(),
+      isInHouse: fields[19] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, AudiologistEntity obj) {
     writer
-      ..writeByte(26)
+      ..writeByte(27)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -89,18 +90,20 @@ class AudiologistEntityAdapter extends TypeAdapter<AudiologistEntity> {
       ..writeByte(18)
       ..write(obj.breakTimeEnd)
       ..writeByte(19)
-      ..write(obj.createdAt)
+      ..write(obj.isInHouse)
       ..writeByte(20)
-      ..write(obj.updatedAt)
+      ..write(obj.createdAt)
       ..writeByte(21)
-      ..write(obj.user)
+      ..write(obj.updatedAt)
       ..writeByte(22)
-      ..write(obj.district)
+      ..write(obj.user)
       ..writeByte(23)
-      ..write(obj.creator)
+      ..write(obj.district)
       ..writeByte(24)
-      ..write(obj.updater)
+      ..write(obj.creator)
       ..writeByte(25)
+      ..write(obj.updater)
+      ..writeByte(26)
       ..write(obj.languages);
   }
 
