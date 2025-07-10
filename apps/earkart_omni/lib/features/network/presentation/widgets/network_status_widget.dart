@@ -7,8 +7,13 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class NetworkStatusWidget extends StatelessWidget {
   final bool showDetails;
+  final bool showTooltips;
 
-  const NetworkStatusWidget({super.key, this.showDetails = false});
+  const NetworkStatusWidget({
+    super.key,
+    this.showDetails = false,
+    this.showTooltips = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,18 +22,23 @@ class NetworkStatusWidget extends StatelessWidget {
         if (state is NetworkInitial) {
           return const SizedBox.shrink();
         } else if (state is NetworkLoading) {
-          return const _NetworkLoadingWidget();
+          return _NetworkLoadingWidget(showTooltips: showTooltips);
         } else if (state is NetworkConnected) {
           return _NetworkConnectedWidget(
             status: state.status,
             showDetails: showDetails,
+            showTooltips: showTooltips,
           );
         } else if (state is NetworkDisconnected) {
-          return _NetworkDisconnectedWidget(showDetails: showDetails);
+          return _NetworkDisconnectedWidget(
+            showDetails: showDetails,
+            showTooltips: showTooltips,
+          );
         } else if (state is NetworkError) {
           return _NetworkErrorWidget(
             message: state.message,
             showDetails: showDetails,
+            showTooltips: showTooltips,
           );
         } else {
           return const SizedBox.shrink();
@@ -39,69 +49,76 @@ class NetworkStatusWidget extends StatelessWidget {
 }
 
 class _NetworkLoadingWidget extends StatelessWidget {
-  const _NetworkLoadingWidget();
+  final bool showTooltips;
+
+  const _NetworkLoadingWidget({this.showTooltips = true});
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Checking network connectivity...',
-      child: Container(
-        height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.blue.shade200, Colors.blue.shade100],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    final child = Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade200, Colors.blue.shade100],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withValues(alpha: 0.3),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.blue.withValues(alpha: 0.3),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade700),
             ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade700),
+          ),
+          const SizedBox(width: 8),
+          Material(
+            color: Colors.transparent,
+            child: Text(
+              'Checking...',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue.shade700,
+                decoration: TextDecoration.none,
+                fontFamily: 'Roboto',
               ),
             ),
-            const SizedBox(width: 8),
-            Material(
-              color: Colors.transparent,
-              child: Text(
-                'Checking...',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blue.shade700,
-                  decoration: TextDecoration.none,
-                  fontFamily: 'Roboto',
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+
+    if (showTooltips) {
+      return Tooltip(message: 'Checking network connectivity...', child: child);
+    }
+
+    return child;
   }
 }
 
 class _NetworkConnectedWidget extends StatelessWidget {
   final NetworkStatus status;
   final bool showDetails;
+  final bool showTooltips;
 
   const _NetworkConnectedWidget({
     required this.status,
     required this.showDetails,
+    this.showTooltips = true,
   });
 
   @override
@@ -111,74 +128,43 @@ class _NetworkConnectedWidget extends StatelessWidget {
             ? 'Connected via ${_getConnectionTypeLabel()}${status.networkName != null ? ' - ${status.networkName!}' : ''}'
             : 'Network: ${_getConnectionTypeLabel()} - Signal: ${_getSignalStrengthText()}';
 
-    return Tooltip(
-      message: tooltipMessage,
-      child: Container(
-        height: showDetails ? 36 : 28,
-        padding: EdgeInsets.symmetric(
-          horizontal: showDetails ? 16 : 8,
-          vertical: showDetails ? 8 : 6,
+    final child = Container(
+      height: showDetails ? 36 : 28,
+      padding: EdgeInsets.symmetric(
+        horizontal: showDetails ? 16 : 8,
+        vertical: showDetails ? 8 : 6,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green.shade400, Colors.green.shade300],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.green.shade400, Colors.green.shade300],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.4),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.green.withValues(alpha: 0.4),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _getConnectionIcon(),
-            const SizedBox(width: 6),
-            if (showDetails) ...[
-              const SizedBox(width: 2),
-              _getSignalStrengthIcon(),
-              const SizedBox(width: 8),
-              if (status.networkName != null) ...[
-                Material(
-                  color: Colors.transparent,
-                  child: Text(
-                    status.networkName!,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      decoration: TextDecoration.none,
-                      fontFamily: 'Roboto',
-                    ),
-                  ),
-                ),
-              ] else ...[
-                Material(
-                  color: Colors.transparent,
-                  child: const Text(
-                    'Connected',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      decoration: TextDecoration.none,
-                      fontFamily: 'Roboto',
-                    ),
-                  ),
-                ),
-              ],
-            ] else ...[
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _getConnectionIcon(),
+          const SizedBox(width: 6),
+          if (showDetails) ...[
+            const SizedBox(width: 2),
+            _getSignalStrengthIcon(),
+            const SizedBox(width: 8),
+            if (status.networkName != null) ...[
               Material(
                 color: Colors.transparent,
                 child: Text(
-                  _getConnectionTypeLabel(),
+                  status.networkName!,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                     decoration: TextDecoration.none,
@@ -186,13 +172,47 @@ class _NetworkConnectedWidget extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
-              _getSignalStrengthIcon(),
+            ] else ...[
+              Material(
+                color: Colors.transparent,
+                child: const Text(
+                  'Connected',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    decoration: TextDecoration.none,
+                    fontFamily: 'Roboto',
+                  ),
+                ),
+              ),
             ],
+          ] else ...[
+            Material(
+              color: Colors.transparent,
+              child: Text(
+                _getConnectionTypeLabel(),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  decoration: TextDecoration.none,
+                  fontFamily: 'Roboto',
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            _getSignalStrengthIcon(),
           ],
-        ),
+        ],
       ),
     );
+
+    if (showTooltips) {
+      return Tooltip(message: tooltipMessage, child: child);
+    }
+
+    return child;
   }
 
   Widget _getConnectionIcon() {
@@ -269,8 +289,12 @@ class _NetworkConnectedWidget extends StatelessWidget {
 
 class _NetworkDisconnectedWidget extends StatelessWidget {
   final bool showDetails;
+  final bool showTooltips;
 
-  const _NetworkDisconnectedWidget({required this.showDetails});
+  const _NetworkDisconnectedWidget({
+    required this.showDetails,
+    this.showTooltips = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -279,92 +303,95 @@ class _NetworkDisconnectedWidget extends StatelessWidget {
             ? 'No internet connection - Tap WiFi or Mobile to open settings'
             : 'No internet connection available';
 
-    return Tooltip(
-      message: tooltipMessage,
-      child: Container(
-        height: showDetails ? 48 : 28,
-        padding: EdgeInsets.symmetric(
-          horizontal: showDetails ? 16 : 8,
-          vertical: showDetails ? 8 : 6,
+    final child = Container(
+      height: showDetails ? 48 : 28,
+      padding: EdgeInsets.symmetric(
+        horizontal: showDetails ? 16 : 8,
+        vertical: showDetails ? 8 : 6,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.red.shade400, Colors.red.shade300],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.red.shade400, Colors.red.shade300],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withValues(alpha: 0.4),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.red.withValues(alpha: 0.4),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FaIcon(
-              FontAwesomeIcons.triangleExclamation,
-              size: 16,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 6),
-            if (showDetails) ...[
-              const SizedBox(width: 2),
-              Material(
-                color: Colors.transparent,
-                child: const Text(
-                  'No Internet',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    decoration: TextDecoration.none,
-                    fontFamily: 'Roboto',
-                  ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FaIcon(
+            FontAwesomeIcons.triangleExclamation,
+            size: 16,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 6),
+          if (showDetails) ...[
+            const SizedBox(width: 2),
+            Material(
+              color: Colors.transparent,
+              child: const Text(
+                'No Internet',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  decoration: TextDecoration.none,
+                  fontFamily: 'Roboto',
                 ),
               ),
-              const SizedBox(width: 12),
-              _NetworkActionButton(
-                icon: FontAwesomeIcons.wifi,
-                label: 'WiFi',
-                color: Colors.blue,
-                onTap:
-                    () => context.read<NetworkCubit>().openNetworkSettings(
-                      preferredType: NetworkConnectionType.wifi,
-                    ),
-              ),
-              const SizedBox(width: 8),
-              _NetworkActionButton(
-                icon: FontAwesomeIcons.signal,
-                label: 'Mobile',
-                color: Colors.green,
-                onTap:
-                    () => context.read<NetworkCubit>().openNetworkSettings(
-                      preferredType: NetworkConnectionType.mobile,
-                    ),
-              ),
-            ] else ...[
-              Material(
-                color: Colors.transparent,
-                child: const Text(
-                  'Offline',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    decoration: TextDecoration.none,
-                    fontFamily: 'Roboto',
+            ),
+            const SizedBox(width: 12),
+            _NetworkActionButton(
+              icon: FontAwesomeIcons.wifi,
+              label: 'WiFi',
+              color: Colors.blue,
+              onTap:
+                  () => context.read<NetworkCubit>().openNetworkSettings(
+                    preferredType: NetworkConnectionType.wifi,
                   ),
+            ),
+            const SizedBox(width: 8),
+            _NetworkActionButton(
+              icon: FontAwesomeIcons.signal,
+              label: 'Mobile',
+              color: Colors.green,
+              onTap:
+                  () => context.read<NetworkCubit>().openNetworkSettings(
+                    preferredType: NetworkConnectionType.mobile,
+                  ),
+            ),
+          ] else ...[
+            Material(
+              color: Colors.transparent,
+              child: const Text(
+                'Offline',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  decoration: TextDecoration.none,
+                  fontFamily: 'Roboto',
                 ),
               ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
+
+    if (showTooltips) {
+      return Tooltip(message: tooltipMessage, child: child);
+    }
+
+    return child;
   }
 }
 
@@ -430,8 +457,13 @@ class _NetworkActionButton extends StatelessWidget {
 class _NetworkErrorWidget extends StatelessWidget {
   final String message;
   final bool showDetails;
+  final bool showTooltips;
 
-  const _NetworkErrorWidget({required this.message, required this.showDetails});
+  const _NetworkErrorWidget({
+    required this.message,
+    required this.showDetails,
+    this.showTooltips = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -440,90 +472,93 @@ class _NetworkErrorWidget extends StatelessWidget {
             ? 'Network error occurred - $message. Tap Retry to check again.'
             : 'Network error - Tap to retry';
 
-    return Tooltip(
-      message: tooltipMessage,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap:
-              showDetails
-                  ? null
-                  : () => context.read<NetworkCubit>().checkNetworkStatus(),
-          borderRadius: BorderRadius.circular(18),
-          child: Container(
-            height: showDetails ? 40 : 28,
-            padding: EdgeInsets.symmetric(
-              horizontal: showDetails ? 16 : 8,
-              vertical: showDetails ? 8 : 6,
+    final child = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap:
+            showDetails
+                ? null
+                : () => context.read<NetworkCubit>().checkNetworkStatus(),
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          height: showDetails ? 40 : 28,
+          padding: EdgeInsets.symmetric(
+            horizontal: showDetails ? 16 : 8,
+            vertical: showDetails ? 8 : 6,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.orange.shade400, Colors.orange.shade300],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.orange.shade400, Colors.orange.shade300],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.orange.withValues(alpha: 0.4),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.orange.withValues(alpha: 0.4),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const FaIcon(
-                  FontAwesomeIcons.triangleExclamation,
-                  size: 16,
-                  color: Colors.white,
-                ),
-                const SizedBox(width: 6),
-                if (showDetails) ...[
-                  const SizedBox(width: 2),
-                  Material(
-                    color: Colors.transparent,
-                    child: const Text(
-                      'Network Error',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                        decoration: TextDecoration.none,
-                        fontFamily: 'Roboto',
-                      ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const FaIcon(
+                FontAwesomeIcons.triangleExclamation,
+                size: 16,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 6),
+              if (showDetails) ...[
+                const SizedBox(width: 2),
+                Material(
+                  color: Colors.transparent,
+                  child: const Text(
+                    'Network Error',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      decoration: TextDecoration.none,
+                      fontFamily: 'Roboto',
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  _NetworkActionButton(
-                    icon: FontAwesomeIcons.arrowRotateRight,
-                    label: 'Retry',
-                    color: Colors.blue,
-                    onTap:
-                        () => context.read<NetworkCubit>().checkNetworkStatus(),
-                  ),
-                ] else ...[
-                  Material(
-                    color: Colors.transparent,
-                    child: const Text(
-                      'Error',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                        decoration: TextDecoration.none,
-                        fontFamily: 'Roboto',
-                      ),
+                ),
+                const SizedBox(width: 12),
+                _NetworkActionButton(
+                  icon: FontAwesomeIcons.arrowRotateRight,
+                  label: 'Retry',
+                  color: Colors.blue,
+                  onTap:
+                      () => context.read<NetworkCubit>().checkNetworkStatus(),
+                ),
+              ] else ...[
+                Material(
+                  color: Colors.transparent,
+                  child: const Text(
+                    'Error',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      decoration: TextDecoration.none,
+                      fontFamily: 'Roboto',
                     ),
                   ),
-                ],
+                ),
               ],
-            ),
+            ],
           ),
         ),
       ),
     );
+
+    if (showTooltips) {
+      return Tooltip(message: tooltipMessage, child: child);
+    }
+
+    return child;
   }
 }
 

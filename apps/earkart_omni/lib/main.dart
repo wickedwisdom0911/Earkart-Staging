@@ -12,6 +12,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/device.cub
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
+import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
@@ -289,7 +290,33 @@ class _MyAppState extends State<MyApp> {
                   // Ensure text scaling doesn't break medical UI layouts
                   textScaler: TextScaler.linear(1.0),
                 ),
-                child: child ?? const SizedBox.shrink(),
+                child: Stack(
+                  children: [
+                    // Main app content
+                    child ?? const SizedBox.shrink(),
+
+                    // Global network status widget overlay
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: SafeArea(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          child: const NetworkStatusWidget(
+                            showDetails: false,
+                            showTooltips: false,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );

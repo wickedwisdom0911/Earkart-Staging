@@ -15,7 +15,6 @@ import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
-import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class RootScreen extends StatefulWidget {
@@ -143,55 +142,35 @@ class _RootScreenState extends State<RootScreen> {
           },
         ),
       ],
-      child: Stack(
-        children: [
-          // Main app content takes full screen
-          Builder(
-            builder: (context) {
-              if (!checkedCentre ||
-                  !checkedPatient ||
-                  !checkedConsultation ||
-                  !checkedUser) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (user != null && user!.role == Role.centre) {
-                return const HomeScreen();
-              }
-              if (user != null &&
-                  user!.role == Role.centre &&
-                  centre != null &&
-                  patient == null) {
-                return const HomeScreen();
-              }
-              if (user != null &&
-                  user!.role == Role.centre &&
-                  centre != null &&
-                  patient != null &&
-                  consultation == null) {
-                return const ConsultationRequestScreen();
-              }
-              if (centre != null && patient != null && consultation != null) {
-                return const ConsultationScreen();
-              }
-              return const LoginScreen();
-            },
-          ),
-
-          // Minimal network status overlay in top-right corner
-          Positioned(
-            top: 16,
-            right: 16,
-            child: SafeArea(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: const NetworkStatusWidget(showDetails: false),
-              ),
-            ),
-          ),
-        ],
+      child: Builder(
+        builder: (context) {
+          if (!checkedCentre ||
+              !checkedPatient ||
+              !checkedConsultation ||
+              !checkedUser) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (user != null && user!.role == Role.centre) {
+            return const HomeScreen();
+          }
+          if (user != null &&
+              user!.role == Role.centre &&
+              centre != null &&
+              patient == null) {
+            return const HomeScreen();
+          }
+          if (user != null &&
+              user!.role == Role.centre &&
+              centre != null &&
+              patient != null &&
+              consultation == null) {
+            return const ConsultationRequestScreen();
+          }
+          if (centre != null && patient != null && consultation != null) {
+            return const ConsultationScreen();
+          }
+          return const LoginScreen();
+        },
       ),
     );
   }
