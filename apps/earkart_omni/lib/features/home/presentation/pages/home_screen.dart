@@ -1,7 +1,7 @@
-import 'package:earkart_omni/config/widgets/gradient_button.dart';
-import 'package:earkart_omni/config/widgets/helpers.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
 import 'package:flutter/material.dart';
@@ -20,89 +20,394 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     context.read<AuthCubit>().getCentre();
     context.read<AuthCubit>().getCentreData();
+    context.read<ConsultationCubit>().getConsultationsByCentreId();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        elevation: 1,
+        elevation: 0,
+        backgroundColor: Colors.white,
         automaticallyImplyLeading: false,
-        title: Builder(
-          builder: (context) {
-            return BlocBuilder<AuthCubit, AuthState>(
-              builder: (context, state) {
-                if (state is AuthError) {
-                  return Text(state.message);
-                }
-                if (state is AuthCentreSuccess) {
-                  return Column(
-                    children: [
-                      Text(state.centre?.user?.name ?? "Centre Dashboard"),
-                      Text(
-                        state.centre?.code ?? "",
-                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                    ],
-                  );
-                }
-                return Text("Centre Dashboard");
-              },
+        title: BlocBuilder<AuthCubit, AuthState>(
+          builder: (context, state) {
+            if (state is AuthCentreSuccess) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    state.centre?.user?.name ?? "Centre Dashboard",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  Text(
+                    state.centre?.code ?? "",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              );
+            }
+            return const Text(
+              "Centre Dashboard",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
             );
           },
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          children: [
-            addVerticalSpace(30),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Expanded(
-                  child: GradientButton(
-                    colors: [Colors.green, Colors.green.shade300],
-                    onPressed: () {
-                      Navigator.pushNamed(context, AllPatientsScreen.routeName);
-                    },
-                    child: Text(
-                      "View All Patients",
-                      style: TextStyle(color: Colors.white),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Quick Actions Section
+              const Text(
+                "Quick Actions",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ActionCard(
+                      icon: Icons.people_outline,
+                      title: "View Patients",
+                      subtitle: "Browse all patients",
+                      color: Colors.blue,
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          AllPatientsScreen.routeName,
+                        );
+                      },
                     ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _ActionCard(
+                      icon: Icons.add_circle_outline,
+                      title: "New Consultation",
+                      subtitle: "Start consultation",
+                      color: Colors.green,
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          PatientFormScreen.routeName,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 32),
+
+              // Recent Consultations Section
+              const Text(
+                "Recent Consultations",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              BlocBuilder<ConsultationCubit, ConsultationState>(
+                builder: (context, state) {
+                  if (state is ConsultationLoading) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(40),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+                  if (state is ConsultationError) {
+                    return _ErrorCard(message: state.message);
+                  }
+                  if (state is AllConsultationsSuccess) {
+                    if (state.consultations.isEmpty) {
+                      return const _EmptyStateCard();
+                    }
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount:
+                          state.consultations.length > 5
+                              ? 5
+                              : state.consultations.length,
+                      separatorBuilder:
+                          (context, index) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final consultation = state.consultations[index];
+                        return _ConsultationCard(
+                          patientName:
+                              consultation.patient?.name ?? "Unknown Patient",
+                          date:
+                              consultation.createdAt?.toString().split(
+                                ' ',
+                              )[0] ??
+                              "No date",
+                          status: consultation.status?.name ?? "Unknown",
+                        );
+                      },
+                    );
+                  }
+                  return const _EmptyStateCard();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConsultationCard extends StatelessWidget {
+  final String patientName;
+  final String date;
+  final String status;
+
+  const _ConsultationCard({
+    required this.patientName,
+    required this.date,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: Colors.blue.shade50,
+            child: Icon(Icons.person, color: Colors.blue.shade600, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  patientName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
                 ),
-                addHorizontalSpace(30),
-                Expanded(
-                  child: GradientButton(
-                    child: Text(
-                      "Request New Consultation",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    onPressed: () {
-                      Navigator.pushNamed(context, PatientFormScreen.routeName);
-                    },
-                  ),
+                const SizedBox(height: 4),
+                Text(
+                  date,
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                 ),
               ],
             ),
-            addVerticalSpace(30),
-            Text(
-              "Past Consultations List",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: _getStatusColor(status).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
             ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: 10,
-                shrinkWrap: true,
-                itemBuilder: (context, index) {
-                  return Container(child: Text("Consultation $index"));
-                },
+            child: Text(
+              status,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: _getStatusColor(status),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return Colors.green;
+      case 'in_progress':
+        return Colors.orange;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.blue;
+    }
+  }
+}
+
+class _EmptyStateCard extends StatelessWidget {
+  const _EmptyStateCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(40),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.calendar_today_outlined,
+            size: 48,
+            color: Colors.grey.shade400,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "No consultations yet",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Start your first consultation to see it here",
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorCard extends StatelessWidget {
+  final String message;
+
+  const _ErrorCard({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.red.shade600),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: Colors.red.shade700, fontSize: 14),
+            ),
+          ),
+        ],
       ),
     );
   }

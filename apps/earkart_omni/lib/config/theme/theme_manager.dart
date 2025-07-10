@@ -18,6 +18,7 @@ ThemeData theme = ThemeData.light().copyWith(
     elevation: 3,
   ),
   appBarTheme: AppBarTheme(
+    toolbarHeight: 50,
     systemOverlayStyle: const SystemUiOverlayStyle(
       statusBarColor: Colors.white,
       statusBarIconBrightness: Brightness.dark, // For Android (dark icons)

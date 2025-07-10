@@ -297,17 +297,13 @@ class _MyAppState extends State<MyApp> {
 
                     // Global network status widget overlay
                     Positioned(
-                      top: 16,
-                      right: 16,
+                      top: 0,
+                      right: 12,
                       child: SafeArea(
                         child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
+                          height: 50, // Match toolbar height
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 4),
                           child: const NetworkStatusWidget(
                             showDetails: false,
                             showTooltips: false,
