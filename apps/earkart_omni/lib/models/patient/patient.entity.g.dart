@@ -27,26 +27,29 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       password: fields[7] as String?,
       address: fields[8] as String,
       cityId: fields[9] as String,
-      pincode: fields[10] as String,
-      createdBy: fields[11] as String?,
-      updatedBy: fields[12] as String?,
-      createdAt: fields[13] as DateTime?,
-      updatedAt: fields[14] as DateTime?,
-      languageId: fields[15] as String,
-      status: fields[16] as Status?,
-      district: fields[19] as DistrictEntity?,
-      creator: fields[20] as UserEntity?,
-      updater: fields[21] as UserEntity?,
-      language: fields[22] as LanguageEntity?,
-      soldStatus: fields[17] as PatienSoldStatus?,
-      handledBy: fields[18] as String?,
+      pincode: fields[13] as String,
+      createdBy: fields[14] as String?,
+      updatedBy: fields[15] as String?,
+      createdAt: fields[16] as DateTime?,
+      updatedAt: fields[17] as DateTime?,
+      languageId: fields[18] as String,
+      status: fields[19] as Status?,
+      district: fields[22] as DistrictEntity?,
+      creator: fields[23] as UserEntity?,
+      updater: fields[24] as UserEntity?,
+      language: fields[25] as LanguageEntity?,
+      soldStatus: fields[20] as PatienSoldStatus?,
+      handledBy: fields[21] as String?,
+      districtId: fields[10] as String,
+      stateId: fields[11] as String,
+      countryId: fields[12] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, PatientEntity obj) {
     writer
-      ..writeByte(23)
+      ..writeByte(26)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -68,30 +71,36 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       ..writeByte(9)
       ..write(obj.cityId)
       ..writeByte(10)
-      ..write(obj.pincode)
+      ..write(obj.districtId)
       ..writeByte(11)
-      ..write(obj.createdBy)
+      ..write(obj.stateId)
       ..writeByte(12)
-      ..write(obj.updatedBy)
+      ..write(obj.countryId)
       ..writeByte(13)
-      ..write(obj.createdAt)
+      ..write(obj.pincode)
       ..writeByte(14)
-      ..write(obj.updatedAt)
+      ..write(obj.createdBy)
       ..writeByte(15)
-      ..write(obj.languageId)
+      ..write(obj.updatedBy)
       ..writeByte(16)
-      ..write(obj.status)
+      ..write(obj.createdAt)
       ..writeByte(17)
-      ..write(obj.soldStatus)
+      ..write(obj.updatedAt)
       ..writeByte(18)
-      ..write(obj.handledBy)
+      ..write(obj.languageId)
       ..writeByte(19)
-      ..write(obj.district)
+      ..write(obj.status)
       ..writeByte(20)
-      ..write(obj.creator)
+      ..write(obj.soldStatus)
       ..writeByte(21)
-      ..write(obj.updater)
+      ..write(obj.handledBy)
       ..writeByte(22)
+      ..write(obj.district)
+      ..writeByte(23)
+      ..write(obj.creator)
+      ..writeByte(24)
+      ..write(obj.updater)
+      ..writeByte(25)
       ..write(obj.language);
   }
 

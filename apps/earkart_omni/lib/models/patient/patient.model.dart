@@ -70,6 +70,9 @@ class PatientModelData extends PatientEntity {
     super.language,
     super.soldStatus,
     super.handledBy,
+    required super.districtId,
+    required super.stateId,
+    required super.countryId,
   });
 
   factory PatientModelData.fromJson(Map<String, dynamic> json) {
@@ -105,6 +108,9 @@ class PatientModelData extends PatientEntity {
               : null,
       soldStatus: patienSoldStatusFromApi(json['soldStatus']),
       handledBy: json['handledBy'],
+      districtId: json['districtId'],
+      stateId: json['stateId'],
+      countryId: json['countryId'],
     );
   }
 
@@ -134,6 +140,9 @@ class PatientModelData extends PatientEntity {
       'district': district?.toJson(),
       'soldStatus': toUpperSnakeCase(soldStatus?.name ?? ''),
       'handledBy': handledBy,
+      'districtId': districtId,
+      'stateId': stateId,
+      'countryId': countryId,
     };
   }
 }

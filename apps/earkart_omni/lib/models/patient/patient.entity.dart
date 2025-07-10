@@ -31,32 +31,38 @@ class PatientEntity extends Equatable {
   @HiveField(9)
   final String cityId;
   @HiveField(10)
-  final String pincode;
+  final String districtId;
   @HiveField(11)
-  final String? createdBy;
+  final String stateId;
   @HiveField(12)
-  final String? updatedBy;
+  final String countryId;
   @HiveField(13)
-  final DateTime? createdAt;
+  final String pincode;
   @HiveField(14)
-  final DateTime? updatedAt;
+  final String? createdBy;
   @HiveField(15)
-  final String languageId;
+  final String? updatedBy;
   @HiveField(16)
-  final Status? status;
+  final DateTime? createdAt;
   @HiveField(17)
-  final PatienSoldStatus? soldStatus;
+  final DateTime? updatedAt;
   @HiveField(18)
+  final String languageId;
+  @HiveField(19)
+  final Status? status;
+  @HiveField(20)
+  final PatienSoldStatus? soldStatus;
+  @HiveField(21)
   final String? handledBy;
 
   // Relations (use dynamic or Object? as placeholder)
-  @HiveField(19)
-  final DistrictEntity? district; // DistrictEntity
-  @HiveField(20)
-  final UserEntity? creator; // UserEntity
-  @HiveField(21)
-  final UserEntity? updater; // UserEntity
   @HiveField(22)
+  final DistrictEntity? district; // DistrictEntity
+  @HiveField(23)
+  final UserEntity? creator; // UserEntity
+  @HiveField(24)
+  final UserEntity? updater; // UserEntity
+  @HiveField(25)
   final LanguageEntity? language; // LanguageEntity
 
   const PatientEntity({
@@ -83,6 +89,9 @@ class PatientEntity extends Equatable {
     this.language,
     this.soldStatus,
     this.handledBy,
+    required this.districtId,
+    required this.stateId,
+    required this.countryId,
   });
 
   factory PatientEntity.fromJson(Map<String, dynamic> json) {
@@ -118,6 +127,9 @@ class PatientEntity extends Equatable {
               : null,
       soldStatus: patienSoldStatusFromApi(json['soldStatus']),
       handledBy: json['handledBy'],
+      districtId: json['districtId'],
+      stateId: json['stateId'],
+      countryId: json['countryId'],
     );
   }
 
@@ -146,6 +158,9 @@ class PatientEntity extends Equatable {
       'language': language?.toJson(),
       'soldStatus': toUpperSnakeCase(soldStatus?.name ?? ''),
       'handledBy': handledBy,
+      'districtId': districtId,
+      'stateId': stateId,
+      'countryId': countryId,
     };
   }
 
@@ -173,6 +188,9 @@ class PatientEntity extends Equatable {
     LanguageEntity? language,
     PatienSoldStatus? soldStatus,
     String? handledBy,
+    String? districtId,
+    String? stateId,
+    String? countryId,
   }) {
     return PatientEntity(
       id: id ?? this.id,
@@ -198,6 +216,9 @@ class PatientEntity extends Equatable {
       language: language ?? this.language,
       soldStatus: soldStatus ?? this.soldStatus,
       handledBy: handledBy ?? this.handledBy,
+      districtId: districtId ?? this.districtId,
+      stateId: stateId ?? this.stateId,
+      countryId: countryId ?? this.countryId,
     );
   }
 

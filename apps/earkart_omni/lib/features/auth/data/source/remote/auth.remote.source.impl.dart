@@ -2,8 +2,6 @@ import 'package:dartz/dartz.dart';
 import 'package:earkart_omni/config/services/dio_exceptions.dart';
 import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
-import 'package:earkart_omni/config/utils/custom_logger.dart';
-import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/remote/auth.remote.source.dart';
@@ -63,22 +61,16 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
   Future<Either<Failure, CentreEntity>> getCentre() async {
     try {
       final user = userEntityDataSource.getUserEntity();
-      di<ILogger>().debug(user.toString());
       if (user != null) {
         final response = await dio.get(
           '${Constants.getCentreUrl}/${user.id}',
           options: Options(headers: {"Authorization": "Bearer ${user.token}"}),
         );
         final result = CentreModel.fromJson(response.data);
-        di<ILogger>().debug("result: ${result.toString()}");
 
         if (result.success) {
-          di<ILogger>().debug("result is success");
           if (result.data != null) {
             await centreEntityDataSource.addCentreEntity(result.data!);
-            di<ILogger>().debug(
-              centreEntityDataSource.getCentreEntity().toString(),
-            );
             return right(result.data!);
           }
         }
