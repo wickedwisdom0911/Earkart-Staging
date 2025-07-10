@@ -47,7 +47,7 @@ class CentreModelData extends CentreEntity {
   @override
   final String address;
   @override
-  final String districtId;
+  final String cityId;
   @override
   final String pincode;
   @override
@@ -93,7 +93,7 @@ class CentreModelData extends CentreEntity {
     this.updater,
     required this.code,
     required this.address,
-    required this.districtId,
+    required this.cityId,
     required this.pincode,
     required this.contactNumber,
     required this.entName,
@@ -120,7 +120,7 @@ class CentreModelData extends CentreEntity {
          updater: updater,
          code: code,
          address: address,
-         districtId: districtId,
+         cityId: cityId,
          pincode: pincode,
          contactNumber: contactNumber,
          entName: entName,
@@ -150,7 +150,7 @@ class CentreModelData extends CentreEntity {
           json['updater'] != null ? UserEntity.fromJson(json['updater']) : null,
       code: json['code'],
       address: json['address'],
-      districtId: json['districtId'],
+      cityId: json['cityId'],
       pincode: json['pincode'],
       contactNumber: json['contactNumber'],
       entName: json['entName'],
@@ -192,7 +192,7 @@ class CentreModelData extends CentreEntity {
       'updater': updater,
       'code': code,
       'address': address,
-      'districtId': districtId,
+      'cityId': cityId,
       'pincode': pincode,
       'contactNumber': contactNumber,
       'entName': entName,

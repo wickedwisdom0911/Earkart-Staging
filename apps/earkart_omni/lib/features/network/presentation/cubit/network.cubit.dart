@@ -4,13 +4,11 @@ import 'package:earkart_omni/features/network/presentation/cubit/network.state.d
 import 'package:earkart_omni/models/network/network_status.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
-import 'package:logger/logger.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class NetworkCubit extends Cubit<NetworkState> {
   final Connectivity _connectivity;
   final InternetConnectionChecker _internetChecker;
-  final Logger _logger;
 
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   StreamSubscription<InternetConnectionStatus>? _internetSubscription;
@@ -18,22 +16,17 @@ class NetworkCubit extends Cubit<NetworkState> {
   NetworkCubit({
     Connectivity? connectivity,
     InternetConnectionChecker? internetChecker,
-    Logger? logger,
   }) : _connectivity = connectivity ?? Connectivity(),
        _internetChecker = internetChecker ?? InternetConnectionChecker.instance,
-       _logger = logger ?? Logger(),
        super(NetworkInitial()) {
     _initializeNetworkMonitoring();
   }
 
   void _initializeNetworkMonitoring() {
-    _logger.d('Initializing network monitoring');
-
     // Listen to connectivity changes
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
       List<ConnectivityResult> results,
     ) {
-      _logger.d('Connectivity changed: $results');
       final bestResult = _selectBestConnectivityResult(results);
       _handleConnectivityChange(bestResult);
     });
@@ -42,7 +35,6 @@ class NetworkCubit extends Cubit<NetworkState> {
     _internetSubscription = _internetChecker.onStatusChange.listen((
       InternetConnectionStatus status,
     ) {
-      _logger.d('Internet connection status changed: $status');
       _handleInternetStatusChange(status);
     });
 
@@ -61,10 +53,6 @@ class NetworkCubit extends Cubit<NetworkState> {
 
       final primaryResult = _selectBestConnectivityResult(connectivityResults);
 
-      _logger.d(
-        'Network check - Connectivity: $primaryResult, Internet: $hasInternet',
-      );
-
       final networkStatus = await _buildNetworkStatus(
         primaryResult,
         hasInternet,
@@ -80,7 +68,6 @@ class NetworkCubit extends Cubit<NetworkState> {
         }
       }
     } catch (e) {
-      _logger.e('Error checking network status', error: e);
       if (!isClosed) {
         emit(
           NetworkError(
@@ -106,7 +93,6 @@ class NetworkCubit extends Cubit<NetworkState> {
         }
       }
     } catch (e) {
-      _logger.e('Error handling connectivity change', error: e);
       if (!isClosed) {
         emit(
           NetworkError(
@@ -243,7 +229,6 @@ class NetworkCubit extends Cubit<NetworkState> {
       await Future.delayed(const Duration(seconds: 2));
       await checkNetworkStatus();
     } catch (e) {
-      _logger.e('Error opening WiFi settings', error: e);
       if (!isClosed) {
         emit(
           NetworkError(
@@ -262,7 +247,6 @@ class NetworkCubit extends Cubit<NetworkState> {
       await Future.delayed(const Duration(seconds: 2));
       await checkNetworkStatus();
     } catch (e) {
-      _logger.e('Error opening mobile data settings', error: e);
       if (!isClosed) {
         emit(
           NetworkError(
@@ -288,7 +272,6 @@ class NetworkCubit extends Cubit<NetworkState> {
           await openAppSettings();
       }
     } catch (e) {
-      _logger.e('Error opening network settings', error: e);
       if (!isClosed) {
         emit(
           NetworkError(

@@ -29,7 +29,7 @@ class PatientEntity extends Equatable {
   @HiveField(8)
   final String address;
   @HiveField(9)
-  final String districtId;
+  final String cityId;
   @HiveField(10)
   final String pincode;
   @HiveField(11)
@@ -69,7 +69,7 @@ class PatientEntity extends Equatable {
     required this.dob,
     required this.password,
     required this.address,
-    required this.districtId,
+    required this.cityId,
     required this.pincode,
     this.createdBy,
     this.updatedBy,
@@ -96,7 +96,7 @@ class PatientEntity extends Equatable {
       dob: json['dob'],
       password: json['password'],
       address: json['address'],
-      districtId: json['districtId'],
+      cityId: json['cityId'],
       pincode: json['pincode'],
       createdBy: json['createdBy'],
       updatedBy: json['updatedBy'],
@@ -132,7 +132,7 @@ class PatientEntity extends Equatable {
       'dob': dob,
       'password': password,
       'address': address,
-      'districtId': districtId,
+      'cityId': cityId,
       'pincode': pincode,
       'createdBy': createdBy,
       'updatedBy': updatedBy,
@@ -159,7 +159,7 @@ class PatientEntity extends Equatable {
     String? dob,
     String? password,
     String? address,
-    String? districtId,
+    String? cityId,
     String? pincode,
     String? createdBy,
     String? updatedBy,
@@ -184,7 +184,7 @@ class PatientEntity extends Equatable {
       dob: dob ?? this.dob,
       password: password ?? this.password,
       address: address ?? this.address,
-      districtId: districtId ?? this.districtId,
+      cityId: cityId ?? this.cityId,
       pincode: pincode ?? this.pincode,
       createdBy: createdBy ?? this.createdBy,
       updatedBy: updatedBy ?? this.updatedBy,
@@ -212,7 +212,7 @@ class PatientEntity extends Equatable {
     dob,
     password,
     address,
-    districtId,
+    cityId,
     pincode,
     createdBy,
     updatedBy,

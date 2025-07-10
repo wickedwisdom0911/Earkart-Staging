@@ -25,7 +25,7 @@ class CentreEntity extends Equatable {
   @HiveField(6)
   final String address;
   @HiveField(7)
-  final String districtId;
+  final String cityId;
   @HiveField(8)
   final String pincode;
   @HiveField(9)
@@ -71,7 +71,7 @@ class CentreEntity extends Equatable {
     this.updater,
     required this.code,
     required this.address,
-    required this.districtId,
+    required this.cityId,
     required this.pincode,
     required this.contactNumber,
     required this.entName,
@@ -103,7 +103,7 @@ class CentreEntity extends Equatable {
           json['updater'] != null ? UserEntity.fromJson(json['updater']) : null,
       code: json['code'],
       address: json['address'],
-      districtId: json['districtId'],
+      cityId: json['cityId'],
       pincode: json['pincode'],
       contactNumber: json['contactNumber'],
       entName: json['entName'],
@@ -145,7 +145,7 @@ class CentreEntity extends Equatable {
       'updater': updater?.toJson(),
       'code': code,
       'address': address,
-      'districtId': districtId,
+      'cityId': cityId,
       'pincode': pincode,
       'contactNumber': contactNumber,
       'entName': entName,
@@ -176,7 +176,7 @@ class CentreEntity extends Equatable {
     updater,
     code,
     address,
-    districtId,
+    cityId,
     pincode,
     contactNumber,
     entName,

@@ -24,7 +24,7 @@ class CentreEntityAdapter extends TypeAdapter<CentreEntity> {
       updater: fields[4] as UserEntity?,
       code: fields[5] as String,
       address: fields[6] as String,
-      districtId: fields[7] as String,
+      cityId: fields[7] as String,
       pincode: fields[8] as String,
       contactNumber: fields[9] as String,
       entName: fields[10] as String,
@@ -65,7 +65,7 @@ class CentreEntityAdapter extends TypeAdapter<CentreEntity> {
       ..writeByte(6)
       ..write(obj.address)
       ..writeByte(7)
-      ..write(obj.districtId)
+      ..write(obj.cityId)
       ..writeByte(8)
       ..write(obj.pincode)
       ..writeByte(9)

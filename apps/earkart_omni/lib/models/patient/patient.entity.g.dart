@@ -26,7 +26,7 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       dob: fields[6] as String,
       password: fields[7] as String?,
       address: fields[8] as String,
-      districtId: fields[9] as String,
+      cityId: fields[9] as String,
       pincode: fields[10] as String,
       createdBy: fields[11] as String?,
       updatedBy: fields[12] as String?,
@@ -66,7 +66,7 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       ..writeByte(8)
       ..write(obj.address)
       ..writeByte(9)
-      ..write(obj.districtId)
+      ..write(obj.cityId)
       ..writeByte(10)
       ..write(obj.pincode)
       ..writeByte(11)
