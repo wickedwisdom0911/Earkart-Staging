@@ -612,6 +612,13 @@ export default function PureTonePage() {
   const addResponse = () => addTestResult(false);  // false = normal response, no arrow
   const addNoResponse = () => addTestResult(true); // true = no response, show arrow
 
+  const clearTest = () => {
+    setTestResults([]);
+    setAcTestResults([]);
+    setBcTestResults([]);
+    toast.info("All test results cleared. You can start over.");
+  };
+
   // Handle audiogram click
   const handleAudiogramClick = (x: number, y: number) => {
     const newFrequency = FREQUENCIES[x];
@@ -906,6 +913,12 @@ export default function PureTonePage() {
             onClick={addNoResponse}
           >
             No Response
+          </button>
+          <button
+            className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            onClick={clearTest}
+          >
+            Clear Test
           </button>
           <button
             className="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600"
