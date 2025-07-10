@@ -9,6 +9,8 @@ export const ACReadingModelDataSchema = z.object({
   thresholdDb: z.number(),
   maskingUsed: z.boolean(),
   maskingEar: z.nativeEnum(Ear).optional().nullable(),
+  response : z.boolean(),
+  maskingThresholdDb: z.number().optional().nullable(),
 });
 
 export const BCReadingModelDataSchema = z.object({
@@ -18,6 +20,8 @@ export const BCReadingModelDataSchema = z.object({
   frequencyHz: z.number(),
   thresholdDb: z.number(),
   maskingUsed: z.boolean(),
+   response : z.boolean(),
+  maskingThresholdDb: z.number().optional().nullable(),
 });
 
 export const SpeechReadingModelDataSchema = z.object({

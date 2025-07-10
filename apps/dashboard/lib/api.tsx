@@ -22,8 +22,6 @@ export async function apiRequest<T>(
     
     const result = await response.json();
 
-    console.log("result", result)
-
     // Validate using the provided schema
     return schema.parse(result);
   } catch (error) {

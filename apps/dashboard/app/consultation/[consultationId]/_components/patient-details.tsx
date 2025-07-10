@@ -36,13 +36,13 @@ export default function PatientDetails({
   const router = useRouter();
   const { consultationId } = useParams();
   const [countryId, setCountryId] = useState<string | null>(
-    patient.district?.city?.state?.country?.id || null
+    patient.city?.district?.state?.country?.id || null
   );
   const [stateId, setStateId] = useState<string | null>(
-    patient.district?.city?.state?.id || null
+    patient.city?.district?.state?.id || null
   );
-  const [cityId, setCityId] = useState<string | null>(
-    patient.district?.city?.id || null
+  const [districtId, setDistrictId] = useState<string | null>(
+    patient.city?.district?.id || null
   );
 
   const form = useForm<PatientModelData>({
@@ -54,23 +54,23 @@ export default function PatientDetails({
   useEffect(() => {
     if (!countryId) {
       setStateId("");
-      setCityId("");
-      form.setValue("districtId", "");
+      setDistrictId("");
+      form.setValue("cityId", "");
     }
   }, [countryId, form]);
 
   useEffect(() => {
     if (!stateId) {
-      setCityId("");
-      form.setValue("districtId", "");
+      setDistrictId("");
+      form.setValue("cityId", "");
     }
   }, [stateId, form]);
 
   useEffect(() => {
-    if (!cityId) {
-      form.setValue("districtId", "");
+    if (!districtId) {
+      form.setValue("cityId", "");
     }
-  }, [cityId, form]);
+  }, [districtId, form]);
 
   function handleSubmit(data: PatientModelData) {
     // Check if any field has changed from the original patient data
@@ -122,7 +122,7 @@ export default function PatientDetails({
             if (result.success) {
               toast.success("Patient updated successfully");
               router.push(
-                ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string)
+                ROUTES.ANSWER_QUESTIONNAIRE(consultationId as string)
               );
             } else {
               toast.error(result.message);
@@ -134,7 +134,7 @@ export default function PatientDetails({
         }
       );
     } else {
-      router.push(ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string));
+      router.push(ROUTES.ANSWER_QUESTIONNAIRE(consultationId as string));
     }
   }
 
@@ -236,7 +236,7 @@ export default function PatientDetails({
             <div className="col-span-2">
               <FormField
                 control={form.control}
-                name="districtId"
+                name="cityId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Location</FormLabel>
@@ -255,18 +255,18 @@ export default function PatientDetails({
                         />
                       )}
                       {stateId && (
-                        <CitySelector
-                          value={cityId}
-                          onChange={setCityId}
+                        <DistrictSelector
+                          value={districtId}
+                          onChange={setDistrictId}
                           stateId={stateId}
-                          initialValue={cityId}
+                          initialValue={districtId}
                         />
                       )}
-                      {cityId && (
-                        <DistrictSelector
+                      {districtId && (
+                        <CitySelector
                           value={field.value}
                           onChange={field.onChange}
-                          cityId={cityId}
+                          districtId={districtId}
                           initialValue={field.value}
                         />
                       )}

@@ -49,6 +49,18 @@ export interface ReorderPayload {
 
 
 
+
+export const SubmitAnswersModelSchema = z.object({
+  consultationId: z.string(),
+  answers: z.array(
+    z.object({
+      questionId: z.string(),
+      value: z.string(),
+    })
+  ),
+});
+export type SubmitAnswersModel = z.infer<typeof SubmitAnswersModelSchema>;
+
 export type Option = z.infer<typeof OptionSchema>;
 export type QuestionModelData = z.infer<typeof QuestionModelDataSchema>;
 export type CreateQuestionModel = z.infer<typeof CreateQuestionModelSchema>;
