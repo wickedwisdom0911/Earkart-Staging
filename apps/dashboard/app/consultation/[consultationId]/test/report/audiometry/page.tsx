@@ -43,7 +43,7 @@ const allResults: TestResult[] = [
     y: t.thresholdDb,
     mode: "AC",
     masking: t.maskingUsed ? (t.maskingEar === Ear.LEFT ? 1 : 2) : 0,
-    noResponse: t?.noResponse || 0, // ← Use actual value from data
+    noResponse: (t.response === false) ? 1 : 0, // Only explicit false = no response
     signalType: "Steady",
     pulsed: false,
   })) || []),
@@ -53,7 +53,7 @@ const allResults: TestResult[] = [
     y: t.thresholdDb,
     mode: "BC",
     masking: t.maskingUsed ? 1 : 0,
-    noResponse: t?.noResponse || 0, // ← Use actual value from data
+    noResponse: (t.response === false) ? 1 : 0, // Only explicit false = no response
     signalType: "Steady",
     pulsed: false,
   })) || []),
@@ -94,7 +94,8 @@ const allResults: TestResult[] = [
     return average !== null ? `${average.toFixed(1)} dB HL` : 'N/A';
   };
 
-  console.log(allResults);
+
+  
   const leftResults = allResults.filter(r => r.ear === "L");
   const rightResults = allResults.filter(r => r.ear === "R");
 
@@ -233,34 +234,112 @@ const allResults: TestResult[] = [
             </div>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4 text-gray-800">Audiogram</h2>
-            <div className="grid grid-cols-1 gap-6">
-              <div>
-                <h3 className="text-lg font-medium mb-2 text-gray-700">Left Ear</h3>
-                <div className="border rounded-lg p-2 bg-white">
+          {/* Audiograms */}
+          <div className="mb-8 bg-gray-50 rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">
+              Audiograms
+            </h2>
+            
+            {/* Left Ear Audiogram */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-3 text-blue-600">Left Ear</h3>
+              <div className="border rounded-lg p-4 bg-white">
+                <div className="w-full">
                   <PureToneGraph
                     resultMarkings={leftResults}
                     selectedLabelIndexes={{ x: 0, y: 0 }}
                     onIndexChange={() => {}}
                     width={700}
-                    height={400}
+                    height={350}
                     axisFontSize={10}
                   />
                 </div>
               </div>
-              <div>
-                <h3 className="text-lg font-medium mb-2 text-gray-700">Right Ear</h3>
-                <div className="border rounded-lg p-2 bg-white">
+            </div>
+
+            {/* Right Ear Audiogram */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-3 text-red-600">Right Ear</h3>
+              <div className="border rounded-lg p-4 bg-white">
+                <div className="w-full">
                   <PureToneGraph
                     resultMarkings={rightResults}
                     selectedLabelIndexes={{ x: 0, y: 0 }}
                     onIndexChange={() => {}}
                     width={700}
-                    height={400}
+                    height={350}
                     axisFontSize={10}
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Combined Audiogram for Reference */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-3 text-gray-700">Combined View</h3>
+              <div className="border rounded-lg p-4 bg-white">
+                <div className="w-full">
+                  <PureToneGraph
+                    resultMarkings={allResults}
+                    selectedLabelIndexes={{ x: 0, y: 0 }}
+                    onIndexChange={() => {}}
+                    width={700}
+                    height={350}
+                    axisFontSize={10}
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Legend */}
+            <div className="mt-4 bg-white rounded-lg p-4 border">
+              <h3 className="text-sm font-semibold mb-3 text-gray-700">Symbol Legend (ASHA 1990)</h3>
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <h4 className="font-medium text-blue-600 mb-2">Air Conduction (AC)</h4>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-500 text-lg">○</span>
+                      <span>Right Ear (Unmasked)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-500 text-lg font-bold">×</span>
+                      <span>Left Ear (Unmasked)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-500 text-lg">△</span>
+                      <span>Right Ear (Masked)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-500 text-lg">□</span>
+                      <span>Left Ear (Masked)</span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-600 mb-2">Bone Conduction (BC)</h4>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-500 text-lg font-bold">&lt;</span>
+                      <span>Right Ear (Unmasked)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-500 text-lg font-bold">&gt;</span>
+                      <span>Left Ear (Unmasked)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-500 text-lg font-bold">[</span>
+                      <span>Right Ear (Masked)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-500 text-lg font-bold">]</span>
+                      <span>Left Ear (Masked)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t text-xs text-gray-600">
+                <span className="font-medium">No Response:</span> Arrows pointing down indicate no response at the maximum output level
               </div>
             </div>
           </div>
@@ -277,6 +356,7 @@ const allResults: TestResult[] = [
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ear</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency (Hz)</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Threshold (dB HL)</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Response</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Masking</th>
                     </tr>
                   </thead>
@@ -286,6 +366,15 @@ const allResults: TestResult[] = [
                         <td className="px-6 py-4 text-gray-800">{test.ear === Ear.LEFT ? "Left" : "Right"}</td>
                         <td className="px-6 py-4 text-gray-800">{test.frequencyHz}</td>
                         <td className="px-6 py-4 text-gray-800">{test.thresholdDb}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            test.response 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {test.response ? 'Heard' : 'No Response'}
+                          </span>
+                        </td>
                         <td className="px-6 py-4 text-gray-800">
                           {test.maskingUsed
                             ? test.maskingEar === Ear.LEFT ? "Left" : "Right"
@@ -307,6 +396,7 @@ const allResults: TestResult[] = [
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ear</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency (Hz)</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Threshold (dB HL)</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Response</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Masking</th>
                     </tr>
                   </thead>
@@ -316,6 +406,15 @@ const allResults: TestResult[] = [
                         <td className="px-6 py-4 text-gray-800">{test.ear === Ear.LEFT ? "Left" : "Right"}</td>
                         <td className="px-6 py-4 text-gray-800">{test.frequencyHz}</td>
                         <td className="px-6 py-4 text-gray-800">{test.thresholdDb}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            test.response 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {test.response ? 'Heard' : 'No Response'}
+                          </span>
+                        </td>
                         <td className="px-6 py-4 text-gray-800">{test.maskingUsed ? "Yes" : "No"}</td>
                       </tr>
                     ))}

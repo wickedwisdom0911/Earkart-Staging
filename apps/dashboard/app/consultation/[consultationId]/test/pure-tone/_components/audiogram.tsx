@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from "react";
-import { ArrowDownLeft, ArrowDownRight } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 
 interface ResultMarking {
   ear: string;       // "L" or "R"
@@ -71,51 +71,53 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
     const half = SYMBOL_SIZE / 2;
     let base: React.ReactNode = null;
 
-    // Air conduction
+    // Air conduction symbols (ASHA 1990)
     if (mode === "AC") {
       if (!masking) {
-        base = ear === "L"
-          ? <text x={x} y={y} fontSize={SYMBOL_SIZE} fill={color}
-              textAnchor="middle" dominantBaseline="middle">×</text>
-          : <circle cx={x} cy={y} r={half} fill="none" stroke={color}
-              strokeWidth={LINE_THICKNESS} />;
+        // AC unmasked: Circle for Right ear, X for Left ear
+        base = ear === "R" 
+          ? <circle cx={x} cy={y} r={half} fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />
+          : <text x={x} y={y} fontSize={SYMBOL_SIZE + 2} fill={color} fontWeight="bold"
+              textAnchor="middle" dominantBaseline="middle">×</text>;
       } else {
-        // masked AC: triangles
-        base = ear === "L"
-          ? <polygon points={`
-              ${x-half},${y+half}
-              ${x},${y-half}
-              ${x+half},${y+half}
-            `} fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />
-          : <polygon points={`
-              ${x-half},${y-half}
-              ${x},${y+half}
-              ${x+half},${y-half}
-            `} fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />;
+        // AC masked: Triangle for Right ear, Square for Left ear
+        base = ear === "R"
+          ? <polygon points={`${x},${y-half} ${x-half},${y+half} ${x+half},${y+half}`} 
+              fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />
+          : <rect x={x-half} y={y-half} width={SYMBOL_SIZE} height={SYMBOL_SIZE}
+              fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />;
       }
     }
 
-    // Bone conduction
+    // Bone conduction symbols (ASHA 1990)
     if (mode === "BC") {
-      const sym = (!masking ? (ear==="L" ? ">" : "<") : (ear==="L" ? "]" : "["));
-      base = <text x={x} y={y} fontSize={SYMBOL_SIZE} fill={color}
-        textAnchor="middle" dominantBaseline="middle">{sym}</text>;
+      if (!masking) {
+        // BC unmasked: < for Right ear, > for Left ear
+        const symbol = ear === "R" ? "<" : ">";
+        base = <text x={x} y={y} fontSize={SYMBOL_SIZE + 2} fill={color} fontWeight="bold"
+          textAnchor="middle" dominantBaseline="middle">{symbol}</text>;
+      } else {
+        // BC masked: [ for Right ear, ] for Left ear
+        const symbol = ear === "R" ? "[" : "]";
+        base = <text x={x} y={y} fontSize={SYMBOL_SIZE + 2} fill={color} fontWeight="bold"
+          textAnchor="middle" dominantBaseline="middle">{symbol}</text>;
+      }
     }
 
-    // No-response overlay
-    if (noResponse) {
-  const Icon = ear === "L" ? ArrowDownRight : ArrowDownLeft;
+    // No-response overlay (arrows pointing straight down - ASHA 1990)
+    if (noResponse === 1) {
       return (
-        <g>
+        <g key={`symbol-${x}-${y}`}>
           {base}
-          <g transform={`translate(${x - half/2}, ${y + half/2}) scale(0.6)`}>
-<Icon stroke={color} />          
-</g>
+          <g transform={`translate(${x - 8}, ${y + 8}) scale(0.6)`}>
+            <ArrowDown stroke={color} strokeWidth={2} size={16} />          
+          </g>
         </g>
       );
     }
 
-    return base;
+    // Normal response - just the base symbol
+    return <g key={`symbol-${x}-${y}`}>{base}</g>;
   }, []);
 
   const grid = useMemo(() => [

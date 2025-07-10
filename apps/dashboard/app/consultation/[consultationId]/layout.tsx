@@ -27,7 +27,7 @@ export default function ConsultationLayout({
   const { r15c } = deviceState;
 
 
-console.log(consultation, "Consultation Data");
+
 
   // Add socket connection handling
   useEffect(() => {

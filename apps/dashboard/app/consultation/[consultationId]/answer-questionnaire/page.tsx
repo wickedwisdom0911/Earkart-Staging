@@ -23,8 +23,7 @@ export default function QuestionnairePage() {
   const { data: consultationData, isLoading: isConsultationLoading } = useGetConsultation(cid); // Add this
   const questions = resp?.data ?? [];
 
-  console.log(resp, "Questions Data");
-  console.log(consultationData, "Consultation Data");
+
 
   const sortedQuestions = useMemo(
     () => [...questions].sort((a, b) => a.order - b.order),
