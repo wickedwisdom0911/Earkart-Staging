@@ -1,9 +1,8 @@
 import 'package:earkart_omni/config/utils/custom_logger.dart';
-import 'package:earkart_omni/config/utils/text_styles.dart';
 import 'package:earkart_omni/config/widgets/custom_text_field.dart';
 import 'package:earkart_omni/config/widgets/gender_selector.dart';
+import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/config/widgets/gradient_button.dart';
-import 'package:earkart_omni/config/widgets/helpers.dart';
 import 'package:earkart_omni/config/widgets/phone_number_input.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
@@ -149,9 +148,8 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
+      extendBodyBehindAppBar: true,
+      appBar: GlassmorphismAppBar(
         title: const Text(
           "New Patient",
           style: TextStyle(
@@ -167,7 +165,12 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.only(
+          top: 80,
+          left: 24,
+          right: 24,
+          bottom: 24,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

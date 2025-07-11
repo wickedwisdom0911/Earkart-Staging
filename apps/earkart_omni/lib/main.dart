@@ -216,6 +216,7 @@ void _registerHiveAdapters() {
   Hive.registerAdapter(PaymentCycleAdapter());
   Hive.registerAdapter(WeekDaysAdapter());
   Hive.registerAdapter(EarAdapter());
+  Hive.registerAdapter(PatientSoldStatusAdapter());
   // Audiologist
   Hive.registerAdapter(AudiologistEntityAdapter());
 }
@@ -301,7 +302,7 @@ class _MyAppState extends State<MyApp> {
                       right: 12,
                       child: SafeArea(
                         child: Container(
-                          height: 50, // Match toolbar height
+                          height: 60, // Match toolbar height
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 4),
                           child: const NetworkStatusWidget(

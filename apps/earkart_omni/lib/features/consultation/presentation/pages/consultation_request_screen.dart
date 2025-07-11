@@ -1,5 +1,4 @@
-import 'package:earkart_omni/config/widgets/gradient_button.dart';
-import 'package:earkart_omni/config/widgets/helpers.dart';
+import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
@@ -30,6 +29,34 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
     context.read<ConsultationCubit>().createConsultation();
   }
 
+  void cancelConsultation() {
+    context.read<PatientCubit>().deletePatientSession();
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      RootScreen.routeName,
+      (route) => false,
+    );
+  }
+
+  String _buildLocationString(dynamic patient) {
+    final List<String> locationParts = [];
+
+    if (patient?.city?.name != null) {
+      locationParts.add(patient!.city!.name!);
+    }
+    if (patient?.district?.name != null) {
+      locationParts.add(patient!.district!.name!);
+    }
+    if (patient?.city?.state?.name != null) {
+      locationParts.add(patient!.city!.state!.name!);
+    }
+    if (patient?.city?.state?.country?.name != null) {
+      locationParts.add(patient!.city!.state!.country!.name!);
+    }
+
+    return locationParts.join(', ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -37,6 +64,10 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black87),
+          onPressed: cancelConsultation,
+        ),
         title: const Text(
           'Consultation Request',
           style: TextStyle(
@@ -50,14 +81,7 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: CupertinoButton(
               padding: EdgeInsets.zero,
-              onPressed: () {
-                context.read<PatientCubit>().deletePatientSession();
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  RootScreen.routeName,
-                  (route) => false,
-                );
-              },
+              onPressed: cancelConsultation,
               child: const Text(
                 'Cancel',
                 style: TextStyle(
@@ -80,71 +104,120 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header section
+                      // Modern Patient Header
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.blue.shade600,
-                              Colors.blue.shade800,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Constants.primaryColor.withOpacity(0.1),
+                            width: 1,
                           ),
-                          borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blue.shade200,
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    Icons.person,
-                                    color: Colors.white,
-                                    size: 24,
-                                  ),
+                            // Avatar with gradient background
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Constants.primaryColor,
+                                    Constants.secondaryColor,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        patient?.name ?? 'Unknown Patient',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        patient?.contactNumber ?? 'No contact',
-                                        style: TextStyle(
-                                          color: Colors.white.withOpacity(0.8),
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ],
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Icon(
+                                Icons.person_outline,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Patient info
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    patient?.name ?? 'Unknown Patient',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.black87,
+                                      letterSpacing: 0.2,
+                                    ),
                                   ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    patient?.contactNumber ?? 'No contact',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey.shade600,
+                                      letterSpacing: 0.1,
+                                    ),
+                                  ),
+                                  if (patient?.city != null ||
+                                      patient?.district != null) ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.location_on_outlined,
+                                          size: 14,
+                                          color: Colors.grey.shade500,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            _buildLocationString(patient),
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey.shade500,
+                                              letterSpacing: 0.1,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            // Status indicator
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Constants.primaryColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Active',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Constants.primaryColor,
+                                  letterSpacing: 0.2,
                                 ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
@@ -205,10 +278,17 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                     ),
                                     _buildInfoTile(
                                       Icons.location_city_outlined,
-                                      'District',
-                                      patient?.district?.name ??
-                                          'Not specified',
+                                      'City',
+                                      patient?.city?.name ?? 'Not specified',
                                     ),
+                                    if (_buildLocationString(
+                                      patient,
+                                    ).isNotEmpty)
+                                      _buildInfoTile(
+                                        Icons.public_outlined,
+                                        'Location',
+                                        _buildLocationString(patient),
+                                      ),
                                     _buildInfoTile(
                                       Icons.pin_drop_outlined,
                                       'Pincode',
@@ -234,43 +314,125 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // Start Consultation Button
-                      BlocConsumer<ConsultationCubit, ConsultationState>(
-                        listener: (context, state) {
-                          if (state.maybeWhen(
-                            orElse: () => false,
-                            createConsultationSuccess: (_) => true,
-                          )) {
-                            Navigator.pushNamed(
-                              context,
-                              ConsultationScreen.routeName,
-                            );
-                          }
-                        },
-                        builder: (context, state) {
-                          return Container(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: startConsultation,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green.shade600,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                      // Action Buttons
+                      Row(
+                        children: [
+                          // Cancel Button
+                          Expanded(
+                            child: Container(
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.red.shade300,
+                                  width: 1.5,
                                 ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.shade100.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
-                              child: const Text(
-                                'Start Consultation',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
+                              child: ElevatedButton(
+                                onPressed: cancelConsultation,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  elevation: 0,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 16,
+                                  ),
+                                ),
+                                child: Text(
+                                  'Cancel',
+                                  style: TextStyle(
+                                    color: Colors.red.shade600,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3,
+                                  ),
                                 ),
                               ),
                             ),
-                          );
-                        },
+                          ),
+                          const SizedBox(width: 16),
+                          // Start Consultation Button
+                          Expanded(
+                            flex: 2,
+                            child: BlocConsumer<
+                              ConsultationCubit,
+                              ConsultationState
+                            >(
+                              listener: (context, state) {
+                                if (state.maybeWhen(
+                                  orElse: () => false,
+                                  createConsultationSuccess: (_) => true,
+                                )) {
+                                  Navigator.pushNamed(
+                                    context,
+                                    ConsultationScreen.routeName,
+                                  );
+                                }
+                              },
+                              builder: (context, state) {
+                                return Container(
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Constants.primaryColor,
+                                        Constants.secondaryColor,
+                                      ],
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Constants.primaryColor
+                                            .withOpacity(0.3),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                        spreadRadius: 0,
+                                      ),
+                                    ],
+                                  ),
+                                  child: ElevatedButton(
+                                    onPressed: startConsultation,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      elevation: 0,
+                                      shadowColor: Colors.transparent,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 16,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Start Consultation',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -295,10 +457,10 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: Constants.primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: Colors.blue.shade600, size: 20),
+            child: Icon(icon, color: Constants.primaryColor, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
