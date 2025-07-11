@@ -15,7 +15,7 @@ class PatientEntity extends Equatable {
   @HiveField(1)
   final String contactNumber;
   @HiveField(2)
-  final String code;
+  final String? code;
   @HiveField(3)
   final String name;
   @HiveField(4)
@@ -23,59 +23,64 @@ class PatientEntity extends Equatable {
   @HiveField(5)
   final Gender gender;
   @HiveField(6)
-  final String dob;
+  final String? dob;
   @HiveField(7)
-  final String? password;
+  final int? age;
   @HiveField(8)
-  final String address;
+  final String? password;
   @HiveField(9)
-  final String cityId;
+  final String address;
   @HiveField(10)
-  final String districtId;
+  final String? cityId;
   @HiveField(11)
-  final String stateId;
+  final String? districtId;
   @HiveField(12)
-  final String countryId;
+  final String? stateId;
   @HiveField(13)
-  final String pincode;
+  final String? countryId;
   @HiveField(14)
-  final String? createdBy;
+  final String pincode;
   @HiveField(15)
-  final String? updatedBy;
+  final String? createdBy;
   @HiveField(16)
-  final DateTime? createdAt;
+  final String? updatedBy;
   @HiveField(17)
-  final DateTime? updatedAt;
+  final DateTime? createdAt;
   @HiveField(18)
-  final String languageId;
+  final DateTime? updatedAt;
   @HiveField(19)
-  final Status? status;
+  final String languageId;
   @HiveField(20)
-  final PatienSoldStatus? soldStatus;
+  final Status? status;
   @HiveField(21)
+  final PatientSoldStatus? soldStatus;
+  @HiveField(22)
   final String? handledBy;
 
   // Relations (use dynamic or Object? as placeholder)
-  @HiveField(22)
-  final DistrictEntity? district; // DistrictEntity
   @HiveField(23)
-  final UserEntity? creator; // UserEntity
+  final DistrictEntity? district; // DistrictEntity
   @HiveField(24)
-  final UserEntity? updater; // UserEntity
+  final UserEntity? creator; // UserEntity
   @HiveField(25)
+  final UserEntity? updater; // UserEntity
+  @HiveField(26)
   final LanguageEntity? language; // LanguageEntity
+  @HiveField(27)
+  final CityEntity? city; // CityEntity - added missing field
 
   const PatientEntity({
     this.id,
     required this.contactNumber,
-    required this.code,
+    this.code,
     required this.name,
     this.email,
     required this.gender,
-    required this.dob,
+    this.dob,
+    this.age,
     required this.password,
     required this.address,
-    required this.cityId,
+    this.cityId,
     required this.pincode,
     this.createdBy,
     this.updatedBy,
@@ -89,9 +94,10 @@ class PatientEntity extends Equatable {
     this.language,
     this.soldStatus,
     this.handledBy,
-    required this.districtId,
-    required this.stateId,
-    required this.countryId,
+    this.districtId,
+    this.stateId,
+    this.countryId,
+    this.city,
   });
 
   factory PatientEntity.fromJson(Map<String, dynamic> json) {
@@ -103,6 +109,12 @@ class PatientEntity extends Equatable {
       email: json['email'],
       gender: genderFromApi(json['gender']),
       dob: json['dob'],
+      age:
+          json['age'] is int
+              ? json['age']
+              : (json['age'] != null
+                  ? int.parse(json['age'].toString())
+                  : null),
       password: json['password'],
       address: json['address'],
       cityId: json['cityId'],
@@ -130,6 +142,7 @@ class PatientEntity extends Equatable {
       districtId: json['districtId'],
       stateId: json['stateId'],
       countryId: json['countryId'],
+      city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
     );
   }
 
@@ -142,6 +155,7 @@ class PatientEntity extends Equatable {
       'email': email,
       'gender': gender.name.toUpperCase(),
       'dob': dob,
+      'age': age,
       'password': password,
       'address': address,
       'cityId': cityId,
@@ -161,6 +175,7 @@ class PatientEntity extends Equatable {
       'districtId': districtId,
       'stateId': stateId,
       'countryId': countryId,
+      'city': city?.toJson(),
     };
   }
 
@@ -186,11 +201,12 @@ class PatientEntity extends Equatable {
     UserEntity? creator,
     UserEntity? updater,
     LanguageEntity? language,
-    PatienSoldStatus? soldStatus,
+    PatientSoldStatus? soldStatus,
     String? handledBy,
     String? districtId,
     String? stateId,
     String? countryId,
+    CityEntity? city,
   }) {
     return PatientEntity(
       id: id ?? this.id,
@@ -200,6 +216,7 @@ class PatientEntity extends Equatable {
       email: email ?? this.email,
       gender: gender ?? this.gender,
       dob: dob ?? this.dob,
+      age: age ?? this.age,
       password: password ?? this.password,
       address: address ?? this.address,
       cityId: cityId ?? this.cityId,
@@ -219,6 +236,7 @@ class PatientEntity extends Equatable {
       districtId: districtId ?? this.districtId,
       stateId: stateId ?? this.stateId,
       countryId: countryId ?? this.countryId,
+      city: city ?? this.city,
     );
   }
 
@@ -231,6 +249,7 @@ class PatientEntity extends Equatable {
     email,
     gender,
     dob,
+    age,
     password,
     address,
     cityId,
@@ -247,5 +266,6 @@ class PatientEntity extends Equatable {
     language,
     soldStatus,
     handledBy,
+    city,
   ];
 }

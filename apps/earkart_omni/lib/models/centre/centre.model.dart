@@ -161,9 +161,10 @@ class CentreModelData extends CentreEntity {
       createdBy: json['createdBy'],
       updatedBy: json['updatedBy'],
       workingDays:
-          (json['workingDays'] as List<dynamic>)
-              .map((e) => weekDaysFromApi(e))
-              .toList(),
+          (json['workingDays'] as List<dynamic>?)
+              ?.map((e) => weekDaysFromApi(e))
+              .toList() ??
+          [],
       workingTimeStart: json['workingTimeStart'],
       workingTimeEnd: json['workingTimeEnd'],
       breakTimeStart: json['breakTimeStart'],

@@ -19,37 +19,39 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
     return PatientEntity(
       id: fields[0] as String?,
       contactNumber: fields[1] as String,
-      code: fields[2] as String,
+      code: fields[2] as String?,
       name: fields[3] as String,
       email: fields[4] as String?,
       gender: fields[5] as Gender,
-      dob: fields[6] as String,
-      password: fields[7] as String?,
-      address: fields[8] as String,
-      cityId: fields[9] as String,
-      pincode: fields[13] as String,
-      createdBy: fields[14] as String?,
-      updatedBy: fields[15] as String?,
-      createdAt: fields[16] as DateTime?,
-      updatedAt: fields[17] as DateTime?,
-      languageId: fields[18] as String,
-      status: fields[19] as Status?,
-      district: fields[22] as DistrictEntity?,
-      creator: fields[23] as UserEntity?,
-      updater: fields[24] as UserEntity?,
-      language: fields[25] as LanguageEntity?,
-      soldStatus: fields[20] as PatienSoldStatus?,
-      handledBy: fields[21] as String?,
-      districtId: fields[10] as String,
-      stateId: fields[11] as String,
-      countryId: fields[12] as String,
+      dob: fields[6] as String?,
+      age: fields[7] as int?,
+      password: fields[8] as String?,
+      address: fields[9] as String,
+      cityId: fields[10] as String?,
+      pincode: fields[14] as String,
+      createdBy: fields[15] as String?,
+      updatedBy: fields[16] as String?,
+      createdAt: fields[17] as DateTime?,
+      updatedAt: fields[18] as DateTime?,
+      languageId: fields[19] as String,
+      status: fields[20] as Status?,
+      district: fields[23] as DistrictEntity?,
+      creator: fields[24] as UserEntity?,
+      updater: fields[25] as UserEntity?,
+      language: fields[26] as LanguageEntity?,
+      soldStatus: fields[21] as PatientSoldStatus?,
+      handledBy: fields[22] as String?,
+      districtId: fields[11] as String?,
+      stateId: fields[12] as String?,
+      countryId: fields[13] as String?,
+      city: fields[27] as CityEntity?,
     );
   }
 
   @override
   void write(BinaryWriter writer, PatientEntity obj) {
     writer
-      ..writeByte(26)
+      ..writeByte(28)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -65,43 +67,47 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       ..writeByte(6)
       ..write(obj.dob)
       ..writeByte(7)
-      ..write(obj.password)
+      ..write(obj.age)
       ..writeByte(8)
-      ..write(obj.address)
+      ..write(obj.password)
       ..writeByte(9)
-      ..write(obj.cityId)
+      ..write(obj.address)
       ..writeByte(10)
-      ..write(obj.districtId)
+      ..write(obj.cityId)
       ..writeByte(11)
-      ..write(obj.stateId)
+      ..write(obj.districtId)
       ..writeByte(12)
-      ..write(obj.countryId)
+      ..write(obj.stateId)
       ..writeByte(13)
-      ..write(obj.pincode)
+      ..write(obj.countryId)
       ..writeByte(14)
-      ..write(obj.createdBy)
+      ..write(obj.pincode)
       ..writeByte(15)
-      ..write(obj.updatedBy)
+      ..write(obj.createdBy)
       ..writeByte(16)
-      ..write(obj.createdAt)
+      ..write(obj.updatedBy)
       ..writeByte(17)
-      ..write(obj.updatedAt)
+      ..write(obj.createdAt)
       ..writeByte(18)
-      ..write(obj.languageId)
+      ..write(obj.updatedAt)
       ..writeByte(19)
-      ..write(obj.status)
+      ..write(obj.languageId)
       ..writeByte(20)
-      ..write(obj.soldStatus)
+      ..write(obj.status)
       ..writeByte(21)
-      ..write(obj.handledBy)
+      ..write(obj.soldStatus)
       ..writeByte(22)
-      ..write(obj.district)
+      ..write(obj.handledBy)
       ..writeByte(23)
-      ..write(obj.creator)
+      ..write(obj.district)
       ..writeByte(24)
-      ..write(obj.updater)
+      ..write(obj.creator)
       ..writeByte(25)
-      ..write(obj.language);
+      ..write(obj.updater)
+      ..writeByte(26)
+      ..write(obj.language)
+      ..writeByte(27)
+      ..write(obj.city);
   }
 
   @override

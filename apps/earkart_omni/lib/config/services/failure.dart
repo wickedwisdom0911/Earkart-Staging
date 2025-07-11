@@ -12,7 +12,7 @@ abstract class Failure {
 
 class UnKnownFailure extends Failure {
   UnKnownFailure({super.error, StackTrace? stack})
-    : super(message: "Something went wrong", stackTrace: stack);
+    : super(message: "Something went wrong: $error", stackTrace: stack);
 }
 
 class FetchDataFailure extends Failure {

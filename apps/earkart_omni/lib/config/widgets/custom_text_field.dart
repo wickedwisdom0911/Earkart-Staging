@@ -112,13 +112,14 @@ class _CustomTextFieldState extends State<CustomTextField>
             Text(
               widget.title!,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: widget.titleColor ?? Colors.grey.shade700,
-                letterSpacing: 0.1,
+                color: widget.titleColor ?? Colors.grey.shade800,
+                letterSpacing: 0.3,
+                height: 1.2,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
           ],
 
           // Modern text field
@@ -146,21 +147,29 @@ class _CustomTextFieldState extends State<CustomTextField>
     return Container(
       height: widget.height ?? 56,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _isFocused ? Colors.blue.shade500 : Colors.grey.shade200,
-          width: _isFocused ? 2.0 : 1.0,
+          color: _isFocused ? Colors.blue.shade400 : Colors.grey.shade300,
+          width: _isFocused ? 1.5 : 1.0,
         ),
         boxShadow:
             _isFocused
                 ? [
                   BoxShadow(
-                    color: Colors.blue.shade100,
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: Colors.blue.shade100.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                    spreadRadius: 0,
                   ),
                 ]
-                : null,
+                : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                    spreadRadius: 0,
+                  ),
+                ],
       ),
       child: TextFormField(
         enabled: widget.enabled,
@@ -179,62 +188,64 @@ class _CustomTextFieldState extends State<CustomTextField>
         obscureText: _isPasswordField ? !_showPassword : false,
         keyboardType: widget.keyboardType,
         style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w400,
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
           color: Colors.black87,
           height: 1.4,
+          letterSpacing: 0.1,
         ),
         decoration: InputDecoration(
           hintText: widget.hint,
           hintStyle: TextStyle(
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: FontWeight.w400,
             color: Colors.grey.shade500,
             height: 1.4,
+            letterSpacing: 0.1,
           ),
           filled: true,
-          fillColor: widget.fillcolor ?? Colors.grey.shade50,
+          fillColor: widget.fillcolor ?? Colors.white,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
+            horizontal: 20,
+            vertical: 18,
           ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
           errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
           focusedErrorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
           // Prefix icon
           prefixIcon:
               widget.prefix != null
                   ? Padding(
-                    padding: const EdgeInsets.only(left: 4, right: 8),
+                    padding: const EdgeInsets.only(left: 8, right: 12),
                     child: widget.prefix,
                   )
                   : null,
           prefixIconConstraints: const BoxConstraints(
-            minWidth: 44,
-            minHeight: 44,
+            minWidth: 48,
+            minHeight: 48,
           ),
           // Suffix icon
           suffixIcon: _buildSuffixIcon(),
           suffixIconConstraints: const BoxConstraints(
-            minWidth: 44,
-            minHeight: 44,
+            minWidth: 48,
+            minHeight: 48,
           ),
         ),
       ),

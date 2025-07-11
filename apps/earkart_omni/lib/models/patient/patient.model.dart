@@ -49,11 +49,12 @@ class PatientModelData extends PatientEntity {
   const PatientModelData({
     super.id,
     required super.contactNumber,
-    required super.code,
+    super.code,
     required super.name,
     super.email,
     required super.gender,
-    required super.dob,
+    super.dob,
+    super.age,
     super.password,
     required super.address,
     required super.cityId,
@@ -70,9 +71,10 @@ class PatientModelData extends PatientEntity {
     super.language,
     super.soldStatus,
     super.handledBy,
-    required super.districtId,
-    required super.stateId,
-    required super.countryId,
+    super.districtId,
+    super.stateId,
+    super.countryId,
+    super.city,
   });
 
   factory PatientModelData.fromJson(Map<String, dynamic> json) {
@@ -84,6 +86,12 @@ class PatientModelData extends PatientEntity {
       email: json['email'],
       gender: genderFromApi(json['gender']),
       dob: json["dob"],
+      age:
+          json['age'] is int
+              ? json['age']
+              : (json['age'] != null
+                  ? int.parse(json['age'].toString())
+                  : null),
       password: json['password'],
       address: json['address'],
       cityId: json['cityId'],
@@ -111,6 +119,7 @@ class PatientModelData extends PatientEntity {
       districtId: json['districtId'],
       stateId: json['stateId'],
       countryId: json['countryId'],
+      city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
     );
   }
 
@@ -124,6 +133,7 @@ class PatientModelData extends PatientEntity {
       'email': email,
       'gender': gender.name.toUpperCase(),
       'dob': dob,
+      'age': age,
       'password': password,
       'address': address,
       'cityId': cityId,
@@ -143,6 +153,7 @@ class PatientModelData extends PatientEntity {
       'districtId': districtId,
       'stateId': stateId,
       'countryId': countryId,
+      'city': city?.toJson(),
     };
   }
 }

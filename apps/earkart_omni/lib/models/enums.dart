@@ -257,7 +257,7 @@ PatientConsultationStatus patientConsultationStatusFromApi(String value) {
 }
 
 @HiveType(typeId: HiveTypes.patientSoldStatusEnum)
-enum PatienSoldStatus {
+enum PatientSoldStatus {
   @HiveField(0)
   unknown,
   @HiveField(1)
@@ -269,8 +269,8 @@ enum PatienSoldStatus {
 }
 
 patienSoldStatusFromApi(String value) {
-  return PatienSoldStatus.values.firstWhere(
+  return PatientSoldStatus.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
-    orElse: () => PatienSoldStatus.unknown,
+    orElse: () => PatientSoldStatus.unknown,
   );
 }
