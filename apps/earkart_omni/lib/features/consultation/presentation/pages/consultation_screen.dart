@@ -11,6 +11,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/consultati
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/video_call_widget.dart';
+import 'package:earkart_omni/features/consultation/presentation/widgets/report_pta.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.model.dart';
@@ -39,6 +40,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   TestType? testType;
   // Only track status, not data
   dynamic _lastImpedanceStatus;
+  // Track if report should be shown (for split screen)
+  bool _showReport = false;
   @override
   void initState() {
     super.initState();
@@ -277,6 +280,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         socket.off('user_joined');
         socket.off('start-test');
         socket.off('user_left');
+        socket.off('generate-report:start');
+        socket.off('generate-report:stop');
         socket.off('connect');
         socket.off('disconnect');
         socket.off('reconnect');
@@ -504,6 +509,32 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         di<ILogger>().error('Error handling end-test event: $e');
       }
     });
+
+    socket.on("generate-report:start", (data) {
+      try {
+        di<ILogger>().debug('Generate report started: $data');
+        if (mounted) {
+          setState(() {
+            _showReport = true;
+          });
+        }
+      } catch (e) {
+        di<ILogger>().error('Error handling generate-report:start event: $e');
+      }
+    });
+
+    socket.on("generate-report:end", (data) {
+      try {
+        di<ILogger>().debug('Generate report stopped: $data');
+        if (mounted) {
+          setState(() {
+            _showReport = false;
+          });
+        }
+      } catch (e) {
+        di<ILogger>().error('Error handling generate-report:stop event: $e');
+      }
+    });
   }
 
   void _tryJoinConsultation() {
@@ -697,7 +728,79 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         child: BlocBuilder<ConsultationCubit, ConsultationState>(
           builder: (context, state) {
             if (state is CurrentConsultationSuccess) {
-              return VideoCallWidget(channelName: state.consultation.id ?? "");
+              if (_showReport) {
+                // Split screen: video call on left, report on right
+                return Row(
+                  children: [
+                    // Left half - Video call
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border(
+                            right: BorderSide(
+                              color: Colors.grey[300]!,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: VideoCallWidget(
+                          channelName: state.consultation.id ?? "",
+                        ),
+                      ),
+                    ),
+                    // Right half - PTA Report
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          border: Border(
+                            left: BorderSide(
+                              color: Colors.grey[300]!,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            // Report header
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[900],
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: Colors.grey[300]!,
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                              child: const Text(
+                                'Pure Tone Audiometry Report',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            // Report content
+                            const Expanded(child: ReportPTAWidget()),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              } else {
+                // Full screen video call
+                return VideoCallWidget(
+                  channelName: state.consultation.id ?? "",
+                );
+              }
             }
             return const Center(
               child: Column(
