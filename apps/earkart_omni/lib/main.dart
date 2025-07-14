@@ -1,5 +1,6 @@
 import 'package:earkart_omni/config/routes/router.dart';
 import 'package:earkart_omni/config/theme/theme_manager.dart';
+import 'package:earkart_omni/config/utils/wakelock_manager.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
@@ -13,6 +14,7 @@ import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
+import 'package:earkart_omni/features/network/presentation/widgets/wakelock_status_widget.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
@@ -43,6 +45,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await _setupSystemUI();
+  await _setupWakelock();
   await setupDI();
   await _initHive();
   await _initDataSources();
@@ -169,6 +172,11 @@ class _SystemUIObserver extends WidgetsBindingObserver {
   }
 }
 
+/// Setup wakelock to keep device awake during app usage
+Future<void> _setupWakelock() async {
+  await WakelockManager.initialize();
+}
+
 Future<void> _initHive() async {
   await Hive.initFlutter();
   _registerHiveAdapters();
@@ -235,12 +243,46 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    // Add app lifecycle observer for wakelock management
+    WidgetsBinding.instance.addObserver(this);
+  }
+
   @override
   void dispose() {
     // Clean up system UI observer to prevent memory leaks
     _cleanupSystemUIObserver();
+
+    // Remove lifecycle observer and cleanup wakelock
+    WidgetsBinding.instance.removeObserver(this);
+    WakelockManager.cleanup();
+
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App is in foreground, enable wakelock
+        WakelockManager.enable();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        // App is in background or being closed, disable wakelock to save battery
+        WakelockManager.disable();
+        break;
+      case AppLifecycleState.hidden:
+        // App is hidden but still running, keep wakelock enabled for this medical app
+        WakelockManager.enable();
+        break;
+    }
   }
 
   @override
@@ -296,7 +338,7 @@ class _MyAppState extends State<MyApp> {
                     // Main app content
                     child ?? const SizedBox.shrink(),
 
-                    // Global network status widget overlay
+                    // Global network and wakelock status widgets overlay
                     Positioned(
                       top: 0,
                       right: 12,
@@ -305,9 +347,16 @@ class _MyAppState extends State<MyApp> {
                           height: 60, // Match toolbar height
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 4),
-                          child: const NetworkStatusWidget(
-                            showDetails: false,
-                            showTooltips: false,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const WakelockStatusWidget(showTooltip: true),
+                              const SizedBox(width: 8),
+                              const NetworkStatusWidget(
+                                showDetails: false,
+                                showTooltips: true,
+                              ),
+                            ],
                           ),
                         ),
                       ),

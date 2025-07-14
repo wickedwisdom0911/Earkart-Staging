@@ -35,8 +35,8 @@ class Constants {
   static final languagesUrl = "${baseUrl}languages/get-all";
   static final countriesUrl = "${baseUrl}country/get-all-countries";
   static final statesUrl = "${baseUrl}states/get-states-by-country-id";
-  static final citiesUrl = "${baseUrl}city/get-cities-by-state-id";
-  static final districtsUrl = "${baseUrl}district/get-districts-by-city-id";
+  static final citiesUrl = "${baseUrl}city/get-cities-by-district-id";
+  static final districtsUrl = "${baseUrl}district/get-districts-by-state-id";
   static final createConsultationUrl = "${baseUrl}consultation/create";
   static final getConsultationByIdUrl = "${baseUrl}consultation/get-by-id";
   static final updateConsultationUrl = "${baseUrl}consultation/update";

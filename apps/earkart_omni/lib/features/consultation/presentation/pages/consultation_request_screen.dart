@@ -8,6 +8,7 @@ import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 
 class ConsultationRequestScreen extends StatefulWidget {
   static const routeName = '/consultation-request';
@@ -55,6 +56,32 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
     }
 
     return locationParts.join(', ');
+  }
+
+  String _formatDateOfBirth(String? dobString) {
+    if (dobString == null || dobString.isEmpty) {
+      return 'Not provided';
+    }
+
+    try {
+      // Parse the ISO-8601 date string
+      final DateTime dateTime = DateTime.parse(dobString);
+
+      // Calculate age
+      final DateTime now = DateTime.now();
+      int age = now.year - dateTime.year;
+      if (now.month < dateTime.month ||
+          (now.month == dateTime.month && now.day < dateTime.day)) {
+        age--;
+      }
+
+      // Format to human-friendly string with age
+      final String formattedDate = DateFormat('MMMM dd, yyyy').format(dateTime);
+      return '$formattedDate (Age: $age)';
+    } catch (e) {
+      // If parsing fails, return the original string or a fallback
+      return dobString;
+    }
   }
 
   @override
@@ -264,7 +291,7 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                     _buildInfoTile(
                                       Icons.cake_outlined,
                                       'Date of Birth',
-                                      patient?.dob ?? 'Not provided',
+                                      _formatDateOfBirth(patient?.dob),
                                     ),
                                     _buildInfoTile(
                                       Icons.wc_outlined,

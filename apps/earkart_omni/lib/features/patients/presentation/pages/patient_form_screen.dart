@@ -63,10 +63,8 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
 
     String? dobString;
     if (selectedDate != null) {
-      dobString =
-          selectedDate!.toUtc().toIso8601String().split(
-            'T',
-          )[0]; // Format as YYYY-MM-DD
+      // Send complete ISO-8601 DateTime string as expected by backend
+      dobString = selectedDate!.toUtc().toIso8601String();
     }
 
     final patient = PatientEntity(
@@ -437,7 +435,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                                     selectedDistrict = null;
                                   });
                                   if (value != null) {
-                                    context.read<LookupCubit>().getCities(
+                                    context.read<LookupCubit>().getDistricts(
                                       value.id ?? "",
                                     );
                                   }
@@ -448,21 +446,21 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                             ),
                             const SizedBox(width: 20),
                             Expanded(
-                              child: CitySelector(
-                                value: selectedCity,
+                              child: DistrictSelector(
+                                value: selectedDistrict,
                                 onChanged: (value) {
                                   setState(() {
-                                    selectedCity = value;
-                                    selectedDistrict = null;
+                                    selectedDistrict = value;
+                                    selectedCity = null;
+                                    if (value != null) {
+                                      context.read<LookupCubit>().getCities(
+                                        value.id ?? "",
+                                      );
+                                    }
                                   });
-                                  if (value != null) {
-                                    context.read<LookupCubit>().getDistricts(
-                                      value.id ?? "",
-                                    );
-                                  }
                                 },
-                                items: state.cities,
-                                title: "City",
+                                items: state.districts,
+                                title: "District",
                               ),
                             ),
                           ],
@@ -471,14 +469,15 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: DistrictSelector(
-                                value: selectedDistrict,
-                                onChanged:
-                                    (value) => setState(
-                                      () => selectedDistrict = value,
-                                    ),
-                                items: state.districts,
-                                title: "District",
+                              child: CitySelector(
+                                value: selectedCity,
+                                onChanged: (value) {
+                                  setState(() {
+                                    selectedCity = value;
+                                  });
+                                },
+                                items: state.cities,
+                                title: "City",
                               ),
                             ),
                             const Expanded(child: SizedBox()),

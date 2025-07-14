@@ -679,6 +679,14 @@ class _AnimatedLoadingWidgetState extends State<_AnimatedLoadingWidget>
     super.dispose();
   }
 
+  bool _hasOverlay() {
+    try {
+      return Overlay.maybeOf(context) != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final child = AnimatedBuilder(
@@ -724,7 +732,7 @@ class _AnimatedLoadingWidgetState extends State<_AnimatedLoadingWidget>
       },
     );
 
-    if (widget.showTooltips) {
+    if (widget.showTooltips && _hasOverlay()) {
       return Tooltip(message: 'Checking network connectivity...', child: child);
     }
 
@@ -771,6 +779,14 @@ class _AnimatedConnectedWidgetState extends State<_AnimatedConnectedWidget>
   void dispose() {
     _breathingController.dispose();
     super.dispose();
+  }
+
+  bool _hasOverlay() {
+    try {
+      return Overlay.maybeOf(context) != null;
+    } catch (e) {
+      return false;
+    }
   }
 
   @override
@@ -830,7 +846,7 @@ class _AnimatedConnectedWidgetState extends State<_AnimatedConnectedWidget>
       },
     );
 
-    if (widget.showTooltips) {
+    if (widget.showTooltips && _hasOverlay()) {
       return Tooltip(message: tooltipMessage, child: child);
     }
 
@@ -979,6 +995,14 @@ class _AnimatedDisconnectedWidgetState
     super.dispose();
   }
 
+  bool _hasOverlay() {
+    try {
+      return Overlay.maybeOf(context) != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tooltipMessage =
@@ -1029,7 +1053,7 @@ class _AnimatedDisconnectedWidgetState
       },
     );
 
-    if (widget.showTooltips) {
+    if (widget.showTooltips && _hasOverlay()) {
       return Tooltip(message: tooltipMessage, child: child);
     }
 
@@ -1100,6 +1124,14 @@ class _AnimatedErrorWidgetState extends State<_AnimatedErrorWidget>
     super.dispose();
   }
 
+  bool _hasOverlay() {
+    try {
+      return Overlay.maybeOf(context) != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tooltipMessage =
@@ -1157,7 +1189,7 @@ class _AnimatedErrorWidgetState extends State<_AnimatedErrorWidget>
       },
     );
 
-    if (widget.showTooltips) {
+    if (widget.showTooltips && _hasOverlay()) {
       return Tooltip(message: tooltipMessage, child: child);
     }
 
