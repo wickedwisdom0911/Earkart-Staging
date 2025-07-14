@@ -16,6 +16,7 @@ import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.model.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:permission_handler/permission_handler.dart';
@@ -42,6 +43,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   dynamic _lastImpedanceStatus;
   // Track if report should be shown (for split screen)
   bool _showReport = false;
+  // Track if socket reconnection has failed
+  bool _socketReconnectFailed = false;
+  // Global key to maintain video widget state
+  final GlobalKey _videoWidgetKey = GlobalKey();
+  // Keep video widget instance to prevent rebuilding
+  VideoCallWidget? _videoWidget;
   @override
   void initState() {
     super.initState();
@@ -281,7 +288,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         socket.off('start-test');
         socket.off('user_left');
         socket.off('generate-report:start');
-        socket.off('generate-report:stop');
+        socket.off('generate-report:end');
         socket.off('connect');
         socket.off('disconnect');
         socket.off('reconnect');
@@ -290,6 +297,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       }
       context.read<DeviceCubit>().stopDeviceMonitoring();
       _hasJoinedConsultation = false;
+      _videoWidget = null; // Clear video widget reference
     } catch (e) {
       di<ILogger>().error('Error in dispose: $e');
     }
@@ -336,6 +344,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       di<ILogger>().debug('Socket connected successfully');
       setState(() {
         _isSocketInitialized = true;
+        _socketReconnectFailed = false; // Reset reconnect failed flag
       });
 
       // Try to rejoin consultation if we have one
@@ -380,6 +389,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       di<ILogger>().debug('Socket reconnected');
       setState(() {
         _isSocketInitialized = true;
+        _socketReconnectFailed = false; // Reset reconnect failed flag
       });
       _tryJoinConsultation(); // Try to rejoin on reconnect
     });
@@ -395,6 +405,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.onReconnectFailed((_) {
       di<ILogger>().error('Socket reconnection failed');
       if (mounted) {
+        setState(() {
+          _socketReconnectFailed = true;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -553,6 +566,39 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     }
   }
 
+  void _manualReconnect() {
+    if (!mounted) return;
+
+    di<ILogger>().debug('Manual reconnect initiated');
+
+    // Reset failed state
+    setState(() {
+      _socketReconnectFailed = false;
+      _isSocketInitialized = false;
+      _hasJoinedConsultation = false;
+    });
+
+    // Get current user to reinitialize socket
+    final authState = context.read<AuthCubit>().state;
+    authState.whenOrNull(
+      success: (user) {
+        if (user?.token != null) {
+          _setupSocket(user!.token!);
+        }
+      },
+    );
+  }
+
+  VideoCallWidget _getVideoWidget(String channelName) {
+    if (_videoWidget == null || (_videoWidget!.channelName != channelName)) {
+      _videoWidget = VideoCallWidget(
+        key: _videoWidgetKey,
+        channelName: channelName,
+      );
+    }
+    return _videoWidget!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -564,6 +610,48 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         actions: [
+          // Show reconnect button when socket reconnection fails
+          if (_socketReconnectFailed)
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.red),
+              tooltip: 'Reconnect to server',
+              onPressed: _manualReconnect,
+            ),
+          // Show connection status indicator
+          if (!_socketReconnectFailed)
+            IconButton(
+              icon: Icon(
+                _isSocketInitialized ? Icons.wifi : Icons.wifi_off,
+                color: _isSocketInitialized ? Colors.green : Colors.orange,
+              ),
+              tooltip:
+                  _isSocketInitialized
+                      ? 'Connected to server'
+                      : 'Connecting to server...',
+              onPressed: () {
+                _showErrorSnackBar(
+                  _isSocketInitialized
+                      ? 'Connected to server'
+                      : 'Connecting to server...',
+                );
+              },
+            ),
+          // Debug button to test report functionality (only in debug mode)
+          if (kDebugMode)
+            IconButton(
+              icon: Icon(
+                _showReport
+                    ? Icons.picture_in_picture_alt
+                    : Icons.picture_in_picture,
+                color: _showReport ? Colors.blue : Colors.grey,
+              ),
+              tooltip: _showReport ? 'Hide Report' : 'Show Report (Debug)',
+              onPressed: () {
+                setState(() {
+                  _showReport = !_showReport;
+                });
+              },
+            ),
           BlocBuilder<DeviceCubit, DeviceState>(
             builder: (context, deviceState) {
               return BlocBuilder<CommunicationCubit, CommunicationState>(
@@ -728,6 +816,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         child: BlocBuilder<ConsultationCubit, ConsultationState>(
           builder: (context, state) {
             if (state is CurrentConsultationSuccess) {
+              final videoWidget = _getVideoWidget(state.consultation.id ?? "");
+
               if (_showReport) {
                 // Split screen: video call on left, report on right
                 return Row(
@@ -744,9 +834,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                             ),
                           ),
                         ),
-                        child: VideoCallWidget(
-                          channelName: state.consultation.id ?? "",
-                        ),
+                        child: videoWidget,
                       ),
                     ),
                     // Right half - PTA Report
@@ -764,7 +852,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                         ),
                         child: Column(
                           children: [
-                            // Report header
+                            // Report header with close button
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(16),
@@ -777,14 +865,31 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                                   ),
                                 ),
                               ),
-                              child: const Text(
-                                'Pure Tone Audiometry Report',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Pure Tone Audiometry Report',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _showReport = false;
+                                      });
+                                    },
+                                    tooltip: 'Close Report',
+                                  ),
+                                ],
                               ),
                             ),
                             // Report content
@@ -797,9 +902,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 );
               } else {
                 // Full screen video call
-                return VideoCallWidget(
-                  channelName: state.consultation.id ?? "",
-                );
+                return videoWidget;
               }
             }
             return const Center(
