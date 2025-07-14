@@ -47,6 +47,31 @@ class NetworkStatus {
   }
 
   @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (runtimeType != other.runtimeType) return false;
+    return other is NetworkStatus &&
+        isConnected == other.isConnected &&
+        hasInternet == other.hasInternet &&
+        connectionType == other.connectionType &&
+        signalStrength == other.signalStrength &&
+        networkName == other.networkName &&
+        ipAddress == other.ipAddress;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      isConnected,
+      hasInternet,
+      connectionType,
+      signalStrength,
+      networkName,
+      ipAddress,
+    );
+  }
+
+  @override
   String toString() {
     return 'NetworkStatus(isConnected: $isConnected, hasInternet: $hasInternet, connectionType: $connectionType, signalStrength: $signalStrength, networkName: $networkName, ipAddress: $ipAddress)';
   }

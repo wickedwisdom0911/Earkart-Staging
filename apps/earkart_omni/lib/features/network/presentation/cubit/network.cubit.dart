@@ -13,6 +13,15 @@ class NetworkCubit extends Cubit<NetworkState> {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   StreamSubscription<InternetConnectionStatus>? _internetSubscription;
 
+  // Add debouncing and state tracking
+  Timer? _debounceTimer;
+  Timer? _networkCheckTimer;
+  NetworkStatus? _lastKnownStatus;
+  bool _isCheckingNetwork = false;
+
+  static const Duration _debounceDelay = Duration(milliseconds: 500);
+  static const Duration _networkCheckDelay = Duration(milliseconds: 300);
+
   NetworkCubit({
     Connectivity? connectivity,
     InternetConnectionChecker? internetChecker,
@@ -23,27 +32,63 @@ class NetworkCubit extends Cubit<NetworkState> {
   }
 
   void _initializeNetworkMonitoring() {
-    // Listen to connectivity changes
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
-      List<ConnectivityResult> results,
-    ) {
-      final bestResult = _selectBestConnectivityResult(results);
-      _handleConnectivityChange(bestResult);
-    });
+    // Listen to connectivity changes with error handling
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
+      (List<ConnectivityResult> results) {
+        final bestResult = _selectBestConnectivityResult(results);
+        _debouncedNetworkCheck(bestResult);
+      },
+      onError: (error) {
+        if (!isClosed) {
+          emit(NetworkError(message: 'Connectivity listener error: $error'));
+        }
+      },
+    );
 
-    // Listen to internet connection status
-    _internetSubscription = _internetChecker.onStatusChange.listen((
-      InternetConnectionStatus status,
-    ) {
-      _handleInternetStatusChange(status);
-    });
+    // Listen to internet connection status with error handling
+    _internetSubscription = _internetChecker.onStatusChange.listen(
+      (InternetConnectionStatus status) {
+        _debouncedInternetStatusCheck(status);
+      },
+      onError: (error) {
+        if (!isClosed) {
+          emit(NetworkError(message: 'Internet checker error: $error'));
+        }
+      },
+    );
 
-    // Initial check
-    checkNetworkStatus();
+    // Initial check with slight delay to avoid race conditions
+    _networkCheckTimer = Timer(_networkCheckDelay, () {
+      if (!isClosed) {
+        checkNetworkStatus();
+      }
+    });
+  }
+
+  void _debouncedNetworkCheck(ConnectivityResult result) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_debounceDelay, () {
+      if (!isClosed) {
+        _handleConnectivityChange(result);
+      }
+    });
+  }
+
+  void _debouncedInternetStatusCheck(InternetConnectionStatus status) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_debounceDelay, () {
+      if (!isClosed) {
+        _handleInternetStatusChange(status);
+      }
+    });
   }
 
   Future<void> checkNetworkStatus() async {
+    if (_isCheckingNetwork) return;
+
     try {
+      _isCheckingNetwork = true;
+
       if (!isClosed) {
         emit(NetworkLoading());
       }
@@ -52,19 +97,23 @@ class NetworkCubit extends Cubit<NetworkState> {
       final hasInternet = await _internetChecker.hasConnection;
 
       final primaryResult = _selectBestConnectivityResult(connectivityResults);
-
       final networkStatus = await _buildNetworkStatus(
         primaryResult,
         hasInternet,
       );
 
-      if (networkStatus.isConnected && networkStatus.hasInternet) {
-        if (!isClosed) {
-          emit(NetworkConnected(status: networkStatus));
-        }
-      } else {
-        if (!isClosed) {
-          emit(NetworkDisconnected());
+      // Only emit if state actually changed
+      if (!_isStatusEqual(networkStatus, _lastKnownStatus)) {
+        _lastKnownStatus = networkStatus;
+
+        if (networkStatus.isConnected && networkStatus.hasInternet) {
+          if (!isClosed) {
+            emit(NetworkConnected(status: networkStatus));
+          }
+        } else {
+          if (!isClosed) {
+            emit(NetworkDisconnected());
+          }
         }
       }
     } catch (e) {
@@ -75,21 +124,35 @@ class NetworkCubit extends Cubit<NetworkState> {
           ),
         );
       }
+    } finally {
+      _isCheckingNetwork = false;
     }
   }
 
   Future<void> _handleConnectivityChange(ConnectivityResult result) async {
+    if (_isCheckingNetwork) return;
+
     try {
+      _isCheckingNetwork = true;
+
+      // Add small delay to allow network to stabilize
+      await Future.delayed(const Duration(milliseconds: 100));
+
       final hasInternet = await _internetChecker.hasConnection;
       final networkStatus = await _buildNetworkStatus(result, hasInternet);
 
-      if (networkStatus.isConnected && networkStatus.hasInternet) {
-        if (!isClosed) {
-          emit(NetworkConnected(status: networkStatus));
-        }
-      } else {
-        if (!isClosed) {
-          emit(NetworkDisconnected());
+      // Only emit if state actually changed
+      if (!_isStatusEqual(networkStatus, _lastKnownStatus)) {
+        _lastKnownStatus = networkStatus;
+
+        if (networkStatus.isConnected && networkStatus.hasInternet) {
+          if (!isClosed) {
+            emit(NetworkConnected(status: networkStatus));
+          }
+        } else {
+          if (!isClosed) {
+            emit(NetworkDisconnected());
+          }
         }
       }
     } catch (e) {
@@ -100,26 +163,64 @@ class NetworkCubit extends Cubit<NetworkState> {
           ),
         );
       }
+    } finally {
+      _isCheckingNetwork = false;
     }
   }
 
-  void _handleInternetStatusChange(InternetConnectionStatus status) {
-    if (state is NetworkConnected) {
-      final currentState = state as NetworkConnected;
-      final updatedStatus = currentState.status.copyWith(
-        hasInternet: status == InternetConnectionStatus.connected,
+  Future<void> _handleInternetStatusChange(
+    InternetConnectionStatus status,
+  ) async {
+    if (_isCheckingNetwork) return;
+
+    try {
+      _isCheckingNetwork = true;
+
+      // Get current connectivity state
+      final connectivityResults = await _connectivity.checkConnectivity();
+      final primaryResult = _selectBestConnectivityResult(connectivityResults);
+      final hasInternet = status == InternetConnectionStatus.connected;
+
+      final networkStatus = await _buildNetworkStatus(
+        primaryResult,
+        hasInternet,
       );
 
-      if (updatedStatus.hasInternet) {
-        if (!isClosed) {
-          emit(NetworkConnected(status: updatedStatus));
-        }
-      } else {
-        if (!isClosed) {
-          emit(NetworkDisconnected());
+      // Only emit if state actually changed
+      if (!_isStatusEqual(networkStatus, _lastKnownStatus)) {
+        _lastKnownStatus = networkStatus;
+
+        if (networkStatus.isConnected && networkStatus.hasInternet) {
+          if (!isClosed) {
+            emit(NetworkConnected(status: networkStatus));
+          }
+        } else {
+          if (!isClosed) {
+            emit(NetworkDisconnected());
+          }
         }
       }
+    } catch (e) {
+      if (!isClosed) {
+        emit(
+          NetworkError(
+            message: 'Failed to handle internet status change: ${e.toString()}',
+          ),
+        );
+      }
+    } finally {
+      _isCheckingNetwork = false;
     }
+  }
+
+  bool _isStatusEqual(NetworkStatus? status1, NetworkStatus? status2) {
+    if (status1 == null && status2 == null) return true;
+    if (status1 == null || status2 == null) return false;
+
+    return status1.isConnected == status2.isConnected &&
+        status1.hasInternet == status2.hasInternet &&
+        status1.connectionType == status2.connectionType &&
+        status1.signalStrength == status2.signalStrength;
   }
 
   /// Selects the best connectivity result from multiple results.
@@ -286,6 +387,8 @@ class NetworkCubit extends Cubit<NetworkState> {
   Future<void> close() {
     _connectivitySubscription?.cancel();
     _internetSubscription?.cancel();
+    _debounceTimer?.cancel();
+    _networkCheckTimer?.cancel();
     return super.close();
   }
 }
