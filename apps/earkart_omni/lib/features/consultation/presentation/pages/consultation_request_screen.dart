@@ -402,9 +402,10 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                   orElse: () => false,
                                   createConsultationSuccess: (_) => true,
                                 )) {
-                                  Navigator.pushNamed(
+                                  Navigator.pushNamedAndRemoveUntil(
                                     context,
                                     ConsultationScreen.routeName,
+                                    (route) => false,
                                   );
                                 }
                               },
