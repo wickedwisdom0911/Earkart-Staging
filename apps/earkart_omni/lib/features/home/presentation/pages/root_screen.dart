@@ -38,17 +38,25 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void initState() {
     super.initState();
+
     context.read<AuthCubit>().getCurrentUser();
+
     context.read<AuthCubit>().getCentreData();
+
     context.read<PatientCubit>().getCurrentPatient();
+
     context.read<ConsultationCubit>().getCurrentConsultation();
+
     _checkAndRequestPermissions();
   }
 
   Future<void> _checkAndRequestPermissions() async {
     final storageStatus = await Permission.manageExternalStorage.request();
+
     final cameraStatus = await Permission.camera.request();
+
     final microphoneStatus = await Permission.microphone.request();
+
     final usbStatus = await Permission.bluetooth.request();
 
     if (storageStatus.isGranted &&
@@ -62,7 +70,10 @@ class _RootScreenState extends State<RootScreen> {
   }
 
   void _showPermissionDialog() {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -103,6 +114,8 @@ class _RootScreenState extends State<RootScreen> {
                 centre = state.centre;
               });
             } else if (state is AuthError || state is AuthInitial) {
+              if (state is AuthError) {
+              } else {}
               setState(() {
                 checkedCentre = true;
                 centre = null;
@@ -150,25 +163,23 @@ class _RootScreenState extends State<RootScreen> {
               !checkedUser) {
             return const Center(child: CircularProgressIndicator());
           }
+
+          // Navigation logic with detailed logging
+          // Priority 1: If consultation exists, go to consultation screen
+          if (consultation != null) {
+            return const ConsultationScreen();
+          }
+
+          // Priority 2: If patient exists but no consultation, go to consultation request
+          if (patient != null && consultation == null) {
+            return const ConsultationRequestScreen();
+          }
+
+          // Priority 3: If user is centre role and no patient/consultation, go to home
           if (user != null && user!.role == Role.centre) {
             return const HomeScreen();
           }
-          if (user != null &&
-              user!.role == Role.centre &&
-              centre != null &&
-              patient == null) {
-            return const HomeScreen();
-          }
-          if (user != null &&
-              user!.role == Role.centre &&
-              centre != null &&
-              patient != null &&
-              consultation == null) {
-            return const ConsultationRequestScreen();
-          }
-          if (centre != null && patient != null && consultation != null) {
-            return const ConsultationScreen();
-          }
+
           return const LoginScreen();
         },
       ),
