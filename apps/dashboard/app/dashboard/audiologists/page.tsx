@@ -120,12 +120,12 @@ export default function Audiologists() {
                   </span>
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <Link
+                <Link
                     href={ROUTES.AUDIOLOGIST(audiologist.id || "")}
                     className="flex-1 bg-primary-500 text-white py-2 rounded-md text-center text-sm"
-                  >
-                    View Profile
-                  </Link>
+                >
+                  View Profile
+                </Link>
                   <Link
                     href={ROUTES.AUDIOLOGIST_ANALYTICS(audiologist.id || "")}
                     className="flex-1 bg-blue-500 text-white py-2 rounded-md text-center text-sm"

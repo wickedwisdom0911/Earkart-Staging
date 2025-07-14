@@ -1,13 +1,23 @@
 import { z } from "zod";
+import { 
+  MetricType, 
+  AggregationType, 
+  GroupByType, 
+  TimeRangeType, 
+  ConsultationStatus, 
+  TestStatus, 
+  PatientSoldStatus, 
+  Gender 
+} from "./enums";
 
-export const MetricTypeSchema = z.enum(["consultations"]);
-export const AggregationSchema = z.enum(["count", "sum", "avg"]);
-export const GroupBySchema = z.enum(["day", "week", "month", "year"]);
-export const TimeRangeSchema = z.enum(["daily", "weekly", "monthly", "yearly"]);
-export const ConsultationStatusSchema = z.enum(["PENDING", "COMPLETED", "CANCELLED"]);
-export const TestStatusSchema = z.enum(["IN_PROGRESS", "COMPLETED", "CANCELLED"]);
-export const PatientSoldStatusSchema = z.enum(["UNKNOWN", "SOLD", "NOT_SOLD"]);
-export const GenderSchema = z.enum(["MALE", "FEMALE", "OTHER"]);
+export const MetricTypeSchema = z.nativeEnum(MetricType);
+export const AggregationSchema = z.nativeEnum(AggregationType);
+export const GroupBySchema = z.nativeEnum(GroupByType);
+export const TimeRangeSchema = z.nativeEnum(TimeRangeType);
+export const ConsultationStatusSchema = z.nativeEnum(ConsultationStatus);
+export const TestStatusSchema = z.nativeEnum(TestStatus);
+export const PatientSoldStatusSchema = z.nativeEnum(PatientSoldStatus);
+export const GenderSchema = z.nativeEnum(Gender);
 export const TrendSchema = z.enum(["up", "down", "stable"]);
 
 export const MetricsFiltersSchema = z.object({

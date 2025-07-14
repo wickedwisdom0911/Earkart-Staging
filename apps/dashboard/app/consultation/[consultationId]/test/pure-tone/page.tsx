@@ -1,5 +1,5 @@
-  "use client";
-  import React, { useState, useCallback, useMemo, useEffect } from "react";
+"use client";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
   import { useQueryClient } from "@tanstack/react-query";
 import PureToneGraph, { FREQUENCIES, HEARING_LEVELS } from "./_components/audiogram";
 import { useSocket } from "@/providers/socket-provider";
@@ -7,21 +7,22 @@ import { useParams } from "next/navigation";
 import { useDevice } from "@/providers/device-provider";
 import PureToneLoadingSkeleton from "./_components/loading-skeleton";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
-import { TestStatus, Ear } from "@/models/enums";
+import { TestStatus, Ear, SignalType } from "@/models/enums";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/routes";
-
-enum SignalType {
-  Steady = "Steady",
-  Warble = "Warble",
-  NB = "NB",
-  White = "White",
-  SpeechNoise = "SpeechNoise",
-}
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
 
 const SIGNAL_TYPE_MAP = {
   0: SignalType.Steady,
@@ -192,43 +193,51 @@ export default function PureTonePage() {
 
     // Handle AC tests
     if (consultationData.audiometry?.acTests) {
-      existingAcResults = consultationData.audiometry.acTests.map(
-        (test) => ({
+      existingAcResults = consultationData.audiometry.acTests
+        .filter(test => test.thresholdDb !== null) // Only include tests with valid thresholds
+        .map((test) => {
+          // More robust logic: explicitly check for true response, everything else is no-response
+          const patientResponded = test.response === true;
+          return {
           ear: test.ear === Ear.LEFT ? "L" : "R",
           x: test.frequencyHz,
-          y: test.thresholdDb,
+            y: test.thresholdDb!,
           mode: "AC",
           masking: test.maskingUsed
             ? test.maskingEar === Ear.LEFT
               ? 1
               : 2
             : 0,
-          noResponse: (test.response === false) ? 1 : 0, // Only explicit false = no response
+            noResponse: patientResponded ? 0 : 1, // 0 = response (no arrow), 1 = no response (show arrow)
           signalType: SignalType.Steady,
           pulsed: false,
-        })
-      );
+          };
+        });
     }
 
     // Handle BC tests
     if (consultationData.audiometry?.bcTests) {
-      existingBcResults = consultationData.audiometry.bcTests.map(
-        (test) => ({
+      existingBcResults = consultationData.audiometry.bcTests
+        .filter(test => test.thresholdDb !== null) // Only include tests with valid thresholds
+        .map((test) => {
+          // More robust logic: explicitly check for true response, everything else is no-response
+          const patientResponded = test.response === true;
+          return {
           ear: test.ear === Ear.LEFT ? "L" : "R",
           x: test.frequencyHz,
-          y: test.thresholdDb,
+            y: test.thresholdDb!,
           mode: "BC",
           masking: test.maskingUsed ? 1 : 0,
-          noResponse: (test.response === false) ? 1 : 0, // Only explicit false = no response
+            noResponse: patientResponded ? 0 : 1, // 0 = response (no arrow), 1 = no response (show arrow)
           signalType: SignalType.Steady,
           pulsed: false,
-        })
-      );
+          };
+        });
     }
 
     // Update state only once with the results
     setAcTestResults(existingAcResults);
-    setBcTestResults(existingBcResults);
+      setBcTestResults(existingBcResults);
     setTestResults([...existingAcResults, ...existingBcResults]);
   }, [consultationResponse?.data, socket]);
 
@@ -547,15 +556,15 @@ export default function PureTonePage() {
       ? [...bcTestResults.filter(r => !isDuplicate(r)), newResult]
       : bcTestResults;
 
-    setAcTestResults(updatedAcResults);
-    setBcTestResults(updatedBcResults);
+      setAcTestResults(updatedAcResults);
+      setBcTestResults(updatedBcResults);
     setTestResults([...updatedAcResults, ...updatedBcResults]);
 
     // Transform test results to match ACReadingModelData schema
     const acTests = updatedAcResults.map((result) => ({
       ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
       frequencyHz: result.x,
-      thresholdDb: result.y,
+      thresholdDb: result.y, // Always store the test level, even for no response
       response: result.noResponse === 0, // true if patient responded
       maskingUsed: result.masking > 0,
       maskingEar:
@@ -567,7 +576,7 @@ export default function PureTonePage() {
     const bcTests = updatedBcResults.map((result) => ({
       ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
       frequencyHz: result.x,
-      thresholdDb: result.y,
+      thresholdDb: result.y, // Always store the test level, even for no response
       response: result.noResponse === 0, // true if patient responded
       maskingUsed: result.masking > 0,
       maskingThresholdDb: result.masking > 0 ? result.masking : null,
@@ -575,28 +584,33 @@ export default function PureTonePage() {
 
     const consultationData = consultationResponse.data as ConsultationModelData;
     const dataToSend = {
-      ...consultationData,
-      audiometry: {
-        id: consultationData.audiometry?.id,
-        sessionId: consultationId as string,
-        status: TestStatus.IN_PROGRESS,
-        acTests: acTests,
-        bcTests: bcTests,
-        createdAt:
-          consultationData.audiometry?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
+        ...consultationData,
+        audiometry: {
+          id: consultationData.audiometry?.id,
+          sessionId: consultationId as string,
+          status: TestStatus.IN_PROGRESS,
+          acTests: acTests,
+          bcTests: bcTests,
+          createdAt:
+            consultationData.audiometry?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
     };
+
+    // Debug logging
+    console.log(`Adding ${selectedMode} test result:`, newResult);
+    console.log(`Total AC tests: ${acTests.length}, Total BC tests: ${bcTests.length}`);
+    console.log('Data being sent to backend:', dataToSend.audiometry);
     
-    updateConsultation(dataToSend, {
+          updateConsultation(dataToSend, {
         onSuccess: (data) => {
           if (data.success) {
-            toast.success(`Test result added successfully${noResponse ? ' (No Response)' : ''}`);
-            
-            // Force refresh of consultation data to get latest results
-            queryClient.invalidateQueries({ 
-              queryKey: ['consultation', consultationId] 
-            });
+              toast.success(`Test result added successfully${noResponse ? ' (No Response)' : ''}`);
+              
+              // Force refresh of consultation data to get latest results
+              queryClient.invalidateQueries({ 
+                queryKey: ['consultation', consultationId] 
+              });
           } else {
             toast.error(data.message);
           }
@@ -614,9 +628,32 @@ export default function PureTonePage() {
 
   const clearTest = () => {
     setTestResults([]);
-    setAcTestResults([]);
-    setBcTestResults([]);
+      setAcTestResults([]);
+      setBcTestResults([]);
     toast.info("All test results cleared. You can start over.");
+  };
+
+  const clearEarResults = (ear: "L" | "R") => {
+    const filteredAcResults = acTestResults.filter(r => r.ear !== ear);
+    const filteredBcResults = bcTestResults.filter(r => r.ear !== ear);
+    
+    setAcTestResults(filteredAcResults);
+    setBcTestResults(filteredBcResults);
+    setTestResults([...filteredAcResults, ...filteredBcResults]);
+    
+    toast.info(`${ear === "L" ? "Left" : "Right"} ear results cleared.`);
+  };
+
+  const clearModeResults = (mode: "AC" | "BC") => {
+    if (mode === "AC") {
+      setAcTestResults([]);
+      setTestResults([...bcTestResults]);
+          } else {
+      setBcTestResults([]);
+      setTestResults([...acTestResults]);
+          }
+    
+    toast.info(`${mode === "AC" ? "Air Conduction" : "Bone Conduction"} results cleared.`);
   };
 
   // Handle audiogram click
@@ -626,9 +663,9 @@ export default function PureTonePage() {
 
     // Only update if the clicked frequency and level are available
     if (availableFrequencies.includes(newFrequency) && availableLevels.includes(newLevel)) {
-      setSelectedLabelIndexes({ x, y });
-      setSelectedFrequency(newFrequency);
-      setSelectedLevel(newLevel);
+    setSelectedLabelIndexes({ x, y });
+    setSelectedFrequency(newFrequency);
+    setSelectedLevel(newLevel);
     }
 
     if (isPlaying) {
@@ -643,6 +680,28 @@ export default function PureTonePage() {
       return;
 
     const consultationData = consultationResponse.data as ConsultationModelData;
+    
+    // Ensure we preserve all test data when completing
+    const acTests = acTestResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y, // Always store the test level, even for no response
+      response: result.noResponse === 0, // true if patient responded
+      maskingUsed: result.masking > 0,
+      maskingEar:
+        result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
+    const bcTests = bcTestResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y, // Always store the test level, even for no response
+      response: result.noResponse === 0, // true if patient responded
+      maskingUsed: result.masking > 0,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
     updateConsultation(
       {
         ...consultationData,
@@ -651,6 +710,10 @@ export default function PureTonePage() {
           id: consultationData.audiometry?.id,
           sessionId: consultationId as string,
           status: TestStatus.COMPLETED,
+          acTests: acTests,
+          bcTests: bcTests,
+          createdAt:
+            consultationData.audiometry?.createdAt || new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
       },
@@ -658,6 +721,7 @@ export default function PureTonePage() {
         onSuccess: (data) => {
           if (data.success) {
             toast.success("Test completed successfully");
+            console.log(`Test completed with ${acTests.length} AC tests and ${bcTests.length} BC tests`);
             router.push(
               ROUTES.AUDIOMETRY_TEST_REPORT(consultationId as string)
             );
@@ -693,6 +757,14 @@ export default function PureTonePage() {
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Pure Tone Audiometry</h1>
+          <div className="bg-gray-100 px-4 py-2 rounded-lg">
+            <div className="text-sm text-gray-600">Test Results:</div>
+            <div className="flex gap-4 text-sm font-medium">
+              <span className="text-green-600">AC: {acTestResults.length}</span>
+              <span className="text-purple-600">BC: {bcTestResults.length}</span>
+              <span className="text-gray-600">Total: {testResults.length}</span>
+            </div>
+          </div>
         </div>
 
         {/* Test Controls */}
@@ -914,14 +986,37 @@ export default function PureTonePage() {
           >
             No Response
           </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2">
+                Clear Test
+                <ChevronDown size={16} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => clearEarResults("L")}>
+                Clear Left Ear
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => clearEarResults("R")}>
+                Clear Right Ear
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => clearModeResults("AC")}>
+                Clear Air Conduction
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => clearModeResults("BC")}>
+                Clear Bone Conduction
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={clearTest} className="text-red-600">
+                Clear All Results
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button
-            className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-            onClick={clearTest}
-          >
-            Clear Test
-          </button>
-          <button
-            className="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+            className="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-all duration-200 hover:shadow-lg hover:scale-105"
             onClick={handleSubmit}
           >
             Submit Test
@@ -934,12 +1029,12 @@ export default function PureTonePage() {
       {/* Audiogram Display */}
       <div className="border flex items-center justify-center rounded p-4">
         <div className="w-full">
-          <PureToneGraph
-            selectedLabelIndexes={selectedLabelIndexes}
-            resultMarkings={testResults}
-            onIndexChange={handleAudiogramClick}
-          />
-        </div>
+        <PureToneGraph
+          selectedLabelIndexes={selectedLabelIndexes}
+          resultMarkings={testResults}
+          onIndexChange={handleAudiogramClick}
+        />
+      </div>
       </div>
     </div>
   );

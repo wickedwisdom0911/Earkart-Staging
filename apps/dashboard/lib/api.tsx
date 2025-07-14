@@ -1,7 +1,7 @@
 // lib/api.ts
 
 import { ZodError, ZodSchema } from "zod";
-import { handleZodError } from "./ZodErrorHandling";
+import { handleZodError } from "@/utils/zodErrorHandling";
 import { isProduction } from "./environment";
 
 export async function apiRequest<T>(

@@ -51,13 +51,23 @@ import {
 import { DatetimePicker } from "@/components/DateTimePicker";
 import { useGetMetrics } from "@/hooks/consultation/use-get-consultation-anayltics";
 import { cn } from "@/lib/utils";
+import { 
+  MetricType, 
+  AggregationType, 
+  GroupByType, 
+  TimeRangeType, 
+  ConsultationStatus, 
+  TestStatus, 
+  PatientSoldStatus, 
+  Gender 
+} from "@/models/enums";
 
 // Filter form schema
 const filterSchema = z.object({
-  metricType: z.enum(["consultations"]),
-  aggregation: z.enum(["count", "sum", "avg"]),
-  groupBy: z.enum(["day", "week", "month", "year"]),
-  timeRange: z.enum(["daily", "weekly", "monthly", "yearly"]),
+  metricType: z.nativeEnum(MetricType),
+  aggregation: z.nativeEnum(AggregationType),
+  groupBy: z.nativeEnum(GroupByType),
+  timeRange: z.nativeEnum(TimeRangeType),
   useCustomDate: z.boolean(),
   startDate: z.date().optional(),
   endDate: z.date().optional(),
@@ -65,10 +75,10 @@ const filterSchema = z.object({
   audiologistIds: z.array(z.string()),
   cityIds: z.array(z.string()),
   stateIds: z.array(z.string()),
-  consultationStatuses: z.array(z.enum(["PENDING", "COMPLETED", "CANCELLED"])),
-  testStatuses: z.array(z.enum(["IN_PROGRESS", "COMPLETED", "CANCELLED"])),
-  patientSoldStatuses: z.array(z.enum(["UNKNOWN", "SOLD", "NOT_SOLD"])),
-  genders: z.array(z.enum(["MALE", "FEMALE", "OTHER"])),
+  consultationStatuses: z.array(z.nativeEnum(ConsultationStatus)),
+  testStatuses: z.array(z.nativeEnum(TestStatus)),
+  patientSoldStatuses: z.array(z.nativeEnum(PatientSoldStatus)),
+  genders: z.array(z.nativeEnum(Gender)),
   minAge: z.number().optional(),
   maxAge: z.number().optional(),
   limit: z.number(),
@@ -404,46 +414,46 @@ export default function MetricsPage() {
                         <FormField
                           control={form.control}
                           name="startDate"
-                          render={({ field }) => (
-                            <FormItem className="space-y-2">
+                      render={({ field }) => (
+                        <FormItem className="space-y-2">
                               <FormLabel className="text-sm font-semibold text-gray-700 flex items-center space-x-2">
                                 <Calendar className="h-4 w-4" />
                                 <span>Start Date</span>
                               </FormLabel>
-                              <FormControl>
-                                <DatetimePicker
-                                  value={field.value}
-                                  onChange={field.onChange}
-                                  format={[["months", "days", "years"], []]}
+                          <FormControl>
+                            <DatetimePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              format={[["months", "days", "years"], []]}
                                   className="w-full h-11 border-2 border-gray-200 hover:border-purple-300 focus:border-purple-500 transition-colors"
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                        <FormField
-                          control={form.control}
-                          name="endDate"
-                          render={({ field }) => (
-                            <FormItem className="space-y-2">
+                    <FormField
+                      control={form.control}
+                      name="endDate"
+                      render={({ field }) => (
+                        <FormItem className="space-y-2">
                               <FormLabel className="text-sm font-semibold text-gray-700 flex items-center space-x-2">
                                 <Calendar className="h-4 w-4" />
                                 <span>End Date</span>
                               </FormLabel>
-                              <FormControl>
-                                <DatetimePicker
-                                  value={field.value}
-                                  onChange={field.onChange}
-                                  format={[["months", "days", "years"], []]}
+                          <FormControl>
+                            <DatetimePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              format={[["months", "days", "years"], []]}
                                   className="w-full h-11 border-2 border-gray-200 hover:border-purple-300 focus:border-purple-500 transition-colors"
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                       </>
                     )}
 

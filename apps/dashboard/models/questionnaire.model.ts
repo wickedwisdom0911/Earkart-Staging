@@ -1,13 +1,5 @@
 import { z } from "zod";
-
-export enum AnswerType {
-  SHORT_TEXT = "SHORT_TEXT",
-  LONG_TEXT = "LONG_TEXT",
-  NUMBER = "NUMBER",
-  DATE = "DATE",
-  MULTIPLE_CHOICE = "MULTIPLE_CHOICE",
-  CHECKBOX = "CHECKBOX",
-}
+import { AnswerType } from "./enums";
 
 export const OptionSchema = z.object({
   label: z.string(),

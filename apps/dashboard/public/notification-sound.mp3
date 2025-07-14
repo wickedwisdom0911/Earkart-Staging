@@ -1,0 +1,24 @@
+# IMPORTANT: Replace this file with an actual MP3 audio file
+#
+# This is just a placeholder text file. You need to:
+# 
+# 1. Find or create a notification sound (MP3 format)
+# 2. Replace this file with your audio file
+# 3. Keep the name as "notification-sound.mp3"
+#
+# Recommended sound characteristics:
+# - Duration: 1-3 seconds
+# - Volume: Clear but not jarring
+# - Format: MP3
+# - Size: Under 100KB for fast loading
+#
+# Free sound resources:
+# - Freesound.org
+# - Zapsplat.com (requires free account)
+# - Or record your own notification sound
+#
+# Example sounds to look for:
+# - "notification beep"
+# - "alert chime"
+# - "message tone"
+# - "bell notification" 

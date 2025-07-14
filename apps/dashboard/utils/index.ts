@@ -9,7 +9,8 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 
-export const activityIcons= {
+// Activity icons mapping
+export const activityIcons = {
   LUNCH_BREAK: Coffee,
   BREAK: Clock,
   HOME_VISIT: Home,
@@ -19,7 +20,7 @@ export const activityIcons= {
   OTHER: MoreHorizontal,
 };
 
-
+// Format activity labels
 export function formatActivityLabel(activity: string) {
   return activity
     .split("_")
@@ -29,23 +30,25 @@ export function formatActivityLabel(activity: string) {
     .join(" ");
 }
 
-
+// Format time display
 export function formatTime(seconds: number) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
 
   if (hours > 0) {
-    return `${hours.toString().padStart(2, "0")}:
-      ${minutes.toString().padStart(2, "0")}:
-      ${secs.toString().padStart(2, "0")}`;
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
-  return `${minutes.toString().padStart(2, "00")}:
-    ${secs.toString().padStart(2, "00")}`;
+  return `${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
 
+// Calculate elapsed time
 export function calculateElapsedTime(startTime: string) {
   const startMs = new Date(startTime).getTime();
   const nowMs = Date.now();
   return Math.max(0, Math.floor((nowMs - startMs) / 1000));
 }
+
+// Re-export utility functions from other modules
+export { handleZodError } from "./zodErrorHandling";
+export { useDebounce } from "./hooks/useDebounce";

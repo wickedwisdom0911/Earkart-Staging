@@ -36,15 +36,7 @@ import {
   QuestionModelData,
   QuestionModelDataSchema,
 } from "@/models/questionnaire.model";
-
-export enum AnswerType {
-  SHORT_TEXT = "SHORT_TEXT",
-  LONG_TEXT = "LONG_TEXT",
-  NUMBER = "NUMBER",
-  DATE = "DATE",
-  MULTIPLE_CHOICE = "MULTIPLE_CHOICE",
-  CHECKBOX = "CHECKBOX",
-}
+import { AnswerType } from "@/models/enums";
 
 interface HandleQuestionDialogProps {
   trigger: ReactNode;

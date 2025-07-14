@@ -48,13 +48,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { 
+  MetricType, 
+  AggregationType, 
+  GroupByType, 
+  TimeRangeType, 
+  ConsultationStatus, 
+  TestStatus, 
+  PatientSoldStatus, 
+  Gender 
+} from "@/models/enums";
 
 // Filter form schema
 const filterSchema = z.object({
-  metricType: z.enum(["audiologists"]),
-  aggregation: z.enum(["count", "sum", "avg"]),
-  groupBy: z.enum(["day", "week", "month", "year"]),
-  timeRange: z.enum(["daily", "weekly", "monthly", "yearly"]),
+  metricType: z.nativeEnum(MetricType),
+  aggregation: z.nativeEnum(AggregationType),
+  groupBy: z.nativeEnum(GroupByType),
+  timeRange: z.nativeEnum(TimeRangeType),
   useCustomDate: z.boolean(),
   startDate: z.date().optional(),
   endDate: z.date().optional(),
@@ -62,10 +72,10 @@ const filterSchema = z.object({
   audiologistIds: z.array(z.string()),
   cityIds: z.array(z.string()),
   stateIds: z.array(z.string()),
-  consultationStatuses: z.array(z.enum(["PENDING", "COMPLETED", "CANCELLED"])),
-  testStatuses: z.array(z.enum(["IN_PROGRESS", "COMPLETED", "CANCELLED"])),
-  patientSoldStatuses: z.array(z.enum(["UNKNOWN", "SOLD", "NOT_SOLD"])),
-  genders: z.array(z.enum(["MALE", "FEMALE", "OTHER"])),
+  consultationStatuses: z.array(z.nativeEnum(ConsultationStatus)),
+  testStatuses: z.array(z.nativeEnum(TestStatus)),
+  patientSoldStatuses: z.array(z.nativeEnum(PatientSoldStatus)),
+  genders: z.array(z.nativeEnum(Gender)),
   minAge: z.number().optional(),
   maxAge: z.number().optional(),
   limit: z.number(),
@@ -158,10 +168,10 @@ export default function AudiologistAnalytics({ userRole, currentUser }: Audiolog
   const form = useForm<FilterFormData>({
     resolver: zodResolver(filterSchema),
     defaultValues: {
-      metricType: "audiologists",
-      aggregation: "count",
-      groupBy: "day",
-      timeRange: "daily",
+      metricType: MetricType.AUDIOLOGISTS,
+      aggregation: AggregationType.COUNT,
+      groupBy: GroupByType.DAY,
+      timeRange: TimeRangeType.DAILY,
       useCustomDate: false,
       startDate: new Date(new Date().getFullYear(), 0, 1),
       endDate: new Date(),

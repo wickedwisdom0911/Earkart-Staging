@@ -6,7 +6,7 @@ export const ACReadingModelDataSchema = z.object({
   audiometryId: z.string().optional(),
   ear: z.nativeEnum(Ear),
   frequencyHz: z.number(),
-  thresholdDb: z.number(),
+  thresholdDb: z.number(), // Always require threshold value, even for no response
   maskingUsed: z.boolean(),
   maskingEar: z.nativeEnum(Ear).optional().nullable(),
   response : z.boolean(),
@@ -18,7 +18,7 @@ export const BCReadingModelDataSchema = z.object({
   audiometryId: z.string().optional(),
   ear: z.nativeEnum(Ear),
   frequencyHz: z.number(),
-  thresholdDb: z.number(),
+  thresholdDb: z.number(), // Always require threshold value, even for no response
   maskingUsed: z.boolean(),
    response : z.boolean(),
   maskingThresholdDb: z.number().optional().nullable(),

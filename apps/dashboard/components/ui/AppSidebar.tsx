@@ -105,12 +105,12 @@ const headAudiologistSidebarItems: SidebarItem[] = [
     name: "Settings",
     icon: <SettingsIcon className="text-slate-600" />,
     url: "/dashboard/settings",
-  },
-  {
-    name: "Patients",
-    icon: <UserPlusIcon className="text-slate-600" />,
-    url: "/dashboard/patients",
-  },
+},
+{
+  name: "Patients",
+  icon: <UserPlusIcon className="text-slate-600" />,
+  url: "/dashboard/patients",
+},
 ];
 
 const audiologistSidebarItems: SidebarItem[] = [

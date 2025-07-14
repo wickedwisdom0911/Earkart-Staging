@@ -58,12 +58,13 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     const act: UserActivity = {
       id: activityData.id,
       type: activityData.type as AudiologistActivityType,
-      startTime: activityData.startTime,
+      startTime: activityData.startTime || new Date().toISOString(),
       customActivity: activityData.details || undefined,
     };
     setCurrentActivity(act);
     const startMs = new Date(act.startTime).getTime();
-    setElapsed(Math.floor((Date.now() - startMs) / 1000));
+    const deltaSec = Math.floor((Date.now() - startMs) / 1000);
+    setElapsed(deltaSec > 0 ? deltaSec : 0);
 
     const id = setInterval(() => setElapsed(e => e + 1), 1000);
     setTimerId(id);
@@ -78,7 +79,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
         onSuccess: () => {
           // Refresh data
           refetchActivity();
-        }
+          }
       }
     );
   };
