@@ -74,17 +74,9 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
       // Parse the ISO-8601 date string
       final DateTime dateTime = DateTime.parse(dobString);
 
-      // Calculate age
-      final DateTime now = DateTime.now();
-      int age = now.year - dateTime.year;
-      if (now.month < dateTime.month ||
-          (now.month == dateTime.month && now.day < dateTime.day)) {
-        age--;
-      }
-
-      // Format to human-friendly string with age
+      // Format to human-friendly string
       final String formattedDate = DateFormat('MMMM dd, yyyy').format(dateTime);
-      return '$formattedDate (Age: $age)';
+      return formattedDate;
     } catch (e) {
       // If parsing fails, return the original string or a fallback
       return dobString;
@@ -262,83 +254,177 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                       Expanded(
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(28),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.grey.shade200,
-                                blurRadius: 15,
-                                offset: const Offset(0, 5),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                                spreadRadius: 2,
                               ),
                             ],
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Patient Details',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Constants.primaryColor,
+                                          Constants.secondaryColor,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.person_outline,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  const Expanded(
+                                    child: Text(
+                                      'Patient Details',
+                                      style: TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 24),
                               Expanded(
                                 child: ListView(
                                   physics: const BouncingScrollPhysics(),
+                                  padding: const EdgeInsets.only(bottom: 16),
                                   children: [
-                                    _buildInfoTile(
-                                      Icons.email_outlined,
-                                      'Email',
-                                      patient?.email ?? 'Not provided',
+                                    // First row - Email and Age
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildInfoTile(
+                                            Icons.email_outlined,
+                                            'Email',
+                                            patient?.email ?? 'Not provided',
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: _buildInfoTile(
+                                            Icons.cake_outlined,
+                                            'Age',
+                                            patient?.age?.toString() ??
+                                                'Not provided',
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    _buildInfoTile(
-                                      Icons.cake_outlined,
-                                      'Date of Birth',
-                                      _formatDateOfBirth(patient?.dob),
+                                    // Second row - Date of Birth and Gender
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildInfoTile(
+                                            Icons.calendar_today_outlined,
+                                            'Date of Birth',
+                                            _formatDateOfBirth(patient?.dob),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: _buildInfoTile(
+                                            Icons.wc_outlined,
+                                            'Gender',
+                                            patient?.gender.name ??
+                                                'Not specified',
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    _buildInfoTile(
-                                      Icons.wc_outlined,
-                                      'Gender',
-                                      patient?.gender.name ?? 'Not specified',
+                                    // Third row - Address and City
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildInfoTile(
+                                            Icons.home_outlined,
+                                            'Address',
+                                            patient?.address ?? 'Not provided',
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: _buildInfoTile(
+                                            Icons.location_city_outlined,
+                                            'City',
+                                            patient?.city?.name ??
+                                                'Not specified',
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    _buildInfoTile(
-                                      Icons.home_outlined,
-                                      'Address',
-                                      patient?.address ?? 'Not provided',
+                                    // Fourth row - Pincode and Language
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildInfoTile(
+                                            Icons.pin_drop_outlined,
+                                            'Pincode',
+                                            patient?.pincode ?? 'Not provided',
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: _buildInfoTile(
+                                            Icons.language_outlined,
+                                            'Language',
+                                            patient?.language?.name ??
+                                                'Not specified',
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    _buildInfoTile(
-                                      Icons.location_city_outlined,
-                                      'City',
-                                      patient?.city?.name ?? 'Not specified',
-                                    ),
+                                    // Fifth row - Status and Location (if available)
                                     if (_buildLocationString(
                                       patient,
                                     ).isNotEmpty)
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: _buildInfoTile(
+                                              Icons.verified_user_outlined,
+                                              'Status',
+                                              patient?.status?.name ??
+                                                  'Unknown',
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: _buildInfoTile(
+                                              Icons.public_outlined,
+                                              'Location',
+                                              _buildLocationString(patient),
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    else
                                       _buildInfoTile(
-                                        Icons.public_outlined,
-                                        'Location',
-                                        _buildLocationString(patient),
+                                        Icons.verified_user_outlined,
+                                        'Status',
+                                        patient?.status?.name ?? 'Unknown',
                                       ),
-                                    _buildInfoTile(
-                                      Icons.pin_drop_outlined,
-                                      'Pincode',
-                                      patient?.pincode ?? 'Not provided',
-                                    ),
-                                    _buildInfoTile(
-                                      Icons.language_outlined,
-                                      'Language',
-                                      patient?.language?.name ??
-                                          'Not specified',
-                                    ),
-                                    _buildInfoTile(
-                                      Icons.verified_user_outlined,
-                                      'Status',
-                                      patient?.status?.name ?? 'Unknown',
-                                    ),
                                   ],
                                 ),
                               ),
@@ -530,24 +616,42 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
 
   Widget _buildInfoTile(IconData icon, String label, String value) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Constants.primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              gradient: LinearGradient(
+                colors: [
+                  Constants.primaryColor.withOpacity(0.1),
+                  Constants.secondaryColor.withOpacity(0.1),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Constants.primaryColor.withOpacity(0.2),
+                width: 1,
+              ),
             ),
-            child: Icon(icon, color: Constants.primaryColor, size: 20),
+            child: Icon(icon, color: Constants.primaryColor, size: 22),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -555,20 +659,23 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                     color: Colors.grey.shade600,
+                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 17,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
+                    letterSpacing: 0.1,
                   ),
                   overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
                 ),
               ],
             ),
