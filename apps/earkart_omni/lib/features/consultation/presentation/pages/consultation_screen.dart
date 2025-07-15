@@ -621,8 +621,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           if (!_socketReconnectFailed)
             IconButton(
               icon: Icon(
-                _isSocketInitialized ? Icons.wifi : Icons.wifi_off,
-                color: _isSocketInitialized ? Colors.green : Colors.orange,
+                _isSocketInitialized ? Icons.circle : Icons.circle_outlined,
+                color: _isSocketInitialized ? Colors.green : Colors.red,
               ),
               tooltip:
                   _isSocketInitialized
@@ -636,22 +636,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 );
               },
             ),
-          // Debug button to test report functionality (only in debug mode)
-          if (kDebugMode)
-            IconButton(
-              icon: Icon(
-                _showReport
-                    ? Icons.picture_in_picture_alt
-                    : Icons.picture_in_picture,
-                color: _showReport ? Colors.blue : Colors.grey,
-              ),
-              tooltip: _showReport ? 'Hide Report' : 'Show Report (Debug)',
-              onPressed: () {
-                setState(() {
-                  _showReport = !_showReport;
-                });
-              },
-            ),
+
           BlocBuilder<DeviceCubit, DeviceState>(
             builder: (context, deviceState) {
               return BlocBuilder<CommunicationCubit, CommunicationState>(

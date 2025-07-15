@@ -344,14 +344,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     // Global network and wakelock status widgets overlay
                     Positioned(
                       top: 0,
-                      right: 12,
+                      left: 0,
+                      right: 0,
                       child: SafeArea(
                         child: Container(
                           height: 60, // Match toolbar height
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 4),
+                          alignment: Alignment.center,
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const WakelockStatusWidget(showTooltip: true),
                               const SizedBox(width: 8),
