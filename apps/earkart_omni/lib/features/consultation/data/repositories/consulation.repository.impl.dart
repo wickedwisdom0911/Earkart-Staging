@@ -3,13 +3,18 @@ import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/features/consultation/data/source/remote/consultation.remote.source.dart';
 import 'package:earkart_omni/features/consultation/domain/repositories/consultation.repository.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation_pricing.entity.dart';
 
 class ConsultationRepositoryImpl extends IConsultationRepository {
   final IConsultationRemoteSource consultationRemoteSource;
   ConsultationRepositoryImpl({required this.consultationRemoteSource});
   @override
-  Future<Either<Failure, ConsultationEntity>> createConsultation() async {
-    return consultationRemoteSource.createConsultation();
+  Future<Either<Failure, ConsultationEntity>> createConsultation({
+    List<ConsultationPricingEntity>? selectedServices,
+  }) async {
+    return consultationRemoteSource.createConsultation(
+      selectedServices: selectedServices,
+    );
   }
 
   @override

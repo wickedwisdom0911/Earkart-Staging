@@ -6,6 +6,7 @@ import 'package:earkart_omni/features/consultation/domain/usecases/get_current_c
 import 'package:earkart_omni/features/consultation/domain/usecases/update_consultation.usecase.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation_pricing.entity.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ConsultationCubit extends Cubit<ConsultationState> {
@@ -35,12 +36,25 @@ class ConsultationCubit extends Cubit<ConsultationState> {
     );
   }
 
-  Future<void> createConsultation() async {
+  Future<void> createConsultation({
+    List<ConsultationPricingEntity>? selectedServices,
+  }) async {
+    print(
+      'ConsultationCubit: Creating consultation with ${selectedServices?.length ?? 0} services',
+    );
     emit(ConsultationLoading());
-    final result = await createConsultationUsecase();
+    final result = await createConsultationUsecase(
+      selectedServices: selectedServices,
+    );
     result.fold(
-      (l) => emit(ConsultationError(message: l.message)),
-      (r) => emit(CreateConsultationSuccess(consultation: r)),
+      (l) {
+        print('ConsultationCubit: Error - ${l.message}');
+        emit(ConsultationError(message: l.message));
+      },
+      (r) {
+        print('ConsultationCubit: Success - Consultation ID: ${r.id}');
+        emit(CreateConsultationSuccess(consultation: r));
+      },
     );
   }
 

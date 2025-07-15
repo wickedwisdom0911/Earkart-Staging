@@ -21,6 +21,7 @@ import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation_pricing.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation_recording.entity.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
@@ -198,6 +199,7 @@ void _registerHiveAdapters() {
   // Patient & Consultation
   Hive.registerAdapter(PatientEntityAdapter());
   Hive.registerAdapter(ConsultationEntityAdapter());
+  Hive.registerAdapter(ConsultationPricingEntityAdapter());
   Hive.registerAdapter(ConsultationRecordingEntityAdapter());
   // Audiometry
   Hive.registerAdapter(AudiometryTestEntityAdapter());

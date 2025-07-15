@@ -1,9 +1,12 @@
 import 'package:dartz/dartz.dart';
 import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation_pricing.entity.dart';
 
 abstract class IConsultationRepository {
-  Future<Either<Failure, ConsultationEntity>> createConsultation();
+  Future<Either<Failure, ConsultationEntity>> createConsultation({
+    List<ConsultationPricingEntity>? selectedServices,
+  });
   Future<Either<Failure, ConsultationEntity>> getConsultationById(String? id);
   Future<Either<Failure, ConsultationEntity>> updateConsultation(
     ConsultationEntity consultation,
