@@ -188,6 +188,7 @@ void _registerHiveAdapters() {
   // Device & Centre
   Hive.registerAdapter(DeviceEntityAdapter());
   Hive.registerAdapter(CentreEntityAdapter());
+  Hive.registerAdapter(CentrePricingEntityAdapter());
   // Language & Location
   Hive.registerAdapter(LanguageEntityAdapter());
   Hive.registerAdapter(StateEntityAdapter());

@@ -186,7 +186,7 @@ class CentreModelData extends CentreEntity {
           json['device'] != null ? DeviceEntity.fromJson(json['device']) : null,
       centrePricing:
           (json['centrePricing'] as List<dynamic>?)
-              ?.map((e) => CentrePricingEntity.fromJson(e))
+              ?.map((e) => CentrePricingModel.fromJson(e))
               .toList(),
     );
   }
@@ -220,6 +220,60 @@ class CentreModelData extends CentreEntity {
       'centrePricing': centrePricing?.map((e) => e.toJson()).toList(),
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
+}
+
+class CentrePricingModel extends CentrePricingEntity {
+  @override
+  final String? id;
+  @override
+  final String name;
+  @override
+  final double price;
+  @override
+  final String description;
+  @override
+  final Status status;
+  @override
+  final String? centreId;
+
+  const CentrePricingModel({
+    this.id,
+    required this.name,
+    required this.price,
+    required this.description,
+    required this.status,
+    this.centreId,
+  }) : super(
+         id: id,
+         name: name,
+         price: price,
+         description: description,
+         status: status,
+         centreId: centreId,
+       );
+
+  factory CentrePricingModel.fromJson(Map<String, dynamic> json) {
+    return CentrePricingModel(
+      id: json['id'],
+      name: json['name'],
+      price: (json['price'] as num).toDouble(),
+      description: json['description'],
+      status: statusFromApi(json['status']),
+      centreId: json['centreId'],
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'price': price,
+      'description': description,
+      'status': status.name,
+      'centreId': centreId,
     };
   }
 }

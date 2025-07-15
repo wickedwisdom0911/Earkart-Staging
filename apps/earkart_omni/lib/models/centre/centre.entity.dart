@@ -220,6 +220,8 @@ class CentrePricingEntity extends Equatable {
   final String description;
   @HiveField(4)
   final Status status;
+  @HiveField(5)
+  final String? centreId;
 
   const CentrePricingEntity({
     this.id,
@@ -227,6 +229,7 @@ class CentrePricingEntity extends Equatable {
     required this.price,
     required this.description,
     required this.status,
+    this.centreId,
   });
 
   factory CentrePricingEntity.fromJson(Map<String, dynamic> json) {
@@ -236,6 +239,7 @@ class CentrePricingEntity extends Equatable {
       price: (json['price'] as num).toDouble(),
       description: json['description'],
       status: statusFromApi(json['status']),
+      centreId: json['centreId'],
     );
   }
 
@@ -246,9 +250,10 @@ class CentrePricingEntity extends Equatable {
       'price': price,
       'description': description,
       'status': status.name.toUpperCase(),
+      'centreId': centreId,
     };
   }
 
   @override
-  List<Object?> get props => [id, name, price, description, status];
+  List<Object?> get props => [id, name, price, description, status, centreId];
 }

@@ -134,13 +134,14 @@ class CentrePricingEntityAdapter extends TypeAdapter<CentrePricingEntity> {
       price: fields[2] as double,
       description: fields[3] as String,
       status: fields[4] as Status,
+      centreId: fields[5] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, CentrePricingEntity obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -150,7 +151,9 @@ class CentrePricingEntityAdapter extends TypeAdapter<CentrePricingEntity> {
       ..writeByte(3)
       ..write(obj.description)
       ..writeByte(4)
-      ..write(obj.status);
+      ..write(obj.status)
+      ..writeByte(5)
+      ..write(obj.centreId);
   }
 
   @override

@@ -5,6 +5,9 @@ import 'package:earkart_omni/features/consultation/presentation/pages/consultati
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
+import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
+import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
+import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -20,10 +23,14 @@ class ConsultationRequestScreen extends StatefulWidget {
 }
 
 class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
+  List<String> selectedPricingIds = [];
+  CentreEntity? centreData;
+
   @override
   void initState() {
     super.initState();
     context.read<PatientCubit>().getCurrentPatient();
+    context.read<AuthCubit>().getCentreData();
   }
 
   void startConsultation() {
@@ -341,6 +348,56 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                       ),
                       const SizedBox(height: 24),
 
+                      // Pricing Selection
+                      BlocBuilder<AuthCubit, AuthState>(
+                        builder: (context, state) {
+                          if (state is AuthCentreSuccess &&
+                              state.centre?.centrePricing != null &&
+                              state.centre!.centrePricing!.isNotEmpty) {
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Constants.primaryColor.withOpacity(
+                                    0.1,
+                                  ),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.04),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Select Services',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _buildPricingMultiSelect(
+                                    state.centre!.centrePricing!,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                      const SizedBox(height: 24),
+
                       // Action Buttons
                       Row(
                         children: [
@@ -519,5 +576,126 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildPricingMultiSelect(List<CentrePricingEntity> pricingList) {
+    return Column(
+      children:
+          pricingList.map((pricing) {
+            final isSelected = selectedPricingIds.contains(pricing.id);
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (isSelected) {
+                    selectedPricingIds.remove(pricing.id);
+                  } else {
+                    selectedPricingIds.add(pricing.id!);
+                  }
+                });
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color:
+                      isSelected
+                          ? Constants.primaryColor.withOpacity(0.1)
+                          : Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color:
+                        isSelected
+                            ? Constants.primaryColor
+                            : Colors.grey.shade300,
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color:
+                            isSelected
+                                ? Constants.primaryColor
+                                : Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color:
+                              isSelected
+                                  ? Constants.primaryColor
+                                  : Colors.grey.shade400,
+                          width: 2,
+                        ),
+                      ),
+                      child:
+                          isSelected
+                              ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 16,
+                              )
+                              : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pricing.name,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color:
+                                  isSelected
+                                      ? Constants.primaryColor
+                                      : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            pricing.description,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            isSelected
+                                ? Constants.primaryColor
+                                : Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '₹${pricing.price.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+    );
+  }
+
+  List<String> getSelectedPricingIds() {
+    return selectedPricingIds;
   }
 }
