@@ -43,13 +43,14 @@ class CentreEntityAdapter extends TypeAdapter<CentreEntity> {
       updatedAt: fields[23] as DateTime?,
       city: fields[24] as CityEntity?,
       device: fields[25] as DeviceEntity?,
+      centrePricing: (fields[26] as List?)?.cast<CentrePricingEntity>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, CentreEntity obj) {
     writer
-      ..writeByte(26)
+      ..writeByte(27)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -101,7 +102,9 @@ class CentreEntityAdapter extends TypeAdapter<CentreEntity> {
       ..writeByte(24)
       ..write(obj.city)
       ..writeByte(25)
-      ..write(obj.device);
+      ..write(obj.device)
+      ..writeByte(26)
+      ..write(obj.centrePricing);
   }
 
   @override
@@ -111,6 +114,52 @@ class CentreEntityAdapter extends TypeAdapter<CentreEntity> {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is CentreEntityAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class CentrePricingEntityAdapter extends TypeAdapter<CentrePricingEntity> {
+  @override
+  final int typeId = 35;
+
+  @override
+  CentrePricingEntity read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return CentrePricingEntity(
+      id: fields[0] as String?,
+      name: fields[1] as String,
+      price: fields[2] as double,
+      description: fields[3] as String,
+      status: fields[4] as Status,
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, CentrePricingEntity obj) {
+    writer
+      ..writeByte(5)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.name)
+      ..writeByte(2)
+      ..write(obj.price)
+      ..writeByte(3)
+      ..write(obj.description)
+      ..writeByte(4)
+      ..write(obj.status);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CentrePricingEntityAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

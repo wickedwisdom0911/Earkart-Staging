@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
         title: BlocBuilder<AuthCubit, AuthState>(
           builder: (context, state) {
             if (state is AuthCentreSuccess) {
+              print(state.centre?.toString());
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

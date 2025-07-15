@@ -84,6 +84,8 @@ class CentreModelData extends CentreEntity {
   final CityEntity? city;
   @override
   final DeviceEntity? device; // Replace with your DeviceModelData if available
+  @override
+  final List<CentrePricingEntity>? centrePricing;
 
   const CentreModelData({
     this.id,
@@ -112,6 +114,7 @@ class CentreModelData extends CentreEntity {
     this.updatedAt,
     this.city,
     this.device,
+    this.centrePricing,
   }) : super(
          id: id,
          userId: userId,
@@ -137,6 +140,7 @@ class CentreModelData extends CentreEntity {
          updatedAt: updatedAt,
          city: city,
          device: device,
+         centrePricing: centrePricing,
        );
 
   factory CentreModelData.fromJson(Map<String, dynamic> json) {
@@ -180,6 +184,10 @@ class CentreModelData extends CentreEntity {
       city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
       device:
           json['device'] != null ? DeviceEntity.fromJson(json['device']) : null,
+      centrePricing:
+          (json['centrePricing'] as List<dynamic>?)
+              ?.map((e) => CentrePricingEntity.fromJson(e))
+              .toList(),
     );
   }
 
@@ -209,6 +217,7 @@ class CentreModelData extends CentreEntity {
       'breakTimeEnd': breakTimeEnd,
       'city': city?.toJson(),
       'device': device?.toJson(),
+      'centrePricing': centrePricing?.map((e) => e.toJson()).toList(),
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };
