@@ -41,6 +41,8 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
             return left(UnKnownFailure(error: "Only centre can login"));
           }
         }
+      } else {
+        return left(UnKnownFailure(error: result.message));
       }
       return left(UnKnownFailure(error: "Failed to login"));
     } on DioException catch (e) {

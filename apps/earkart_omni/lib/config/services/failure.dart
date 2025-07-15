@@ -12,25 +12,25 @@ abstract class Failure {
 
 class UnKnownFailure extends Failure {
   UnKnownFailure({super.error, StackTrace? stack})
-    : super(message: "Something went wrong: $error", stackTrace: stack);
+    : super(message: "${error ?? 'Something went wrong'}", stackTrace: stack);
 }
 
 class FetchDataFailure extends Failure {
   FetchDataFailure({String? error, StackTrace? stack})
-    : super(message: "Failed to get Data: \n");
+    : super(message: "Failed to get Data: ${error ?? ''}", stackTrace: stack);
 }
 
 class BadRequestFailure extends Failure {
   BadRequestFailure({String? error, StackTrace? stack})
-    : super(message: "Invalid Request: \n");
+    : super(message: "Invalid Request: ${error ?? ''}", stackTrace: stack);
 }
 
 class UnauthorisedFailure extends Failure {
   UnauthorisedFailure({String? error, StackTrace? stack})
-    : super(message: "Unauthorised:");
+    : super(message: "Unauthorised: ${error ?? ''}", stackTrace: stack);
 }
 
 class InvalidInputFailure extends Failure {
   InvalidInputFailure({String? error, StackTrace? stack})
-    : super(message: "Invalid Input:\n");
+    : super(message: "Invalid Input: ${error ?? ''}", stackTrace: stack);
 }
