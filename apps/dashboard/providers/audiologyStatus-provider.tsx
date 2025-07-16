@@ -30,17 +30,21 @@ const ActivityContext = createContext<ActivityContextType | null>(null);
 
 export function ActivityProvider({ children }: { children: ReactNode }) {
   const { data: user } = useGetUser();
-  const { data: activityData, refetch: refetchActivity } = useGetAudiologistActivity(user?.id || "");
+  
+  const canTrack = Boolean(
+    user && (user.role === Role.AUDIOLOGIST || user.role === Role.HEAD_AUDIOLOGIST)
+  );
+
+  // Only call the API if user is an audiologist or head audiologist
+  const { data: activityData, refetch: refetchActivity } = useGetAudiologistActivity(
+    canTrack ? (user?.id || "") : ""
+  );
   const { mutate: updateActivity } = useUpdateAudiologistActivity();
   const { mutate: stopAct } = useStopAudiologistActivity();
 
   const [elapsed, setElapsed] = useState(0);
   const [timerId, setTimerId] = useState<NodeJS.Timeout | null>(null);
   const [currentActivity, setCurrentActivity] = useState<UserActivity | undefined>(undefined);
-
-  const canTrack = Boolean(
-    user && (user.role === Role.AUDIOLOGIST || user.role === Role.HEAD_AUDIOLOGIST)
-  );
 
 
 
@@ -72,7 +76,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   }, [activityData, canTrack]);
 
   const startActivity = (type: AudiologistActivityType, details?: string) => {
-    if (!user?.id) return;
+    if (!user?.id || !canTrack) return;
     updateActivity(
       { audiologistId: user.id, type },
       {
@@ -85,7 +89,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   };
 
   const stopActivity = () => {
-    if (!user?.id || !currentActivity) return;
+    if (!user?.id || !currentActivity || !canTrack) return;
     stopAct(
       { audiologistId: user.id, id: currentActivity.id },
       {

@@ -4,7 +4,7 @@ import React, { useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useGetAllQuestions } from '@/hooks/questionnaire/use-get-questions';
 import useSubmitAnswers from '@/hooks/questionnaire/use-answer-questions';
-import { SubmitAnswersModel } from '@/models/questionnaire.model';
+import { SubmitAnswersRequest } from '@/models/questionnaire.model';
 import { AnswerType } from '@/models/enums';
 import { useForm, Controller } from 'react-hook-form';
 import * as Label from '@radix-ui/react-label';
@@ -17,7 +17,7 @@ import { useGetConsultation } from '@/hooks/consultation/use-get-consultation';
 
 export default function QuestionnairePage() {
   const { consultationId } = useParams();
-  const cid = consultationId ?? '';
+  const cid = Array.isArray(consultationId) ? consultationId[0] : consultationId ?? '';
   const router = useRouter();
 
   const { data: resp, isLoading, isError } = useGetAllQuestions();
@@ -31,7 +31,7 @@ export default function QuestionnairePage() {
     [questions]
   );
 
-  const { control, handleSubmit, reset } = useForm<SubmitAnswersModel>({
+  const { control, handleSubmit, reset } = useForm<SubmitAnswersRequest>({
     defaultValues: { consultationId: cid, answers: [] }
   });
 
@@ -91,9 +91,9 @@ export default function QuestionnairePage() {
     }
   }, [sortedQuestions, consultationData, cid, reset]);
 
-  const { mutate: submit, isLoading: isSubmitting } = useSubmitAnswers();
+  const { mutate: submit, isPending: isSubmitting } = useSubmitAnswers();
 
-  const onSubmit = (data: SubmitAnswersModel) => {
+  const onSubmit = (data: SubmitAnswersRequest) => {
     const transformedAnswers = data.answers.map((answer) => {
       const question = sortedQuestions.find(q => q.id === answer.questionId);
       
@@ -183,8 +183,8 @@ export default function QuestionnairePage() {
                 case AnswerType.MULTIPLE_CHOICE:
                   return (
                     <div className="flex flex-col gap-3">
-                      {q.options?.map(opt => (
-                        <label key={opt.id} className="flex items-center gap-2">
+                      {q.options?.map((opt, optIndex) => (
+                        <label key={`${q.id}-${opt.value}-${optIndex}`} className="flex items-center gap-2">
                           <input
                             type="radio"
                             name={`answers.${idx}.value`}
@@ -201,8 +201,8 @@ export default function QuestionnairePage() {
                 case AnswerType.CHECKBOX:
                   return (
                     <div className="flex flex-col gap-3">
-                      {q.options?.map(opt => (
-                       <label key={`checkbox-${q.id}-${opt.id}`} className="flex items-center gap-2">
+                      {q.options?.map((opt, optIndex) => (
+                       <label key={`checkbox-${q.id}-${opt.value}-${optIndex}`} className="flex items-center gap-2">
                           <input
                             type="checkbox"
                             className="h-4 w-4 text-blue-600"

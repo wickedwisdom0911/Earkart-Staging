@@ -21,6 +21,7 @@ import {
   CentreModelData,
   CreateCenterProfile,
   CreateCenterProfileSchema,
+  Pricing,
 } from "@/models/centre.model";
 import { ReactNode, useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -38,8 +39,10 @@ import WorkingDaysSelector from "@/components/ui/selector/working-days-selector"
 import useCreateCentre from "@/hooks/centre/use-create-centre";
 import useUpdateCentre from "@/hooks/centre/use-update-centre";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { useFieldArray } from "react-hook-form";
 
 // Custom hook for location management
 const useLocationState = (isEdit: boolean, centre?: CentreModelData) => {
@@ -121,17 +124,7 @@ const useLocationState = (isEdit: boolean, centre?: CentreModelData) => {
   };
 };
 
-const steps = [
-  {
-    title: "User Info",
-    description: "Enter the user details for this centre.",
-  },
-  {
-    title: "Centre Info",
-    description: "Fill in the centre's information.",
-  },
-];
-
+// Remove the steps array and stepper components
 const CENTRE_CODE_PREFIX = "ERKRTCNTR-";
 
 export default function HandleCentreDialog({
@@ -145,7 +138,6 @@ export default function HandleCentreDialog({
 }) {
   const isEdit = !!centre;
   const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState(0);
 
   const {
     locationState,
@@ -175,6 +167,14 @@ export default function HandleCentreDialog({
             ? centre.code.slice(CENTRE_CODE_PREFIX.length)
             : "",
         cityId: centre?.city?.id || "",
+        isOurAssistant: centre?.isOurAssistant ?? false,
+        centrePricing: (centre?.centrePricing || centre?.pricing || []).map((pricing: any) => ({
+          id: pricing.id,
+          name: pricing.name,
+          price: pricing.price,
+          description: pricing.description,
+          status: pricing.status,
+        })),
       },
     },
   });
@@ -199,18 +199,97 @@ export default function HandleCentreDialog({
 
   const toggleDialog = () => {
     setIsOpen(!isOpen);
-    setStep(0);
     // Reset location selectors when dialog closes
     if (isOpen) {
       resetLocation();
     }
   };
+
   const handleSubmit = (data: CreateCenterProfile) => {
     if (isEdit) {
       if (data.centre.cityId === "") {
         data.centre.cityId = data.centre.city?.id || "";
       }
-      console.log(data);
+      
+      // Handle centrePricing data for updates
+      if (data.centre.centrePricing && data.centre.centrePricing.length > 0) {
+        // Check if the centre originally had pricing
+        const hadOriginalPricing = centre?.centrePricing && centre.centrePricing.length > 0;
+        
+        if (hadOriginalPricing) {
+          // Centre had original pricing - handle existing and new pricing
+          const existingPricing = data.centre.centrePricing
+            .filter(pricing => {
+              // Only include existing pricing entries that have a valid, non-empty string ID
+              return pricing.id && 
+                     typeof pricing.id === 'string' && 
+                     pricing.id.trim() !== '' && 
+                     pricing.id !== '$undefined' && 
+                     pricing.id !== 'undefined';
+            })
+            .map(pricing => ({
+              ...pricing,
+              id: pricing.id!.trim() // Ensure it's a clean string
+            }));
+          
+          const newPricing = data.centre.centrePricing
+            .filter(pricing => {
+              // Only include new pricing entries that have actual data (name, price, description)
+              return (!pricing.id || 
+                     pricing.id === '$undefined' || 
+                     pricing.id === 'undefined' ||
+                     pricing.id.trim() === '') &&
+                     pricing.name && 
+                     pricing.name.trim() !== '' &&
+                     pricing.price > 0 &&
+                     pricing.description && 
+                     pricing.description.trim() !== '';
+            })
+            .map(pricing => {
+              // Remove ID from new pricing entries
+              const { id, ...pricingWithoutId } = pricing;
+              return pricingWithoutId;
+            });
+          
+          // Combine existing and new pricing
+          const allPricing = [...existingPricing, ...newPricing];
+          
+          if (allPricing.length > 0) {
+            data.centre.centrePricing = allPricing;
+          } else {
+            // Remove centrePricing from payload if no valid entries
+            delete (data.centre as any).centrePricing;
+          }
+        } else {
+          // Centre had NO original pricing - treat all pricing as new (no IDs)
+          const newPricing = data.centre.centrePricing
+            .filter(pricing => {
+              // Only include pricing entries that have actual data (name, price, description)
+              return pricing.name && 
+                     pricing.name.trim() !== '' &&
+                     pricing.price > 0 &&
+                     pricing.description && 
+                     pricing.description.trim() !== '';
+            })
+            .map(pricing => {
+              // Remove ID from all pricing entries (treat as new)
+              const { id, ...pricingWithoutId } = pricing;
+              return pricingWithoutId;
+            });
+          
+          if (newPricing.length > 0) {
+            data.centre.centrePricing = newPricing;
+          } else {
+            // Remove centrePricing from payload if no valid entries
+            delete (data.centre as any).centrePricing;
+          }
+        }
+      } else {
+        // If no pricing data at all, remove the field completely
+        delete (data.centre as any).centrePricing;
+      }
+      
+      console.log("Update payload:", data);
       updateCentre(
         {
           centre: { ...data.centre, id: centre?.id },
@@ -230,6 +309,20 @@ export default function HandleCentreDialog({
         }
       );
     } else {
+      // Clean up centrePricing data for new centres - remove IDs completely
+      if (data.centre.centrePricing) {
+        data.centre.centrePricing = data.centre.centrePricing.map(pricing => {
+          const { id, ...pricingWithoutId } = pricing;
+          return pricingWithoutId;
+        });
+      }
+      
+      // Ensure isOurAssistant is included as boolean
+      if (data.centre.isOurAssistant === undefined) {
+        data.centre.isOurAssistant = false;
+      }
+      
+      console.log("Create payload:", data);
       createCentre(data, {
         onSuccess: (response) => {
           if (response.success) {
@@ -244,447 +337,536 @@ export default function HandleCentreDialog({
       });
     }
   };
-  // Stepper UI
-  const Stepper = () => (
-    <div className="flex items-center justify-center  mb-4">
-      {steps.map((s, idx) => (
-        <div key={s.title} className="flex items-center">
-          <div
-            className={[
-              "flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300",
-              step === idx
-                ? "bg-primary-500 text-white border-primary-500 shadow-lg"
-                : step > idx
-                  ? "bg-primary-700 text-white border-primary-700"
-                  : "bg-gray-100 text-gray-400 border-gray-300",
-            ].join(" ")}
-          >
-            {idx + 1}
-          </div>
-          {idx < steps.length - 1 && (
-            <div className="w-12 h-1 bg-gray-300 mx-2 rounded-full" />
-          )}
-        </div>
-      ))}
-    </div>
-  );
 
-  // Step 1: User fields (customize as needed)
-  const renderUserFields = () => (
-    <div className="flex flex-col overflow-y-scroll p-2 gap-6">
-      <FormField
-        control={form.control}
-        name="user.name"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Clinic Name</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="Enter user name" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="user.email"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Email</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="Enter user email" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="user.password"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Password</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="Enter user password" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="user.dob"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Date of Enrollment</FormLabel>
-            <FormControl>
-              <DatetimePicker
-                value={field.value ? new Date(field.value) : undefined}
-                onChange={(date) =>
-                  field.onChange(date ? date.toISOString() : "")
-                }
-                format={[["days", "months", "years"], []]}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="user.gender"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Gender</FormLabel>
-            <FormControl>
-              <GenderSelect {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="user.status"
-        render={({ field }) => (
-          <FormItem>
-            <FormControl>
-              <StatusToggle {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </div>
-  );
-
-  // Step 2: Centre fields (customize as needed)
-  const renderCentreFields = () => (
-    <div className="flex flex-col overflow-y-scroll p-2 gap-6">
-      {/* Cascading Selectors Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        <CountrySelector
-          value={locationState.countryId}
-          onChange={handleCountryChange}
-          initialValue={
-            isEdit ? locationData?.countryId : locationState.countryId
-          }
-        />
-        {(locationState.countryId || (isEdit && locationData?.countryId)) && (
-          <StateSelector
-            value={locationState.stateId}
-            onChange={handleStateChange}
-            countryId={locationState.countryId || locationData?.countryId || ""}
-            initialValue={
-              isEdit ? locationData?.stateId : locationState.stateId
-            }
-          />
-        )}
-        {(locationState.stateId || (isEdit && locationData?.stateId)) && (
-          <DistrictSelector
-            value={locationState.districtId}
-            onChange={handleDistrictChange}
-            stateId={locationState.stateId || locationData?.stateId || ""}
-            initialValue={
-              isEdit ? locationData?.districtId : locationState.districtId
-            }
-          />
-        )}
-        {(locationState.districtId || (isEdit && locationData?.districtId)) && (
+  // Combined all fields in one view
+  const renderAllFields = () => (
+    <div className="space-y-8">
+      {/* User Information Section */}
+      <div className="space-y-6">
+        <h3 className="text-lg font-semibold border-b pb-2">User Information</h3>
+        <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="centre.cityId"
+            name="user.name"
             render={({ field }) => (
-              <CitySelector
-                value={field.value}
-                onChange={field.onChange}
-                districtId={
-                  locationState.districtId || locationData?.districtId || ""
-                }
-                initialValue={isEdit ? locationData?.cityId : field.value}
-              />
+              <FormItem>
+                <FormLabel>Clinic Name</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter user name" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
           />
-        )}
+          <FormField
+            control={form.control}
+            name="user.email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter user email" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="user.password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter user password" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="user.gender"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Gender</FormLabel>
+                <FormControl>
+                  <GenderSelect {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="user.dob"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Date of Enrollment</FormLabel>
+                <FormControl>
+                  <DatetimePicker
+                    value={field.value ? new Date(field.value) : undefined}
+                    onChange={(date) =>
+                      field.onChange(date ? date.toISOString() : "")
+                    }
+                    format={[["days", "months", "years"], []]}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="user.status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>User Status</FormLabel>
+                <FormControl>
+                  <StatusToggle {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
       </div>
-      {/* Other centre fields */}
 
-      <FormField
-        control={form.control}
-        name="centre.address"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Address</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="Enter address" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.pincode"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Pincode</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="Enter pincode" type="number" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.entName"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Enter ENT Name</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="Enter ENT Name" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.contactNumber"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Contact Number</FormLabel>
-            <FormControl>
-              <Input
-                {...field}
-                placeholder="Enter contact number"
-                type="number"
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.assistantName"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Assistant Name</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="Enter assistant name" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.assistantContactNumber"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Assistant Contact Number</FormLabel>
-            <FormControl>
-              <Input
-                {...field}
-                placeholder="Enter assistant contact number"
-                type="number"
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      {/* Centre Information Section */}
+      <div className="space-y-6">
+        <h3 className="text-lg font-semibold border-b pb-2">Centre Information</h3>
+        
+        {/* Location Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          <CountrySelector
+            value={locationState.countryId}
+            onChange={handleCountryChange}
+            initialValue={
+              isEdit ? locationData?.countryId : locationState.countryId
+            }
+          />
+          {(locationState.countryId || (isEdit && locationData?.countryId)) && (
+            <StateSelector
+              value={locationState.stateId}
+              onChange={handleStateChange}
+              countryId={locationState.countryId || locationData?.countryId || ""}
+              initialValue={
+                isEdit ? locationData?.stateId : locationState.stateId
+              }
+            />
+          )}
+          {(locationState.stateId || (isEdit && locationData?.stateId)) && (
+            <DistrictSelector
+              value={locationState.districtId}
+              onChange={handleDistrictChange}
+              stateId={locationState.stateId || locationData?.stateId || ""}
+              initialValue={
+                isEdit ? locationData?.districtId : locationState.districtId
+              }
+            />
+          )}
+          {(locationState.districtId || (isEdit && locationData?.districtId)) && (
+            <FormField
+              control={form.control}
+              name="centre.cityId"
+              render={({ field }) => (
+                <CitySelector
+                  value={field.value}
+                  onChange={field.onChange}
+                  districtId={
+                    locationState.districtId || locationData?.districtId || ""
+                  }
+                  initialValue={isEdit ? locationData?.cityId : field.value}
+                />
+              )}
+            />
+          )}
+        </div>
 
-      <FormField
-        control={form.control}
-        name="centre.isOurAssistant"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Is Our Assistant</FormLabel>
-            <FormControl>
-              <Switch
-                className="cursor-pointer"
-                checked={field.value}
-                onCheckedChange={field.onChange}
+        {/* Centre Details Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="centre.address"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Address</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter address" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="centre.pincode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Pincode</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter pincode" type="number" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="centre.entName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Enter ENT Name</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter ENT Name" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="centre.contactNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Contact Number</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="Enter contact number"
+                    type="number"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="centre.assistantName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Assistant Name</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Enter assistant name" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="centre.assistantContactNumber"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Assistant Contact Number</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="Enter assistant contact number"
+                    type="number"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Toggles and Selectors */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="centre.isOurAssistant"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Is Our Assistant</FormLabel>
+                <FormControl>
+                  <Switch
+                    className="cursor-pointer"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="centre.paymentCycle"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Payment Cycle</FormLabel>
+                <FormControl>
+                  <PaymentCycleSelector {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="centre.workingDays"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Working Days</FormLabel>
+              <FormControl>
+                <WorkingDaysSelector {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Working Hours */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="centre.workingTimeStart"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Working Time Start</FormLabel>
+                <FormControl>
+                  <DatetimePicker
+                    value={field.value ? new Date(field.value) : undefined}
+                    onChange={(date) =>
+                      field.onChange(date ? date.toISOString() : "")
+                    }
+                    format={[[], ["hours", "minutes", "seconds", "am/pm"]]}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="centre.workingTimeEnd"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Working Time End</FormLabel>
+                <FormControl>
+                  <DatetimePicker
+                    value={field.value ? new Date(field.value) : undefined}
+                    onChange={(date) =>
+                      field.onChange(date ? date.toISOString() : "")
+                    }
+                    format={[[], ["hours", "minutes", "seconds", "am/pm"]]}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="centre.breakTimeStart"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Break Time Start</FormLabel>
+                <FormControl>
+                  <DatetimePicker
+                    value={field.value ? new Date(field.value) : undefined}
+                    onChange={(date) =>
+                      field.onChange(date ? date.toISOString() : "")
+                    }
+                    format={[[], ["hours", "minutes", "seconds", "am/pm"]]}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="centre.breakTimeEnd"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Break Time End</FormLabel>
+                <FormControl>
+                  <DatetimePicker
+                    value={field.value ? new Date(field.value) : undefined}
+                    onChange={(date) =>
+                      field.onChange(date ? date.toISOString() : "")
+                    }
+                    format={[[], ["hours", "minutes", "seconds", "am/pm"]]}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </div>
+
+      {/* Pricing Section */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold border-b pb-2">Test Pricing</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const currentPricing = form.getValues("centre.centrePricing") || [];
+              form.setValue("centre.centrePricing", [
+                ...currentPricing,
+                {
+                  id: undefined, // New entries won't have an ID initially
+                  name: "",
+                  price: 0,
+                  description: "",
+                  status: StatusEnum.ACTIVE,
+                },
+              ]);
+            }}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Test
+          </Button>
+        </div>
+        
+        <div className="space-y-4">
+          {(form.watch("centre.centrePricing") || []).map((pricing, index) => (
+            <div key={index} className="border rounded-lg p-4 space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="font-medium">Test {index + 1}</h4>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const currentPricing = form.getValues("centre.centrePricing") || [];
+                    const newPricing = currentPricing.filter((_, i) => i !== index);
+                    form.setValue("centre.centrePricing", newPricing);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* Hidden field for pricing ID */}
+              <FormField
+                control={form.control}
+                name={`centre.centrePricing.${index}.id`}
+                render={({ field }) => (
+                  <input type="hidden" {...field} />
+                )}
               />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.paymentCycle"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Payment Cycle</FormLabel>
-            <FormControl>
-              <PaymentCycleSelector {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.workingDays"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Working Days</FormLabel>
-            <FormControl>
-              <WorkingDaysSelector {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.workingTimeStart"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Working Time Start</FormLabel>
-            <FormControl>
-              <DatetimePicker
-                value={field.value ? new Date(field.value) : undefined}
-                onChange={(date) =>
-                  field.onChange(date ? date.toISOString() : "")
-                }
-                format={[[], ["hours", "minutes", "seconds", "am/pm"]]}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name={`centre.centrePricing.${index}.name`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Test Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Enter test name" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name={`centre.centrePricing.${index}.price`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="number"
+                          placeholder="Enter price"
+                          onChange={(e) => field.onChange(Number(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <FormField
+                control={form.control}
+                name={`centre.centrePricing.${index}.description`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder="Enter test description"
+                        rows={3}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.workingTimeEnd"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Working Time End</FormLabel>
-            <FormControl>
-              <DatetimePicker
-                value={field.value ? new Date(field.value) : undefined}
-                onChange={(date) =>
-                  field.onChange(date ? date.toISOString() : "")
-                }
-                format={[[], ["hours", "minutes", "seconds", "am/pm"]]}
+              
+              <FormField
+                control={form.control}
+                name={`centre.centrePricing.${index}.status`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Test Status</FormLabel>
+                    <FormControl>
+                      <StatusToggle {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.breakTimeStart"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Break Time Start</FormLabel>
-            <FormControl>
-              <DatetimePicker
-                value={field.value ? new Date(field.value) : undefined}
-                onChange={(date) =>
-                  field.onChange(date ? date.toISOString() : "")
-                }
-                format={[[], ["hours", "minutes", "seconds", "am/pm"]]}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="centre.breakTimeEnd"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Break Time End</FormLabel>
-            <FormControl>
-              <DatetimePicker
-                value={field.value ? new Date(field.value) : undefined}
-                onChange={(date) =>
-                  field.onChange(date ? date.toISOString() : "")
-                }
-                format={[[], ["hours", "minutes", "seconds", "am/pm"]]}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 
   return (
     <Dialog open={isOpen} onOpenChange={toggleDialog}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-w-fit flex flex-col h-[95%] w-full p-6 bg-gray-50 rounded-2xl shadow-2xl">
+      <DialogContent className="max-w-[98vw] max-h-[98vh] w-[98vw] h-[98vh] p-6 bg-gray-50 rounded-xl shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold mb-2">
+          <DialogTitle className="text-2xl font-bold mb-4">
             {isEdit ? "Edit Centre" : "Add Centre"}
           </DialogTitle>
-          <div className="text-gray-500 mb-6">{steps[step].description}</div>
         </DialogHeader>
-        <Stepper />
         <Form {...form}>
           <form
-            className="flex flex-1  flex-col h-full"
+            className="flex flex-col h-full"
             onSubmit={form.handleSubmit(handleSubmit)}
           >
-            <div className="bg-white  flex-1 rounded-xl p-4 shadow flex flex-col gap-8 transition-all duration-300 max-h-[80%] overflow-y-auto">
-              {step === 0 && renderUserFields()}
-              {step === 1 && renderCentreFields()}
+            <div className="bg-white flex-1 rounded-xl p-6 shadow overflow-y-auto max-h-[80vh]">
+              {renderAllFields()}
             </div>
-            <div className="flex-1 flex  gap-4 justify-center mt-8">
-              {step > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="px-8 py-3 text-lg"
-                  onClick={() => setStep(step - 1)}
-                >
-                  Back
-                </Button>
-              )}
-              {step < steps.length - 1 && (
-                <Button
-                  type="button"
-                  className="px-8 py-3 text-lg bg-primary-500 hover:bg-black cursor-pointer text-white"
-                  onClick={() => setStep(step + 1)}
-                  disabled={isCreating || isUpdating}
-                >
-                  Next
-                </Button>
-              )}
-              {step === steps.length - 1 && (
-                <Button
-                  type="submit"
-                  disabled={isCreating || isUpdating}
-                  className="px-8 py-3 text-lg bg-primary-500 hover:bg-black cursor-pointer text-white"
-                >
-                  {isCreateError || isUpdateError
-                    ? "Retry"
-                    : isEdit
-                      ? "Update Centre"
-                      : "Add Centre"}
-                  {isCreating ||
-                    (isUpdating && <Loader2 className="w-4 h-4 ml-2" />)}
-                </Button>
-              )}
+            <div className="flex justify-end gap-4 mt-6 pt-4 border-t border-gray-200">
               <Button
                 type="button"
                 variant="outline"
-                className="px-8 py-3 text-lg"
-                disabled={isCreating || isUpdating}
-                onClick={() => {
-                  form.reset();
-                  toggleDialog();
-                }}
+                className="px-8 py-3 min-w-[120px]"
+                onClick={toggleDialog}
               >
                 Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreating || isUpdating}
+                className="px-8 py-3 bg-primary-500 hover:bg-black cursor-pointer text-white min-w-[140px]"
+              >
+                {isCreateError || isUpdateError
+                  ? "Retry"
+                  : isEdit
+                    ? "Update Centre"
+                    : "Add Centre"}
+                {(isCreating || isUpdating) && <Loader2 className="w-4 h-4 ml-2" />}
               </Button>
             </div>
           </form>

@@ -149,16 +149,16 @@ export default function PureTonePage() {
           {
             SignalType: 0, // Steady
             CalibrationFrequencies: [
-              { Frequency: 250, MaxLevelHL: 45, MinLevelHL: -10, Calibration: 78 },
-              { Frequency: 500, MaxLevelHL: 65, MinLevelHL: -10, Calibration: 58 },
-              { Frequency: 750, MaxLevelHL: 70, MinLevelHL: -10, Calibration: 55 },
-              { Frequency: 1000, MaxLevelHL: 70, MinLevelHL: -10, Calibration: 50 },
-              { Frequency: 1500, MaxLevelHL: 70, MinLevelHL: -10, Calibration: 45 },
-              { Frequency: 2000, MaxLevelHL: 70, MinLevelHL: -10, Calibration: 45 },
-              { Frequency: 3000, MaxLevelHL: 70, MinLevelHL: -10, Calibration: 48 },
-              { Frequency: 4000, MaxLevelHL: 70, MinLevelHL: -10, Calibration: 49 },
-              { Frequency: 6000, MaxLevelHL: 50, MinLevelHL: -10, Calibration: 71 },
-              { Frequency: 8000, MaxLevelHL: 0, MinLevelHL: -10, Calibration: 0 }
+              { Frequency: 250, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 78 },
+              { Frequency: 500, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 58 },
+              { Frequency: 750, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 55 },
+              { Frequency: 1000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 50 },
+              { Frequency: 1500, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 45 },
+              { Frequency: 2000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 45 },
+              { Frequency: 3000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 48 },
+              { Frequency: 4000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 49 },
+              { Frequency: 6000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 71 },
+              { Frequency: 8000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 0 }
             ]
           }
         ]
@@ -175,6 +175,10 @@ export default function PureTonePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  // Track if data has been initially loaded to prevent overriding local changes
+  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
+  const [justCleared, setJustCleared] = useState(false);
+
   // Populate test results from existing audiometry data
   useEffect(() => {
     if (socket) {
@@ -187,6 +191,22 @@ export default function PureTonePage() {
       return;
 
     const consultationData = consultationResponse.data as ConsultationModelData;
+
+    // Only load data if we haven't loaded it initially, or if there are more results in backend than local state
+    // This prevents overriding local changes while still allowing for external updates
+    const backendAcCount = consultationData.audiometry?.acTests?.length || 0;
+    const backendBcCount = consultationData.audiometry?.bcTests?.length || 0;
+    const localTotalCount = acTestResults.length + bcTestResults.length;
+    const backendTotalCount = backendAcCount + backendBcCount;
+    
+    // Don't reload from backend if we just cleared the results
+    if (justCleared) {
+      return;
+    }
+    
+    if (hasInitiallyLoaded && backendTotalCount <= localTotalCount) {
+      return; // Don't override local state if backend doesn't have more data
+    }
 
     let existingAcResults: TestResult[] = [];
     let existingBcResults: TestResult[] = [];
@@ -239,7 +259,8 @@ export default function PureTonePage() {
     setAcTestResults(existingAcResults);
       setBcTestResults(existingBcResults);
     setTestResults([...existingAcResults, ...existingBcResults]);
-  }, [consultationResponse?.data, socket]);
+    setHasInitiallyLoaded(true);
+  }, [consultationResponse?.data, socket, hasInitiallyLoaded, acTestResults.length, bcTestResults.length]);
 
   // Auto-hide patient response indicator after 3 seconds
   useEffect(() => {
@@ -251,6 +272,17 @@ export default function PureTonePage() {
       return () => clearTimeout(timer);
     }
   }, [isPatientResponse]);
+
+  // Reset justCleared flag after a delay to allow backend sync
+  useEffect(() => {
+    if (justCleared) {
+      const timer = setTimeout(() => {
+        setJustCleared(false);
+      }, 2000); // Wait 2 seconds for backend to sync
+
+      return () => clearTimeout(timer);
+    }
+  }, [justCleared]);
 
   // Update transducer data only when valid data is received, fallback to dummy data
   useEffect(() => {
@@ -583,10 +615,8 @@ export default function PureTonePage() {
     }));
 
     const consultationData = consultationResponse.data as ConsultationModelData;
-    const dataToSend = {
-        ...consultationData,
-        audiometry: {
-          id: consultationData.audiometry?.id,
+    const audiometryData: any = {
+      id: consultationData.audiometry?.id || undefined,
           sessionId: consultationId as string,
           status: TestStatus.IN_PROGRESS,
           acTests: acTests,
@@ -594,14 +624,14 @@ export default function PureTonePage() {
           createdAt:
             consultationData.audiometry?.createdAt || new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        },
     };
 
-    // Debug logging
-    console.log(`Adding ${selectedMode} test result:`, newResult);
-    console.log(`Total AC tests: ${acTests.length}, Total BC tests: ${bcTests.length}`);
-    console.log('Data being sent to backend:', dataToSend.audiometry);
-    
+    const dataToSend = {
+        ...consultationData,
+        audiometry: audiometryData,
+    };
+
+ 
           updateConsultation(dataToSend, {
         onSuccess: (data) => {
           if (data.success) {
@@ -626,10 +656,79 @@ export default function PureTonePage() {
   const addResponse = () => addTestResult(false);  // false = normal response, no arrow
   const addNoResponse = () => addTestResult(true); // true = no response, show arrow
 
+  // Helper function to persist cleared results to backend
+  const persistClearedResults = (updatedAcResults: TestResult[], updatedBcResults: TestResult[]) => {
+    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+      return;
+
+    // Transform test results to match backend schema
+    const acTests = updatedAcResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y,
+      response: result.noResponse === 0,
+      maskingUsed: result.masking > 0,
+      maskingEar: result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
+    const bcTests = updatedBcResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y,
+      response: result.noResponse === 0,
+      maskingUsed: result.masking > 0,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
+    const consultationData = consultationResponse.data as ConsultationModelData;
+    const audiometryData: any = {
+      id: consultationData.audiometry?.id || undefined,
+        sessionId: consultationId as string,
+        status: TestStatus.IN_PROGRESS,
+        acTests: acTests,
+        bcTests: bcTests,
+      audiologicalDiagnosis: consultationData.audiometry?.audiologicalDiagnosis,
+      suggestion: consultationData.audiometry?.suggestion,
+      recommendation: consultationData.audiometry?.recommendation,
+        createdAt: consultationData.audiometry?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    };
+
+    const dataToSend = {
+      ...consultationData,
+      audiometry: audiometryData,
+    };
+
+    updateConsultation(dataToSend, {
+      onSuccess: (data) => {
+        if (data.success) {
+          // Force refresh of consultation data to sync with backend
+          queryClient.invalidateQueries({ 
+            queryKey: ['consultation', consultationId] 
+          });
+        } else {
+          toast.error(data.message);
+        }
+      },
+      onError: (error) => {
+        toast.error(`Failed to persist changes: ${error.message}`);
+      },
+    });
+  };
+
   const clearTest = () => {
+    const updatedAcResults: TestResult[] = [];
+    const updatedBcResults: TestResult[] = [];
+    
     setTestResults([]);
-      setAcTestResults([]);
-      setBcTestResults([]);
+    setAcTestResults([]);
+    setBcTestResults([]);
+    setJustCleared(true);
+    
+    // Persist cleared state to backend
+    persistClearedResults(updatedAcResults, updatedBcResults);
+    
     toast.info("All test results cleared. You can start over.");
   };
 
@@ -640,18 +739,28 @@ export default function PureTonePage() {
     setAcTestResults(filteredAcResults);
     setBcTestResults(filteredBcResults);
     setTestResults([...filteredAcResults, ...filteredBcResults]);
+    setJustCleared(true);
+    
+    // Persist cleared state to backend
+    persistClearedResults(filteredAcResults, filteredBcResults);
     
     toast.info(`${ear === "L" ? "Left" : "Right"} ear results cleared.`);
   };
 
+
+  
   const clearModeResults = (mode: "AC" | "BC") => {
-    if (mode === "AC") {
-      setAcTestResults([]);
-      setTestResults([...bcTestResults]);
-          } else {
-      setBcTestResults([]);
-      setTestResults([...acTestResults]);
-          }
+    const updatedAcResults = mode === "AC" ? [] : acTestResults;
+    const updatedBcResults = mode === "BC" ? [] : bcTestResults;
+    
+    // Update all state arrays consistently
+    setAcTestResults(updatedAcResults);
+    setBcTestResults(updatedBcResults);
+    setTestResults([...updatedAcResults, ...updatedBcResults]);
+    setJustCleared(true);
+    
+    // Persist cleared state to backend
+    persistClearedResults(updatedAcResults, updatedBcResults);
     
     toast.info(`${mode === "AC" ? "Air Conduction" : "Bone Conduction"} results cleared.`);
   };
@@ -712,6 +821,9 @@ export default function PureTonePage() {
           status: TestStatus.COMPLETED,
           acTests: acTests,
           bcTests: bcTests,
+          audiologicalDiagnosis: consultationData.audiometry?.audiologicalDiagnosis,
+          suggestion: consultationData.audiometry?.suggestion,
+          recommendation: consultationData.audiometry?.recommendation,
           createdAt:
             consultationData.audiometry?.createdAt || new Date().toISOString(),
           updatedAt: new Date().toISOString(),

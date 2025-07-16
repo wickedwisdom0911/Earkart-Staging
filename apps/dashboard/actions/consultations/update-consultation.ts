@@ -22,9 +22,7 @@ export async function updateConsultation(
     url,
     {
       method: "PUT",
-      body: JSON.stringify({
-        data,
-      }),
+      body: JSON.stringify(data),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${user.token}`,

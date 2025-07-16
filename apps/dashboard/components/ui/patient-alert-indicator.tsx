@@ -14,11 +14,11 @@ import {
   BellOff,
   X,
   ExternalLink,
-  Volume2,
-  VolumeX,
   Clock,
   User,
   Building2,
+  AlertTriangle,
+  UserX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -29,8 +29,6 @@ export const PatientAlertIndicator: React.FC = () => {
     activeAlertsCount,
     dismissAlert,
     dismissAllAlerts,
-    isAudioEnabled,
-    toggleAudio,
   } = usePatientAlerts();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -38,27 +36,47 @@ export const PatientAlertIndicator: React.FC = () => {
   const activeAlerts = alerts.filter((alert) => alert.isActive);
 
   const handleAlertClick = (consultationId: string, alertId: string) => {
+    console.log(`Opening consultation ${consultationId} and dismissing alert ${alertId}`);
     window.open(`/consultation/${consultationId}`, "_blank");
     dismissAlert(alertId);
     setIsOpen(false);
   };
 
+  const handleDismiss = (alertId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent any parent handlers
+    console.log(`User dismissed alert: ${alertId}`);
+    dismissAlert(alertId);
+  };
+
+  const handleDismissAll = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent any parent handlers
+    console.log("User dismissed all alerts");
+    dismissAllAlerts();
+  };
+
+  const handlePopoverOpen = (open: boolean) => {
+    setIsOpen(open);
+  };
+
+  const getReasonIcon = (reason: "NO_AUDIOLOGIST" | "PENDING_STATUS") => {
+    return reason === "NO_AUDIOLOGIST" ? (
+      <UserX className="h-4 w-4 text-orange-600" />
+    ) : (
+      <AlertTriangle className="h-4 w-4 text-yellow-600" />
+    );
+  };
+
+  const getReasonText = (reason: "NO_AUDIOLOGIST" | "PENDING_STATUS") => {
+    return reason === "NO_AUDIOLOGIST" ? "No Audiologist Assigned" : "Consultation Pending";
+  };
+
+  const getReasonColor = (reason: "NO_AUDIOLOGIST" | "PENDING_STATUS") => {
+    return reason === "NO_AUDIOLOGIST" ? "text-orange-700" : "text-yellow-700";
+  };
+
   if (activeAlertsCount === 0) {
     return (
       <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={toggleAudio}
-          className="p-2"
-          title={isAudioEnabled ? "Disable alert sounds" : "Enable alert sounds"}
-        >
-          {isAudioEnabled ? (
-            <Volume2 className="h-4 w-4 text-green-600" />
-          ) : (
-            <VolumeX className="h-4 w-4 text-gray-400" />
-          )}
-        </Button>
         <Bell className="h-5 w-5 text-gray-400" />
       </div>
     );
@@ -66,31 +84,17 @@ export const PatientAlertIndicator: React.FC = () => {
 
   return (
     <div className="flex items-center gap-2">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={toggleAudio}
-        className="p-2"
-        title={isAudioEnabled ? "Disable alert sounds" : "Enable alert sounds"}
-      >
-        {isAudioEnabled ? (
-          <Volume2 className="h-4 w-4 text-green-600" />
-        ) : (
-          <VolumeX className="h-4 w-4 text-gray-400" />
-        )}
-      </Button>
-
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <Popover open={isOpen} onOpenChange={handlePopoverOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
-            className="relative p-2 hover:bg-red-50 transition-colors"
+            className="relative p-2 hover:bg-orange-50 transition-colors"
           >
-            <Bell className="h-5 w-5 text-red-600 animate-pulse" />
+            <Bell className="h-5 w-5 text-orange-600 animate-pulse" />
             <Badge
               variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs animate-bounce"
+              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center text-xs bg-orange-600 border-2 border-white shadow-md"
             >
               {activeAlertsCount}
             </Badge>
@@ -98,18 +102,18 @@ export const PatientAlertIndicator: React.FC = () => {
         </PopoverTrigger>
 
         <PopoverContent
-          className="w-96 p-0 border-2 border-red-200"
+          className="w-96 p-0 border-2 border-orange-200"
           align="end"
           sideOffset={10}
         >
-          <div className="bg-red-50 border-b border-red-200 p-4">
+          <div className="bg-orange-50 border-b border-orange-200 p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Bell className="h-5 w-5 text-red-600" />
-                <h3 className="font-semibold text-red-900">
-                  Patient Join Alerts
+                <Bell className="h-5 w-5 text-orange-600" />
+                <h3 className="font-semibold text-orange-900">
+                  Consultation Alerts
                 </h3>
-                <Badge variant="destructive" className="text-xs">
+                <Badge variant="destructive" className="text-xs bg-orange-600">
                   {activeAlertsCount}
                 </Badge>
               </div>
@@ -117,8 +121,8 @@ export const PatientAlertIndicator: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={dismissAllAlerts}
-                  className="text-red-600 hover:text-red-700 text-xs h-7"
+                  onClick={handleDismissAll}
+                  className="text-orange-600 hover:text-orange-700 text-xs h-7"
                 >
                   Clear All
                 </Button>
@@ -143,10 +147,11 @@ export const PatientAlertIndicator: React.FC = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                      <span className="font-medium text-green-700 text-sm">
-                        Patient Joined
+                      <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                      <span className={`font-medium text-sm ${getReasonColor(alert.reason)}`}>
+                        {getReasonText(alert.reason)}
                       </span>
+                      {getReasonIcon(alert.reason)}
                     </div>
 
                     <div className="space-y-1">
@@ -174,15 +179,15 @@ export const PatientAlertIndicator: React.FC = () => {
                         onClick={() =>
                           handleAlertClick(alert.consultationId, alert.id)
                         }
-                        className="h-7 text-xs bg-blue-600 hover:bg-blue-700"
+                        className="h-7 text-xs bg-orange-600 hover:bg-orange-700"
                       >
                         <ExternalLink className="h-3 w-3 mr-1" />
-                        Join Consultation
+                        View Consultation
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => dismissAlert(alert.id)}
+                        onClick={(e) => handleDismiss(alert.id, e)}
                         className="h-7 text-xs text-gray-600 hover:text-gray-800"
                       >
                         Dismiss

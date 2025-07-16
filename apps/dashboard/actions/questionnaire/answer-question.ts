@@ -6,10 +6,12 @@ import { verifySession } from "@/lib/session";
 import {
   SubmitAnswersModelSchema,
   SubmitAnswersModel,
+  SubmitAnswersRequestSchema,
+  SubmitAnswersRequest,
 } from "@/models/questionnaire.model";
 
 export default async function submitAnswers(
-  payload: SubmitAnswersModel
+  payload: SubmitAnswersRequest
 ): Promise<SubmitAnswersModel> {
   const { consultationId, answers } = payload;
   const baseUrl = await getBaseUrl();

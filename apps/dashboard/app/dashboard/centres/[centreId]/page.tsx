@@ -59,10 +59,10 @@ export default function CentrePage() {
                   {centre.code || "Centre Code"}
                 </div>
                 <Link
-                  href={ROUTES.DEVICE(centre.device?.deviceCode || "")}
+                  href={ROUTES.DEVICE(centre.device?.code || centre.device?.id || "")}
                   className="text-sm text-primary-600 flex gap-2 items-center dark:text-gray-500 mb-1"
                 >
-                  Assigned Device: {centre.device?.deviceCode || "NDA"}
+                  Assigned Device: {centre.device?.code || "No Code"}
                   <ArrowRight className="w-4 stroke-primary-600 h-4" />
                 </Link>
               </div>
@@ -213,6 +213,44 @@ export default function CentrePage() {
                 </div>
               </div>
             </div>
+            
+            {/* Pricing Section */}
+            {(centre.centrePricing && centre.centrePricing.length > 0) && (
+              <div className="border-t border-gray-200 dark:border-neutral-800 pt-6 mt-2">
+                <div className="font-semibold text-gray-700 dark:text-gray-200 mb-4">
+                  Test Pricing
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {centre.centrePricing.map((pricing, index) => (
+                    <div
+                      key={pricing.id || index}
+                      className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-4 border border-gray-200 dark:border-neutral-700"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold text-gray-800 dark:text-gray-200">
+                          {pricing.name}
+                        </h3>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-semibold ${
+                            pricing.status === "ACTIVE"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                              : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                          }`}
+                        >
+                          {pricing.status}
+                        </span>
+                      </div>
+                      <div className="text-2xl font-bold text-primary-600 dark:text-primary-400 mb-2">
+                        ₹{pricing.price}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        {pricing.description}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

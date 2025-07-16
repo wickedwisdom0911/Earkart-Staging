@@ -5,12 +5,23 @@ import { userModelDataSchema } from "./user.model";
 
 export const DeviceModelDataSchema = z.object({
   id: z.string().optional(),
-  deviceCode: z.string(),
+  code: z.string().optional().nullable(),
+  codeSequence: z.number().optional().nullable(),
   tabletID: z.string().optional().nullable(),
   deviceID: z.string().optional().nullable(),
+  otoscopeID: z.string().optional().nullable(),
   tabletAppVersion: z.string().optional().nullable(),
   status: z.nativeEnum(StatusEnum),
 });
+
+export const PricingSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1, "Test name is required"),
+  price: z.number().min(0, "Price must be positive"),
+  description: z.string().min(1, "Description is required"),
+  status: z.nativeEnum(StatusEnum),
+});
+
 export const CentreModelDataSchema = z.object({
   id: z.string().optional(),
   userId: z.string().optional(),
@@ -35,6 +46,8 @@ export const CentreModelDataSchema = z.object({
   workingTimeEnd: z.string(),
   breakTimeStart: z.string(),
   breakTimeEnd: z.string(),
+  pricing: z.array(PricingSchema).default([]),
+  centrePricing: z.array(PricingSchema).optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   city: CityModelDataSchema.optional(),
@@ -59,3 +72,4 @@ export type CentreModel = z.infer<typeof CentreModelSchema>;
 export type CreateCentreModel = z.infer<typeof CreateCentreModelSchema>;
 export type CentreModelData = z.infer<typeof CentreModelDataSchema>;
 export type CreateCenterProfile = z.infer<typeof CreateCenterProfileSchema>;
+export type Pricing = z.infer<typeof PricingSchema>;

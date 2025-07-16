@@ -90,13 +90,12 @@ const MetricCard = ({
   change?: number;
   icon: any;
   trend?: 'up' | 'down' | 'stable';
-  color?: 'blue' | 'green' | 'red' | 'purple' | 'orange' | 'cyan';
+  color?: 'blue' | 'green' | 'red' | 'orange' | 'cyan';
 }) => {
   const colorClasses = {
     blue: "bg-blue-50 border-blue-200 text-blue-600",
     green: "bg-green-50 border-green-200 text-green-600",
     red: "bg-red-50 border-red-200 text-red-600",
-    purple: "bg-purple-50 border-purple-200 text-purple-600",
     orange: "bg-orange-50 border-orange-200 text-orange-600",
     cyan: "bg-cyan-50 border-cyan-200 text-cyan-600",
   };
@@ -104,7 +103,7 @@ const MetricCard = ({
   const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
 
   return (
-    <Card className="transition-all duration-300 hover:shadow-lg hover:scale-[1.02] border-l-4 border-l-purple-500">
+    <Card className="transition-all duration-300 hover:shadow-lg hover:scale-[1.02] border-l-4 border-l-primary-600">
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -134,8 +133,8 @@ const MetricCard = ({
 const LoadingSpinner = () => (
   <div className="flex flex-col items-center justify-center h-64 space-y-4">
     <div className="relative">
-      <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-      <div className="absolute inset-0 w-12 h-12 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150"></div>
+              <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+        <div className="absolute inset-0 w-12 h-12 border-4 border-transparent border-r-primary-400 rounded-full animate-spin animation-delay-150"></div>
     </div>
     <div className="text-center">
       <p className="text-lg font-medium text-gray-700">Loading audiologist metrics...</p>
@@ -220,7 +219,7 @@ export default function AudiologistMetricsPage() {
         variant="outline"
         size="sm"
         onClick={() => setShowFilters(!showFilters)}
-        className="transition-all duration-200 hover:bg-purple-50 hover:border-purple-300"
+        className="transition-all duration-200 hover:bg-primary-50 hover:border-primary-300"
       >
         <Filter className="h-4 w-4 mr-2" />
         Filters
@@ -241,7 +240,7 @@ export default function AudiologistMetricsPage() {
         size="sm"
         onClick={handleExport}
         disabled={isExporting}
-        className="transition-all duration-200 hover:bg-purple-50 hover:border-purple-300"
+        className="transition-all duration-200 hover:bg-primary-50 hover:border-primary-300"
       >
         <Download className={cn("h-4 w-4 mr-2", isExporting && "animate-bounce")} />
         Export
@@ -256,7 +255,7 @@ export default function AudiologistMetricsPage() {
         {showFilters && (
           <div className="transition-all duration-500 ease-in-out">
             <Card className="border-2 border-dashed border-gray-200 bg-gradient-to-br from-gray-50 to-white">
-              <CardHeader className="bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-t-lg">
+              <CardHeader className="bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-t-lg">
                 <CardTitle className="flex items-center space-x-2">
                   <Filter className="h-5 w-5" />
                   <span>Advanced Filters</span>
@@ -277,7 +276,7 @@ export default function AudiologistMetricsPage() {
                           </FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger className="h-11 border-2 border-gray-200 hover:border-purple-300 focus:border-purple-500 transition-colors">
+                              <SelectTrigger className="h-11 border-2 border-gray-200 hover:border-primary-300 focus:border-primary-500 transition-colors">
                                 <SelectValue placeholder="Select metric type" />
                               </SelectTrigger>
                             </FormControl>
@@ -301,7 +300,7 @@ export default function AudiologistMetricsPage() {
                           </FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger className="h-11 border-2 border-gray-200 hover:border-purple-300 focus:border-purple-500 transition-colors">
+                              <SelectTrigger className="h-11 border-2 border-gray-200 hover:border-primary-300 focus:border-primary-500 transition-colors">
                                 <SelectValue placeholder="Select aggregation" />
                               </SelectTrigger>
                             </FormControl>
@@ -327,7 +326,7 @@ export default function AudiologistMetricsPage() {
                           </FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger className="h-11 border-2 border-gray-200 hover:border-purple-300 focus:border-purple-500 transition-colors">
+                              <SelectTrigger className="h-11 border-2 border-gray-200 hover:border-primary-300 focus:border-primary-500 transition-colors">
                                 <SelectValue placeholder="Select grouping" />
                               </SelectTrigger>
                             </FormControl>
@@ -354,7 +353,7 @@ export default function AudiologistMetricsPage() {
                           </FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger className="h-11 border-2 border-gray-200 hover:border-purple-300 focus:border-purple-500 transition-colors">
+                              <SelectTrigger className="h-11 border-2 border-gray-200 hover:border-primary-300 focus:border-primary-500 transition-colors">
                                 <SelectValue placeholder="Select time range" />
                               </SelectTrigger>
                             </FormControl>
@@ -481,7 +480,7 @@ export default function AudiologistMetricsPage() {
                 title="Total"
                 value={data.summary.total.toLocaleString()}
                 icon={Stethoscope}
-                color="purple"
+                color="blue"
               />
               <MetricCard
                 title="Average"

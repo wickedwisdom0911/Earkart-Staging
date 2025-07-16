@@ -36,7 +36,7 @@ const MetricCard = ({
   icon: any;
   change?: number;
   trend?: 'up' | 'down' | 'stable';
-  color?: 'blue' | 'green' | 'red' | 'purple' | 'orange' | 'cyan';
+  color?: 'blue' | 'green' | 'red' | 'orange' | 'cyan';
   subtitle?: string;
   className?: string;
 }) => {
@@ -44,7 +44,6 @@ const MetricCard = ({
     blue: "bg-blue-50 border-blue-200 text-blue-600",
     green: "bg-green-50 border-green-200 text-green-600",
     red: "bg-red-50 border-red-200 text-red-600",
-    purple: "bg-purple-50 border-purple-200 text-purple-600",
     orange: "bg-orange-50 border-orange-200 text-orange-600",
     cyan: "bg-cyan-50 border-cyan-200 text-cyan-600",
   };
@@ -66,7 +65,7 @@ const MetricCard = ({
   };
 
   return (
-    <Card className={cn("transition-all duration-300 hover:shadow-md hover:scale-[1.01] border-l-4 border-l-purple-500", className)}>
+    <Card className={cn("transition-all duration-300 hover:shadow-md hover:scale-[1.01] border-l-4 border-l-primary-600", className)}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -171,8 +170,8 @@ const ServiceCard = ({
 const LoadingSpinner = () => (
   <div className="flex flex-col items-center justify-center h-48 space-y-4">
     <div className="relative">
-      <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-      <div className="absolute inset-0 w-10 h-10 border-4 border-transparent border-r-purple-400 rounded-full animate-spin animation-delay-150"></div>
+              <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+        <div className="absolute inset-0 w-10 h-10 border-4 border-transparent border-r-primary-400 rounded-full animate-spin animation-delay-150"></div>
     </div>
     <div className="text-center">
       <p className="text-lg font-medium text-gray-700">Loading dashboard...</p>
@@ -197,7 +196,7 @@ export default function DashboardOverviewPage() {
     <button
       onClick={handleRefresh}
       disabled={isLoading}
-      className="flex items-center space-x-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm"
+                className="flex items-center space-x-2 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
     >
       <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
       <span>Refresh</span>
@@ -250,7 +249,7 @@ export default function DashboardOverviewPage() {
                 title="Active Audiologists"
                 value={dashboardData.dashboard.activeAudiologists}
                 icon={Activity}
-                color="purple"
+                color="blue"
               />
               <MetricCard
                 title="Revenue This Month"
@@ -278,7 +277,7 @@ export default function DashboardOverviewPage() {
                 title="Active Consultations"
                 value={dashboardData.realTime.activeConsultations}
                 icon={Activity}
-                color="purple"
+                color="blue"
                 subtitle="Currently running"
               />
             </div>
