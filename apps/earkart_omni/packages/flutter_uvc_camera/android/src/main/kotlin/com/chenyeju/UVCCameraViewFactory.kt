@@ -51,5 +51,21 @@ class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private va
         cameraView.updateResolution(arguments)
     }
 
+    fun captureFrameAsBase64(callback: UVCStringCallback) {
+        cameraView.captureFrameAsBase64(callback)
+    }
+
+    fun startFrameCapture() {
+        cameraView.startFrameCapture()
+    }
+
+    fun stopFrameCapture() {
+        cameraView.stopFrameCapture()
+    }
+
+    fun getLastCapturedFrame(callback: UVCStringCallback) {
+        cameraView.getLastCapturedFrame(callback)
+    }
+
 
 }

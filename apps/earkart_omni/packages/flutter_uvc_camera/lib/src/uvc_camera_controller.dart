@@ -176,6 +176,50 @@ class UVCCameraController {
     }
   }
 
+  /// Capture current frame as base64 image for streaming
+  Future<String?> captureFrameAsBase64() async {
+    if (_cameraState == UVCCameraState.closed) {
+      throw Exception('Camera must be opened before capturing frames');
+    }
+
+    try {
+      // Call native method to capture frame as base64
+      final result =
+          await _cameraChannel?.invokeMethod<String>('captureFrameAsBase64');
+      debugPrint("Frame captured as base64: ${result?.substring(0, 50)}...");
+      return result;
+    } catch (e) {
+      debugPrint("Error capturing frame as base64: $e");
+      return null;
+    }
+  }
+
+  /// Start continuous frame capture for streaming
+  void startFrameCapture() {
+    if (_cameraState == UVCCameraState.opened) {
+      _cameraChannel?.invokeMethod('startFrameCapture');
+      debugPrint("Started frame capture for streaming");
+    }
+  }
+
+  /// Stop continuous frame capture
+  void stopFrameCapture() {
+    _cameraChannel?.invokeMethod('stopFrameCapture');
+    debugPrint("Stopped frame capture");
+  }
+
+  /// Get the last captured frame as base64
+  Future<String?> getLastCapturedFrame() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod<String>('getLastCapturedFrame');
+      return result;
+    } catch (e) {
+      debugPrint("Error getting last captured frame: $e");
+      return null;
+    }
+  }
+
   bool _isRecording = false;
   bool get isRecording => _isRecording;
 

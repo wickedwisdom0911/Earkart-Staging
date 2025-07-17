@@ -994,7 +994,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                       ),
                     ),
                     // Right half - UVC Camera
-                    Expanded(flex: 1, child: UVCCameraWidget()),
+                    Expanded(flex: 1, child: UVCCameraWidget(socket: socket)),
                   ],
                 );
               } else {

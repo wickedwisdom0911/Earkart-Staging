@@ -556,14 +556,14 @@ internal class UVCCameraView(
 
     private fun getCameraRequest(): CameraRequest {
         return CameraRequest.Builder()
-            .setPreviewWidth(640)
-            .setPreviewHeight(480)
+            .setPreviewWidth(1280)
+            .setPreviewHeight(720)
             .setRenderMode(CameraRequest.RenderMode.OPENGL)
             .setDefaultRotateType(RotateType.ANGLE_0)
             .setAudioSource(CameraRequest.AudioSource.SOURCE_SYS_MIC)
             .setAspectRatioShow(true)
             .setCaptureRawImage(false)
-            .setRawPreviewData(false)
+            .setRawPreviewData(true) // Enable raw preview data for better frame capture
             .create()
     }
 
@@ -661,6 +661,77 @@ internal class UVCCameraView(
             }
 
         })
+    }
+
+    // Frame capture for otoscopy streaming
+    private var isFrameCaptureActive = false
+    private var lastCapturedFrame: String? = null
+    private val frameCaptureHandler = Handler(Looper.getMainLooper())
+    private val frameCaptureRunnable = object : Runnable {
+        override fun run() {
+            if (isFrameCaptureActive && isCameraOpened()) {
+                captureFrameAsBase64Internal()
+                frameCaptureHandler.postDelayed(this, 33) // 30 FPS (33ms)
+            }
+        }
+    }
+
+    fun captureFrameAsBase64(callback: UVCStringCallback) {
+        if (!isCameraOpened()) {
+            callback.onError("Camera not opened")
+            return
+        }
+        
+        try {
+            val currentCamera = getCurrentCamera()
+            if (currentCamera is CameraUVC) {
+                currentCamera.captureFrameAsBase64 { base64Data ->
+                    callback.onSuccess(base64Data)
+                }
+            } else {
+                callback.onError("Camera not available")
+            }
+        } catch (e: Exception) {
+            callback.onError("Frame capture error: ${e.message}")
+        }
+    }
+
+    fun startFrameCapture() {
+        if (!isCameraOpened()) {
+            callFlutter("Camera not opened for frame capture")
+            return
+        }
+        
+        isFrameCaptureActive = true
+        frameCaptureHandler.post(frameCaptureRunnable)
+        callFlutter("Started frame capture for streaming")
+    }
+
+    fun stopFrameCapture() {
+        isFrameCaptureActive = false
+        frameCaptureHandler.removeCallbacks(frameCaptureRunnable)
+        callFlutter("Stopped frame capture")
+    }
+
+    fun getLastCapturedFrame(callback: UVCStringCallback) {
+        if (lastCapturedFrame != null) {
+            callback.onSuccess(lastCapturedFrame!!)
+        } else {
+            callback.onError("No frame captured yet")
+        }
+    }
+
+    private fun captureFrameAsBase64Internal() {
+        try {
+            val currentCamera = getCurrentCamera()
+            if (currentCamera is CameraUVC) {
+                currentCamera.captureFrameAsBase64 { base64Data ->
+                    lastCapturedFrame = base64Data
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in frame capture: ${e.message}")
+        }
     }
 
 }

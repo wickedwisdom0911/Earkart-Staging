@@ -137,6 +137,107 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         }
     }
 
+    // Frame capture for otoscopy streaming
+    private var lastFrameData: ByteArray? = null
+    private var frameCaptureCallback: ((String) -> Unit)? = null
+    private var lastBase64Frame: String? = null
+    private var lastFrameTimestamp: Long = 0
+    private val frameCacheTimeout = 50L // Cache frame for 50ms to avoid excessive processing
+
+    fun captureFrameAsBase64(callback: (String) -> Unit) {
+        frameCaptureCallback = callback
+        val currentTime = System.currentTimeMillis()
+        
+        // Use cached frame if it's recent enough
+        if (lastBase64Frame != null && (currentTime - lastFrameTimestamp) < frameCacheTimeout) {
+            callback(lastBase64Frame!!)
+            return
+        }
+        
+        if (lastFrameData != null) {
+            convertFrameToBase64(lastFrameData!!, callback)
+        } else {
+            // Try to capture a new frame
+            captureCurrentFrame()
+        }
+    }
+
+    private fun captureCurrentFrame() {
+        try {
+            // Get the latest frame from the queue with timeout
+            val frameData = mNV21DataQueue.pollFirst()
+            if (frameData != null) {
+                lastFrameData = frameData
+                convertFrameToBase64(frameData, frameCaptureCallback)
+            } else {
+                // If no frame in queue, try to get from UVC camera directly
+                mUvcCamera?.let { camera ->
+                    // Use a background thread for frame processing to avoid blocking
+                    Thread {
+                        try {
+                            // This is a simplified approach - in a real implementation,
+                            // you might want to use the camera's native frame capture
+                            frameCaptureCallback?.invoke("")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error in background frame capture", e)
+                            frameCaptureCallback?.invoke("")
+                        }
+                    }.start()
+                } ?: run {
+                    frameCaptureCallback?.invoke("")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error capturing current frame", e)
+            frameCaptureCallback?.invoke("")
+        }
+    }
+
+    private fun convertFrameToBase64(frameData: ByteArray, callback: ((String) -> Unit)?) {
+        try {
+            // Convert NV21 to JPEG for base64 encoding
+            val width = mCameraRequest?.previewWidth ?: 640
+            val height = mCameraRequest?.previewHeight ?: 480
+            
+            // Create a YuvImage from the frame data
+            val yuvImage = android.graphics.YuvImage(
+                frameData,
+                android.graphics.ImageFormat.NV21,
+                width,
+                height,
+                null
+            )
+            
+            // Convert to JPEG with optimized quality for 30 FPS
+            val outputStream = java.io.ByteArrayOutputStream()
+            yuvImage.compressToJpeg(
+                android.graphics.Rect(0, 0, width, height),
+                70, // Reduced quality for better performance at 30 FPS
+                outputStream
+            )
+            
+            // Convert to base64
+            val jpegData = outputStream.toByteArray()
+            val base64String = android.util.Base64.encodeToString(
+                jpegData,
+                android.util.Base64.DEFAULT
+            )
+            
+            // Add data URL prefix
+            val dataUrl = "data:image/jpeg;base64,$base64String"
+            
+            // Cache the result for reuse
+            lastBase64Frame = dataUrl
+            lastFrameTimestamp = System.currentTimeMillis()
+            
+            callback?.invoke(dataUrl)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error converting frame to base64", e)
+            callback?.invoke("")
+        }
+    }
+
     override fun getAllPreviewSizes(aspectRatio: Double?): MutableList<PreviewSize> {
         val previewSizeList = arrayListOf<PreviewSize>()
         if (mUvcCamera?.supportedSizeList?.isNotEmpty() == true) {

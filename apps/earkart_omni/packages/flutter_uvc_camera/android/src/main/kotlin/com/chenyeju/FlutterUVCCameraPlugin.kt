@@ -118,6 +118,42 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 mUVCCameraViewFactory.updateResolution(call.arguments())
             }
 
+            "captureFrameAsBase64" -> {
+                mUVCCameraViewFactory.captureFrameAsBase64(
+                    object : UVCStringCallback {
+                        override fun onSuccess(base64Data: String) {
+                            result.success(base64Data)
+                        }
+                        override fun onError(error: String) {
+                            result.error("error", error, error)
+                        }
+                    }
+                )
+            }
+
+            "startFrameCapture" -> {
+                mUVCCameraViewFactory.startFrameCapture()
+                result.success(true)
+            }
+
+            "stopFrameCapture" -> {
+                mUVCCameraViewFactory.stopFrameCapture()
+                result.success(true)
+            }
+
+            "getLastCapturedFrame" -> {
+                mUVCCameraViewFactory.getLastCapturedFrame(
+                    object : UVCStringCallback {
+                        override fun onSuccess(base64Data: String) {
+                            result.success(base64Data)
+                        }
+                        override fun onError(error: String) {
+                            result.error("error", error, error)
+                        }
+                    }
+                )
+            }
+
             "getPlatformVersion" -> {
                 result.success("Android " + Build.VERSION.RELEASE)
             }
