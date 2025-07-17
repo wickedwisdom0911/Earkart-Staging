@@ -644,13 +644,13 @@ export default function ReportPage() {
                   }}
                 >
                   <div className="transform skew-x-10">
-                    <p className="font-bold text-sm">Clinic Name</p>
+                    <p className="font-bold text-sm">{consultationData.centre?.user?.name || "Clinic Name"}</p>
                     <div className="flex items-center justify-end mt-1">
-                      <span className="text-xs mr-1">+91 XXXXXXXXXX</span>
+                      <span className="text-xs mr-1">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
                       <span className="text-xs">📞</span>
                     </div>
                     <div className="flex items-center justify-end">
-                      <span className="text-xs mr-1">Address</span>
+                      <span className="text-xs mr-1">{consultationData.centre?.address || "Address"}</span>
                       <span className="text-xs">📍</span>
                     </div>
                   </div>
@@ -959,7 +959,7 @@ export default function ReportPage() {
             <div className="flex justify-center items-center space-x-8 text-sm">
               <div className="flex items-center">
                 <span className="mr-2">📞</span>
-                <span>+91 9289097578</span>
+                <span>{consultationData.centre?.contactNumber || "+91 9289097578"}</span>
               </div>
               <div className="flex items-center">
                 <span className="mr-2">🌐</span>

@@ -1,6 +1,6 @@
 
 "use client";
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import useUpdateAudiologistActivity from "@/hooks/audiologist/use-update-audiologist-activity"
 import { Role, AudiologistActivityType } from "@/models/enums";
@@ -35,7 +35,6 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     user && (user.role === Role.AUDIOLOGIST || user.role === Role.HEAD_AUDIOLOGIST)
   );
 
-  // Only call the API if user is an audiologist or head audiologist
   const { data: activityData, refetch: refetchActivity } = useGetAudiologistActivity(
     canTrack ? (user?.id || "") : ""
   );
@@ -45,6 +44,8 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   const [elapsed, setElapsed] = useState(0);
   const [timerId, setTimerId] = useState<NodeJS.Timeout | null>(null);
   const [currentActivity, setCurrentActivity] = useState<UserActivity | undefined>(undefined);
+  const startTimeRef = useRef<number | null>(null);
+  const isNewActivityRef = useRef<boolean>(false);
 
 
 
@@ -56,6 +57,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       }
       setCurrentActivity(undefined);
       setElapsed(0);
+      startTimeRef.current = null;
       return;
     }
 
@@ -66,24 +68,67 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       customActivity: activityData.details || undefined,
     };
     setCurrentActivity(act);
+    
     const startMs = new Date(act.startTime).getTime();
-    const deltaSec = Math.floor((Date.now() - startMs) / 1000);
-    setElapsed(deltaSec > 0 ? deltaSec : 0);
+    const now = Date.now();
+    const initialElapsed = Math.floor((now - startMs) / 1000);
+    
+    const storedStartTime = localStorage.getItem('activityStartTime');
+    const hasStoredTime = !!storedStartTime;
+    
+    const isNewActivity = isNewActivityRef.current || (!currentActivity && !hasStoredTime);
+    
+    if (isNewActivity) {
+      startTimeRef.current = now;
+      setElapsed(0);
+      isNewActivityRef.current = false;
+    } else {
+      if (storedStartTime) {
+        const localStartMs = parseInt(storedStartTime);
+        const localElapsed = Math.floor((now - localStartMs) / 1000);
+        startTimeRef.current = localStartMs;
+        setElapsed(Math.max(0, localElapsed));
+      } else {
+        if (initialElapsed < 0) {
+          const timeOffset = Math.abs(initialElapsed);
+          startTimeRef.current = now - (timeOffset * 1000);
+          setElapsed(0);
+        } else {
+          startTimeRef.current = startMs;
+          setElapsed(initialElapsed);
+        }
+      }
+    }
 
-    const id = setInterval(() => setElapsed(e => e + 1), 1000);
+    const id = setInterval(() => {
+      if (startTimeRef.current) {
+        const currentTime = Date.now();
+        const totalElapsed = Math.floor((currentTime - startTimeRef.current) / 1000);
+        setElapsed(Math.max(0, totalElapsed));
+      }
+    }, 1000);
+    
     setTimerId(id);
     return () => clearInterval(id);
   }, [activityData, canTrack]);
 
   const startActivity = (type: AudiologistActivityType, details?: string) => {
     if (!user?.id || !canTrack) return;
+    
+    isNewActivityRef.current = true;
+    
+    const localStartTime = Date.now();
+    localStorage.setItem('activityStartTime', localStartTime.toString());
+    
     updateActivity(
       { audiologistId: user.id, type },
       {
         onSuccess: () => {
-          // Refresh data
           refetchActivity();
-          }
+        },
+        onError: (error) => {
+          console.error("Failed to start activity:", error);
+        }
       }
     );
   };
@@ -94,14 +139,15 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       { audiologistId: user.id, id: currentActivity.id },
       {
         onSuccess: () => {
-          // reset UI
           if (timerId) {
             clearInterval(timerId);
             setTimerId(null);
           }
           setElapsed(0);
           setCurrentActivity(undefined);
-          // refetch to clear API record
+          startTimeRef.current = null;
+          isNewActivityRef.current = false;
+          localStorage.removeItem('activityStartTime');
           refetchActivity();
         },
         onError: (error) => {
