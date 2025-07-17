@@ -93,6 +93,13 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   int _consecutiveEmptyFrames = 0;
   static const int _maxConsecutiveEmptyFrames = 5;
 
+  // Frame buffering to prevent black frames
+  String? _lastValidFrame;
+  DateTime? _lastFrameTime;
+  static const Duration _frameTimeout = Duration(
+    milliseconds: 200,
+  ); // 200ms timeout for frames
+
   @override
   void initState() {
     super.initState();
@@ -271,12 +278,33 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             if (base64Image != null &&
                 base64Image.isNotEmpty &&
                 base64Image != 'data:image/jpeg;base64,' &&
+                base64Image.length > 100 && // Ensure frame has actual data
                 _isOtoscopyStreaming &&
                 !_isDisposed) {
+              // Store valid frame
+              _lastValidFrame = base64Image;
+              _lastFrameTime = DateTime.now();
+
               _streamFrameToDashboard(base64Image);
               _consecutiveEmptyFrames = 0; // Reset counter on successful frame
             } else {
               _consecutiveEmptyFrames++;
+
+              // Use last valid frame if available and not too old
+              if (_lastValidFrame != null && _lastFrameTime != null) {
+                final timeSinceLastFrame = DateTime.now().difference(
+                  _lastFrameTime!,
+                );
+                if (timeSinceLastFrame < _frameTimeout) {
+                  _streamFrameToDashboard(_lastValidFrame!);
+                  print(
+                    'uvc_stream: Using cached frame (${timeSinceLastFrame.inMilliseconds}ms old)',
+                  );
+                } else {
+                  print('uvc_stream: Cached frame too old, skipping');
+                }
+              }
+
               if (_consecutiveEmptyFrames >= _maxConsecutiveEmptyFrames) {
                 print(
                   'uvc_stream: ⚠️ Too many consecutive empty frames ($_consecutiveEmptyFrames), pausing streaming temporarily',
@@ -288,10 +316,28 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           .catchError((error) {
             print('uvc_stream: ❌ Error capturing frame: $error');
             _consecutiveEmptyFrames++;
+
+            // Use last valid frame on error
+            if (_lastValidFrame != null && _lastFrameTime != null) {
+              final timeSinceLastFrame = DateTime.now().difference(
+                _lastFrameTime!,
+              );
+              if (timeSinceLastFrame < _frameTimeout) {
+                _streamFrameToDashboard(_lastValidFrame!);
+              }
+            }
           });
     } catch (e) {
       print('uvc_stream: ❌ Error in frame capture: $e');
       _consecutiveEmptyFrames++;
+
+      // Use last valid frame on error
+      if (_lastValidFrame != null && _lastFrameTime != null) {
+        final timeSinceLastFrame = DateTime.now().difference(_lastFrameTime!);
+        if (timeSinceLastFrame < _frameTimeout) {
+          _streamFrameToDashboard(_lastValidFrame!);
+        }
+      }
     }
   }
 
@@ -379,7 +425,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     // This is a placeholder - you'll need to implement actual frame capture
     // in the UVC camera plugin
     await Future.delayed(const Duration(milliseconds: 10));
-    return 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=';
+    return 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxAAPwCdABmX/9k=';
   }
 
   // Stream frame to dashboard via socket

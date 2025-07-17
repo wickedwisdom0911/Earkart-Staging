@@ -143,23 +143,46 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     private var lastFrameCaptureTime: Long = 0
     private val MIN_FRAME_INTERVAL = 50L // Minimum 50ms between frames (20 FPS max)
     private var isFrameCaptureActive = false
+    private var lastValidFrame: String? = null // Store last valid frame as fallback
 
-    fun captureFrameAsBase64(callback: (String) -> Unit) {
+    // Frame capture callback for otoscopy streaming
+    fun captureFrameAsBase64(callback: ((String) -> Unit)?) {
         if (!isFrameCaptureActive) {
-            callback.invoke("")
+            // Return last valid frame if available, otherwise empty
+            callback?.invoke(lastValidFrame ?: "")
             return
         }
 
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastFrameCaptureTime < MIN_FRAME_INTERVAL) {
-            // Skip frame if too soon
-            callback.invoke("")
+            // Return last valid frame if too soon
+            callback?.invoke(lastValidFrame ?: "")
             return
         }
 
-        frameCaptureCallback = callback
-        captureCurrentFrame()
-        lastFrameCaptureTime = currentTime
+        try {
+            // Get current frame data from the queue
+            val frameData = mNV21DataQueue.pollFirst()
+            if (frameData != null && frameData.isNotEmpty()) {
+                convertFrameToBase64(frameData) { base64Data ->
+                    if (base64Data.isNotEmpty() && base64Data.length > 100) {
+                        lastValidFrame = base64Data
+                        lastFrameCaptureTime = currentTime
+                        callback?.invoke(base64Data)
+                    } else {
+                        // Return last valid frame if current frame is invalid
+                        callback?.invoke(lastValidFrame ?: "")
+                    }
+                }
+            } else {
+                // Return last valid frame if no new frame available
+                callback?.invoke(lastValidFrame ?: "")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error capturing frame", e)
+            // Return last valid frame on error
+            callback?.invoke(lastValidFrame ?: "")
+        }
     }
 
     private fun captureCurrentFrame() {
@@ -190,9 +213,23 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         try {
             frameCounter++
             
+            // Validate frame data
+            if (frameData.isEmpty()) {
+                Log.w(TAG, "uvc_stream: Empty frame data received")
+                callback?.invoke("")
+                return
+            }
+            
             // Convert NV21 to JPEG for base64 encoding
             val width = mCameraRequest?.previewWidth ?: 640
             val height = mCameraRequest?.previewHeight ?: 480
+            
+            // Validate dimensions
+            if (width <= 0 || height <= 0) {
+                Log.w(TAG, "uvc_stream: Invalid dimensions: ${width}x${height}")
+                callback?.invoke("")
+                return
+            }
             
             // Create a YuvImage from the frame data
             val yuvImage = android.graphics.YuvImage(
@@ -205,14 +242,28 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
             
             // Convert to JPEG with optimized quality for 20 FPS
             val outputStream = java.io.ByteArrayOutputStream()
-            yuvImage.compressToJpeg(
+            val success = yuvImage.compressToJpeg(
                 android.graphics.Rect(0, 0, width, height),
                 70, // Reduced quality for better performance at 20 FPS
                 outputStream
             )
             
+            if (!success) {
+                Log.w(TAG, "uvc_stream: Failed to compress frame to JPEG")
+                callback?.invoke("")
+                return
+            }
+            
             // Convert to base64
             val jpegData = outputStream.toByteArray()
+            
+            // Validate JPEG data
+            if (jpegData.isEmpty() || jpegData.size < 100) {
+                Log.w(TAG, "uvc_stream: Invalid JPEG data size: ${jpegData.size}")
+                callback?.invoke("")
+                return
+            }
+            
             val base64String = android.util.Base64.encodeToString(
                 jpegData,
                 android.util.Base64.DEFAULT
