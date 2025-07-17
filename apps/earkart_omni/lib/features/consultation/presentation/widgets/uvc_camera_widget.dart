@@ -90,6 +90,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         // Wrap camera operations in try-catch to prevent unhandled exceptions
         try {
           cameraController?.captureStreamStop();
+
+          // cameraController?.updateResolution(previewSize)
         } catch (e) {
           print('Error stopping capture stream: $e');
           // Ignore platform channel errors during cleanup
@@ -306,6 +308,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       print('Creating UVCCameraController...');
       cameraController = UVCCameraController();
       print('UVCCameraController created: ${cameraController != null}');
+      cameraController?.updateResolution(PreviewSize(width: 1280, height: 720));
 
       // Set up callbacks
       print('Setting up camera callbacks...');

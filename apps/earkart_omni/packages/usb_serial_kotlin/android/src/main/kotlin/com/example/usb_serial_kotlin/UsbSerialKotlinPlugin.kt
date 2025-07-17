@@ -2,7 +2,9 @@ package com.example.usb_serial_kotlin
 
 import android.annotation.SuppressLint
 import android.app.PendingIntent
+import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -43,6 +45,17 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
     private val ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION"
     private val ACTION_USB_ATTACHED = "android.hardware.usb.action.USB_DEVICE_ATTACHED"
     private val ACTION_USB_DETACHED = "android.hardware.usb.action.USB_DEVICE_DETACHED"
+
+    // Add device owner check
+    private fun isDeviceOwner(): Boolean {
+        return try {
+            val devicePolicyManager = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            devicePolicyManager.isDeviceOwnerApp(context.packageName)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking device owner status: ${e.message}")
+            false
+        }
+    }
 
     private val usbReceiver = object : BroadcastReceiver() {
         private fun getUsbDeviceFromIntent(intent: Intent): UsbDevice? {
@@ -95,7 +108,7 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
         dev["deviceId"] = device.deviceId
 
         // Check for permission before accessing properties that may require it
-        if (usbManager.hasPermission(device)) {
+        if (usbManager.hasPermission(device) || isDeviceOwner()) {
         // Log.d(TAG, "Device has Permission: ${device.deviceName}")
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -116,6 +129,13 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
     }
 
     private fun acquirePermissions(device: UsbDevice, callback: (Boolean) -> Unit) {
+        // Check if app is device owner - if so, skip permission request
+        if (isDeviceOwner()) {
+            Log.d(TAG, "Device owner detected - skipping USB permission request for ${device.deviceName}")
+            callback(true)
+            return
+        }
+
         // Log.d(TAG, "acquirePermissions called")
         val permissionIntent = PendingIntent.getBroadcast(
             context,
@@ -139,7 +159,8 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
 
     private fun openDevice(device: UsbDevice, result: Result) {
         // Log.d(TAG, "openDevice called for device: ${device.deviceName} at ${System.currentTimeMillis()}")
-        if (usbManager.hasPermission(device)) {
+        // Check if we have permission or are device owner
+        if (usbManager.hasPermission(device) || isDeviceOwner()) {
             // Log.d(TAG, "Permission granted for device: ${device.deviceName}")
             val connection: UsbDeviceConnection? = usbManager.openDevice(device)
             if (connection != null) {
@@ -181,23 +202,32 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
 
         val transferDevices = mutableListOf<HashMap<String, Any>>()
         // Log.d(TAG, "Devices found: ${devices.values}")
-        val pendingPermissions = devices.values.filter { !usbManager.hasPermission(it) }
-        // Log.d(TAG, "Pending permissions: ${pendingPermissions}")
-        if (pendingPermissions.isNotEmpty()) {
-            // Request permissions for devices that do not have permission
-            for (device in pendingPermissions) {
-                acquirePermissions(device) { granted ->
-                    if (granted) {
-                        Log.d(TAG, "Permission granted for device: ${device.deviceName}")
-                        transferDevices.add(serializeDevice(device))
-                    } else {
-                        Log.e(TAG, "-> Permission denied for device: ${device.deviceName}")
+        val isOwner = isDeviceOwner()
+        
+        if (isOwner) {
+            Log.d(TAG, "Device owner detected - auto-granting USB permissions for all devices")
+            // For device owner, add all devices without permission requests
+            transferDevices.addAll(devices.values.map { serializeDevice(it) })
+        } else {
+            // Original logic for non-device owner apps
+            val pendingPermissions = devices.values.filter { !usbManager.hasPermission(it) }
+            // Log.d(TAG, "Pending permissions: ${pendingPermissions}")
+            if (pendingPermissions.isNotEmpty()) {
+                // Request permissions for devices that do not have permission
+                for (device in pendingPermissions) {
+                    acquirePermissions(device) { granted ->
+                        if (granted) {
+                            Log.d(TAG, "Permission granted for device: ${device.deviceName}")
+                            transferDevices.add(serializeDevice(device))
+                        } else {
+                            Log.e(TAG, "-> Permission denied for device: ${device.deviceName}")
+                        }
                     }
                 }
+            } else {
+                // If all devices have permission, serialize them
+                transferDevices.addAll(devices.values.map { serializeDevice(it) })
             }
-        } else {
-            // If all devices have permission, serialize them
-            transferDevices.addAll(devices.values.map { serializeDevice(it) })
         }
 
         // Return the serialized devices after processing permissions

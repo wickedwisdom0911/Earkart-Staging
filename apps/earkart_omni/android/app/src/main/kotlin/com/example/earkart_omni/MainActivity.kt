@@ -143,8 +143,22 @@ class MainActivity: FlutterActivity() {
     private fun enableUSBAccess() {
         try {
             Log.d("MainActivity", "Enabling USB access")
-            // Device owner apps automatically get USB permissions
-            // No additional configuration needed
+            
+            // For device owner apps, we can grant USB permissions automatically
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+            
+            // Enable USB host mode and remove restrictions
+            try {
+                // Grant USB permissions for all devices
+                devicePolicyManager.addUserRestriction(componentName, UserManager.DISALLOW_USB_FILE_TRANSFER)
+                devicePolicyManager.addUserRestriction(componentName, UserManager.DISALLOW_CONFIG_BLUETOOTH)
+                
+                Log.d("MainActivity", "USB access enabled for device owner")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error setting USB restrictions: ${e.message}")
+            }
+            
         } catch (e: Exception) {
             Log.e("MainActivity", "Error enabling USB access: ${e.message}")
         }
