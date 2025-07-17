@@ -25,7 +25,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   Timer? _recoveryTimer;
   int _errorCount = 0;
   static const int _maxErrorCount = 3;
-  static const Duration _recoveryDelay = Duration(seconds: 3);
 
   // Add initialization state tracking
   bool _isInitializing = false;
@@ -376,24 +375,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     }
   }
 
-  void _waitForPlatformViewReady() {
-    // Cancel any existing timer
-    _platformViewTimer?.cancel();
-
-    // Set a longer timer to ensure platform view is fully ready
-    _platformViewTimer = Timer(const Duration(milliseconds: 3000), () {
-      if (!_isDisposed && _isAppActive && mounted && _isWidgetBuilt) {
-        _isPlatformViewReady = true;
-        print('Platform view ready, proceeding with camera initialization');
-        _proceedWithCameraInitialization();
-      } else {
-        print(
-          'Platform view not ready yet - widget built: $_isWidgetBuilt, mounted: $mounted, disposed: $_isDisposed, app active: $_isAppActive',
-        );
-      }
-    });
-  }
-
   Future<void> _proceedWithCameraInitialization() async {
     if (_isDisposed || !_isAppActive || !mounted) {
       print(
@@ -592,46 +573,26 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     // Mark that the widget has been built
     _isWidgetBuilt = true;
 
-    return Column(
-      children: [
-        // Camera header
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.blue[900],
-            border: Border(
-              bottom: BorderSide(color: Colors.grey[300]!, width: 1),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'UVC Camera',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              _buildStatusIndicator(),
-            ],
-          ),
-        ),
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(color: Colors.black),
+      child: Stack(
+        children: [
+          // Main camera view
+          _buildCameraContent(),
 
-        // Camera view
-        Expanded(
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              border: Border.all(color: Colors.grey[300]!, width: 1),
+          // Minimal status indicator overlay
+          if (!_permissionsGranted ||
+              _errorCount >= _maxErrorCount ||
+              _isInitializing)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: _buildMinimalStatusIndicator(),
             ),
-            child: _buildCameraContent(),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -642,23 +603,22 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
     if (!_permissionsGranted) {
       print('Showing permissions required state');
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.camera_alt, color: Colors.white, size: 48),
-            SizedBox(height: 16),
-            Text(
-              'Camera permissions required',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Please grant camera permissions to use the UVC camera',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
-          ],
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(color: Colors.black87),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.camera_alt, color: Colors.white54, size: 32),
+              SizedBox(height: 12),
+              Text(
+                'Camera permissions required',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -666,37 +626,52 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     // Show error state if too many failures
     if (_errorCount >= _maxErrorCount) {
       print('Showing error state');
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            const Text(
-              'Camera initialization failed',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _status.contains('USB permission')
-                  ? 'USB permission required'
-                  : 'Failed after $_maxErrorCount attempts',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                if (mounted && !_isDisposed) {
-                  setState(() {
-                    _errorCount = 0;
-                    _status = 'Retrying camera initialization...';
-                  });
-                  _initializeCameraController();
-                }
-              },
-              child: const Text('Retry'),
-            ),
-          ],
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(color: Colors.black87),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.redAccent,
+                size: 32,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _status.contains('USB permission')
+                    ? 'USB permission required'
+                    : 'Camera failed',
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  if (mounted && !_isDisposed) {
+                    setState(() {
+                      _errorCount = 0;
+                      _status = 'Retrying...';
+                    });
+                    _initializeCameraController();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[600],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                child: const Text('Retry', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -706,42 +681,37 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       print(
         'Showing loading state - initializing: $_isInitializing, controller: ${cameraController != null}',
       );
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(color: Colors.white),
-            const SizedBox(height: 16),
-            Text(
-              _status,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-            if (_errorCount > 0) ...[
-              const SizedBox(height: 8),
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(color: Colors.black87),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              ),
+              const SizedBox(height: 12),
               Text(
-                'Retry attempt: $_errorCount/$_maxErrorCount',
-                style: const TextStyle(color: Colors.orange, fontSize: 12),
+                _status,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
+              if (_errorCount > 0) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Retry: $_errorCount/$_maxErrorCount',
+                  style: const TextStyle(color: Colors.orange, fontSize: 10),
+                ),
+              ],
             ],
-            if (_isInitializing) ...[
-              const SizedBox(height: 8),
-              const Text(
-                'Please wait...',
-                style: TextStyle(color: Colors.yellow, fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-            ],
-            if (!_isPlatformViewReady) ...[
-              const SizedBox(height: 8),
-              const Text(
-                'Preparing camera view...',
-                style: TextStyle(color: Colors.blue, fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ],
+          ),
         ),
       );
     }
@@ -749,17 +719,22 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     // Only render UVCCameraView when everything is ready
     if (cameraController == null) {
       print('Camera controller is null, showing not initialized state');
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.videocam_off, color: Colors.grey, size: 48),
-            SizedBox(height: 16),
-            Text(
-              'Camera not initialized',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ],
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(color: Colors.black87),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.videocam_off, color: Colors.white54, size: 32),
+              SizedBox(height: 12),
+              Text(
+                'Camera not initialized',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -775,59 +750,72 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       );
     } catch (e) {
       print('Error rendering UVCCameraView: $e');
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.videocam_off, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            const Text(
-              'Camera view error',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Error: $e',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
-          ],
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(color: Colors.black87),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.videocam_off, color: Colors.redAccent, size: 32),
+              SizedBox(height: 12),
+              Text(
+                'Camera view error',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
         ),
       );
     }
   }
 
-  Widget _buildStatusIndicator() {
+  Widget _buildMinimalStatusIndicator() {
     Color indicatorColor;
-    String statusText;
+    IconData indicatorIcon;
+    String tooltipText;
 
     if (!_permissionsGranted) {
       indicatorColor = Colors.red;
-      statusText = 'No Permissions';
+      indicatorIcon = Icons.block;
+      tooltipText = 'No Permissions';
+    } else if (_errorCount >= _maxErrorCount) {
+      indicatorColor = Colors.red;
+      indicatorIcon = Icons.error_outline;
+      tooltipText = 'Camera Error';
+    } else if (_isInitializing) {
+      indicatorColor = Colors.orange;
+      indicatorIcon = Icons.hourglass_empty;
+      tooltipText = 'Initializing';
     } else if (!isInitialized) {
       indicatorColor = Colors.orange;
-      statusText = 'Initializing';
+      indicatorIcon = Icons.videocam_off;
+      tooltipText = 'Not Ready';
     } else {
       indicatorColor = Colors.green;
-      statusText = 'Ready';
+      indicatorIcon = Icons.videocam;
+      tooltipText = 'Camera Ready';
     }
 
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: indicatorColor,
-            shape: BoxShape.circle,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: Colors.black54),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(indicatorIcon, color: indicatorColor, size: 16),
+          const SizedBox(width: 4),
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: indicatorColor,
+              shape: BoxShape.circle,
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          statusText,
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

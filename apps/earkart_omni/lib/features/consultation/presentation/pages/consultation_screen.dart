@@ -994,66 +994,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                       ),
                     ),
                     // Right half - UVC Camera
-                    Expanded(
-                      flex: 1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          border: Border(
-                            left: BorderSide(
-                              color: Colors.grey[300]!,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            // Camera header with close button
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[900],
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: Colors.grey[300]!,
-                                    width: 1,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'UVC Camera',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.close,
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _showCamera = false;
-                                      });
-                                    },
-                                    tooltip: 'Close Camera',
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Camera content
-                            const Expanded(child: UVCCameraWidget()),
-                          ],
-                        ),
-                      ),
-                    ),
+                    Expanded(flex: 1, child: UVCCameraWidget()),
                   ],
                 );
               } else {
