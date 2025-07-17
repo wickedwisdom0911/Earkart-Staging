@@ -114,39 +114,65 @@ class UVCCameraController {
   }
 
   void captureStreamStop() {
-    _cameraChannel?.invokeMethod('captureStreamStop');
+    try {
+      _cameraChannel?.invokeMethod('captureStreamStop');
+    } catch (e) {
+      debugPrint('Error stopping capture stream: $e');
+    }
   }
 
   void startCamera() async {
-    await _cameraChannel?.invokeMethod('startCamera');
+    try {
+      await _cameraChannel?.invokeMethod('startCamera');
+    } catch (e) {
+      debugPrint('Error starting camera: $e');
+    }
   }
 
   /// 获取全部预览大小
   Future getAllPreviewSizes() async {
-    var result = await _cameraChannel?.invokeMethod('getAllPreviewSizes');
-    List<PreviewSize> list = [];
-    json.decode(result)?.forEach((element) {
-      list.add(PreviewSize.fromJson(element));
-    });
-    _previewSizes = list;
+    try {
+      var result = await _cameraChannel?.invokeMethod('getAllPreviewSizes');
+      List<PreviewSize> list = [];
+      json.decode(result)?.forEach((element) {
+        list.add(PreviewSize.fromJson(element));
+      });
+      _previewSizes = list;
+    } catch (e) {
+      debugPrint('Error getting preview sizes: $e');
+    }
   }
 
   /// 获取当前摄像头请求参数
   Future<String?> getCurrentCameraRequestParameters() async {
-    return await _cameraChannel
-        ?.invokeMethod('getCurrentCameraRequestParameters');
+    try {
+      return await _cameraChannel
+          ?.invokeMethod('getCurrentCameraRequestParameters');
+    } catch (e) {
+      debugPrint('Error getting camera parameters: $e');
+      return null;
+    }
   }
 
   /// 更新预览大小
   void updateResolution(PreviewSize? previewSize) {
-    _cameraChannel?.invokeMethod('updateResolution', previewSize?.toMap());
+    try {
+      _cameraChannel?.invokeMethod('updateResolution', previewSize?.toMap());
+    } catch (e) {
+      debugPrint('Error updating resolution: $e');
+    }
   }
 
   ///拍照
   Future<String?> takePicture() async {
-    String? path = await _cameraChannel?.invokeMethod('takePicture');
-    debugPrint("path: $path");
-    return path;
+    try {
+      String? path = await _cameraChannel?.invokeMethod('takePicture');
+      debugPrint("path: $path");
+      return path;
+    } catch (e) {
+      debugPrint('Error taking picture: $e');
+      return null;
+    }
   }
 
   ///录像
@@ -213,6 +239,10 @@ class UVCCameraController {
   }
 
   void closeCamera() {
-    _cameraChannel?.invokeMethod('closeCamera');
+    try {
+      _cameraChannel?.invokeMethod('closeCamera');
+    } catch (e) {
+      debugPrint('Error closing camera: $e');
+    }
   }
 }

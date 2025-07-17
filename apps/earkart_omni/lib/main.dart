@@ -10,11 +10,13 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubi
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/uvc_camera.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
 import 'package:earkart_omni/features/network/presentation/widgets/wakelock_status_widget.dart';
+import 'package:earkart_omni/features/consultation/presentation/widgets/device_status_widget.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
@@ -305,6 +307,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         BlocProvider<CommunicationCubit>(
           create: (context) => di.call<CommunicationCubit>(),
         ),
+        BlocProvider<UVCCameraCubit>(
+          create: (context) => di.call<UVCCameraCubit>(),
+        ),
         BlocProvider<NetworkCubit>(
           create: (context) => di.call<NetworkCubit>(),
         ),
@@ -350,17 +355,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                         child: Container(
                           height: 60, // Match toolbar height
                           alignment: Alignment.center,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const WakelockStatusWidget(showTooltip: true),
-                              const SizedBox(width: 8),
-                              const NetworkStatusWidget(
-                                showDetails: false,
-                                showTooltips: true,
-                              ),
-                            ],
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const WakelockStatusWidget(showTooltip: true),
+                                const SizedBox(width: 8),
+                                const NetworkStatusWidget(
+                                  showDetails: false,
+                                  showTooltips: true,
+                                ),
+                                const SizedBox(width: 8),
+                                const Flexible(child: DeviceStatusWidget()),
+                              ],
+                            ),
                           ),
                         ),
                       ),

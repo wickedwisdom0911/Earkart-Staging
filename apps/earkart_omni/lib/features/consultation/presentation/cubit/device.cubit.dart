@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/uvc_camera.cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 
@@ -10,6 +11,8 @@ class DeviceCubit extends Cubit<DeviceState> {
   List<UsbDevice> _devices = [];
   UsbDevice? _r15cDevice;
   UsbDevice? _revo2Device;
+  UVCCameraCubit? _uvcCameraCubit;
+  bool _isRevo2Initialized = false;
 
   static const _usbPollInterval = Duration(seconds: 1);
 
@@ -83,11 +86,16 @@ class DeviceCubit extends Cubit<DeviceState> {
   }
 
   void _handleDeviceChanges(DeviceChanges changes) {
-    // Log device changes
+    // Log device changes and handle UVC camera
     for (final device in changes.attached) {
       final deviceType = _getDeviceType(device);
       if (deviceType != null) {
         di<ILogger>().info('Device attached: $deviceType');
+
+        // Handle UVC camera (Revo2) attachment
+        if (deviceType == 'revo2') {
+          _handleUVCCameraAttachment();
+        }
       }
     }
 
@@ -95,7 +103,33 @@ class DeviceCubit extends Cubit<DeviceState> {
       final deviceType = _getDeviceType(device);
       if (deviceType != null) {
         di<ILogger>().info('Device detached: $deviceType');
+
+        // Handle UVC camera (Revo2) detachment
+        if (deviceType == 'revo2') {
+          _handleUVCCameraDetachment();
+        }
       }
+    }
+  }
+
+  void _handleUVCCameraAttachment() {
+    if (_isRevo2Initialized) {
+      di<ILogger>().debug('Revo2 camera already initialized, skipping');
+      return;
+    }
+
+    di<ILogger>().info('UVC camera (Revo2) attached - initializing camera');
+    if (_uvcCameraCubit != null) {
+      _isRevo2Initialized = true;
+      _uvcCameraCubit!.initializeCamera();
+    }
+  }
+
+  void _handleUVCCameraDetachment() {
+    di<ILogger>().info('UVC camera (Revo2) detached - closing camera');
+    if (_uvcCameraCubit != null) {
+      _isRevo2Initialized = false;
+      _uvcCameraCubit!.handleDeviceDetached();
     }
   }
 
@@ -122,6 +156,11 @@ class DeviceCubit extends Cubit<DeviceState> {
       );
     } catch (e) {
       _revo2Device = null;
+      // Reset initialization flag when device is not found
+      if (_isRevo2Initialized) {
+        _isRevo2Initialized = false;
+        _uvcCameraCubit?.handleDeviceDetached();
+      }
     }
   }
 
@@ -130,9 +169,16 @@ class DeviceCubit extends Cubit<DeviceState> {
     _usbTimer = null;
   }
 
+  void setUVCCameraCubit(UVCCameraCubit cubit) {
+    _uvcCameraCubit = cubit;
+  }
+
   @override
   Future<void> close() {
     stopDeviceMonitoring();
+    _uvcCameraCubit?.closeCamera();
+    _uvcCameraCubit = null;
+    _isRevo2Initialized = false;
     return super.close();
   }
 }

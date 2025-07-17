@@ -31,6 +31,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubi
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/uvc_camera.cubit.dart';
 import 'package:earkart_omni/features/lookup/data/reositories/lookup.repository.impl.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/city.entity.source.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/countries.entity.source.dart';
@@ -257,6 +258,7 @@ Future<void> setupDI() async {
   //device
   di.registerLazySingleton<DeviceCubit>(() => DeviceCubit());
   di.registerLazySingleton<CommunicationCubit>(() => CommunicationCubit());
+  di.registerLazySingleton<UVCCameraCubit>(() => UVCCameraCubit());
 
   //network
   di.registerLazySingleton<NetworkCubit>(() => NetworkCubit());

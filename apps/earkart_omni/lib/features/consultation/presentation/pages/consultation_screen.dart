@@ -12,6 +12,8 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/device.cub
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/video_call_widget.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/report_pta.dart';
+import 'package:earkart_omni/features/consultation/presentation/widgets/uvc_camera_widget.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/uvc_camera.cubit.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.model.dart';
@@ -43,6 +45,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   dynamic _lastImpedanceStatus;
   // Track if report should be shown (for split screen)
   bool _showReport = false;
+  // Track if camera should be shown (for split screen)
+  bool _showCamera = false;
   // Track if socket reconnection has failed
   bool _socketReconnectFailed = false;
   // Global key to maintain video widget state
@@ -75,6 +79,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void _initializeDeviceMonitoring() {
     // Start device monitoring
     context.read<DeviceCubit>().startDeviceMonitoring();
+
+    // Setup UVC camera cubit and link it to device cubit
+    final uvcCameraCubit = context.read<UVCCameraCubit>();
+    context.read<DeviceCubit>().setUVCCameraCubit(uvcCameraCubit);
 
     // Setup listeners for device and communication state changes
     _setupDeviceListeners();
@@ -296,6 +304,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         socket.dispose();
       }
       context.read<DeviceCubit>().stopDeviceMonitoring();
+      context.read<UVCCameraCubit>().closeCamera();
       _hasJoinedConsultation = false;
       _videoWidget = null; // Clear video widget reference
     } catch (e) {
@@ -637,15 +646,64 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               },
             ),
 
+          // Camera toggle button
           BlocBuilder<DeviceCubit, DeviceState>(
             builder: (context, deviceState) {
-              return BlocBuilder<CommunicationCubit, CommunicationState>(
-                builder: (context, commState) {
-                  return _buildR15CStatusIcon();
-                },
+              final hasRevo2Device = deviceState.maybeWhen(
+                success:
+                    (devices, r15cDevice, revo2Device) => revo2Device != null,
+                orElse: () => false,
               );
+
+              di<ILogger>().debug(
+                'Camera toggle button: hasRevo2Device = $hasRevo2Device, _showCamera = $_showCamera',
+              );
+
+              if (hasRevo2Device) {
+                return IconButton(
+                  icon: Icon(
+                    _showCamera ? Icons.videocam : Icons.videocam_off,
+                    color: _showCamera ? Colors.blue : Colors.grey,
+                  ),
+                  tooltip: _showCamera ? 'Hide Camera' : 'Show Camera',
+                  onPressed: () {
+                    di<ILogger>().debug(
+                      'Camera toggle button pressed - toggling _showCamera from $_showCamera',
+                    );
+                    setState(() {
+                      _showCamera = !_showCamera;
+                      // Hide report if showing camera
+                      if (_showCamera) {
+                        _showReport = false;
+                      }
+                    });
+                  },
+                );
+              }
+              return const SizedBox.shrink();
             },
           ),
+
+          // Report toggle button
+          IconButton(
+            icon: Icon(
+              _showReport ? Icons.assessment : Icons.assessment_outlined,
+              color: _showReport ? Colors.blue : Colors.grey,
+            ),
+            tooltip: _showReport ? 'Hide Report' : 'Show Report',
+            onPressed: () {
+              setState(() {
+                _showReport = !_showReport;
+                // Hide camera if showing report
+                if (_showReport) {
+                  _showCamera = false;
+                }
+              });
+            },
+          ),
+
+          // Device status is now shown globally in the main app overlay
+          const SizedBox.shrink(),
         ],
       ),
       body: MultiBlocListener(
@@ -699,12 +757,14 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 success: (devices, r15cDevice, revo2Device) {
                   final wasConnected = this.r15cDevice != null;
                   final isNowConnected = r15cDevice != null;
+                  final wasRevo2Connected = this.revo2Device != null;
+                  final isNowRevo2Connected = revo2Device != null;
 
                   // Update device references
                   this.r15cDevice = r15cDevice;
                   this.revo2Device = revo2Device;
 
-                  // Handle device state changes
+                  // Handle R15C device state changes
                   if (wasConnected != isNowConnected) {
                     di<ILogger>().debug(
                       isNowConnected
@@ -715,6 +775,27 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     // Reset communication state on detachment
                     if (!isNowConnected) {
                       context.read<CommunicationCubit>().resetState();
+                    }
+                  }
+
+                  // Handle Revo2 device state changes
+                  if (wasRevo2Connected != isNowRevo2Connected) {
+                    di<ILogger>().debug(
+                      isNowRevo2Connected
+                          ? 'Revo2 device attached - auto-showing camera'
+                          : 'Revo2 device detached - hiding camera',
+                    );
+
+                    // Auto-show camera when Revo2 is connected
+                    if (isNowRevo2Connected && !_showCamera) {
+                      setState(() {
+                        _showCamera = true;
+                        _showReport = false; // Hide report when showing camera
+                      });
+                    } else if (!isNowRevo2Connected && _showCamera) {
+                      setState(() {
+                        _showCamera = false;
+                      });
                     }
                   }
 
@@ -794,6 +875,32 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               if (state.error != null) {
                 di<ILogger>().error('Device error: ${state.error}');
                 _emitDeviceEvent(state);
+              }
+            },
+          ),
+          BlocListener<UVCCameraCubit, UVCCameraCubitState>(
+            listener: (context, state) {
+              di<ILogger>().debug('UVC Camera state: ${state.status}');
+
+              // Handle camera state changes
+              switch (state.status) {
+                case UVCCameraStatus.connected:
+                  di<ILogger>().info('UVC camera connected and ready');
+                  break;
+                case UVCCameraStatus.connecting:
+                  di<ILogger>().debug('UVC camera connecting...');
+                  break;
+                case UVCCameraStatus.error:
+                  di<ILogger>().error(
+                    'UVC camera error: ${state.errorMessage}',
+                  );
+                  if (mounted) {
+                    _showErrorSnackBar('Camera error: ${state.errorMessage}');
+                  }
+                  break;
+                case UVCCameraStatus.disconnected:
+                  di<ILogger>().debug('UVC camera disconnected');
+                  break;
               }
             },
           ),
@@ -879,6 +986,88 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                             ),
                             // Report content
                             const Expanded(child: ReportPTAWidget()),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              } else if (_showCamera) {
+                // Split screen: video call on left, camera on right
+                return Row(
+                  children: [
+                    // Left half - Video call
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border(
+                            right: BorderSide(
+                              color: Colors.grey[300]!,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: videoWidget,
+                      ),
+                    ),
+                    // Right half - UVC Camera
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          border: Border(
+                            left: BorderSide(
+                              color: Colors.grey[300]!,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            // Camera header with close button
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[900],
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: Colors.grey[300]!,
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'UVC Camera',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _showCamera = false;
+                                      });
+                                    },
+                                    tooltip: 'Close Camera',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Camera content
+                            const Expanded(child: UVCCameraWidget()),
                           ],
                         ),
                       ),
@@ -976,102 +1165,5 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "patientResponse": !isReleased,
       });
     }
-  }
-
-  Widget _buildR15CStatusIcon() {
-    final communicationState = context.read<CommunicationCubit>().state;
-
-    // Device not connected
-    if (r15cDevice == null) {
-      return IconButton(
-        icon: const Icon(Icons.usb_off, color: Colors.red),
-        tooltip: 'R15C Device: Not Connected',
-        onPressed: () {
-          _showErrorSnackBar('R15C device not connected');
-        },
-      );
-    }
-
-    // Device has error
-    if (communicationState.error != null) {
-      return IconButton(
-        icon: const Icon(Icons.error_outline, color: Colors.red),
-        tooltip: 'R15C Device: Error - ${communicationState.error}',
-        onPressed: () {
-          _showErrorSnackBar('R15C device error: ${communicationState.error}');
-        },
-      );
-    }
-
-    // Device in begin mode (active testing)
-    if (communicationState.isInBeginMode) {
-      final testTypeText =
-          testType == TestType.PTA ? 'Pure Tone Audiometry' : 'Impedance';
-
-      // Special case for impedance testing in progress
-      if (testType == TestType.Impedance &&
-          communicationState.impedanceStatus != null) {
-        return IconButton(
-          icon: const Icon(Icons.waves, color: Colors.green),
-          tooltip:
-              'R15C Device: Impedance Testing - ${communicationState.impedanceStatus}',
-          onPressed: () {
-            _showErrorSnackBar(
-              'R15C device is performing impedance testing - ${communicationState.impedanceStatus}',
-            );
-          },
-        );
-      }
-
-      return IconButton(
-        icon: const Icon(Icons.play_circle_filled, color: Colors.green),
-        tooltip: 'R15C Device: Active Testing - $testTypeText',
-        onPressed: () {
-          _showErrorSnackBar('R15C device is actively testing - $testTypeText');
-        },
-      );
-    }
-
-    // Device ready with transducer response
-    if (communicationState.transducerResponse != null) {
-      return IconButton(
-        icon: const Icon(Icons.check_circle, color: Colors.green),
-        tooltip: 'R15C Device: Ready',
-        onPressed: () {
-          _showErrorSnackBar('R15C device is ready for testing');
-        },
-      );
-    }
-
-    // Device synced but not ready
-    if (communicationState.isSynced) {
-      return IconButton(
-        icon: const Icon(Icons.sync, color: Colors.orange),
-        tooltip: 'R15C Device: Syncing',
-        onPressed: () {
-          _showErrorSnackBar('R15C device is syncing');
-        },
-      );
-    }
-
-    // Device connected but not synced
-    if (communicationState.isConnected) {
-      return IconButton(
-        icon: const Icon(Icons.usb, color: Colors.blue),
-        tooltip: 'R15C Device: Connected',
-        onPressed: () {
-          _showErrorSnackBar('R15C device is connected');
-        },
-      );
-    }
-
-    // Default state - connecting
-    return IconButton(
-      icon: const Icon(Icons.hourglass_empty, color: Colors.grey),
-      tooltip: 'R15C Device: Connecting',
-      onPressed: () {
-        _showErrorSnackBar('R15C device is connecting');
-      },
-    );
   }
 }
