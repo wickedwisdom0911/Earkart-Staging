@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
+import 'dart:async';
 
 class UVCCameraView extends StatefulWidget {
   final UVCCameraController cameraController;
@@ -19,15 +20,45 @@ class UVCCameraView extends StatefulWidget {
 }
 
 class _UVCCameraViewState extends State<UVCCameraView> {
+  bool _isPlatformViewCreated = false;
+  Timer? _initializationTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Add a small delay to ensure the widget is fully mounted
+    _initializationTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        setState(() {
+          _isPlatformViewCreated = true;
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
-    widget.cameraController.closeCamera();
-    widget.cameraController.dispose();
+    _initializationTimer?.cancel();
+    // Add delay before disposing to ensure proper cleanup
+    Future.delayed(const Duration(milliseconds: 200), () {
+      widget.cameraController.closeCamera();
+      widget.cameraController.dispose();
+    });
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_isPlatformViewCreated) {
+      return SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return SizedBox(
       width: widget.width,
       height: widget.height,
@@ -36,7 +67,12 @@ class _UVCCameraViewState extends State<UVCCameraView> {
           creationParams: widget.params?.toMap(),
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: (id) {
-            widget.cameraController.initializeCamera();
+            // Add delay before initializing to ensure platform view is fully created
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted) {
+                widget.cameraController.initializeCamera();
+              }
+            });
           }),
     );
   }

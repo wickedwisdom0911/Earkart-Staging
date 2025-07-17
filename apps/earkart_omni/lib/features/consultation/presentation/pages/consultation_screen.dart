@@ -13,7 +13,6 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/device.sta
 import 'package:earkart_omni/features/consultation/presentation/widgets/video_call_widget.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/report_pta.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/uvc_camera_widget.dart';
-import 'package:earkart_omni/features/consultation/presentation/cubit/uvc_camera.cubit.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.model.dart';
@@ -79,10 +78,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void _initializeDeviceMonitoring() {
     // Start device monitoring
     context.read<DeviceCubit>().startDeviceMonitoring();
-
-    // Setup UVC camera cubit and link it to device cubit
-    final uvcCameraCubit = context.read<UVCCameraCubit>();
-    context.read<DeviceCubit>().setUVCCameraCubit(uvcCameraCubit);
 
     // Setup listeners for device and communication state changes
     _setupDeviceListeners();
@@ -304,7 +299,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         socket.dispose();
       }
       context.read<DeviceCubit>().stopDeviceMonitoring();
-      context.read<UVCCameraCubit>().closeCamera();
       _hasJoinedConsultation = false;
       _videoWidget = null; // Clear video widget reference
     } catch (e) {
@@ -670,11 +664,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     di<ILogger>().debug(
                       'Camera toggle button pressed - toggling _showCamera from $_showCamera',
                     );
-                    setState(() {
-                      _showCamera = !_showCamera;
-                      // Hide report if showing camera
-                      if (_showCamera) {
-                        _showReport = false;
+
+                    // Add delay before toggling to prevent rapid state changes
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (mounted) {
+                        setState(() {
+                          _showCamera = !_showCamera;
+                          // Hide report if showing camera
+                          if (_showCamera) {
+                            _showReport = false;
+                          }
+                        });
                       }
                     });
                   },
@@ -786,13 +786,20 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                           : 'Revo2 device detached - hiding camera',
                     );
 
-                    // Auto-show camera when Revo2 is connected
+                    // Auto-show camera when Revo2 is connected with delay
                     if (isNowRevo2Connected && !_showCamera) {
-                      setState(() {
-                        _showCamera = true;
-                        _showReport = false; // Hide report when showing camera
+                      // Add delay before showing camera to ensure device is stable
+                      Future.delayed(const Duration(seconds: 2), () {
+                        if (mounted) {
+                          setState(() {
+                            _showCamera = true;
+                            _showReport =
+                                false; // Hide report when showing camera
+                          });
+                        }
                       });
                     } else if (!isNowRevo2Connected && _showCamera) {
+                      // Hide camera immediately when device is disconnected
                       setState(() {
                         _showCamera = false;
                       });
@@ -878,32 +885,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               }
             },
           ),
-          BlocListener<UVCCameraCubit, UVCCameraCubitState>(
-            listener: (context, state) {
-              di<ILogger>().debug('UVC Camera state: ${state.status}');
-
-              // Handle camera state changes
-              switch (state.status) {
-                case UVCCameraStatus.connected:
-                  di<ILogger>().info('UVC camera connected and ready');
-                  break;
-                case UVCCameraStatus.connecting:
-                  di<ILogger>().debug('UVC camera connecting...');
-                  break;
-                case UVCCameraStatus.error:
-                  di<ILogger>().error(
-                    'UVC camera error: ${state.errorMessage}',
-                  );
-                  if (mounted) {
-                    _showErrorSnackBar('Camera error: ${state.errorMessage}');
-                  }
-                  break;
-                case UVCCameraStatus.disconnected:
-                  di<ILogger>().debug('UVC camera disconnected');
-                  break;
-              }
-            },
-          ),
+          // Removed UVCCameraCubit BlocListener - camera is now managed by the widget
         ],
         child: BlocBuilder<ConsultationCubit, ConsultationState>(
           builder: (context, state) {

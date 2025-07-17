@@ -10,7 +10,6 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubi
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
-import 'package:earkart_omni/features/consultation/presentation/cubit/uvc_camera.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
@@ -42,10 +41,43 @@ import 'package:flutter/material.dart';
 import 'package:get/route_manager.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:async';
+import 'dart:developer' as developer;
+import 'package:earkart_omni/utils/device_owner_helper.dart';
 
 Future<void> main() async {
   await dotenv.load(fileName: ".env");
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Set up global error handling
+  FlutterError.onError = (FlutterErrorDetails details) {
+    developer.log(
+      'Unhandled Flutter error: ${details.exception}',
+      name: 'GlobalErrorHandler',
+    );
+    developer.log('Stack trace: ${details.stack}', name: 'GlobalErrorHandler');
+
+    // Handle specific lifecycle errors gracefully
+    if (details.exception.toString().contains(
+      '_lifecycleState != _ElementLifecycle.defunct',
+    )) {
+      developer.log(
+        'Ignoring lifecycle state error during widget disposal',
+        name: 'GlobalErrorHandler',
+      );
+      return;
+    }
+
+    // Handle platform channel errors gracefully
+    if (details.exception.toString().contains(
+      'lateinit property cameraView has not been initialized',
+    )) {
+      developer.log(
+        'Ignoring platform channel error during camera lifecycle',
+        name: 'GlobalErrorHandler',
+      );
+      return;
+    }
+  };
 
   await _setupSystemUI();
   await _setupWakelock();
@@ -53,7 +85,36 @@ Future<void> main() async {
   await _initHive();
   await _initDataSources();
 
+  // Auto-grant device owner permissions if app is device owner
+  await _initializeDeviceOwnerPermissions();
+
   runApp(const MyApp());
+}
+
+/// Initialize device owner permissions automatically
+Future<void> _initializeDeviceOwnerPermissions() async {
+  try {
+    developer.log(
+      'Initializing device owner permissions...',
+      name: 'DeviceOwner',
+    );
+
+    // Check if app is device owner and auto-grant permissions
+    await DeviceOwnerHelper.autoGrantPermissionsIfDeviceOwner();
+
+    // Print permission status summary for debugging
+    await DeviceOwnerHelper.printPermissionSummary();
+
+    developer.log(
+      'Device owner permissions initialization complete',
+      name: 'DeviceOwner',
+    );
+  } catch (e) {
+    developer.log(
+      'Error initializing device owner permissions: $e',
+      name: 'DeviceOwner',
+    );
+  }
 }
 
 // Global timer for auto-hide functionality
@@ -124,6 +185,76 @@ void _cleanupSystemUIObserver() {
   }
   _autoHideTimer?.cancel();
   _autoHideTimer = null;
+}
+
+/// Error boundary widget to catch unhandled exceptions
+class ErrorBoundary extends StatefulWidget {
+  final Widget child;
+
+  const ErrorBoundary({super.key, required this.child});
+
+  @override
+  State<ErrorBoundary> createState() => _ErrorBoundaryState();
+}
+
+class _ErrorBoundaryState extends State<ErrorBoundary> {
+  Error? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    // Set up error handling
+    FlutterError.onError = (FlutterErrorDetails details) {
+      developer.log(
+        'Flutter error caught: ${details.exception}',
+        name: 'ErrorBoundary',
+      );
+      setState(() {
+        _error = details.exception as Error?;
+      });
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return Material(
+        child: Container(
+          color: Colors.red[50],
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 64),
+                const SizedBox(height: 16),
+                const Text(
+                  'Something went wrong',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'The app encountered an error and needs to restart',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _error = null;
+                    });
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return widget.child;
+  }
 }
 
 /// Start timer to automatically hide system UI after user interaction
@@ -292,103 +423,119 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider<AuthCubit>(create: (context) => di.call<AuthCubit>()),
-        BlocProvider<PatientCubit>(
-          create: (context) => di.call<PatientCubit>(),
-        ),
-        BlocProvider<ConsultationCubit>(
-          create: (context) => di.call<ConsultationCubit>(),
-        ),
-        BlocProvider<LookupCubit>(create: (context) => di.call<LookupCubit>()),
-        BlocProvider<AgoraCubit>(create: (context) => di.call<AgoraCubit>()),
-        BlocProvider<DeviceCubit>(create: (context) => di.call<DeviceCubit>()),
-        BlocProvider<CommunicationCubit>(
-          create: (context) => di.call<CommunicationCubit>(),
-        ),
-        BlocProvider<UVCCameraCubit>(
-          create: (context) => di.call<UVCCameraCubit>(),
-        ),
-        BlocProvider<NetworkCubit>(
-          create: (context) => di.call<NetworkCubit>(),
-        ),
-      ],
-      child: GetMaterialApp(
-        title: "EarKart Omni",
-        debugShowCheckedModeBanner: false,
-        theme: theme,
-        initialRoute: RootScreen.routeName,
-        onGenerateRoute: (settings) => generateRoute(settings),
+    return ErrorBoundary(
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<AuthCubit>(create: (context) => di.call<AuthCubit>()),
+          BlocProvider<PatientCubit>(
+            create: (context) => di.call<PatientCubit>(),
+          ),
+          BlocProvider<ConsultationCubit>(
+            create: (context) => di.call<ConsultationCubit>(),
+          ),
+          BlocProvider<LookupCubit>(
+            create: (context) => di.call<LookupCubit>(),
+          ),
+          BlocProvider<AgoraCubit>(create: (context) => di.call<AgoraCubit>()),
+          BlocProvider<DeviceCubit>(
+            create: (context) => di.call<DeviceCubit>(),
+          ),
+          BlocProvider<CommunicationCubit>(
+            create: (context) => di.call<CommunicationCubit>(),
+          ),
+          BlocProvider<NetworkCubit>(
+            create: (context) => di.call<NetworkCubit>(),
+          ),
+        ],
+        child: GetMaterialApp(
+          title: "EarKart Omni",
+          debugShowCheckedModeBanner: false,
+          theme: theme,
+          initialRoute: RootScreen.routeName,
+          onGenerateRoute: (settings) => generateRoute(settings),
 
-        // Beautiful app configuration with full screen management
-        builder: (context, child) {
-          return AnnotatedRegion<SystemUiOverlayStyle>(
-            value: const SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.dark,
-              systemNavigationBarColor: Colors.transparent,
-              systemNavigationBarIconBrightness: Brightness.dark,
-            ),
-            child: GestureDetector(
-              // Detect user interactions to manage auto-hide timer
-              onTap: () => _startAutoHideTimer(),
-              onPanDown: (_) => _startAutoHideTimer(),
-              onScaleStart: (_) => _startAutoHideTimer(),
-              behavior: HitTestBehavior.translucent,
-              child: MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  // Ensure text scaling doesn't break medical UI layouts
-                  textScaler: TextScaler.linear(1.0),
-                ),
-                child: Stack(
-                  children: [
-                    // Main app content
-                    child ?? const SizedBox.shrink(),
-
-                    // Global network and wakelock status widgets overlay
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: SafeArea(
-                        child: Container(
-                          height: 60, // Match toolbar height
-                          alignment: Alignment.center,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+          // Beautiful app configuration with full screen management
+          builder: (context, child) {
+            return Overlay(
+              initialEntries: [
+                OverlayEntry(
+                  builder:
+                      (context) => AnnotatedRegion<SystemUiOverlayStyle>(
+                        value: const SystemUiOverlayStyle(
+                          statusBarColor: Colors.transparent,
+                          statusBarIconBrightness: Brightness.dark,
+                          systemNavigationBarColor: Colors.transparent,
+                          systemNavigationBarIconBrightness: Brightness.dark,
+                        ),
+                        child: GestureDetector(
+                          // Detect user interactions to manage auto-hide timer
+                          onTap: () => _startAutoHideTimer(),
+                          onPanDown: (_) => _startAutoHideTimer(),
+                          onScaleStart: (_) => _startAutoHideTimer(),
+                          behavior: HitTestBehavior.translucent,
+                          child: MediaQuery(
+                            data: MediaQuery.of(context).copyWith(
+                              // Ensure text scaling doesn't break medical UI layouts
+                              textScaler: TextScaler.linear(1.0),
+                            ),
+                            child: Stack(
                               children: [
-                                const WakelockStatusWidget(showTooltip: true),
-                                const SizedBox(width: 8),
-                                const NetworkStatusWidget(
-                                  showDetails: false,
-                                  showTooltips: true,
+                                // Main app content
+                                child ?? const SizedBox.shrink(),
+
+                                // Global network and wakelock status widgets overlay
+                                Positioned(
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: SafeArea(
+                                    child: Container(
+                                      height: 60, // Match toolbar height
+                                      alignment: Alignment.center,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            const WakelockStatusWidget(
+                                              showTooltip: true,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const NetworkStatusWidget(
+                                              showDetails: false,
+                                              showTooltips: true,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Center(child: DeviceStatusWidget()),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                                const SizedBox(width: 8),
-                                const Flexible(child: DeviceStatusWidget()),
                               ],
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
                 ),
-              ),
-            ),
-          );
-        },
-
-        // Enhanced scrolling physics for better user experience
-        scrollBehavior: const MaterialScrollBehavior().copyWith(
-          dragDevices: {
-            PointerDeviceKind.touch,
-            PointerDeviceKind.mouse,
-            PointerDeviceKind.trackpad,
+              ],
+            );
           },
-          scrollbars: false,
+
+          // Enhanced scrolling physics for better user experience
+          scrollBehavior: const MaterialScrollBehavior().copyWith(
+            dragDevices: {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
+            },
+            scrollbars: false,
+          ),
         ),
       ),
     );

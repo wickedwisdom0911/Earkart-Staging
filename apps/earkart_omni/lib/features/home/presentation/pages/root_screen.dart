@@ -16,6 +16,7 @@ import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:earkart_omni/utils/device_owner_helper.dart';
 
 class RootScreen extends StatefulWidget {
   static const routeName = '/';
@@ -51,12 +52,41 @@ class _RootScreenState extends State<RootScreen> {
   }
 
   Future<void> _checkAndRequestPermissions() async {
+    // First check if app is device owner and auto-grant permissions
+    final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
+
+    if (isDeviceOwner) {
+      print('🎯 App is device owner - auto-granting permissions');
+      await DeviceOwnerHelper.grantAllPermissions();
+
+      // For device owner, we can skip permission dialogs
+      // But still check if permissions are actually granted
+      final storageStatus = await Permission.manageExternalStorage.status;
+      final cameraStatus = await Permission.camera.status;
+      final microphoneStatus = await Permission.microphone.status;
+      final usbStatus = await Permission.bluetooth.status;
+
+      if (storageStatus.isGranted &&
+          usbStatus.isGranted &&
+          cameraStatus.isGranted &&
+          microphoneStatus.isGranted) {
+        print('✅ All permissions granted for device owner');
+        return;
+      } else {
+        print('⚠️ Some permissions still not granted for device owner');
+        // Even for device owner, request permissions as fallback
+        await _requestPermissionsAsFallback();
+      }
+    } else {
+      print('📱 App is not device owner - requesting permissions normally');
+      await _requestPermissionsAsFallback();
+    }
+  }
+
+  Future<void> _requestPermissionsAsFallback() async {
     final storageStatus = await Permission.manageExternalStorage.request();
-
     final cameraStatus = await Permission.camera.request();
-
     final microphoneStatus = await Permission.microphone.request();
-
     final usbStatus = await Permission.bluetooth.request();
 
     if (storageStatus.isGranted &&

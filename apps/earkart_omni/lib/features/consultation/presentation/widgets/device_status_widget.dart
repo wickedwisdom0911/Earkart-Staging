@@ -4,7 +4,6 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/device.cub
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
-import 'package:earkart_omni/features/consultation/presentation/cubit/uvc_camera.cubit.dart';
 
 class DeviceStatusWidget extends StatelessWidget {
   const DeviceStatusWidget({super.key});
@@ -15,30 +14,31 @@ class DeviceStatusWidget extends StatelessWidget {
       builder: (context, deviceState) {
         return BlocBuilder<CommunicationCubit, CommunicationState>(
           builder: (context, commState) {
-            return BlocBuilder<UVCCameraCubit, UVCCameraCubitState>(
-              builder: (context, cameraState) {
-                final r15cStatus = _getR15CStatus(deviceState, commState);
-                final revo2Status = _getRevo2Status(deviceState, cameraState);
+            final r15cStatus = _getR15CStatus(deviceState, commState);
+            final revo2Status = _getRevo2Status(deviceState);
 
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildDeviceStatus(
-                      'R15C',
-                      r15cStatus,
-                      Icons.hearing,
-                      context,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildDeviceStatus(
-                      'Revo2',
-                      revo2Status,
-                      Icons.videocam,
-                      context,
-                    ),
-                  ],
-                );
-              },
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: _buildDeviceStatus(
+                    'R15C',
+                    r15cStatus,
+                    Icons.hearing,
+                    context,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: _buildDeviceStatus(
+                    'Revo2',
+                    revo2Status,
+                    Icons.videocam,
+                    context,
+                  ),
+                ),
+              ],
             );
           },
         );
@@ -84,10 +84,7 @@ class DeviceStatusWidget extends StatelessWidget {
     return DeviceStatus.connecting;
   }
 
-  DeviceStatus _getRevo2Status(
-    DeviceState deviceState,
-    UVCCameraCubitState cameraState,
-  ) {
+  DeviceStatus _getRevo2Status(DeviceState deviceState) {
     // Check if Revo2 device is connected
     final isConnected = deviceState.maybeWhen(
       success: (devices, r15cDevice, revo2Device) => revo2Device != null,
@@ -98,18 +95,8 @@ class DeviceStatusWidget extends StatelessWidget {
       return DeviceStatus.disconnected;
     }
 
-    // Check camera state
-    switch (cameraState.status) {
-      case UVCCameraStatus.connected:
-        return DeviceStatus.ready;
-      case UVCCameraStatus.connecting:
-        return DeviceStatus.connecting;
-      case UVCCameraStatus.error:
-        return DeviceStatus.error;
-      case UVCCameraStatus.disconnected:
-        return DeviceStatus
-            .connected; // Device connected but camera not initialized
-    }
+    // Device is connected - camera state is handled by the widget itself
+    return DeviceStatus.connected;
   }
 
   Widget _buildDeviceStatus(
@@ -121,36 +108,32 @@ class DeviceStatusWidget extends StatelessWidget {
     final statusConfig = _getStatusConfig(status);
     final tooltip = '$deviceName: ${statusConfig.label}';
 
-    return GestureDetector(
-      onLongPress: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(tooltip),
-            duration: const Duration(seconds: 1),
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(8),
-          ),
-        );
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        height: 24,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 60, maxWidth: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         decoration: BoxDecoration(
-          color: statusConfig.backgroundColor,
+          color: statusConfig.color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: statusConfig.borderColor, width: 1.2),
+          border: Border.all(
+            color: statusConfig.color.withOpacity(0.3),
+            width: 1,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 14, color: statusConfig.iconColor),
-            const SizedBox(width: 4),
-            Icon(
-              statusConfig.statusIcon,
-              size: 10,
-              color: statusConfig.iconColor,
+            Icon(icon, size: 14, color: statusConfig.color),
+            const SizedBox(width: 3),
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: statusConfig.color,
+                shape: BoxShape.circle,
+              ),
             ),
           ],
         ),
@@ -158,90 +141,39 @@ class DeviceStatusWidget extends StatelessWidget {
     );
   }
 
-  _StatusConfig _getStatusConfig(DeviceStatus status) {
+  StatusConfig _getStatusConfig(DeviceStatus status) {
     switch (status) {
-      case DeviceStatus.ready:
-        return _StatusConfig(
-          label: 'Ready',
-          backgroundColor: Colors.green.shade50,
-          borderColor: Colors.green.shade100,
-          iconColor: Colors.green.shade600,
-          statusIcon: Icons.check_circle,
-        );
-      case DeviceStatus.active:
-        return _StatusConfig(
-          label: 'Active',
-          backgroundColor: Colors.blue.shade50,
-          borderColor: Colors.blue.shade100,
-          iconColor: Colors.blue.shade600,
-          statusIcon: Icons.play_circle_filled,
-        );
       case DeviceStatus.connected:
-        return _StatusConfig(
-          label: 'Connected',
-          backgroundColor: Colors.blue.shade50,
-          borderColor: Colors.blue.shade100,
-          iconColor: Colors.blue.shade600,
-          statusIcon: Icons.circle,
-        );
-      case DeviceStatus.syncing:
-        return _StatusConfig(
-          label: 'Syncing',
-          backgroundColor: Colors.orange.shade50,
-          borderColor: Colors.orange.shade100,
-          iconColor: Colors.orange.shade600,
-          statusIcon: Icons.sync,
-        );
+        return StatusConfig(label: 'Connected', color: Colors.blue);
+      case DeviceStatus.ready:
+        return StatusConfig(label: 'Ready', color: Colors.green);
+      case DeviceStatus.active:
+        return StatusConfig(label: 'Active', color: Colors.orange);
       case DeviceStatus.connecting:
-        return _StatusConfig(
-          label: 'Connecting',
-          backgroundColor: Colors.orange.shade50,
-          borderColor: Colors.orange.shade100,
-          iconColor: Colors.orange.shade600,
-          statusIcon: Icons.hourglass_empty,
-        );
+        return StatusConfig(label: 'Connecting', color: Colors.yellow);
+      case DeviceStatus.syncing:
+        return StatusConfig(label: 'Syncing', color: Colors.purple);
       case DeviceStatus.error:
-        return _StatusConfig(
-          label: 'Error',
-          backgroundColor: Colors.red.shade50,
-          borderColor: Colors.red.shade100,
-          iconColor: Colors.red.shade600,
-          statusIcon: Icons.error,
-        );
+        return StatusConfig(label: 'Error', color: Colors.red);
       case DeviceStatus.disconnected:
-        return _StatusConfig(
-          label: 'Disconnected',
-          backgroundColor: Colors.grey.shade50,
-          borderColor: Colors.grey.shade100,
-          iconColor: Colors.grey.shade500,
-          statusIcon: Icons.circle_outlined,
-        );
+        return StatusConfig(label: 'Disconnected', color: Colors.grey);
     }
   }
 }
 
-class _StatusConfig {
-  final String label;
-  final Color backgroundColor;
-  final Color borderColor;
-  final Color iconColor;
-  final IconData statusIcon;
-
-  const _StatusConfig({
-    required this.label,
-    required this.backgroundColor,
-    required this.borderColor,
-    required this.iconColor,
-    required this.statusIcon,
-  });
-}
-
 enum DeviceStatus {
+  connected,
   ready,
   active,
-  connected,
-  syncing,
   connecting,
+  syncing,
   error,
   disconnected,
+}
+
+class StatusConfig {
+  final String label;
+  final Color color;
+
+  StatusConfig({required this.label, required this.color});
 }

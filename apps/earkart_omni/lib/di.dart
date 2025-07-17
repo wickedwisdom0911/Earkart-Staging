@@ -1,10 +1,10 @@
 import 'package:earkart_omni/config/services/api_client.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
+import 'package:earkart_omni/features/auth/data/repositories/auth.repository.impl.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/remote/auth.remote.source.dart';
 import 'package:earkart_omni/features/auth/data/source/remote/auth.remote.source.impl.dart';
-import 'package:earkart_omni/features/auth/data/repositories/auth.repository.impl.dart';
 import 'package:earkart_omni/features/auth/domain/repositories/auth.repository.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/get.centre.data.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/get.centre.usecase.dart';
@@ -31,7 +31,6 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubi
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
-import 'package:earkart_omni/features/consultation/presentation/cubit/uvc_camera.cubit.dart';
 import 'package:earkart_omni/features/lookup/data/reositories/lookup.repository.impl.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/city.entity.source.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/countries.entity.source.dart';
@@ -258,7 +257,6 @@ Future<void> setupDI() async {
   //device
   di.registerLazySingleton<DeviceCubit>(() => DeviceCubit());
   di.registerLazySingleton<CommunicationCubit>(() => CommunicationCubit());
-  di.registerLazySingleton<UVCCameraCubit>(() => UVCCameraCubit());
 
   //network
   di.registerLazySingleton<NetworkCubit>(() => NetworkCubit());
