@@ -665,13 +665,12 @@ internal class UVCCameraView(
 
     // Frame capture for otoscopy streaming
     private var isFrameCaptureActive = false
-    private var lastCapturedFrame: String? = null
     private val frameCaptureHandler = Handler(Looper.getMainLooper())
     private val frameCaptureRunnable = object : Runnable {
         override fun run() {
             if (isFrameCaptureActive && isCameraOpened()) {
                 captureFrameAsBase64Internal()
-                frameCaptureHandler.postDelayed(this, 33) // 30 FPS (33ms)
+                frameCaptureHandler.postDelayed(this, 50) // 20 FPS (50ms)
             }
         }
     }
@@ -679,6 +678,11 @@ internal class UVCCameraView(
     fun captureFrameAsBase64(callback: UVCStringCallback) {
         if (!isCameraOpened()) {
             callback.onError("Camera not opened")
+            return
+        }
+        
+        if (!isFrameCaptureActive) {
+            callback.onSuccess("")
             return
         }
         
@@ -703,6 +707,10 @@ internal class UVCCameraView(
         }
         
         isFrameCaptureActive = true
+        val currentCamera = getCurrentCamera()
+        if (currentCamera is CameraUVC) {
+            currentCamera.startFrameCapture()
+        }
         frameCaptureHandler.post(frameCaptureRunnable)
         callFlutter("Started frame capture for streaming")
     }
@@ -710,15 +718,16 @@ internal class UVCCameraView(
     fun stopFrameCapture() {
         isFrameCaptureActive = false
         frameCaptureHandler.removeCallbacks(frameCaptureRunnable)
+        val currentCamera = getCurrentCamera()
+        if (currentCamera is CameraUVC) {
+            currentCamera.stopFrameCapture()
+        }
         callFlutter("Stopped frame capture")
     }
 
     fun getLastCapturedFrame(callback: UVCStringCallback) {
-        if (lastCapturedFrame != null) {
-            callback.onSuccess(lastCapturedFrame!!)
-        } else {
-            callback.onError("No frame captured yet")
-        }
+        // Always capture a fresh frame instead of returning cached one
+        captureFrameAsBase64(callback)
     }
 
     private fun captureFrameAsBase64Internal() {
@@ -726,7 +735,8 @@ internal class UVCCameraView(
             val currentCamera = getCurrentCamera()
             if (currentCamera is CameraUVC) {
                 currentCamera.captureFrameAsBase64 { base64Data ->
-                    lastCapturedFrame = base64Data
+                    // Frame captured successfully, but we don't store it
+                    // This ensures we always get fresh frames
                 }
             }
         } catch (e: Exception) {

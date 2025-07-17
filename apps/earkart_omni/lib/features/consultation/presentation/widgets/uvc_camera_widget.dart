@@ -80,15 +80,18 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   Timer? _streamingTimer;
   IO.Socket? _socket;
   String? _consultationId;
-  static const int _streamingFps = 30; // 30 FPS for streaming
+  static const int _maxStreamingFps = 20; // Reduced from 30 to 20 FPS
   static const Duration _streamingInterval = Duration(
-    milliseconds: 33,
-  ); // 33ms ≈ 30 FPS
+    milliseconds: 50, // 50ms = 20 FPS
+  );
 
-  // Frame rate monitoring
+  // Frame rate monitoring and adaptation
   int _frameCount = 0;
   DateTime? _lastFrameRateCheck;
   double _currentFps = 0.0;
+  int _totalFramesSent = 0;
+  int _consecutiveEmptyFrames = 0;
+  static const int _maxConsecutiveEmptyFrames = 5;
 
   @override
   void initState() {
@@ -220,13 +223,14 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     }
 
     print(
-      'uvc_stream: 🎥 Starting otoscopy streaming to dashboard at $_streamingFps FPS for consultation: $_consultationId',
+      'uvc_stream: 🎥 Starting otoscopy streaming to dashboard at $_maxStreamingFps FPS for consultation: $_consultationId',
     );
     setState(() {
       _isOtoscopyStreaming = true;
       _frameCount = 0;
       _lastFrameRateCheck = null;
       _currentFps = 0.0;
+      _consecutiveEmptyFrames = 0;
     });
 
     // Start frame capture in the camera controller
@@ -270,14 +274,50 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                 _isOtoscopyStreaming &&
                 !_isDisposed) {
               _streamFrameToDashboard(base64Image);
+              _consecutiveEmptyFrames = 0; // Reset counter on successful frame
+            } else {
+              _consecutiveEmptyFrames++;
+              if (_consecutiveEmptyFrames >= _maxConsecutiveEmptyFrames) {
+                print(
+                  'uvc_stream: ⚠️ Too many consecutive empty frames ($_consecutiveEmptyFrames), pausing streaming temporarily',
+                );
+                _pauseStreamingTemporarily();
+              }
             }
           })
           .catchError((error) {
             print('uvc_stream: ❌ Error capturing frame: $error');
+            _consecutiveEmptyFrames++;
           });
     } catch (e) {
       print('uvc_stream: ❌ Error in frame capture: $e');
+      _consecutiveEmptyFrames++;
     }
+  }
+
+  // Pause streaming temporarily to let camera catch up
+  void _pauseStreamingTemporarily() {
+    if (!_isOtoscopyStreaming) return;
+
+    print(
+      'uvc_stream: ⏸️ Pausing streaming temporarily to let camera catch up',
+    );
+    _streamingTimer?.cancel();
+
+    // Resume after 1 second
+    Timer(const Duration(seconds: 1), () {
+      if (_isOtoscopyStreaming && !_isDisposed && mounted) {
+        print('uvc_stream: ▶️ Resuming streaming after pause');
+        _consecutiveEmptyFrames = 0;
+        _streamingTimer = Timer.periodic(_streamingInterval, (timer) {
+          if (!_isOtoscopyStreaming || _isDisposed || !mounted) {
+            timer.cancel();
+            return;
+          }
+          _captureAndStreamFrame();
+        });
+      }
+    });
   }
 
   // Capture frame as base64 image
@@ -369,7 +409,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           'consultationId': _consultationId,
           'timestamp': now.millisecondsSinceEpoch,
           'frame': base64Image,
-          'fps': _streamingFps,
+          'fps': _maxStreamingFps,
           'currentFps': _currentFps,
           'resolution': '1280x720',
         };
@@ -379,8 +419,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         // Log frame streaming less frequently to avoid spam at 30 FPS
         if (_frameCount % 30 == 0) {
           // Log every 30 frames (once per second at 30 FPS)
+          _totalFramesSent += 30;
           print(
-            'uvc_stream: 📡 Streamed otoscopy frame to dashboard (${base64Image.length} bytes, FPS: ${_currentFps.toStringAsFixed(1)})',
+            'uvc_stream: 📡 Streamed otoscopy frame to dashboard (${base64Image.length} bytes, FPS: ${_currentFps.toStringAsFixed(1)}, Total frames: $_totalFramesSent)',
           );
         }
       } else {

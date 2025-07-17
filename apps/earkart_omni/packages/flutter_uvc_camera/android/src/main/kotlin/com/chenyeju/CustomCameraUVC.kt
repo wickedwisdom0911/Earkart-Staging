@@ -138,54 +138,47 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     }
 
     // Frame capture for otoscopy streaming
-    private var lastFrameData: ByteArray? = null
     private var frameCaptureCallback: ((String) -> Unit)? = null
-    private var lastBase64Frame: String? = null
-    private var lastFrameTimestamp: Long = 0
-    private val frameCacheTimeout = 50L // Cache frame for 50ms to avoid excessive processing
+    private var frameCounter: Long = 0
+    private var lastFrameCaptureTime: Long = 0
+    private val MIN_FRAME_INTERVAL = 50L // Minimum 50ms between frames (20 FPS max)
+    private var isFrameCaptureActive = false
 
     fun captureFrameAsBase64(callback: (String) -> Unit) {
-        frameCaptureCallback = callback
-        val currentTime = System.currentTimeMillis()
-        
-        // Use cached frame if it's recent enough
-        if (lastBase64Frame != null && (currentTime - lastFrameTimestamp) < frameCacheTimeout) {
-            callback(lastBase64Frame!!)
+        if (!isFrameCaptureActive) {
+            callback.invoke("")
             return
         }
-        
-        if (lastFrameData != null) {
-            convertFrameToBase64(lastFrameData!!, callback)
-        } else {
-            // Try to capture a new frame
-            captureCurrentFrame()
+
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastFrameCaptureTime < MIN_FRAME_INTERVAL) {
+            // Skip frame if too soon
+            callback.invoke("")
+            return
         }
+
+        frameCaptureCallback = callback
+        captureCurrentFrame()
+        lastFrameCaptureTime = currentTime
     }
 
     private fun captureCurrentFrame() {
         try {
-            // Get the latest frame from the queue with timeout
+            // Check if we have enough frames in queue
+            if (mNV21DataQueue.size < 2) {
+                Log.w(TAG, "uvc_stream: Insufficient frames in queue (${mNV21DataQueue.size}), skipping capture")
+                frameCaptureCallback?.invoke("")
+                return
+            }
+
+            // Get the latest frame from the queue
             val frameData = mNV21DataQueue.pollFirst()
             if (frameData != null) {
-                lastFrameData = frameData
+                Log.d(TAG, "uvc_stream: Capturing fresh frame from queue (${frameData.size} bytes, queue size: ${mNV21DataQueue.size})")
                 convertFrameToBase64(frameData, frameCaptureCallback)
             } else {
-                // If no frame in queue, try to get from UVC camera directly
-                mUvcCamera?.let { camera ->
-                    // Use a background thread for frame processing to avoid blocking
-                    Thread {
-                        try {
-                            // This is a simplified approach - in a real implementation,
-                            // you might want to use the camera's native frame capture
-                            frameCaptureCallback?.invoke("")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error in background frame capture", e)
-                            frameCaptureCallback?.invoke("")
-                        }
-                    }.start()
-                } ?: run {
-                    frameCaptureCallback?.invoke("")
-                }
+                Log.w(TAG, "uvc_stream: No frame in queue, queue size: ${mNV21DataQueue.size}")
+                frameCaptureCallback?.invoke("")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error capturing current frame", e)
@@ -195,6 +188,8 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
 
     private fun convertFrameToBase64(frameData: ByteArray, callback: ((String) -> Unit)?) {
         try {
+            frameCounter++
+            
             // Convert NV21 to JPEG for base64 encoding
             val width = mCameraRequest?.previewWidth ?: 640
             val height = mCameraRequest?.previewHeight ?: 480
@@ -208,11 +203,11 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                 null
             )
             
-            // Convert to JPEG with optimized quality for 30 FPS
+            // Convert to JPEG with optimized quality for 20 FPS
             val outputStream = java.io.ByteArrayOutputStream()
             yuvImage.compressToJpeg(
                 android.graphics.Rect(0, 0, width, height),
-                70, // Reduced quality for better performance at 30 FPS
+                70, // Reduced quality for better performance at 20 FPS
                 outputStream
             )
             
@@ -226,16 +221,25 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
             // Add data URL prefix
             val dataUrl = "data:image/jpeg;base64,$base64String"
             
-            // Cache the result for reuse
-            lastBase64Frame = dataUrl
-            lastFrameTimestamp = System.currentTimeMillis()
-            
+            Log.d(TAG, "uvc_stream: Frame #$frameCounter converted to base64 (${jpegData.size} bytes)")
             callback?.invoke(dataUrl)
             
         } catch (e: Exception) {
             Log.e(TAG, "Error converting frame to base64", e)
             callback?.invoke("")
         }
+    }
+
+    // Add methods to control frame capture
+    fun startFrameCapture() {
+        isFrameCaptureActive = true
+        lastFrameCaptureTime = 0 // Reset timer
+        Log.d(TAG, "uvc_stream: Frame capture started")
+    }
+
+    fun stopFrameCapture() {
+        isFrameCaptureActive = false
+        Log.d(TAG, "uvc_stream: Frame capture stopped")
     }
 
     override fun getAllPreviewSizes(aspectRatio: Double?): MutableList<PreviewSize> {
