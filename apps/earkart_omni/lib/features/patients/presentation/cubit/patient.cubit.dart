@@ -5,6 +5,7 @@ import 'package:earkart_omni/features/patients/domain/usecases/get_all_patient_b
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class PatientCubit extends Cubit<PatientState> {
   final CreatePatientUsecase createPatientUsecase;
@@ -23,6 +24,7 @@ class PatientCubit extends Cubit<PatientState> {
     final result = await createPatientUsecase(patient);
     result.fold(
       (failure) {
+        Fluttertoast.showToast(msg: failure.message);
         emit(PatientError(message: failure.message));
       },
       (patient) {

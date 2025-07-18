@@ -133,6 +133,7 @@ class ConsultationEntity extends Equatable {
   );
 
   Map<String, dynamic> toJson() => {
+    'id': id,
     'patientId': patientId,
     'audiologistId': audiologistId,
     'centreId': centreId,

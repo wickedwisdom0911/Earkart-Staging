@@ -5,7 +5,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
-import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// UVC Camera Widget for Otoscopy Streaming
@@ -52,13 +51,17 @@ class UVCCameraWidget extends StatefulWidget {
 }
 
 class _UVCCameraWidgetState extends State<UVCCameraWidget>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   UVCCameraController? cameraController;
   bool isInitialized = false;
   String _status = 'Checking permissions...';
   bool _isDisposed = false;
   bool _permissionsGranted = false;
   final GlobalKey _cameraKey = GlobalKey();
+
+  // Animation controller for live stream indicator
+  late AnimationController _pulseAnimationController;
+  late Animation<double> _pulseAnimation;
 
   // Lifecycle management improvements
   bool _isAppActive = true;
@@ -104,6 +107,19 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Initialize pulse animation
+    _pulseAnimationController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(
+        parent: _pulseAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
     _checkPermissionsAndInitialize();
     _setupOtoscopyStreaming();
 
@@ -240,6 +256,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       _consecutiveEmptyFrames = 0;
     });
 
+    // Start pulse animation
+    _pulseAnimationController.repeat(reverse: true);
+
     // Start frame capture in the camera controller
     cameraController?.startFrameCapture();
 
@@ -261,6 +280,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     setState(() {
       _isOtoscopyStreaming = false;
     });
+
+    // Stop pulse animation
+    _pulseAnimationController.stop();
 
     _streamingTimer?.cancel();
     _streamingTimer = null;
@@ -586,6 +608,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     _recoveryTimer?.cancel();
     _initializationTimer?.cancel();
     _platformViewTimer?.cancel();
+
+    // Clean up animation controller
+    _pulseAnimationController.dispose();
 
     // Clean up otoscopy streaming resources
     _stopOtoscopyStreaming();
@@ -1037,6 +1062,10 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           // Main camera view
           _buildCameraContent(),
 
+          // Live stream indicator - always show when streaming
+          if (_isOtoscopyStreaming)
+            Positioned(top: 12, left: 12, child: _buildLiveStreamIndicator()),
+
           // Minimal status indicator overlay
           if (!_permissionsGranted ||
               _errorCount >= _maxErrorCount ||
@@ -1247,10 +1276,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       indicatorColor = Colors.orange;
       indicatorIcon = Icons.videocam_off;
       tooltipText = 'Not Ready';
-    } else if (_isOtoscopyStreaming) {
-      indicatorColor = Colors.blue;
-      indicatorIcon = Icons.stream;
-      tooltipText = 'Streaming';
     } else {
       indicatorColor = Colors.green;
       indicatorIcon = Icons.videocam;
@@ -1274,6 +1299,42 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLiveStreamIndicator() {
+    return Tooltip(
+      message: 'Live Otoscopy Streaming Active',
+      child: AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _pulseAnimation.value,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.stream, color: Colors.blue, size: 16),
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
