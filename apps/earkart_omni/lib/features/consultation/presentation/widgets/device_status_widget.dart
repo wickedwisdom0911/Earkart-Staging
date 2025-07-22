@@ -4,6 +4,8 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/device.cub
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
+import 'package:earkart_omni/di.dart';
+import 'package:earkart_omni/config/utils/custom_logger.dart';
 
 class DeviceStatusWidget extends StatelessWidget {
   const DeviceStatusWidget({super.key});
@@ -16,6 +18,17 @@ class DeviceStatusWidget extends StatelessWidget {
           builder: (context, commState) {
             final r15cStatus = _getR15CStatus(deviceState, commState);
             final revo2Status = _getRevo2Status(deviceState);
+
+            // Debug logging for device status
+            di<ILogger>().debug(
+              'DeviceStatusWidget - R15C: $r15cStatus, Revo2: $revo2Status',
+            );
+            di<ILogger>().debug(
+              'DeviceStatusWidget - DeviceState: $deviceState',
+            );
+            di<ILogger>().debug(
+              'DeviceStatusWidget - CommState: ${commState.isConnected}, ${commState.isSynced}, ${commState.transducerResponse != null}',
+            );
 
             return Row(
               mainAxisSize: MainAxisSize.min,

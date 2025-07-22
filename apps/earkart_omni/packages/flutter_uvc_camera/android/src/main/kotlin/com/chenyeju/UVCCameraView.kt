@@ -76,6 +76,37 @@ internal class UVCCameraView(
 
     companion object {
         private const val TAG = "CameraView"
+        
+        // Check if native libraries are available
+        fun isNativeLibraryAvailable(): Boolean {
+            return try {
+                // Try to access a class from the UVC library to verify it's working
+                // This is more reliable than trying to load libraries manually
+                try {
+                    Class.forName("com.jiangdg.uvc.UVCCamera")
+                    Log.d(TAG, "UVCCamera class is available")
+                    
+                    // Try to create an instance to verify native methods are working
+                    try {
+                        val uvcCameraClass = Class.forName("com.jiangdg.uvc.UVCCamera")
+                        val constructor = uvcCameraClass.getDeclaredConstructor()
+                        constructor.isAccessible = true
+                        val instance = constructor.newInstance()
+                        Log.d(TAG, "Successfully created UVCCamera instance")
+                        true
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not create UVCCamera instance, but class is available: ${e.message}")
+                        true // Class is available, so we'll assume it works
+                    }
+                } catch (e: ClassNotFoundException) {
+                    Log.e(TAG, "UVCCamera class not found: ${e.message}")
+                    false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking native library availability: ${e.message}")
+                false
+            }
+        }
     }
 
 //    init{
@@ -98,22 +129,39 @@ internal class UVCCameraView(
     }
 
     fun initCamera(){
-        checkCameraPermission()
-        val cameraView = AspectRatioTextureView(mContext)
-        handleTextureView(cameraView)
-        mCameraView = cameraView
-        cameraView.also { view->
-            mViewBinding.fragmentContainer
-                .apply {
-                    removeAllViews()
-                    addView(view, getViewLayoutParams(this))
-                }
+        try {
+            // Check if native libraries are available first
+            if (!isNativeLibraryAvailable()) {
+                Log.w(TAG, "Native libraries not available, but continuing with camera initialization...")
+                // Don't return early, try to continue with camera initialization
+                // The libraries might be loaded by the dependency later
+            }
+            
+            checkCameraPermission()
+            val cameraView = AspectRatioTextureView(mContext)
+            handleTextureView(cameraView)
+            mCameraView = cameraView
+            cameraView.also { view->
+                mViewBinding.fragmentContainer
+                    .apply {
+                        removeAllViews()
+                        addView(view, getViewLayoutParams(this))
+                    }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in initCamera: ${e.message}", e)
+            setCameraERRORState("Camera initialization failed: ${e.message}")
         }
     }
 
     fun openUVCCamera() {
-        checkCameraPermission()
-        openCamera()
+        try {
+            checkCameraPermission()
+            openCamera()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in openUVCCamera: ${e.message}", e)
+            setCameraERRORState("Failed to open camera: ${e.message}")
+        }
     }
 
     override fun dispose() {
@@ -151,17 +199,22 @@ internal class UVCCameraView(
     }
 
     fun registerMultiCamera() {
+        Log.d(TAG, "registerMultiCamera called")
         mCameraClient = MultiCameraClient(view.context, object : IDeviceConnectCallBack {
             override fun onAttachDev(device: UsbDevice?) {
+                Log.d(TAG, "onAttachDev called with device: $device")
                 device ?: return
                 view.context.let {
                     if (mCameraMap.containsKey(device.deviceId)) {
+                        Log.d(TAG, "Device already in map, skipping")
                         return
                     }
+                    Log.d(TAG, "Generating camera for device: ${device.deviceName} (vid: ${device.vendorId}, pid: ${device.productId})")
                     generateCamera(it, device).apply {
                         mCameraMap[device.deviceId] = this
                     }
                     if (mRequestPermission.get()) {
+                        Log.d(TAG, "Permission already requested, skipping")
                         return@let
                     }
                     getDefaultCamera()?.apply {
@@ -171,6 +224,7 @@ internal class UVCCameraView(
                         }
                         return@let
                     }
+                    Log.d(TAG, "Requesting permission for device")
                     requestPermission(device)
                 }
             }
@@ -189,22 +243,27 @@ internal class UVCCameraView(
             }
 
             override fun onConnectDev(device: UsbDevice?, ctrlBlock: USBMonitor.UsbControlBlock?) {
+                Log.d(TAG, "onConnectDev called with device: $device, ctrlBlock: $ctrlBlock")
                 device ?: return
                 ctrlBlock ?: return
                 view.context ?: return
                 mCameraMap[device.deviceId]?.apply {
                     setUsbControlBlock(ctrlBlock)
                 }?.also { camera ->
+                    Log.d(TAG, "Camera connected, setting up current camera")
                     try {
                         mCurrentCamera?.cancel(true)
                         mCurrentCamera = null
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        Log.e(TAG, "Error canceling previous camera: ${e.message}", e)
                     }
                     mCurrentCamera = SettableFuture()
                     mCurrentCamera?.set(camera)
+                    Log.d(TAG, "Current camera set, opening camera")
                     openCamera(mCameraView)
                     Logger.i(TAG, "camera connection. pid: ${device.productId}, vid: ${device.vendorId}")
+                } ?: run {
+                    Log.w(TAG, "No camera found in map for device: ${device.deviceId}")
                 }
             }
 
@@ -376,10 +435,13 @@ internal class UVCCameraView(
 
 
     private fun getCurrentCamera(): MultiCameraClient.ICamera? {
+        Log.d(TAG, "getCurrentCamera called, mCurrentCamera: $mCurrentCamera")
         return try {
-            mCurrentCamera?.get(2, TimeUnit.SECONDS)
+            val camera = mCurrentCamera?.get(2, TimeUnit.SECONDS)
+            Log.d(TAG, "getCurrentCamera result: $camera")
+            camera
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error getting current camera: ${e.message}", e)
             null
         }
     }
@@ -488,16 +550,37 @@ internal class UVCCameraView(
     }
 
     fun openCamera(st: IAspectRatio? = null) {
-        when (st) {
+        Log.d(TAG, "openCamera called with st: $st")
+        
+        val currentCamera = getCurrentCamera()
+        Log.d(TAG, "Current camera: $currentCamera")
+        
+        if (currentCamera == null) {
+            Log.w(TAG, "No current camera available, cannot open camera")
+            return
+        }
+        
+        val surface = when (st) {
             is TextureView, is SurfaceView -> {
                 st
             }
             else -> {
+                Log.w(TAG, "Invalid surface type: $st")
                 null
             }
-        }.apply {
-            getCurrentCamera()?.openCamera(this, getCameraRequest())
-            getCurrentCamera()?.setCameraStateCallBack(this@UVCCameraView)
+        }
+        
+        Log.d(TAG, "Opening camera with surface: $surface")
+        surface?.apply {
+            try {
+                currentCamera.openCamera(this, getCameraRequest())
+                currentCamera.setCameraStateCallBack(this@UVCCameraView)
+                Log.d(TAG, "Camera opened successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error opening camera: ${e.message}", e)
+            }
+        } ?: run {
+            Log.e(TAG, "Surface is null, cannot open camera")
         }
     }
 

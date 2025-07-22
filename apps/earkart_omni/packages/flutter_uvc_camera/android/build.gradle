@@ -59,6 +59,11 @@ android {
 
     defaultConfig {
         minSdkVersion 19
+        
+        // Add NDK configuration for native libraries
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
     }
 
     dependencies {
@@ -68,11 +73,44 @@ android {
         implementation fileTree(dir: 'libs', include: ['*.jar'])
         implementation 'com.android.support.constraint:constraint-layout: 5.0.0'
         implementation 'com.google.code.gson:gson:2.8.8'
+        
+        // Ensure native libraries are included
+        // The AndroidUSBCamera dependency should include the native libraries
+        // If not, we may need to manually include them
     }
 
     lintOptions {
         checkReleaseBuilds false
         abortOnError false
+    }
+
+    // Add build types configuration
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+
+    // Add packaging options to ensure native libraries are included
+    packagingOptions {
+        pickFirst '**/libc++_shared.so'
+        pickFirst '**/libuvc.so'
+        pickFirst '**/libausbc.so'
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/license.txt'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/NOTICE.txt'
+        exclude 'META-INF/notice.txt'
+        exclude 'META-INF/ASL2.0'
+        exclude 'META-INF/*.kotlin_module'
     }
 
     testOptions {

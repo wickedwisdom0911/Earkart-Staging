@@ -25,6 +25,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
+import 'package:earkart_omni/config/release_config.dart';
 
 class ConsultationScreen extends StatefulWidget {
   static const routeName = '/consultation';
@@ -79,31 +80,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   }
 
   void _initializeDeviceMonitoring() {
-    // Start device monitoring
-    context.read<DeviceCubit>().startDeviceMonitoring();
-
-    // Setup listeners for device and communication state changes
+    // Device monitoring is now started globally in main.dart
+    // We only need to setup listeners for device and communication state changes
     _setupDeviceListeners();
   }
 
   void _setupDeviceListeners() {
-    // Listen for device state changes
-    context.read<DeviceCubit>().stream.listen((deviceState) {
-      deviceState.maybeWhen(
-        success: (devices, r15cDevice, revo2Device) {
-          _handleDeviceStateChange(r15cDevice, revo2Device);
-        },
-        error: (message) {
-          _showErrorSnackBar('Device error: $message');
-        },
-        orElse: () {},
-      );
-    });
-
-    // Listen for communication state changes
-    context.read<CommunicationCubit>().stream.listen((commState) {
-      _handleCommunicationStateChange(commState);
-    });
+    // Listen for device state changes - use BlocListener instead of stream.listen
+    // This ensures proper state management and prevents memory leaks
+    // The actual listening is done in the BlocListener in the build method
   }
 
   void _handleDeviceStateChange(UsbDevice? r15cDevice, UsbDevice? revo2Device) {
@@ -317,7 +302,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         socket.disconnect();
         socket.dispose();
       }
-      context.read<DeviceCubit>().stopDeviceMonitoring();
+      // Don't stop device monitoring here as it's now managed globally
+      // context.read<DeviceCubit>().stopDeviceMonitoring();
       _hasJoinedConsultation = false;
       _videoWidget = null; // Clear video widget reference
     } catch (e) {
@@ -628,7 +614,14 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     di<ILogger>().debug('Current consultation ID: ${consultation?.id}');
     di<ILogger>().debug('Current consultation: $consultation');
 
-    if (_videoWidget == null || (_videoWidget!.channelName != channelName)) {
+    // Dispose of existing video widget if channel name changed
+    if (_videoWidget != null && (_videoWidget!.channelName != channelName)) {
+      di<ILogger>().debug('Channel name changed, disposing old video widget');
+      // The widget will be properly disposed when it's removed from the widget tree
+      _videoWidget = null;
+    }
+
+    if (_videoWidget == null) {
       final consultationId = consultation?.id ?? "";
       di<ILogger>().debug(
         'Creating new VideoCallWidget with consultationId: "$consultationId"',
@@ -826,13 +819,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               if (state is ConsultationError) {
                 di<ILogger>().debug(
                   'ConsultationScreen: Consultation error - ${state.message}',
-                );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error: ${state.message}'),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 3),
-                  ),
                 );
               }
             },
@@ -1087,8 +1073,38 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                         child: videoWidget,
                       ),
                     ),
-                    // Right half - UVC Camera
-                    Expanded(flex: 1, child: UVCCameraWidget(socket: socket)),
+                    // Right half - UVC Camera (disabled in release mode)
+                    Expanded(
+                      flex: 1,
+                      child:
+                          ReleaseConfig.enableUVCCamera
+                              ? UVCCameraWidget(socket: socket)
+                              : Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black87,
+                                ),
+                                child: const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.videocam_off,
+                                        color: Colors.orange,
+                                        size: 32,
+                                      ),
+                                      SizedBox(height: 12),
+                                      Text(
+                                        'Camera disabled in release mode',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                    ),
                   ],
                 );
               } else {

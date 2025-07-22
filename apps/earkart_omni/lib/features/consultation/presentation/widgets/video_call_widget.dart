@@ -10,6 +10,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.state.dart';
+import 'package:earkart_omni/di.dart';
+import 'package:earkart_omni/config/utils/custom_logger.dart';
+import 'package:earkart_omni/config/release_config.dart';
 
 class VideoCallWidget extends StatefulWidget {
   final String channelName;
@@ -46,8 +49,23 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   }
 
   @override
+  void didUpdateWidget(VideoCallWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset state if channel name changed
+    if (oldWidget.channelName != widget.channelName) {
+      di<ILogger>().info(
+        'Channel name changed from ${oldWidget.channelName} to ${widget.channelName}',
+      );
+      _localUserJoined = false;
+      _remoteUid = null;
+      // Reinitialize for new channel
+      _initializeAgora();
+    }
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    debugPrint('App lifecycle state changed to: $state');
+    di<ILogger>().debug('App lifecycle state changed to: $state');
     if (state == AppLifecycleState.resumed) {
       if (_isInitialized && !_isDisposed && !_isPreviewStarted) {
         _startPreview();
@@ -63,9 +81,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     try {
       await _engine.startPreview();
       _isPreviewStarted = true;
-      debugPrint('Camera preview started successfully');
+      di<ILogger>().info('Camera preview started successfully');
     } catch (e) {
-      debugPrint('Error starting camera preview: $e');
+      di<ILogger>().error('Error starting camera preview: $e');
     }
   }
 
@@ -73,19 +91,38 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     try {
       await _engine.stopPreview();
       _isPreviewStarted = false;
-      debugPrint('Camera preview stopped successfully');
+      di<ILogger>().info('Camera preview stopped successfully');
     } catch (e) {
-      debugPrint('Error stopping camera preview: $e');
+      di<ILogger>().error('Error stopping camera preview: $e');
     }
   }
 
   Future<void> _initializeAgora() async {
     try {
+      // Check if Agora video is enabled in release mode
+      if (!ReleaseConfig.enableAgoraVideo) {
+        di<ILogger>().warning('Agora video is disabled in release mode');
+        return;
+      }
+
       await _requestPermissions();
       if (!mounted) return;
-      context.read<AgoraCubit>().getAgoraToken();
+
+      // Check if we already have a valid token before requesting a new one
+      final agoraState = context.read<AgoraCubit>().state;
+      agoraState.maybeWhen(
+        success: (agora) async {
+          di<ILogger>().info('Using existing Agora token');
+          await _setupAgoraEngine(agora.appId);
+          await _joinChannel(agora.token, agora.userId);
+        },
+        orElse: () {
+          di<ILogger>().info('Requesting new Agora token');
+          context.read<AgoraCubit>().getAgoraToken();
+        },
+      );
     } catch (e) {
-      debugPrint('Error initializing Agora: $e');
+      di<ILogger>().error('Error initializing Agora: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error initializing: ${e.toString()}')),
@@ -103,6 +140,8 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
   Future<void> _setupAgoraEngine(String appId) async {
     if (_isInitialized || _isDisposed) return;
+
+    di<ILogger>().info('Setting up Agora engine with appId: $appId');
 
     try {
       _engine = createAgoraRtcEngine();
@@ -143,12 +182,12 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       _engine.registerEventHandler(
         RtcEngineEventHandler(
           onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-            debugPrint("Local user ${connection.localUid} joined");
+            di<ILogger>().info("Local user ${connection.localUid} joined");
             if (!mounted || _isDisposed) return;
             setState(() => _localUserJoined = true);
           },
           onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-            debugPrint("Remote user $remoteUid joined");
+            di<ILogger>().info("Remote user $remoteUid joined");
             if (!mounted || _isDisposed) return;
             setState(() => _remoteUid = remoteUid);
           },
@@ -157,12 +196,14 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
             int remoteUid,
             UserOfflineReasonType reason,
           ) {
-            debugPrint("Remote user $remoteUid left with reason: $reason");
+            di<ILogger>().info(
+              "Remote user $remoteUid left with reason: $reason",
+            );
             if (!mounted || _isDisposed) return;
             setState(() => _remoteUid = null);
           },
           onError: (ErrorCodeType err, String msg) {
-            debugPrint("Agora error: $err - $msg");
+            di<ILogger>().error("Agora error: $err - $msg");
             if (!mounted || _isDisposed) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -173,7 +214,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
             );
           },
           onTokenPrivilegeWillExpire: (RtcConnection connection, String token) {
-            debugPrint("Token will expire soon");
+            di<ILogger>().info("Token will expire soon");
             // Refresh token here
             context.read<AgoraCubit>().getAgoraToken();
           },
@@ -183,7 +224,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       await _startPreview();
       _isInitialized = true;
     } catch (e) {
-      debugPrint('Error setting up Agora engine: $e');
+      di<ILogger>().error('Error setting up Agora engine: $e');
       if (!mounted || _isDisposed) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -198,6 +239,13 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
   Future<void> _joinChannel(String token, int uid) async {
     if (!_isInitialized || _isDisposed) return;
+
+    if (_localUserJoined) {
+      di<ILogger>().info('Already joined channel, skipping join request');
+      return;
+    }
+
+    di<ILogger>().info('Joining channel: ${widget.channelName}');
 
     try {
       if (token.isEmpty) {
@@ -225,9 +273,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
         uid: uid,
       );
-      debugPrint('Successfully joined channel: ${widget.channelName}');
+      di<ILogger>().info('Successfully joined channel: ${widget.channelName}');
     } catch (e) {
-      debugPrint('Error joining channel: $e');
+      di<ILogger>().error('Error joining channel: $e');
       if (!mounted || _isDisposed) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -246,7 +294,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       _isMicOn = !_isMicOn;
     });
     _engine.muteLocalAudioStream(!_isMicOn);
-    debugPrint('Microphone ${_isMicOn ? 'enabled' : 'disabled'}');
+    di<ILogger>().info('Microphone ${_isMicOn ? 'enabled' : 'disabled'}');
   }
 
   void _toggleCamera() {
@@ -255,7 +303,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       _isCameraOn = !_isCameraOn;
     });
     _engine.muteLocalVideoStream(!_isCameraOn);
-    debugPrint('Camera ${_isCameraOn ? 'enabled' : 'disabled'}');
+    di<ILogger>().info('Camera ${_isCameraOn ? 'enabled' : 'disabled'}');
   }
 
   Future<void> _leaveChannel() async {
@@ -263,11 +311,11 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     try {
       await _stopPreview();
       await _engine.leaveChannel();
-      debugPrint('Successfully left channel');
+      di<ILogger>().info('Successfully left channel');
       // Only clear sessions if this is not being called from dispose
       // The sessions will be cleared by the consultation screen when the consultation is successfully completed
     } catch (e) {
-      debugPrint('Error leaving channel: $e');
+      di<ILogger>().error('Error leaving channel: $e');
     }
   }
 
@@ -277,11 +325,11 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     try {
       await _stopPreview();
       await _engine.leaveChannel();
-      debugPrint('Successfully left Agora channel');
+      di<ILogger>().info('Successfully left Agora channel');
       // Call the callback if provided
       widget.onLeaveChannel?.call();
     } catch (e) {
-      debugPrint('Error leaving Agora channel: $e');
+      di<ILogger>().error('Error leaving Agora channel: $e');
     }
   }
 
@@ -291,27 +339,27 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     try {
       await _stopPreview();
       await _engine.leaveChannel();
-      debugPrint('Successfully ended consultation');
+      di<ILogger>().info('Successfully ended consultation');
       // Clear sessions when explicitly ending consultation
       context.read<PatientCubit>().deletePatientSession();
       context.read<ConsultationCubit>().deleteCurrentConsultationSession();
     } catch (e) {
-      debugPrint('Error ending consultation: $e');
+      di<ILogger>().error('Error ending consultation: $e');
     }
   }
 
   @override
   void dispose() {
-    debugPrint('VideoCallWidget: dispose() called');
+    di<ILogger>().info('VideoCallWidget: dispose() called');
     _isDisposed = true;
     WidgetsBinding.instance.removeObserver(this);
     _leaveChannel();
     if (_isInitialized) {
       try {
         _engine.release();
-        debugPrint('Agora engine released');
+        di<ILogger>().info('Agora engine released');
       } catch (e) {
-        debugPrint('Error releasing Agora engine: $e');
+        di<ILogger>().error('Error releasing Agora engine: $e');
       }
     }
     super.dispose();
@@ -326,16 +374,16 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
             state.maybeWhen(
               success: (agora) async {
                 try {
-                  debugPrint(
+                  di<ILogger>().info(
                     'Received Agora token: ${agora.token.substring(0, 10)}...',
                   );
-                  debugPrint('Received Agora appId: ${agora.appId}');
-                  debugPrint('Token length: ${agora.token.length}');
+                  di<ILogger>().info('Received Agora appId: ${agora.appId}');
+                  di<ILogger>().info('Token length: ${agora.token.length}');
 
                   await _setupAgoraEngine(agora.appId);
                   await _joinChannel(agora.token, agora.userId);
                 } catch (e) {
-                  debugPrint('Error in Agora setup: $e');
+                  di<ILogger>().error('Error in Agora setup: $e');
                   if (!mounted || _isDisposed) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -347,7 +395,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                 }
               },
               error: (message) {
-                debugPrint('Agora state error: $message');
+                di<ILogger>().error('Agora state error: $message');
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(message),
@@ -362,15 +410,17 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
         BlocListener<ConsultationCubit, ConsultationState>(
           listener: (context, state) {
-            debugPrint('VideoCallWidget: Consultation state changed: $state');
+            di<ILogger>().debug(
+              'VideoCallWidget: Consultation state changed: $state',
+            );
 
             // Handle consultation update success
             if (state is ConsultationSuccess) {
-              debugPrint(
+              di<ILogger>().info(
                 'VideoCallWidget: Consultation success - status: ${state.consultation.status}',
               );
               if (state.consultation.status == SessionStatus.completed) {
-                debugPrint(
+                di<ILogger>().info(
                   'VideoCallWidget: Consultation completed successfully',
                 );
                 // Show success message
@@ -386,7 +436,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
             }
             // Handle consultation update error
             if (state is ConsultationError) {
-              debugPrint(
+              di<ILogger>().error(
                 'VideoCallWidget: Consultation error - ${state.message}',
               );
               ScaffoldMessenger.of(context).showSnackBar(

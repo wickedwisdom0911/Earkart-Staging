@@ -102,6 +102,48 @@ class UVCCameraController {
     await _cameraChannel?.invokeMethod('openUVCCamera');
   }
 
+  /// Check if native libraries are available
+  Future<bool> checkNativeLibraryAvailability() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod('checkNativeLibraryAvailability');
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint("Error checking native library availability: $e");
+      return false;
+    }
+  }
+
+  /// Get detailed native library status
+  Future<Map<String, dynamic>> getNativeLibraryStatus() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod('getNativeLibraryStatus');
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      return {};
+    } catch (e) {
+      debugPrint("Error getting native library status: $e");
+      return {};
+    }
+  }
+
+  /// Test native library functionality
+  Future<Map<String, dynamic>> testNativeLibraryFunctionality() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod('testNativeLibraryFunctionality');
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      return {'success': false, 'message': 'Invalid result type'};
+    } catch (e) {
+      debugPrint("Error testing native library functionality: $e");
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
   // Future<void> writeToDevice(int data) async {
   //   if (_cameraState == UVCCameraState.opened) {
   //     final result = await _cameraChannel?.invokeMethod('writeToDevice', data);

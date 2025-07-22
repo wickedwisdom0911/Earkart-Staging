@@ -1,5 +1,7 @@
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
@@ -17,6 +19,8 @@ import 'package:earkart_omni/features/consultation/presentation/pages/consultati
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:earkart_omni/utils/device_owner_helper.dart';
+import 'package:earkart_omni/di.dart';
+import 'package:earkart_omni/config/release_config.dart';
 
 class RootScreen extends StatefulWidget {
   static const routeName = '/';
@@ -71,6 +75,7 @@ class _RootScreenState extends State<RootScreen> {
           cameraStatus.isGranted &&
           microphoneStatus.isGranted) {
         print('✅ All permissions granted for device owner');
+        _startGlobalDeviceMonitoring();
         return;
       } else {
         print('⚠️ Some permissions still not granted for device owner');
@@ -93,10 +98,51 @@ class _RootScreenState extends State<RootScreen> {
         usbStatus.isGranted &&
         cameraStatus.isGranted &&
         microphoneStatus.isGranted) {
+      _startGlobalDeviceMonitoring();
       return;
     } else {
       _showPermissionDialog();
     }
+  }
+
+  void _startGlobalDeviceMonitoring() {
+    // Start device monitoring globally for the device status widget
+    // This ensures device status is available throughout the app
+    try {
+      // Check if device monitoring is enabled in release mode
+      if (!ReleaseConfig.enableDeviceMonitoring) {
+        print('⚠️ Device monitoring is disabled in release mode');
+        return;
+      }
+
+      // Get the DeviceCubit and CommunicationCubit from the global context
+      final deviceCubit = di<DeviceCubit>();
+      final communicationCubit = di<CommunicationCubit>();
+
+      // Set up communication between DeviceCubit and CommunicationCubit
+      deviceCubit.setCommunicationCubit(communicationCubit);
+
+      // Start device monitoring
+      deviceCubit.startDeviceMonitoring();
+
+      print('✅ Global device monitoring started successfully');
+    } catch (e) {
+      // Log error but don't crash the app
+      print('Error starting global device monitoring: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    // Stop global device monitoring when root screen is disposed
+    try {
+      final deviceCubit = di<DeviceCubit>();
+      deviceCubit.stopDeviceMonitoring();
+      print('✅ Global device monitoring stopped');
+    } catch (e) {
+      print('Error stopping global device monitoring: $e');
+    }
+    super.dispose();
   }
 
   void _showPermissionDialog() {

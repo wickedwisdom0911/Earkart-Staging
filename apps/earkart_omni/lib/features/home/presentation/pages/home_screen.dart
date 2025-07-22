@@ -6,7 +6,6 @@ import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
-import 'package:earkart_omni/features/consultation/presentation/widgets/device_status_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 

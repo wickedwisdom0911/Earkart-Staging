@@ -1,6 +1,7 @@
 package com.chenyeju
 
 import android.content.Context
+import android.util.Log
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.StandardMessageCodec
 import io.flutter.plugin.platform.PlatformView
@@ -8,63 +9,124 @@ import io.flutter.plugin.platform.PlatformViewFactory
 
 
 class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private var channel: MethodChannel) : PlatformViewFactory(StandardMessageCodec.INSTANCE){
-    private lateinit var cameraView : UVCCameraView
+    private var cameraView : UVCCameraView? = null
 
     override fun create(context: Context, viewId: Int, args: Any?): PlatformView {
         cameraView = UVCCameraView(context, this.channel,args)
-        plugin.setPermissionResultListener(cameraView)
-        return cameraView
+        plugin.setPermissionResultListener(cameraView!!)
+        return cameraView!!
     }
 
 
     fun initCamera(){
-        cameraView.initCamera();
+        if (cameraView != null) {
+            try {
+                cameraView!!.initCamera();
+            } catch (e: Exception) {
+                Log.e("UVCCameraViewFactory", "Error initializing camera: ${e.message}", e)
+            }
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
     fun openUVCCamera(){
-        cameraView.openUVCCamera()
+        if (cameraView != null) {
+            try {
+                cameraView!!.openUVCCamera()
+            } catch (e: Exception) {
+                Log.e("UVCCameraViewFactory", "Error opening UVC camera: ${e.message}", e)
+            }
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
     fun takePicture(callback: UVCStringCallback){
-        cameraView.takePicture(callback)
+        if (cameraView != null) {
+            cameraView!!.takePicture(callback)
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+            callback.onError("Camera view not initialized")
+        }
     }
+    
     fun captureVideo() {
-        cameraView.captureVideo()
+        if (cameraView != null) {
+            cameraView!!.captureVideo()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
     fun captureStreamStart(){
-        cameraView.captureStreamStart()
+        if (cameraView != null) {
+            cameraView!!.captureStreamStart()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
+    
     fun captureStreamStop(){
-        cameraView.captureStreamStop()
+        if (cameraView != null) {
+            cameraView!!.captureStreamStop()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
 
-    fun getAllPreviewSizes() = cameraView.getAllPreviewSizes();
-    fun getCurrentCameraRequestParameters() = cameraView.getCurrentCameraRequestParameters();
+    fun getAllPreviewSizes() = cameraView?.getAllPreviewSizes();
+    fun getCurrentCameraRequestParameters() = cameraView?.getCurrentCameraRequestParameters();
 
     fun closeCamera() {
-        cameraView.closeCamera()
+        if (cameraView != null) {
+            cameraView!!.closeCamera()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
     fun updateResolution(arguments: Any?) {
-        cameraView.updateResolution(arguments)
+        if (cameraView != null) {
+            cameraView!!.updateResolution(arguments)
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
     fun captureFrameAsBase64(callback: UVCStringCallback) {
-        cameraView.captureFrameAsBase64(callback)
+        if (cameraView != null) {
+            cameraView!!.captureFrameAsBase64(callback)
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+            callback.onError("Camera view not initialized")
+        }
     }
 
     fun startFrameCapture() {
-        cameraView.startFrameCapture()
+        if (cameraView != null) {
+            cameraView!!.startFrameCapture()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
     fun stopFrameCapture() {
-        cameraView.stopFrameCapture()
+        if (cameraView != null) {
+            cameraView!!.stopFrameCapture()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
     fun getLastCapturedFrame(callback: UVCStringCallback) {
-        cameraView.getLastCapturedFrame(callback)
+        if (cameraView != null) {
+            cameraView!!.getLastCapturedFrame(callback)
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+            callback.onError("Camera view not initialized")
+        }
     }
 
 

@@ -2,6 +2,7 @@ package com.chenyeju
 
 import android.app.Activity
 import android.os.Build
+import android.util.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -13,7 +14,7 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private val channelName = "flutter_uvc_camera/channel"
     private val viewName = "uvc_camera_view"
     private var channel: MethodChannel? = null
-    private lateinit var mUVCCameraViewFactory: UVCCameraViewFactory
+    private var mUVCCameraViewFactory: UVCCameraViewFactory? = null
     private var activity: Activity? = null
     private var permissionResultListener: PermissionResultListener? = null
     private var mActivityPluginBinding: ActivityPluginBinding? = null
@@ -24,7 +25,7 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, channelName)
         channel!!.setMethodCallHandler(this)
         mUVCCameraViewFactory = UVCCameraViewFactory(this, channel!!)
-        flutterPluginBinding.platformViewRegistry.registerViewFactory(viewName, mUVCCameraViewFactory)
+        flutterPluginBinding.platformViewRegistry.registerViewFactory(viewName, mUVCCameraViewFactory!!)
     }
 
 
@@ -70,15 +71,15 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "initializeCamera" -> {
-                mUVCCameraViewFactory.initCamera()
+                mUVCCameraViewFactory?.initCamera()
             }
 
             "openUVCCamera" -> {
-                mUVCCameraViewFactory.openUVCCamera()
+                mUVCCameraViewFactory?.openUVCCamera()
             }
 
             "takePicture" -> {
-                mUVCCameraViewFactory.takePicture(
+                mUVCCameraViewFactory?.takePicture(
                     object : UVCStringCallback {
                         override fun onSuccess(path: String) {
                             result.success(path)
@@ -91,35 +92,35 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             }
 
             "captureVideo" -> {
-                mUVCCameraViewFactory.captureVideo()
+                mUVCCameraViewFactory?.captureVideo()
                 result.success(true)
             }
             "captureStreamStart" -> {
-                mUVCCameraViewFactory.captureStreamStart()
+                mUVCCameraViewFactory?.captureStreamStart()
             }
             "captureStreamStop" -> {
-                mUVCCameraViewFactory.captureStreamStop()
+                mUVCCameraViewFactory?.captureStreamStop()
             }
 
             "closeCamera" -> {
-                mUVCCameraViewFactory.closeCamera()
+                mUVCCameraViewFactory?.closeCamera()
             }
 
 
             "getAllPreviewSizes" -> {
-               result.success(mUVCCameraViewFactory.getAllPreviewSizes())
+               result.success(mUVCCameraViewFactory?.getAllPreviewSizes())
             }
 
             "getCurrentCameraRequestParameters" -> {
-                result.success(mUVCCameraViewFactory.getCurrentCameraRequestParameters())
+                result.success(mUVCCameraViewFactory?.getCurrentCameraRequestParameters())
             }
 
             "updateResolution" -> {
-                mUVCCameraViewFactory.updateResolution(call.arguments())
+                mUVCCameraViewFactory?.updateResolution(call.arguments())
             }
 
             "captureFrameAsBase64" -> {
-                mUVCCameraViewFactory.captureFrameAsBase64(
+                mUVCCameraViewFactory?.captureFrameAsBase64(
                     object : UVCStringCallback {
                         override fun onSuccess(base64Data: String) {
                             result.success(base64Data)
@@ -132,17 +133,17 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             }
 
             "startFrameCapture" -> {
-                mUVCCameraViewFactory.startFrameCapture()
+                mUVCCameraViewFactory?.startFrameCapture()
                 result.success(true)
             }
 
             "stopFrameCapture" -> {
-                mUVCCameraViewFactory.stopFrameCapture()
+                mUVCCameraViewFactory?.stopFrameCapture()
                 result.success(true)
             }
 
             "getLastCapturedFrame" -> {
-                mUVCCameraViewFactory.getLastCapturedFrame(
+                mUVCCameraViewFactory?.getLastCapturedFrame(
                     object : UVCStringCallback {
                         override fun onSuccess(base64Data: String) {
                             result.success(base64Data)
@@ -156,6 +157,82 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
             "getPlatformVersion" -> {
                 result.success("Android " + Build.VERSION.RELEASE)
+            }
+            
+            "checkNativeLibraryAvailability" -> {
+                try {
+                    val isAvailable = UVCCameraView.isNativeLibraryAvailable()
+                    result.success(isAvailable)
+                } catch (e: Exception) {
+                    Log.e("FlutterUVCCameraPlugin", "Error checking native library availability: ${e.message}")
+                    result.success(false)
+                }
+            }
+            
+            "getNativeLibraryStatus" -> {
+                val status = mutableMapOf<String, Any>()
+                
+                // Check if libraries can be loaded - but don't crash if they're not found
+                val uvcLoaded = try {
+                    System.loadLibrary("uvc")
+                    true
+                } catch (e: UnsatisfiedLinkError) {
+                    Log.w("FlutterUVCCameraPlugin", "uvc library not found: ${e.message}")
+                    false
+                } catch (e: Exception) {
+                    Log.w("FlutterUVCCameraPlugin", "Error loading uvc library: ${e.message}")
+                    false
+                }
+                
+                val ausbcLoaded = try {
+                    System.loadLibrary("ausbc")
+                    true
+                } catch (e: UnsatisfiedLinkError) {
+                    Log.w("FlutterUVCCameraPlugin", "ausbc library not found: ${e.message}")
+                    false
+                } catch (e: Exception) {
+                    Log.w("FlutterUVCCameraPlugin", "Error loading ausbc library: ${e.message}")
+                    false
+                }
+                
+                // Check if classes are available
+                val uvcClassAvailable = try {
+                    Class.forName("com.jiangdg.uvc.UVCCamera")
+                    true
+                } catch (e: ClassNotFoundException) {
+                    Log.w("FlutterUVCCameraPlugin", "UVCCamera class not found: ${e.message}")
+                    false
+                } catch (e: Exception) {
+                    Log.w("FlutterUVCCameraPlugin", "Error checking UVCCamera class: ${e.message}")
+                    false
+                }
+                
+                status["uvc_library_loaded"] = uvcLoaded
+                status["ausbc_library_loaded"] = ausbcLoaded
+                status["uvc_class_available"] = uvcClassAvailable
+                status["overall_available"] = uvcClassAvailable
+                
+                result.success(status)
+            }
+            
+            "testNativeLibraryFunctionality" -> {
+                try {
+                    // Try to create a UVCCamera instance to test functionality
+                    val uvcCameraClass = Class.forName("com.jiangdg.uvc.UVCCamera")
+                    val constructor = uvcCameraClass.getDeclaredConstructor()
+                    constructor.isAccessible = true
+                    val instance = constructor.newInstance()
+                    
+                    result.success(mapOf(
+                        "success" to true,
+                        "message" to "Native library functionality test passed"
+                    ))
+                } catch (e: Exception) {
+                    result.success(mapOf(
+                        "success" to false,
+                        "message" to "Native library functionality test failed: ${e.message}"
+                    ))
+                }
             }
 
             else -> {

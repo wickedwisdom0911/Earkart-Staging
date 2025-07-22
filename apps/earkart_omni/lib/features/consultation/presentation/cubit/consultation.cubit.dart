@@ -39,20 +39,15 @@ class ConsultationCubit extends Cubit<ConsultationState> {
   Future<void> createConsultation({
     List<ConsultationPricingEntity>? selectedServices,
   }) async {
-    print(
-      'ConsultationCubit: Creating consultation with ${selectedServices?.length ?? 0} services',
-    );
     emit(ConsultationLoading());
     final result = await createConsultationUsecase(
       selectedServices: selectedServices,
     );
     result.fold(
       (l) {
-        print('ConsultationCubit: Error - ${l.message}');
         emit(ConsultationError(message: l.message));
       },
       (r) {
-        print('ConsultationCubit: Success - Consultation ID: ${r.id}');
         emit(CreateConsultationSuccess(consultation: r));
       },
     );

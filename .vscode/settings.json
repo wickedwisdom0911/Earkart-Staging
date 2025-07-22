@@ -4,5 +4,6 @@
       "mode": "auto"
     }
   ],
-  "cmake.sourceDirectory": "C:/Users/earka/OneDrive/Desktop/earkart/omni/omni_frontend/apps/earkart_omni/windows/runner"
+  "cmake.sourceDirectory": "C:/Users/earka/OneDrive/Desktop/earkart/omni/omni_frontend/apps/earkart_omni/windows/runner",
+  "java.configuration.updateBuildConfiguration": "automatic"
 }

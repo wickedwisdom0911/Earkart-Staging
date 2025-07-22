@@ -36,10 +36,43 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        debug {
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+    }
+
+    // Add packaging options to ensure native libraries are included
+    packagingOptions {
+        pickFirst("**/libc++_shared.so")
+        pickFirst("**/libuvc.so")
+        pickFirst("**/libausbc.so")
+        exclude("META-INF/DEPENDENCIES")
+        exclude("META-INF/LICENSE")
+        exclude("META-INF/LICENSE.txt")
+        exclude("META-INF/license.txt")
+        exclude("META-INF/NOTICE")
+        exclude("META-INF/NOTICE.txt")
+        exclude("META-INF/notice.txt")
+        exclude("META-INF/ASL2.0")
+        exclude("META-INF/*.kotlin_module")
+    }
+
+    // Disable deferred components to avoid Google Play Core dependency issues
+    buildFeatures {
+        buildConfig = true
     }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Add Google Play Core for deferred components support
+    implementation("com.google.android.play:core:1.10.3")
 }
