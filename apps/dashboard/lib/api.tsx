@@ -13,10 +13,15 @@ export async function apiRequest<T>(
     const response = await fetch(url, options);
 
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+      }
 
       throw new Error(
-        errorData?.message || "An error occurred while fetching data."
+        errorData?.message || `HTTP ${response.status}: ${response.statusText}`
       );
     }
     
@@ -26,16 +31,7 @@ export async function apiRequest<T>(
     return schema.parse(result);
   } catch (error) {
     if (error instanceof ZodError) {
-      const formattedErrors = handleZodError(error);
-      if (await isProduction()) {
-        throw new Error("Something went wrong during login. Please try again.");
-      } else {
-        console.error(`Invalid API response: \n${formattedErrors}`);
-        throw new Error(`Invalid API response: \n${formattedErrors}`);
-      }
-    }
-    if (!(await isProduction())) {
-      console.error("API request error:", error);
+      throw new Error(handleZodError(error));
     }
     throw error;
   }

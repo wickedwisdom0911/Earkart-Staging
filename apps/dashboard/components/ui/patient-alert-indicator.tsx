@@ -174,7 +174,7 @@ export const PatientAlertIndicator: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2 pt-2">
-                      <Button
+                      {/* <Button
                         size="sm"
                         onClick={() =>
                           handleAlertClick(alert.consultationId, alert.id)
@@ -183,7 +183,7 @@ export const PatientAlertIndicator: React.FC = () => {
                       >
                         <ExternalLink className="h-3 w-3 mr-1" />
                         View Consultation
-                      </Button>
+                      </Button> */}
                       <Button
                         variant="ghost"
                         size="sm"

@@ -13,6 +13,7 @@ import { useGetUser } from "@/hooks/auth/use-get-user";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { SessionStatus, Role } from "@/models/enums";
 import { toast } from "sonner";
+import { usePathname } from "next/navigation";
 
 interface ConsultationNeedsAttentionAlert {
   id: string;
@@ -52,6 +53,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
 }) => {
   const socket = useSocket();
   const { data: user } = useGetUser();
+  const pathname = usePathname();
   const [alerts, setAlerts] = useState<ConsultationNeedsAttentionAlert[]>([]);
   const [notifiedConsultations, setNotifiedConsultations] = useState<Set<string>>(new Set());
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -60,6 +62,9 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
 
   // Check if user is an audiologist
   const isAudiologist = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+
+  // Check if audiologist is currently on a consultation route
+  const isOnConsultationRoute = pathname?.includes('/consultation/');
 
   // Initialize audio
   useEffect(() => {
@@ -172,12 +177,17 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       stopContinuousSound();
     } else {
       // If there are active alerts but no sound is playing, start it
-      if (!audioIntervalRef.current) {
+      // BUT only if audiologist is NOT on a consultation route
+      if (!audioIntervalRef.current && !isOnConsultationRoute) {
         console.log("Restarting continuous sound for active alerts");
         startContinuousSound();
+      } else if (isOnConsultationRoute && audioIntervalRef.current) {
+        // Stop sound if audiologist is on consultation route
+        console.log("Stopping notification sound - audiologist is on consultation route");
+        stopContinuousSound();
       }
     }
-  }, [alerts]);
+  }, [alerts, isOnConsultationRoute]);
 
   // Cleanup audio interval on unmount
   useEffect(() => {
@@ -189,7 +199,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   // Add page visibility and focus listeners to restart sound when returning to page
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && isAudiologist) {
+      if (!document.hidden && isAudiologist && !isOnConsultationRoute) {
         const activeCount = alerts.filter((alert) => alert.isActive).length;
         if (activeCount > 0 && !audioIntervalRef.current) {
           console.log("Page became visible with active alerts - restarting sound");
@@ -199,7 +209,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
     };
 
     const handleFocus = () => {
-      if (isAudiologist) {
+      if (isAudiologist && !isOnConsultationRoute) {
         const activeCount = alerts.filter((alert) => alert.isActive).length;
         if (activeCount > 0 && !audioIntervalRef.current) {
           console.log("Window focused with active alerts - restarting sound");
@@ -215,7 +225,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [alerts, isAudiologist]);
+  }, [alerts, isAudiologist, isOnConsultationRoute]);
 
   // Function to check if consultation needs attention
   const checkConsultationNeedsAttention = (consultation: ConsultationModelData) => {
@@ -263,23 +273,27 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
     setAlerts((prev) => [newAlert, ...prev]);
     setNotifiedConsultations((prev) => new Set([...prev, consultation.id]));
 
-    // Play audio alert
-    playNotificationSound();
+    // Play audio alert only if audiologist is NOT on a consultation route
+    if (!isOnConsultationRoute) {
+      playNotificationSound();
+    } else {
+      console.log("Skipping notification sound - audiologist is on consultation route");
+    }
 
     // Show visual toast notification
-    toast.warning(
-      `⚠️ ${reasonText}: ${newAlert.patientName} at ${newAlert.centreName}`,
-      {
-        duration: 10000,
-        action: {
-          label: "View",
-          onClick: () => {
-            window.open(`/consultation/${consultation.id}`, "_blank");
-            dismissAlert(newAlert.id);
-          },
-        },
-      }
-    );
+    // toast.warning(
+    //   `⚠️ ${reasonText}: ${newAlert.patientName} at ${newAlert.centreName}`,
+    //   {
+    //     duration: 10000,
+    //     action: {
+    //       label: "View",
+    //       onClick: () => {
+    //         window.open(`/consultation/${consultation.id}`, "_blank");
+    //         dismissAlert(newAlert.id);
+    //       },
+    //     },
+    //   }
+    // );
   };
 
   // Socket event listeners for consultation updates

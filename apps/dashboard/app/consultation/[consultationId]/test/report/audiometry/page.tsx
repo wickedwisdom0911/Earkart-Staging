@@ -8,6 +8,7 @@ import { Ear, SessionStatus } from "@/models/enums";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { ROUTES } from "@/lib/routes";
 import { toast } from "sonner";
@@ -44,15 +45,23 @@ const AudiogramChart: React.FC<{
   const dbLevels = Array.from({ length: 27 }, (_, i) => (i - 2) * 5); // -10 to 120 dB
   
   const gridSize = 25;
-  const width = frequencies.length * gridSize;
+  const chartWidth = 275; // Fixed width for the chart (11 frequencies * 25px)
   const height = 14 * gridSize; // Adjust height to start from -10
   const margin = { top: 30, right: 20, bottom: 40, left: 50 };
+  
+  // Calculate logarithmic positions for frequencies
+  const getFrequencyPosition = (freq: number) => {
+    const minFreq = Math.log10(125);
+    const maxFreq = Math.log10(8000);
+    const freqLog = Math.log10(freq);
+    return ((freqLog - minFreq) / (maxFreq - minFreq)) * chartWidth;
+  };
   
   const COLORS = {
     leftEar: "#0000FF",
     rightEar: "#FF0000",
-    grid: "#D0D0D0",
-    midOctave: "#A0A0A0",
+    grid: "#666666",
+    midOctave: "#E0E0E0",
     background: "#FFFFFF",
     text: "#333333",
   };
@@ -85,18 +94,15 @@ const AudiogramChart: React.FC<{
         const current = sortedResults[i];
         const next = sortedResults[i + 1];
         
-        const freqIndex1 = frequencies.indexOf(current.x);
-        const freqIndex2 = frequencies.indexOf(next.x);
         const dbIndex1 = Math.round((current.y + 10) / 10);
         const dbIndex2 = Math.round((next.y + 10) / 10);
         
-        if (freqIndex1 === -1 || freqIndex2 === -1 || 
-            dbIndex1 < 0 || dbIndex1 >= 15 || 
+        if (dbIndex1 < 0 || dbIndex1 >= 15 || 
             dbIndex2 < 0 || dbIndex2 >= 15) continue;
         
-        const x1 = margin.left + freqIndex1 * gridSize;
+        const x1 = margin.left + getFrequencyPosition(current.x);
         const y1 = margin.top + dbIndex1 * gridSize;
-        const x2 = margin.left + freqIndex2 * gridSize;
+        const x2 = margin.left + getFrequencyPosition(next.x);
         const y2 = margin.top + dbIndex2 * gridSize;
         
         const color = getSymbolColor(current.ear);
@@ -247,14 +253,14 @@ const AudiogramChart: React.FC<{
     <div className="flex flex-col items-center">
       <h3 className="text-sm font-bold mb-3 text-gray-800">{title}</h3>
       <div className="border-2 border-gray-400 bg-white">
-        <svg width={width + margin.left + margin.right} height={height + margin.top + margin.bottom}>
+        <svg width={chartWidth + margin.left + margin.right} height={height + margin.top + margin.bottom}>
           {/* Grid lines - Major lines for 10dB intervals */}
           {Array.from({ length: 15 }, (_, i) => (
             <line
               key={`major-h-${i}`}
               x1={margin.left}
               y1={margin.top + i * gridSize}
-              x2={width + margin.left}
+              x2={chartWidth + margin.left}
               y2={margin.top + i * gridSize}
               stroke={i % 2 === 0 ? COLORS.grid : "#E5E5E5"}
               strokeWidth={i % 2 === 0 ? 1.5 : 0.5}
@@ -263,14 +269,13 @@ const AudiogramChart: React.FC<{
           
           {/* Vertical grid lines for main frequencies */}
           {mainFrequencies.map((freq) => {
-            const freqIndex = frequencies.indexOf(freq);
-            if (freqIndex === -1) return null;
+            const xPos = margin.left + getFrequencyPosition(freq);
             return (
               <line
                 key={`main-freq-${freq}`}
-                x1={margin.left + freqIndex * gridSize}
+                x1={xPos}
                 y1={margin.top}
-                x2={margin.left + freqIndex * gridSize}
+                x2={xPos}
                 y2={height + margin.top}
                 stroke={COLORS.grid}
                 strokeWidth={1}
@@ -280,14 +285,13 @@ const AudiogramChart: React.FC<{
           
           {/* Vertical grid lines for mid frequencies (dashed) */}
           {midFrequencies.map((freq) => {
-            const freqIndex = frequencies.indexOf(freq);
-            if (freqIndex === -1) return null;
+            const xPos = margin.left + getFrequencyPosition(freq);
             return (
               <line
                 key={`mid-freq-${freq}`}
-                x1={margin.left + freqIndex * gridSize}
+                x1={xPos}
                 y1={margin.top}
-                x2={margin.left + freqIndex * gridSize}
+                x2={xPos}
                 y2={height + margin.top}
                 stroke={COLORS.midOctave}
                 strokeWidth={1.5}
@@ -302,7 +306,7 @@ const AudiogramChart: React.FC<{
               key={`mid-intensity-${i}`}
               x1={margin.left}
               y1={margin.top + (i + 0.5) * gridSize}
-              x2={width + margin.left}
+              x2={chartWidth + margin.left}
               y2={margin.top + (i + 0.5) * gridSize}
               stroke={COLORS.midOctave}
               strokeWidth={1.2}
@@ -311,13 +315,14 @@ const AudiogramChart: React.FC<{
           ))}
           
           {/* Frequency labels */}
-          {frequencies.map((freq, i) => {
+          {frequencies.map((freq) => {
             const isMidFreq = midFrequencies.includes(freq);
             const label = freq >= 1000 ? `${freq/1000}K` : freq;
+            const xPos = margin.left + getFrequencyPosition(freq);
             return (
               <text
                 key={`freq-${freq}`}
-                x={margin.left + i * gridSize}
+                x={xPos}
                 y={height + margin.top + 15}
                 textAnchor="middle"
                 fontSize={isMidFreq ? "9" : "10"}
@@ -363,7 +368,7 @@ const AudiogramChart: React.FC<{
           </text>
           
           <text
-            x={width / 2 + margin.left}
+            x={chartWidth / 2 + margin.left}
             y={height + margin.top + 35}
             textAnchor="middle"
             fontSize="11"
@@ -378,12 +383,11 @@ const AudiogramChart: React.FC<{
           
           {/* Data points */}
           {results.map((result) => {
-            const freqIndex = frequencies.indexOf(result.x);
             const dbIndex = Math.round((result.y + 10) / 10); // Convert dB to grid index (starts from -10)
             
-            if (freqIndex === -1 || dbIndex < 0 || dbIndex >= 15) return null;
+            if (dbIndex < 0 || dbIndex >= 15) return null;
             
-            const x = margin.left + freqIndex * gridSize;
+            const x = margin.left + getFrequencyPosition(result.x);
             const y = margin.top + dbIndex * gridSize;
             
             return renderSymbol(result, x, y);
@@ -408,18 +412,97 @@ export default function ReportPage() {
   
   // Form state for diagnosis fields
   const [formData, setFormData] = useState({
-    audiologicalDiagnosis: "",
+    rightEarDiagnosis: "",
+    leftEarDiagnosis: "",
+    diagnosisComment: "",
     suggestiveOf: "",
-    recommendation: ""
+    recommendation: "",
+    recommendationComment: ""
   });
+
+  // Ear diagnosis options
+  const earDiagnosisOptions = [
+    { value: "right-ear", label: "Right ear" },
+    { value: "left-ear", label: "Left ear" }
+  ];
+
+  // Suggestive of diagnosis options
+  const suggestiveOfOptions = [
+    {
+      value: "minimal-sensorineural",
+      label: "Minimal Sensorineural or High-Frequency Hearing Loss",
+      description: "Monitor regularly with audiometry and avoid noise exposure to prevent progression. If the hearing loss affects speech clarity (especially in noisy environments), consider amplification."
+    },
+    {
+      value: "conductive",
+      label: "Conductive Hearing Loss (CHL)",
+      description: "Issues in the outer or middle ear. Maintain aural hygiene. Regular audiometry and ENT follow-up."
+    },
+    {
+      value: "sensorineural",
+      label: "Sensorineural Hearing Loss",
+      description: "Inner ear or auditory nerve issues. No medical or surgical cure in most cases, but management focuses on rehabilitation."
+    },
+    {
+      value: "mixed",
+      label: "Mixed Hearing Loss (MHL)",
+      description: "Combination of outer ear or middle ear and inner ear. Follow up with audiology to monitor both components."
+    }
+  ];
+
+  // Recommendation options
+  const recommendationOptions = [
+    { 
+      value: "option-1", 
+      label: "Option 1",
+      description: "ENT Consultation\nHAT\nFollow up"
+    },
+    { 
+      value: "option-2", 
+      label: "Option 2",
+      description: "ENT\nHAT\nTinnitus matching and masking\nFollow up"
+    },
+    { 
+      value: "option-3", 
+      label: "Option 3",
+      description: "ENT consultation\nHAT right ear\nFollow up"
+    },
+    { 
+      value: "option-4", 
+      label: "Option 4",
+      description: "ENT consultation\nHAT for left ear\nFollow up"
+    },
+    { 
+      value: "option-5", 
+      label: "Option 5",
+      description: "ENT consultation\nFollow up"
+    }
+  ];
+
+  // Helper function to get selected recommendation text
+  const getSelectedRecommendationText = () => {
+    if (!formData.recommendation) return "";
+    const selected = recommendationOptions.find(opt => opt.value === formData.recommendation);
+    return selected ? selected.label : formData.recommendation;
+  };
+
+  // Helper function to add selection to existing text
+  const addSelectionToText = (currentText: string, newSelection: string) => {
+    if (!newSelection) return currentText;
+    if (!currentText) return newSelection;
+    return currentText + '\n' + newSelection;
+  };
 
   // Update form data when consultation data is loaded
   React.useEffect(() => {
     if (consultationData?.audiometry) {
       setFormData({
-        audiologicalDiagnosis: consultationData.audiometry.audiologicalDiagnosis || "",
+        rightEarDiagnosis: "",
+        leftEarDiagnosis: "",
+        diagnosisComment: "",
         suggestiveOf: consultationData.audiometry.suggestion || "",
-        recommendation: consultationData.audiometry.recommendation || ""
+        recommendation: consultationData.audiometry.recommendation || "",
+        recommendationComment: ""
       });
     }
   }, [consultationData]);
@@ -542,26 +625,89 @@ export default function ReportPage() {
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
-    const canvas = await html2canvas(reportRef.current, { scale: 2, useCORS: true, backgroundColor: "#fff" });
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
-    const pdfW = pdf.internal.pageSize.getWidth();
-    const pdfH = pdf.internal.pageSize.getHeight();
     
-    // Scale to fit on one page - calculate the ratio to fit both width and height
-    const widthRatio = pdfW / canvas.width;
-    const heightRatio = pdfH / canvas.height;
-    const ratio = Math.min(widthRatio, heightRatio); // Use the smaller ratio to ensure it fits
+    // Find and temporarily hide form sections
+    const formSections = reportRef.current.querySelectorAll('.print\\:hidden');
+    const printSections = reportRef.current.querySelectorAll('.hidden.print\\:block');
     
-    const scaledWidth = canvas.width * ratio;
-    const scaledHeight = canvas.height * ratio;
+    // Hide form sections and show print sections
+    formSections.forEach(section => {
+      (section as HTMLElement).style.display = 'none';
+    });
+    printSections.forEach(section => {
+      (section as HTMLElement).style.display = 'block';
+    });
     
-    // Center the image on the page
-    const xOffset = (pdfW - scaledWidth) / 2;
-    const yOffset = (pdfH - scaledHeight) / 2;
-    
-    pdf.addImage(imgData, "PNG", xOffset, yOffset, scaledWidth, scaledHeight);
-    pdf.save(`audiometry-report-${consultationData.patient?.code || "unknown"}.pdf`);
+    try {
+      // Force a re-render to ensure all content is properly sized
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const canvas = await html2canvas(reportRef.current, { 
+        scale: 2, 
+        useCORS: true, 
+        backgroundColor: "#fff",
+        height: reportRef.current.scrollHeight + 50, // Add extra padding to prevent cutoff
+        windowWidth: reportRef.current.scrollWidth,
+        windowHeight: reportRef.current.scrollHeight + 50,
+        allowTaint: true,
+        scrollX: 0,
+        scrollY: 0
+      });
+      
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+      
+      // Calculate if we need multiple pages
+      const widthRatio = pdfW / canvas.width;
+      const heightRatio = pdfH / canvas.height;
+      const ratio = Math.min(widthRatio, heightRatio);
+      
+      const scaledWidth = canvas.width * ratio;
+      const scaledHeight = canvas.height * ratio;
+      
+      if (scaledHeight <= pdfH) {
+        // Single page
+        const xOffset = (pdfW - scaledWidth) / 2;
+        const yOffset = (pdfH - scaledHeight) / 2;
+        pdf.addImage(imgData, "PNG", xOffset, yOffset, scaledWidth, scaledHeight);
+      } else {
+        // Multiple pages
+        const pageHeight = pdfH / ratio;
+        let position = 0;
+        
+        while (position < canvas.height) {
+          const pageCanvas = document.createElement('canvas');
+          const pageCtx = pageCanvas.getContext('2d');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = Math.min(pageHeight, canvas.height - position);
+          
+          if (pageCtx) {
+            pageCtx.drawImage(canvas, 0, -position);
+            const pageImgData = pageCanvas.toDataURL("image/png");
+            
+            if (position > 0) {
+              pdf.addPage();
+            }
+            
+            pdf.addImage(pageImgData, "PNG", 0, 0, pdfW, (pageCanvas.height * pdfW) / canvas.width);
+          }
+          
+          position += pageHeight;
+        }
+      }
+      
+      pdf.save(`audiometry-report-${consultationData.patient?.code || "unknown"}.pdf`);
+    } finally {
+      // Restore original visibility
+      formSections.forEach(section => {
+        (section as HTMLElement).style.display = '';
+      });
+      printSections.forEach(section => {
+        (section as HTMLElement).style.display = '';
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -577,7 +723,6 @@ export default function ReportPage() {
         ...consultationData,
         audiometry: {
           ...consultationData.audiometry,
-          audiologicalDiagnosis: formData.audiologicalDiagnosis,
           suggestion: formData.suggestiveOf,
           recommendation: formData.recommendation,
         },
@@ -610,7 +755,7 @@ export default function ReportPage() {
   };
 
   return (
-    <div className="p-6 flex justify-center bg-gray-100 min-h-screen">
+    <div className="p-6 flex justify-center bg-gray-100">
       <div className="w-[794px] bg-white shadow-lg">
         <div className="flex justify-center p-4 border-b">
           <Button onClick={handleDownloadPDF} className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -619,12 +764,12 @@ export default function ReportPage() {
     
         </div>
         
-        <div ref={reportRef} className="bg-white" style={{ fontFamily: 'Arial, sans-serif' }}>
+        <div ref={reportRef} className="bg-white" style={{ fontFamily: 'Arial, sans-serif', height: 'auto', minHeight: 'auto' }}>
           {/* Header */}
-          <div className="relative bg-blue-900 text-white overflow-hidden" >
+          <div className="relative text-white overflow-hidden" >
             <div className="relative flex items-center justify-between p-6 z-10">
               {/* Left Side - Logo */}
-              <div className="flex items-center">
+              <div className="flex items-center bg-white p-2 rounded">
               <Image
                     src="/EARKART LOGO BLUE.webp" 
                     alt="earKART Logo" 
@@ -634,37 +779,28 @@ export default function ReportPage() {
                   />
               </div>
               
-              {/* Right Side - Tilted Box */}
+              {/* Right Side - Clean Card */}
               <div className="relative">
                 <div 
-                  className="text-blue-900 px-8 py-4 text-right transform -skew-x-12"
-                  style={{ 
-                    backgroundColor: '#8bdaef',
-                    clipPath: 'polygon(15% 0%, 100% 0%, 85% 100%, 0% 100%)'
-                  }}
+                  className="text-blue-900 px-6 py-4 rounded-lg shadow-md"
+                  style={{ backgroundColor: '#8bdaef' }}
                 >
-                  <div className="transform skew-x-10">
-                    <p className="font-bold text-sm">{consultationData.centre?.user?.name || "Clinic Name"}</p>
-                    <div className="flex items-center justify-end mt-1">
-                      <span className="text-xs mr-1">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
-                      <span className="text-xs">📞</span>
+                  <div className="text-center">
+                    <p className="font-bold text-sm mb-2">{consultationData.centre?.user?.name || "Clinic Name"}</p>
+                    <div className="flex items-center justify-center mb-1">
+                      <span className="text-xs mr-1">📞</span>
+                      <span className="text-xs">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
                     </div>
-                    <div className="flex items-center justify-end">
-                      <span className="text-xs mr-1">{consultationData.centre?.address || "Address"}</span>
-                      <span className="text-xs">📍</span>
+                    <div className="flex items-center justify-center">
+                      <span className="text-xs mr-1">📍</span>
+                      <span className="text-xs">{consultationData.centre?.address || "Address"}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
             
-            {/* Background decorative elements */}
-            <div className="absolute top-0 right-0 w-96 h-full opacity-10">
-              <div 
-                className="w-full h-full transform skew-x-12"
-                style={{ backgroundColor: '#8bdaef' }}
-              ></div>
-            </div>
+
           </div>
 
           {/* Pure Tone Audiogram Title */}
@@ -753,196 +889,318 @@ export default function ReportPage() {
           </div>
 
           {/* PTA and Symbols Section */}
-          <div className="bg-blue-900 text-white mx-8 mb-6">
-            <div className="flex">
+          <div className="mx-8 mb-6">
+            <div className="flex gap-6">
               {/* PTA Section */}
-              <div className="p-4 border-r border-blue-700 min-w-[200px]">
-                <h3 className="text-sm font-bold mb-2 text-center">PTA (dB HL)</h3>
-                <div className="text-xs text-center mb-2 opacity-80">4-Frequency Average</div>
-                <div className="text-xs text-center mb-2 opacity-80">(500, 1K, 2K, 4K Hz)</div>
-                <div className="text-xs text-center mb-3 opacity-70">*Includes no-response values</div>
-                <div className="grid grid-cols-3 gap-0 text-xs">
-                  <div></div>
-                  <div className="text-center font-bold border border-white p-2 bg-blue-800">Right</div>
-                  <div className="text-center font-bold border border-white p-2 bg-blue-800">Left</div>
-                  <div className="font-bold border border-white p-2 text-center bg-blue-800">AC</div>
-                  <div className="border border-white p-2 text-center font-semibold">
-                    {acAverage.rightEar ? `${Math.round(acAverage.rightEar)}` : "—"}
-                  </div>
-                  <div className="border border-white p-2 text-center font-semibold">
-                    {acAverage.leftEar ? `${Math.round(acAverage.leftEar)}` : "—"}
-                  </div>
-                  <div className="font-bold border border-white p-2 text-center bg-blue-800">BC</div>
-                  <div className="border border-white p-2 text-center font-semibold">
-                    {bcAverage.rightEar ? `${Math.round(bcAverage.rightEar)}` : "—"}
-                  </div>
-                  <div className="border border-white p-2 text-center font-semibold">
-                    {bcAverage.leftEar ? `${Math.round(bcAverage.leftEar)}` : "—"}
-                  </div>
+              <div className="flex-1">
+                <div className="bg-blue-900 text-white p-3 text-center">
+                  <h3 className="text-sm font-bold">PTA (dB HL)</h3>
+                  <div className="text-xs opacity-80">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
+                  <div className="text-xs opacity-70">*Includes no-response values</div>
                 </div>
-                
-                {/* Air-Bone Gap Calculation */}
-                <div className="mt-3 pt-3 border-t border-blue-700">
-                  <div className="text-xs font-semibold text-center mb-2">Air-Bone Gap</div>
+                <div className="bg-white border border-gray-300 p-4">
                   <div className="grid grid-cols-3 gap-0 text-xs">
-                    <div></div>
-                    <div className="text-center font-bold border border-white p-1 bg-blue-800">Right</div>
-                    <div className="text-center font-bold border border-white p-1 bg-blue-800">Left</div>
-                    <div className="font-bold border border-white p-1 text-center bg-blue-800">Gap</div>
-                    <div className="border border-white p-1 text-center font-semibold">
-                      {(acAverage.rightEar && bcAverage.rightEar) 
-                        ? `${Math.round(acAverage.rightEar - bcAverage.rightEar)}` 
-                        : "—"}
+                  <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Test</div>
+                    <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Right</div>
+                    <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Left</div>
+                    <div className="font-bold border border-gray-400 p-2 text-center bg-gray-100 text-gray-800">AC</div>
+                    <div className="border border-gray-400 p-2 text-center font-semibold text-gray-800">
+                      {acAverage.rightEar ? `${Math.round(acAverage.rightEar)}` : "—"}
                     </div>
-                    <div className="border border-white p-1 text-center font-semibold">
-                      {(acAverage.leftEar && bcAverage.leftEar) 
-                        ? `${Math.round(acAverage.leftEar - bcAverage.leftEar)}` 
-                        : "—"}
+                    <div className="border border-gray-400 p-2 text-center font-semibold text-gray-800">
+                      {acAverage.leftEar ? `${Math.round(acAverage.leftEar)}` : "—"}
+                    </div>
+                    <div className="font-bold border border-gray-400 p-2 text-center bg-gray-100 text-gray-800">BC</div>
+                    <div className="border border-gray-400 p-2 text-center font-semibold text-gray-800">
+                      {bcAverage.rightEar ? `${Math.round(bcAverage.rightEar)}` : "—"}
+                    </div>
+                    <div className="border border-gray-400 p-2 text-center font-semibold text-gray-800">
+                      {bcAverage.leftEar ? `${Math.round(bcAverage.leftEar)}` : "—"}
                     </div>
                   </div>
-                </div>
                 
-                {/* Clinical Notes for No Responses */}
-                {(noResponseFreqs.rightAC.length > 0 || noResponseFreqs.leftAC.length > 0 || 
-                  noResponseFreqs.rightBC.length > 0 || noResponseFreqs.leftBC.length > 0) && (
-                  <div className="mt-3 pt-3 border-t border-blue-700">
-                    <div className="text-xs font-semibold text-center mb-2">No Response Frequencies</div>
-                    <div className="text-xs opacity-90 space-y-1">
-                      {noResponseFreqs.rightAC.length > 0 && (
-                        <div>R AC: {noResponseFreqs.rightAC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
-                      )}
-                      {noResponseFreqs.leftAC.length > 0 && (
-                        <div>L AC: {noResponseFreqs.leftAC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
-                      )}
-                      {noResponseFreqs.rightBC.length > 0 && (
-                        <div>R BC: {noResponseFreqs.rightBC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
-                      )}
-                      {noResponseFreqs.leftBC.length > 0 && (
-                        <div>L BC: {noResponseFreqs.leftBC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
-                      )}
+                  {/* Clinical Notes for No Responses */}
+                  {(noResponseFreqs.rightAC.length > 0 || noResponseFreqs.leftAC.length > 0 || 
+                    noResponseFreqs.rightBC.length > 0 || noResponseFreqs.leftBC.length > 0) && (
+                    <div className="mt-3 pt-3 border-t border-gray-300">
+                      <div className="text-xs font-semibold text-center mb-2 text-gray-800">No Response Frequencies</div>
+                      <div className="text-xs text-gray-700 space-y-1">
+                        {noResponseFreqs.rightAC.length > 0 && (
+                          <div>R AC: {noResponseFreqs.rightAC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
+                        )}
+                        {noResponseFreqs.leftAC.length > 0 && (
+                          <div>L AC: {noResponseFreqs.leftAC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
+                        )}
+                        {noResponseFreqs.rightBC.length > 0 && (
+                          <div>R BC: {noResponseFreqs.rightBC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
+                        )}
+                        {noResponseFreqs.leftBC.length > 0 && (
+                          <div>L BC: {noResponseFreqs.leftBC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
               
               {/* Symbols Section */}
-              <div className="flex-1 p-4">
-                <h3 className="text-sm font-bold mb-3 text-center">Symbols (ASHA Standards)</h3>
-                <div className="grid grid-cols-4 gap-4 text-xs">
-                  {/* Air Conduction Unmasked */}
-                  <div className="text-center">
-                    <div className="font-bold mb-2">AC Unmasked</div>
-                    <div className="flex flex-col space-y-2">
-                      <div className="flex items-center justify-center space-x-2">
-                      <div className="text-red-500 text-lg">○</div>
-                        <span className="text-xs">R</span>
+              <div className="flex-1">
+                <div className="bg-blue-900 text-white p-3 text-center">
+                  <h3 className="text-sm font-bold">Symbols (ASHA Standards)</h3>
+                </div>
+                <div className="bg-white border border-gray-300 p-4">
+                  <div className="grid grid-cols-4 gap-2 text-xs">
+                    {/* Air Conduction Unmasked */}
+                    <div className="text-centersp">
+                      <div className="font-bold mb-1 text-gray-800 text-xs">AC Unmasked</div>
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center justify-center space-x-1">
+                          <div className="text-red-500 text-base">○</div>
+                          <span className="text-xs text-gray-700">R</span>
+                        </div>
+                        <div className="flex items-center justify-center space-x-1">
+                          <div className="text-blue-500 text-base font-bold">×</div>
+                          <span className="text-xs text-gray-700">L</span>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="text-blue-500 text-lg font-bold">×</div>
-                        <span className="text-xs">L</span>
+                    </div>
+                    
+                    {/* Air Conduction Masked */}
+                    <div className="text-center">
+                      <div className="font-bold mb-1 text-gray-800 text-xs">AC Masked</div>
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center justify-center space-x-1">
+                          <div className="text-red-500 text-base">□</div>
+                          <span className="text-xs text-gray-700">R</span>
+                        </div>
+                        <div className="flex items-center justify-center space-x-1">
+                          <div className="text-blue-500 text-base">△</div>
+                          <span className="text-xs text-gray-700">L</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Bone Conduction */}
+                    <div className="text-center">
+                      <div className="font-bold mb-1 text-gray-800 text-xs">Bone Conduction</div>
+                      <div className="flex flex-col space-y-1">
+                        <div className="text-xs font-semibold mb-1 text-gray-700">Unmasked:</div>
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="text-red-500 text-base font-bold">&lt;</div>
+                          <div className="text-blue-500 text-base font-bold">&gt;</div>
+                        </div>
+                        <div className="text-xs font-semibold mb-1 mt-1 text-gray-700">Masked:</div>
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="text-red-500 text-base font-bold">[</div>
+                          <div className="text-blue-500 text-base font-bold">]</div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* No Response */}
+                    <div className="text-center">
+                      <div className="font-bold mb-1 text-gray-800 text-xs">No Response</div>
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center justify-center space-x-1">
+                          <div className="text-red-500 text-base">↙</div>
+                          <span className="text-xs text-gray-700">R</span>
+                        </div>
+                        <div className="flex items-center justify-center space-x-1">
+                          <div className="text-blue-500 text-base">↘</div>
+                          <span className="text-xs text-gray-700">L</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  
-                  {/* Air Conduction Masked */}
-                  <div className="text-center">
-                    <div className="font-bold mb-2">AC Masked</div>
-                    <div className="flex flex-col space-y-2">
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="text-red-500 text-lg">□</div>
-                        <span className="text-xs">R</span>
-                      </div>
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="text-blue-500 text-lg">△</div>
-                        <span className="text-xs">L</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Bone Conduction */}
-                  <div className="text-center">
-                    <div className="font-bold mb-2">Bone Conduction</div>
-                    <div className="flex flex-col space-y-2">
-                      <div className="text-xs font-semibold mb-1">Unmasked:</div>
-                      <div className="flex items-center justify-center space-x-3">
-                        <div className="text-red-500 text-lg font-bold">&lt;</div>
-                        <div className="text-blue-500 text-lg font-bold">&gt;</div>
-                      </div>
-                      <div className="text-xs font-semibold mb-1 mt-2">Masked:</div>
-                      <div className="flex items-center justify-center space-x-3">
-                        <div className="text-red-500 text-lg font-bold">[</div>
-                        <div className="text-blue-500 text-lg font-bold">]</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* No Response */}
-                  <div className="text-center">
-                    <div className="font-bold mb-2">No Response</div>
-                    <div className="flex flex-col space-y-2">
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="text-red-500 text-lg">↙</div>
-                        <span className="text-xs">R</span>
-                      </div>
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="text-blue-500 text-lg">↘</div>
-                        <span className="text-xs">L</span>
-                      </div>
-                    </div>
-                  </div>
-                  </div>
-                  
-                {/* Legend Notes */}
-                <div className="mt-4 text-xs text-gray-600 text-center">
-                  <div>Red = Right Ear | Blue = Left Ear</div>
-                  <div>Solid lines = AC | Dashed lines = BC</div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Diagnosis Fields */}
-          <form onSubmit={handleSubmit} className="px-8 mb-6 space-y-4">
+          {/* Diagnosis Fields - Only show in edit mode, not in PDF */}
+          <div className="px-8 mb-6 space-y-4 print:hidden">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Diagnosis Section */}
+              <div>
+                <div className="text-sm font-bold mb-2">Diagnosis :</div>
+                <Select
+                  value=""
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    const selectedOption = earDiagnosisOptions.find(opt => opt.value === value);
+                    if (!selectedOption) return;
+                    
+                    const newSelection = `${selectedOption.label}:`;
+                    const currentText = formData.diagnosisComment || "";
+                    const updatedText = addSelectionToText(currentText, newSelection);
+                    
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      diagnosisComment: updatedText
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="h-12 border border-gray-400 bg-gray-50 w-full max-w-md rounded-md">
+                    <SelectValue placeholder="Select ear..." className="text-gray-600 text-sm" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {earDiagnosisOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="py-2 text-center">
+                          <div className="font-medium text-sm text-blue-900">{option.label}</div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  value={formData.diagnosisComment}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    diagnosisComment: e.target.value 
+                  }))}
+                  placeholder="Selected ears will appear here. Add diagnosis details below..."
+                  className="h-24 resize-none border border-gray-400 bg-gray-50 mt-2 w-full"
+                />
+              </div>
+
+              {/* Suggestive of Diagnosis Section */}
+              <div>
+                <div className="text-sm font-bold mb-2">Suggestive of Diagnosis :</div>
+                <Select
+                  value={formData.suggestiveOf}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    const selectedOption = suggestiveOfOptions.find(opt => opt.value === value);
+                    if (!selectedOption) return;
+                    
+                    const newSelection = `${selectedOption.label}\n${selectedOption.description}`;
+                    const currentText = formData.suggestiveOf || "";
+                    const updatedText = addSelectionToText(currentText, newSelection);
+                    
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      suggestiveOf: updatedText
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="h-16 border border-gray-400 bg-gray-50 w-full max-w-lg rounded-md">
+                    <SelectValue placeholder="Select suggestive diagnosis..." className="text-gray-600 text-sm leading-tight">
+                      {formData.suggestiveOf ? "Diagnosis selected" : "Select suggestive diagnosis..."}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="w-[600px] max-h-96 overflow-y-auto">
+                    {suggestiveOfOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="py-4 px-3 w-full">
+                          <div className="font-semibold text-sm text-center mb-3 text-blue-900 leading-tight px-2">
+                            {option.label}
+                          </div>
+                          <div className="text-xs text-gray-700 leading-relaxed bg-blue-50 p-4 rounded-md border border-blue-200">
+                            {option.description}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  value={formData.suggestiveOf}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    suggestiveOf: e.target.value 
+                  }))}
+                  placeholder="Selected suggestive diagnoses will appear here. Add additional comments below..."
+                  className="h-24 resize-none border border-gray-400 bg-gray-50 mt-2 w-full"
+                />
+              </div>
+              
+              <div>
+                <div className="text-sm font-bold mb-2">Recommendation :</div>
+                <Select
+                  value={formData.recommendation}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    const selectedOption = recommendationOptions.find(opt => opt.value === value);
+                    if (!selectedOption) return;
+                    
+                    const newSelection = selectedOption.description;
+                    const currentText = formData.recommendationComment || "";
+                    const updatedText = addSelectionToText(currentText, newSelection);
+                    
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      recommendation: value,
+                      recommendationComment: updatedText
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="h-12 border border-gray-400 bg-gray-50 w-full max-w-md rounded-md">
+                    <SelectValue placeholder="Select recommendation..." className="text-gray-600">
+                      {formData.recommendation ? "Recommendation selected" : "Select recommendation..."}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="w-[500px] max-h-96 overflow-y-auto">
+                    {recommendationOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="py-4 px-3 w-full">
+                          <div className="font-semibold text-sm text-center mb-3 text-blue-900 leading-tight px-2">
+                            {option.label}
+                          </div>
+                          <div className="text-xs text-gray-700 leading-relaxed bg-blue-50 p-4 rounded-md border border-blue-200 whitespace-pre-line">
+                            {option.description}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  value={formData.recommendationComment}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    recommendationComment: e.target.value 
+                  }))}
+                  placeholder="Selected recommendations will appear here. Add additional comments below..."
+                  className="h-24 resize-none border border-gray-400 bg-gray-50 mt-2 w-full"
+                />
+              </div>
+              
+              <div className="flex justify-end">
+                <Button 
+                  type="submit" 
+                  disabled={updateConsultationMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {updateConsultationMutation.isPending ? "Saving..." : "Save Diagnosis"}
+                </Button>
+              </div>
+            </form>
+          </div>
+
+          {/* Diagnosis Display for PDF - Only show in print */}
+          <div className="px-8 mb-6 space-y-4 hidden print:block">
             <div>
-              <div className="text-sm font-bold mb-2">Audiological Diagnosis :</div>
-              <Textarea
-                value={formData.audiologicalDiagnosis}
-                onChange={(e) => setFormData(prev => ({ ...prev, audiologicalDiagnosis: e.target.value }))}
-                placeholder="Enter audiological diagnosis..."
-                className="h-16 resize-none border border-gray-400 bg-gray-50"
-              />
+              <div className="text-sm font-bold mb-2">Diagnosis :</div>
+              <div className="border border-gray-400 bg-gray-50 p-4 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible" style={{ minHeight: 'auto', height: 'auto' }}>
+                {formData.diagnosisComment || "No diagnosis entered"}
+              </div>
             </div>
             
             <div>
-              <div className="text-sm font-bold mb-2">Suggestive of :</div>
-              <Textarea
-                value={formData.suggestiveOf}
-                onChange={(e) => setFormData(prev => ({ ...prev, suggestiveOf: e.target.value }))}
-                placeholder="Enter what the results are suggestive of..."
-                className="h-16 resize-none border border-gray-400 bg-gray-50"
-              />
+              <div className="text-sm font-bold mb-2">Suggestive of Diagnosis :</div>
+              <div className="border border-gray-400 bg-gray-50 p-4 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible" style={{ minHeight: 'auto', height: 'auto' }}>
+                {formData.suggestiveOf || "No suggestions entered"}
+              </div>
             </div>
             
             <div>
               <div className="text-sm font-bold mb-2">Recommendation :</div>
-              <Textarea
-                value={formData.recommendation}
-                onChange={(e) => setFormData(prev => ({ ...prev, recommendation: e.target.value }))}
-                placeholder="Enter recommendations..."
-                className="h-20 resize-none border border-gray-400 bg-gray-50"
-              />
+              <div className="border border-gray-400 bg-gray-50 p-4 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible" style={{ minHeight: 'auto', height: 'auto' }}>
+                {formData.recommendationComment || "No recommendations entered"}
+              </div>
             </div>
-            
-            <div className="flex justify-end">
-              <Button 
-                type="submit" 
-                disabled={updateConsultationMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {updateConsultationMutation.isPending ? "Saving..." : "Save Diagnosis"}
-              </Button>
-            </div>
-          </form>
+          </div>
 
           {/* Audiologist Box */}
           <div className="px-8 mb-6 flex justify-end">

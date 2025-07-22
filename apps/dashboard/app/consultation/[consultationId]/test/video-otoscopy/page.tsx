@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useParams } from "next/navigation";
 import { useDevice } from "@/providers/device-provider";
@@ -9,9 +9,12 @@ import { Play, Square, Camera, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface OtoscopyStreamData {
-  imageData?: string; // Base64 encoded image data
+  type: string;
+  consultationId: string;
   timestamp: number;
-  status: "streaming" | "stopped" | "error";
+  frame: string; // Base64 encoded image data
+  fps: number;
+  status?: "streaming" | "stopped" | "error";
 }
 
 export default function VideoOtoscopyPage() {
@@ -21,60 +24,266 @@ export default function VideoOtoscopyPage() {
   const { revo2 } = deviceState;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isStreamingRef = useRef(false); // Add ref for current streaming state
+  const stopTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Add timeout ref
+  const frameSkipRef = useRef(0); // Frame skipping for performance
+  const lastFrameTimeRef = useRef(0); // Track frame timing
+  const stopStreamingRef = useRef(false); // Flag to stop frame processing immediately
   
   // State management
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isCapturing, setIsCapturing] = useState(false);
   const [streamStatus, setStreamStatus] = useState<"idle" | "connecting" | "streaming" | "error">("idle");
-  const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [lastImageData, setLastImageData] = useState<string | null>(null);
+  const [frameCount, setFrameCount] = useState(0);
+  const [lastFrameHash, setLastFrameHash] = useState<string>('');
+  const [performanceStats, setPerformanceStats] = useState({
+    frameProcessingTime: 0,
+    framesPerSecond: 0,
+    latency: 0
+  });
+  const [isStopping, setIsStopping] = useState(false);
 
+  // Update ref whenever isStreaming changes
+  useEffect(() => {
+    isStreamingRef.current = isStreaming;
+  }, [isStreaming]);
+
+  // Cleanup functions
+  const cleanupVideoStream = useCallback(() => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const cleanupCanvas = useCallback(() => {
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+    }
+  }, []);
+
+  const resetStreamingState = useCallback(() => {
+    setIsStreaming(false);
+    setStreamStatus("idle");
+    setFrameCount(0);
+    setLastFrameHash('');
+    setLastImageData(null);
+    setError(null);
+  }, []);
+
+  // Calculate FPS
+  const calculateFPS = useCallback(() => {
+    const now = Date.now();
+    const timeSinceLastFrame = now - lastFrameTimeRef.current;
+    if (timeSinceLastFrame > 0) {
+      const fps = 1000 / timeSinceLastFrame;
+      setPerformanceStats(prev => ({
+        ...prev,
+        framesPerSecond: Math.round(fps)
+      }));
+    }
+  }, []);
+
+  // Optimized frame processing with ImageBitmap
+  const processFrame = useCallback(async (frameData: string) => {
+    const startTime = performance.now();
+    
+    try {
+      // Convert base64 to blob
+      const response = await fetch(frameData);
+      const blob = await response.blob();
+      
+      // Create ImageBitmap (hardware accelerated)
+      const imageBitmap = await createImageBitmap(blob);
+      
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      
+      if (ctx && canvas) {
+        // Only resize once
+        if (canvas.width !== imageBitmap.width || canvas.height !== imageBitmap.height) {
+          canvas.width = imageBitmap.width;
+          canvas.height = imageBitmap.height;
+        }
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(imageBitmap, 0, 0);
+      }
+      
+      imageBitmap.close(); // Free memory
+      
+      // Update performance stats
+      const processingTime = performance.now() - startTime;
+      setPerformanceStats(prev => ({
+        ...prev,
+        frameProcessingTime: processingTime
+      }));
+      
+      // Calculate FPS
+      calculateFPS();
+      
+    } catch (error) {
+      console.error("Error processing frame:", error);
+      // Fallback to regular Image if ImageBitmap fails
+      const img = new Image();
+      img.onload = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (ctx && canvas) {
+          if (canvas.width !== img.width || canvas.height !== img.height) {
+            canvas.width = img.width;
+            canvas.height = img.height;
+          }
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        }
+      };
+      img.src = frameData;
+    }
+  }, [calculateFPS]);
+
+  // Force stop function for cleanup
+  const forceStopVideo = useCallback(() => {
+    // Set stop flag first
+    stopStreamingRef.current = true;
+    isStreamingRef.current = false;
+    
+    // Update UI state
+    setIsStreaming(false);
+    setStreamStatus("idle");
+    setFrameCount(0);
+    setLastFrameHash('');
+    setLastImageData(null);
+    setError(null);
+    
+    // Clear canvas
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+    }
+    
+    // Cleanup video stream
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    
+    // Clear timeout
+    if (stopTimeoutRef.current) {
+      clearTimeout(stopTimeoutRef.current);
+      stopTimeoutRef.current = null;
+    }
+    }, []);
+  
+  // Reset everything on component mount
+  useEffect(() => {
+    // Reset all refs on mount
+    stopStreamingRef.current = false;
+    isStreamingRef.current = false;
+    
+    return () => {
+      // Cleanup on unmount
+      forceStopVideo();
+    };
+  }, [forceStopVideo]);
+  
   // Handle socket events for otoscopy
   useEffect(() => {
     if (!socket) return;
 
     const handleOtoscopyStream = (data: OtoscopyStreamData) => {
-      console.log("Received otoscopy stream data:", data);
+      // Only process if we're supposed to be streaming
+      if (stopStreamingRef.current) {
+        return;
+      }
       
-      if (data.imageData) {
-        setLastImageData(data.imageData);
+      if (data.frame) {
+        // If we receive frames, update streaming state
+        if (!isStreamingRef.current) {
+          isStreamingRef.current = true;
+          setIsStreaming(true);
+          setStreamStatus("streaming");
+          setError(null);
+          stopStreamingRef.current = false; // Ensure stop flag is cleared
+        }
         
-        // Update video element if streaming
-        if (videoRef.current && isStreaming) {
-          const video = videoRef.current;
-          const canvas = canvasRef.current;
-          
-          if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              const img = new Image();
-              img.onload = () => {
+        // Frame rate limiting - target 15 FPS
+        const now = Date.now();
+        const timeSinceLastFrame = now - lastFrameTimeRef.current;
+        const TARGET_FPS = 15;
+        const FRAME_INTERVAL = 1000 / TARGET_FPS;
+        
+        if (timeSinceLastFrame < FRAME_INTERVAL) {
+          return; // Skip frame to maintain target FPS
+        }
+        
+        lastFrameTimeRef.current = now;
+        
+        // Frame skipping for performance
+        frameSkipRef.current++;
+        if (frameSkipRef.current % Math.floor(30 / TARGET_FPS) !== 0) {
+          return;
+        }
+        
+        // Simple hash check to see if frames are different
+        const frameHash = data.frame.substring(0, 100);
+        
+        setLastFrameHash(frameHash);
+        setLastImageData(data.frame);
+        setFrameCount(prev => prev + 1);
+        
+        // Calculate latency
+        const latency = Date.now() - data.timestamp;
+        setPerformanceStats(prev => ({
+          ...prev,
+          latency: latency
+        }));
+        
+        // Process frame with additional safety check
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        
+        if (ctx && canvas) {
+          const img = new Image();
+          img.onload = () => {
+            // Check again before drawing (in case stop was called during image load)
+            if (!stopStreamingRef.current && isStreamingRef.current) {
+              if (canvas.width !== img.width || canvas.height !== img.height) {
                 canvas.width = img.width;
                 canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
-                
-                // Convert canvas to video stream
-                const stream = canvas.captureStream(30); // 30 FPS
-                if (video.srcObject !== stream) {
-                  video.srcObject = stream;
-                }
-              };
-              img.src = `data:image/jpeg;base64,${data.imageData}`;
+              }
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0);
             }
-          }
+          };
+          img.src = data.frame;
         }
       }
     };
 
     const handleOtoscopyStart = (data: { success: boolean; message?: string }) => {
-      console.log("Otoscopy start response:", data);
       if (data.success) {
+        // Reset all flags
+        stopStreamingRef.current = false;
+        isStreamingRef.current = true;
+        
         setIsStreaming(true);
         setStreamStatus("streaming");
         setError(null);
         toast.success("Video stream started successfully");
       } else {
+        // Reset flags on failure
+        stopStreamingRef.current = false;
+        isStreamingRef.current = false;
+        
         setStreamStatus("error");
         setError(data.message || "Failed to start video stream");
         toast.error(data.message || "Failed to start video stream");
@@ -82,36 +291,35 @@ export default function VideoOtoscopyPage() {
     };
 
     const handleOtoscopyStop = (data: { success: boolean; message?: string }) => {
-      console.log("Otoscopy stop response:", data);
-      if (data.success) {
-        setIsStreaming(false);
-        setStreamStatus("idle");
-        setError(null);
-        toast.success("Video stream stopped");
-      } else {
-        setError(data.message || "Failed to stop video stream");
-        toast.error(data.message || "Failed to stop video stream");
+      // Clear any pending timeout
+      if (stopTimeoutRef.current) {
+        clearTimeout(stopTimeoutRef.current);
+        stopTimeoutRef.current = null;
       }
+
+      // Only show message if there was an error
+      if (!data.success) {
+        toast.error(data.message || "Server reported stop error");
+      }
+      // Don't do cleanup here since we already did it immediately
     };
 
-    const handleOtoscopyCapture = (data: { success: boolean; imageData?: string; message?: string }) => {
-      console.log("Otoscopy capture response:", data);
-      setIsCapturing(false);
-      
-      if (data.success && data.imageData) {
-        setCapturedImages(prev => [...prev, data.imageData!]);
-        toast.success("Image captured successfully");
-      } else {
-        setError(data.message || "Failed to capture image");
-        toast.error(data.message || "Failed to capture image");
-      }
-    };
+
 
     const handleOtoscopyError = (data: { error: string }) => {
       console.error("Otoscopy error:", data.error);
+      
+      // Reset all flags
+      stopStreamingRef.current = false;
+      isStreamingRef.current = false;
+      
+      // Clean up
+      cleanupVideoStream();
+      cleanupCanvas();
+      resetStreamingState();
+      
       setError(data.error);
       setStreamStatus("error");
-      setIsStreaming(false);
       toast.error(`Otoscopy error: ${data.error}`);
     };
 
@@ -119,7 +327,6 @@ export default function VideoOtoscopyPage() {
     socket.on("otoscopy-stream", handleOtoscopyStream);
     socket.on("otoscopy-start", handleOtoscopyStart);
     socket.on("otoscopy-stop", handleOtoscopyStop);
-    socket.on("otoscopy-capture", handleOtoscopyCapture);
     socket.on("otoscopy-error", handleOtoscopyError);
 
     // Cleanup
@@ -127,10 +334,16 @@ export default function VideoOtoscopyPage() {
       socket.off("otoscopy-stream", handleOtoscopyStream);
       socket.off("otoscopy-start", handleOtoscopyStart);
       socket.off("otoscopy-stop", handleOtoscopyStop);
-      socket.off("otoscopy-capture", handleOtoscopyCapture);
       socket.off("otoscopy-error", handleOtoscopyError);
     };
-  }, [socket, isStreaming]);
+  }, [socket, cleanupVideoStream, cleanupCanvas, resetStreamingState, processFrame]); // Added missing dependencies
+
+  // Cleanup video on unmount
+  useEffect(() => {
+    return () => {
+      forceStopVideo();
+    };
+  }, [forceStopVideo]);
 
   // Handle video element events
   useEffect(() => {
@@ -138,7 +351,7 @@ export default function VideoOtoscopyPage() {
     if (!video) return;
 
     const handleVideoLoad = () => {
-      console.log("Video loaded successfully");
+      // Video loaded successfully
     };
 
     const handleVideoError = (e: Event) => {
@@ -146,77 +359,97 @@ export default function VideoOtoscopyPage() {
       setError("Failed to load video stream");
     };
 
+    const handleVideoPlay = () => {
+      // Video started playing
+    };
+
+    const handleVideoPause = () => {
+      // Video paused
+    };
+
     video.addEventListener("loadeddata", handleVideoLoad);
     video.addEventListener("error", handleVideoError);
+    video.addEventListener("play", handleVideoPlay);
+    video.addEventListener("pause", handleVideoPause);
 
     return () => {
       video.removeEventListener("loadeddata", handleVideoLoad);
       video.removeEventListener("error", handleVideoError);
+      video.removeEventListener("play", handleVideoPlay);
+      video.removeEventListener("pause", handleVideoPause);
     };
   }, []);
 
   // Start video stream
-  const handleStartVideo = () => {
+  const handleStartVideo = useCallback(() => {
+    console.log("Starting video - Current state:", {
+      isStreaming,
+      streamStatus,
+      stopStreamingRef: stopStreamingRef.current,
+      isStreamingRef: isStreamingRef.current
+    });
+    
     if (!socket || !consultationId) {
       toast.error("Socket not connected or consultation ID missing");
       return;
     }
 
+    // Reset all flags and state
+    stopStreamingRef.current = false;
+    isStreamingRef.current = false;
+    
     setStreamStatus("connecting");
     setError(null);
+    setIsStreaming(false);
     
     socket.emit("start-otoscopy", {
       consultationId: consultationId,
     });
-  };
+    
+    // Set a timeout to handle connection issues
+    const connectTimeout = setTimeout(() => {
+      if (streamStatus === "connecting") {
+        setStreamStatus("error");
+        setError("Connection timeout - please try again");
+      }
+    }, 5000); // Increased timeout
+    
+    // Clear timeout when component unmounts or starts successfully
+    return () => clearTimeout(connectTimeout);
+  }, [socket, consultationId, streamStatus, isStreaming]);
 
-  // Stop video stream
-  const handleStopVideo = () => {
-    if (!socket || !consultationId) {
-      toast.error("Socket not connected or consultation ID missing");
+
+
+  // IMMEDIATE Stop video stream
+  const handleStopVideo = useCallback(() => {
+    if (!socket || !consultationId || isStopping) {
       return;
     }
 
+    setIsStopping(true);
+    
+    // IMMEDIATE STOP - Don't wait for server
+    console.log("Stopping video immediately");
+    
+    // Stop processing new frames
+    isStreamingRef.current = false;
+    
+    // Immediate cleanup
+    forceStopVideo();
+    
+    // Reset stopping state
+    setTimeout(() => setIsStopping(false), 100);
+    
+    // Notify server (but don't wait for response)
     socket.emit("stop-otoscopy", {
       consultationId: consultationId,
     });
-  };
-
-  // Capture image
-  const handleCaptureImage = () => {
-    if (!socket || !consultationId) {
-      toast.error("Socket not connected or consultation ID missing");
-      return;
-    }
-
-    if (!isStreaming) {
-      toast.error("Please start video stream before capturing image");
-      return;
-    }
-
-    setIsCapturing(true);
-    setError(null);
     
-    socket.emit("otoscopy-capture", {
-      consultationId: consultationId,
-    });
-  };
+    toast.success("Video stream stopped");
+    
+  }, [socket, consultationId, forceStopVideo, isStopping]);
 
-  // Download captured image
-  const handleDownloadImage = (imageData: string, index: number) => {
-    const link = document.createElement('a');
-    link.href = `data:image/jpeg;base64,${imageData}`;
-    link.download = `otoscopy-capture-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}-${index + 1}.jpg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
-  // Delete captured image
-  const handleDeleteImage = (index: number) => {
-    setCapturedImages(prev => prev.filter((_, i) => i !== index));
-    toast.success("Image deleted");
-  };
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -225,6 +458,13 @@ export default function VideoOtoscopyPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Video Otoscopy</h1>
           <p className="text-gray-600">Visualize the middle ear and tympanic membrane</p>
+          {isStreaming && (
+            <div className="text-xs text-gray-500 mt-1">
+              Latency: {performanceStats.latency}ms | 
+              Processing: {performanceStats.frameProcessingTime.toFixed(1)}ms | 
+              FPS: {performanceStats.framesPerSecond}
+            </div>
+          )}
         </div>
         
         {/* Status Card */}
@@ -288,26 +528,16 @@ export default function VideoOtoscopyPage() {
             
             <Button
               onClick={handleStopVideo}
-              disabled={!isStreaming || streamStatus === "connecting"}
+              disabled={!isStreaming && streamStatus !== "streaming"}
               variant="outline"
               className="flex items-center gap-2"
             >
-              <Square className="w-4 h-4" />
-              Stop Video
-            </Button>
-            
-            <Button
-              onClick={handleCaptureImage}
-              disabled={!isStreaming || isCapturing}
-              variant="secondary"
-              className="flex items-center gap-2"
-            >
-              {isCapturing ? (
+              {isStopping ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Camera className="w-4 h-4" />
+                <Square className="w-4 h-4" />
               )}
-              Capture Image
+              {isStopping ? "Stopping..." : "Stop Video"}
             </Button>
           </div>
         </CardContent>
@@ -320,15 +550,20 @@ export default function VideoOtoscopyPage() {
         </CardHeader>
         <CardContent>
           <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+            <canvas
+              ref={canvasRef}
+              className="w-full h-full object-contain bg-black border border-gray-600"
+              style={{ 
+                minHeight: '300px',
+                maxWidth: '100%',
+                maxHeight: '100%'
+              }}
+            />
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-contain"
-            />
-            <canvas
-              ref={canvasRef}
               className="hidden"
             />
             
@@ -356,45 +591,7 @@ export default function VideoOtoscopyPage() {
         </CardContent>
       </Card>
 
-      {/* Captured Images */}
-      {capturedImages.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Captured Images ({capturedImages.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {capturedImages.map((imageData, index) => (
-                <div key={index} className="relative group">
-                  <img
-                    src={`data:image/jpeg;base64,${imageData}`}
-                    alt={`Otoscopy capture ${index + 1}`}
-                    className="w-full h-48 object-cover rounded-lg border"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleDownloadImage(imageData, index)}
-                        className="bg-white text-black hover:bg-gray-100"
-                      >
-                        Download
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDeleteImage(index)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
     </div>
   );
 }

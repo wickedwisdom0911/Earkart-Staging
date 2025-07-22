@@ -4,7 +4,7 @@ import React, { useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useGetAllQuestions } from '@/hooks/questionnaire/use-get-questions';
 import useSubmitAnswers from '@/hooks/questionnaire/use-answer-questions';
-import { SubmitAnswersRequest } from '@/models/questionnaire.model';
+import { SubmitAnswersRequest, QuestionnaireAnswer } from '@/models/questionnaire.model';
 import { AnswerType } from '@/models/enums';
 import { useForm, Controller } from 'react-hook-form';
 import * as Label from '@radix-ui/react-label';
@@ -14,17 +14,14 @@ import { toast } from 'sonner';
 import { ROUTES } from '@/lib/routes'
 import { useGetConsultation } from '@/hooks/consultation/use-get-consultation';
 
-
 export default function QuestionnairePage() {
   const { consultationId } = useParams();
   const cid = Array.isArray(consultationId) ? consultationId[0] : consultationId ?? '';
   const router = useRouter();
 
   const { data: resp, isLoading, isError } = useGetAllQuestions();
-  const { data: consultationData, isLoading: isConsultationLoading } = useGetConsultation(cid); // Add this
+  const { data: consultationData, isLoading: isConsultationLoading } = useGetConsultation(cid);
   const questions = resp?.data ?? [];
-
-
 
   const sortedQuestions = useMemo(
     () => [...questions].sort((a, b) => a.order - b.order),
@@ -41,9 +38,9 @@ export default function QuestionnairePage() {
       
       if (hasExistingQuestionnaire) {
         // Prefill with existing answers
-        const existingAnswers = consultationData?.data?.questionnaire?.answers;
+        const existingAnswers = consultationData?.data?.questionnaire?.answers as QuestionnaireAnswer[];
         const prefilledAnswers = sortedQuestions.map(q => {
-          const existingAnswer = existingAnswers.find(answer => answer.questionId === q.id);
+          const existingAnswer = existingAnswers?.find(answer => answer.questionId === q.id);
           
           if (existingAnswer) {
             if (q.type === AnswerType.CHECKBOX) {
@@ -100,7 +97,7 @@ export default function QuestionnairePage() {
       if (question?.type === AnswerType.MULTIPLE_CHOICE) {
         return {
           questionId: answer.questionId,
-          selectedOptions: [answer.value] 
+          selectedOptions: [answer.value as string] 
         };
       } else if (question?.type === AnswerType.CHECKBOX) {
         return {
@@ -110,7 +107,7 @@ export default function QuestionnairePage() {
       } else {
         return {
           questionId: answer.questionId,
-          value: answer.value
+          value: answer.value as string
         };
       }
     });
@@ -215,7 +212,7 @@ export default function QuestionnairePage() {
                                 const i = newVal.indexOf(opt.value);
                                 if (i > -1) newVal.splice(i, 1);
                               }
-                              field.onChange(newVal as any);
+                              field.onChange(newVal);
                             }}
                           />
                           <span>{opt.value}</span>
