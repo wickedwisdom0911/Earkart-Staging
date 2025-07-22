@@ -137,6 +137,11 @@ internal class UVCCameraView(
                 // The libraries might be loaded by the dependency later
             }
             
+            // Add delay for release mode to ensure proper initialization
+            // Always add a small delay to ensure proper initialization
+            Log.i(TAG, "Adding initialization delay for stability...")
+            Thread.sleep(500) // 500ms delay for stability
+            
             checkCameraPermission()
             val cameraView = AspectRatioTextureView(mContext)
             handleTextureView(cameraView)
@@ -148,6 +153,8 @@ internal class UVCCameraView(
                         addView(view, getViewLayoutParams(this))
                     }
             }
+            
+            Log.i(TAG, "Camera initialization completed successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Error in initCamera: ${e.message}", e)
             setCameraERRORState("Camera initialization failed: ${e.message}")
@@ -156,8 +163,15 @@ internal class UVCCameraView(
 
     fun openUVCCamera() {
         try {
+            // Add delay for camera opening to ensure proper initialization
+            // Always add a small delay to ensure proper initialization
+            Log.i(TAG, "Adding camera opening delay for stability...")
+            Thread.sleep(1000) // 1 second delay for stability
+            
             checkCameraPermission()
             openCamera()
+            
+            Log.i(TAG, "UVC camera opened successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Error in openUVCCamera: ${e.message}", e)
             setCameraERRORState("Failed to open camera: ${e.message}")

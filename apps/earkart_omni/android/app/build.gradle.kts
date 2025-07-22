@@ -29,6 +29,11 @@ android {
         targetSdk = 33
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // Ensure native libraries are included for all ABIs
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
 
     buildTypes {
@@ -51,6 +56,9 @@ android {
         pickFirst("**/libc++_shared.so")
         pickFirst("**/libuvc.so")
         pickFirst("**/libausbc.so")
+        pickFirst("**/libusb100.so")
+        pickFirst("**/libUVCCamera.so")
+        pickFirst("**/libUACAudio.so")
         exclude("META-INF/DEPENDENCIES")
         exclude("META-INF/LICENSE")
         exclude("META-INF/LICENSE.txt")
@@ -65,6 +73,19 @@ android {
     // Disable deferred components to avoid Google Play Core dependency issues
     buildFeatures {
         buildConfig = true
+    }
+    
+    // Ensure native libraries are properly bundled
+    bundle {
+        language {
+            enableSplit = false
+        }
+        density {
+            enableSplit = false
+        }
+        abi {
+            enableSplit = false
+        }
     }
 }
 

@@ -102,6 +102,9 @@ android {
         pickFirst '**/libc++_shared.so'
         pickFirst '**/libuvc.so'
         pickFirst '**/libausbc.so'
+        pickFirst '**/libusb100.so'
+        pickFirst '**/libUVCCamera.so'
+        pickFirst '**/libUACAudio.so'
         exclude 'META-INF/DEPENDENCIES'
         exclude 'META-INF/LICENSE'
         exclude 'META-INF/LICENSE.txt'
@@ -112,6 +115,9 @@ android {
         exclude 'META-INF/ASL2.0'
         exclude 'META-INF/*.kotlin_module'
     }
+
+    // Note: bundle block is not available for library projects
+    // Native libraries will be included through the main app's bundle configuration
 
     testOptions {
         unitTests.all {

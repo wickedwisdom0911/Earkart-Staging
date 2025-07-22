@@ -1014,10 +1014,28 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     }
 
     try {
-      di<ILogger>().info('Starting simplified camera initialization...');
+      di<ILogger>().info(
+        'Starting camera initialization with release mode considerations...',
+      );
 
-      // Simple delay to ensure widget is ready
-      await Future.delayed(const Duration(milliseconds: 1000));
+      // In release mode, add longer delays to ensure proper initialization
+      if (ReleaseConfig.isReleaseMode) {
+        di<ILogger>().info(
+          'Release mode detected, adding extended initialization delays...',
+        );
+
+        // Wait for platform view to be fully ready
+        await Future.delayed(ReleaseConfig.platformViewInitDelay);
+
+        // Additional delay for native library loading
+        await Future.delayed(const Duration(seconds: 2));
+
+        // Wait for the next frame to ensure everything is stable
+        await Future.delayed(const Duration(milliseconds: 500));
+      } else {
+        // Debug mode - shorter delay
+        await Future.delayed(const Duration(milliseconds: 1000));
+      }
 
       if (!_isDisposed && _isAppActive && mounted) {
         try {
@@ -1045,11 +1063,19 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                 ) ||
                 initError.toString().contains(
                   'cameraView has not been initialized',
-                )) {
+                ) ||
+                initError.toString().contains('NATIVE_LIBRARY_ERROR')) {
               di<ILogger>().warning(
-                'Platform view not ready, retrying after delay...',
+                'Platform view or native library not ready, retrying after extended delay...',
               );
-              await Future.delayed(const Duration(milliseconds: 2000));
+
+              // In release mode, add longer retry delay
+              if (ReleaseConfig.isReleaseMode) {
+                await Future.delayed(const Duration(seconds: 3));
+              } else {
+                await Future.delayed(const Duration(milliseconds: 2000));
+              }
+
               await cameraController!.initializeCamera().timeout(
                 ReleaseConfig.cameraInitTimeout,
                 onTimeout: () {
@@ -1070,8 +1096,12 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             });
           }
 
-          // Open camera after successful initialization
-          await Future.delayed(const Duration(milliseconds: 500));
+          // Add delay before opening camera to ensure initialization is complete
+          if (ReleaseConfig.isReleaseMode) {
+            await Future.delayed(const Duration(seconds: 1));
+          } else {
+            await Future.delayed(const Duration(milliseconds: 500));
+          }
 
           if (!_isDisposed && _isAppActive && mounted) {
             try {
@@ -1088,6 +1118,27 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               }
             } catch (openError) {
               di<ILogger>().error('Error opening camera: $openError');
+
+              // Handle native library errors specifically
+              if (openError.toString().contains('NATIVE_LIBRARY_ERROR')) {
+                di<ILogger>().warning(
+                  'Native library error detected, attempting recovery...',
+                );
+                // Don't increment error count for native library errors, try to recover
+                if (mounted && !_isDisposed) {
+                  setState(() {
+                    _status = 'Native library issue - retrying...';
+                  });
+                }
+                // Schedule a retry with longer delay
+                Future.delayed(const Duration(seconds: 5), () {
+                  if (!_isDisposed && _isAppActive && mounted) {
+                    _handleCameraError();
+                  }
+                });
+                return;
+              }
+
               if (mounted && !_isDisposed) {
                 setState(() {
                   _errorCount++;
