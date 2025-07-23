@@ -21,6 +21,10 @@ import {
   UserPlusIcon,
   UsersIcon,
   PieChart,
+  MapPinIcon,
+  GlobeIcon,
+  Tablet,
+  ClipboardList,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -30,6 +34,7 @@ import useLogoutUser from "@/hooks/auth/use-logout-user";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useSocket } from "@/providers/socket-provider";
+import { ROUTES } from "@/lib/routes";
 
 export interface SidebarItem {
   name: string;
@@ -65,9 +70,24 @@ const adminSidebarItems: SidebarItem[] = [
     url: "/dashboard/centres",
   },
   {
-    name: "Settings",
-    icon: <SettingsIcon className="text-slate-600" />,
-    url: "/dashboard/settings",
+    name: "Locations",
+    icon: <MapPinIcon className="text-slate-600" />,
+    url: ROUTES.LOCATIONS,
+  },
+  {
+    name: "Languages",
+    icon: <GlobeIcon className="text-slate-600" />,
+    url: ROUTES.LANGUAGES,
+  },
+  {
+    name: "Devices",
+    icon: <Tablet className="text-slate-600" />,
+    url: ROUTES.DEVICES,
+  },
+  {
+    name: "Questionnaire",
+    icon: <ClipboardList className="text-slate-600" />,
+    url: ROUTES.QUESTIONNAIRE,
   },
   {
     name: "Users",
@@ -80,6 +100,7 @@ const adminSidebarItems: SidebarItem[] = [
     url: "/dashboard/patients",
   },
 ];
+
 const headAudiologistSidebarItems: SidebarItem[] = [
   {
     name: "Dashboard",
@@ -102,15 +123,15 @@ const headAudiologistSidebarItems: SidebarItem[] = [
     url: "/dashboard/audiologists",
   },
   {
-    name: "Settings",
-    icon: <SettingsIcon className="text-slate-600" />,
-    url: "/dashboard/settings",
-},
-{
-  name: "Patients",
-  icon: <UserPlusIcon className="text-slate-600" />,
-  url: "/dashboard/patients",
-},
+    name: "Questionnaire",
+    icon: <ClipboardList className="text-slate-600" />,
+    url: ROUTES.QUESTIONNAIRE,
+  },
+  {
+    name: "Patients",
+    icon: <UserPlusIcon className="text-slate-600" />,
+    url: "/dashboard/patients",
+  },
 ];
 
 const audiologistSidebarItems: SidebarItem[] = [
@@ -130,9 +151,9 @@ const audiologistSidebarItems: SidebarItem[] = [
     url: "/dashboard/analytics",
   },
   {
-    name: "Settings",
-    icon: <SettingsIcon className="text-slate-600" />,
-    url: "/dashboard/settings",
+    name: "Questionnaire",
+    icon: <ClipboardList className="text-slate-600" />,
+    url: ROUTES.QUESTIONNAIRE,
   },
   {
     name: "Patients",
