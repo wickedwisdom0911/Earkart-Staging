@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 
@@ -10,13 +11,38 @@ class DeviceCubit extends Cubit<DeviceState> {
   List<UsbDevice> _devices = [];
   UsbDevice? _r15cDevice;
   UsbDevice? _revo2Device;
+  CommunicationCubit? _communicationCubit;
 
-  static const _usbPollInterval = Duration(seconds: 1);
+  static const _usbPollInterval = Duration(milliseconds: 500);
 
   DeviceCubit() : super(const DeviceState.initial());
 
+  void setCommunicationCubit(CommunicationCubit communicationCubit) {
+    _communicationCubit = communicationCubit;
+
+    // If R15C device is already connected, initialize communication
+    if (_r15cDevice != null) {
+      di<ILogger>().info(
+        'Initializing communication for already connected R15C device',
+      );
+      _communicationCubit!.initializePort(_r15cDevice!);
+    }
+  }
+
   void startDeviceMonitoring() {
     _usbTimer?.cancel();
+
+    // Initial device fetch to handle already connected devices
+    _fetchDevices().then((_) {
+      // Initialize communication for already connected R15C device
+      if (_r15cDevice != null && _communicationCubit != null) {
+        di<ILogger>().info(
+          'Initializing communication for already connected R15C device',
+        );
+        _communicationCubit!.initializePort(_r15cDevice!);
+      }
+    });
+
     _usbTimer = Timer.periodic(_usbPollInterval, (timer) async {
       await _fetchDevices();
     });
@@ -41,6 +67,12 @@ class DeviceCubit extends Cubit<DeviceState> {
 
       // Update device references
       _updateDeviceReferences(connectedDevices);
+
+      // Log device status for debugging
+      di<ILogger>().debug(
+        'Device status - R15C: ${_r15cDevice != null ? "Connected" : "Disconnected"}, '
+        'Revo2: ${_revo2Device != null ? "Connected" : "Disconnected"}',
+      );
 
       emit(
         DeviceState.success(
@@ -83,18 +115,33 @@ class DeviceCubit extends Cubit<DeviceState> {
   }
 
   void _handleDeviceChanges(DeviceChanges changes) {
-    // Log device changes
+    // Handle device attachment
     for (final device in changes.attached) {
       final deviceType = _getDeviceType(device);
       if (deviceType != null) {
         di<ILogger>().info('Device attached: $deviceType');
+
+        // Auto-initialize communication for R15C device
+        if (deviceType == 'r15c' && _communicationCubit != null) {
+          di<ILogger>().info('Auto-initializing communication for R15C device');
+          _communicationCubit!.initializePort(device);
+        }
       }
     }
 
+    // Handle device detachment
     for (final device in changes.detached) {
       final deviceType = _getDeviceType(device);
       if (deviceType != null) {
         di<ILogger>().info('Device detached: $deviceType');
+
+        // Reset communication state when R15C device is detached
+        if (deviceType == 'r15c' && _communicationCubit != null) {
+          di<ILogger>().info(
+            'Resetting communication state for detached R15C device',
+          );
+          _communicationCubit!.resetState();
+        }
       }
     }
   }

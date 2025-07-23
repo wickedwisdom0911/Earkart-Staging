@@ -35,13 +35,15 @@ class ConsultationEntityAdapter extends TypeAdapter<ConsultationEntity> {
       audiologist: fields[15] as AudiologistEntity?,
       centre: fields[16] as CentreEntity?,
       recordings: (fields[17] as List?)?.cast<ConsultationRecordingEntity>(),
+      consultationPricing:
+          (fields[18] as List?)?.cast<ConsultationPricingEntity>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, ConsultationEntity obj) {
     writer
-      ..writeByte(18)
+      ..writeByte(19)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -77,7 +79,9 @@ class ConsultationEntityAdapter extends TypeAdapter<ConsultationEntity> {
       ..writeByte(16)
       ..write(obj.centre)
       ..writeByte(17)
-      ..write(obj.recordings);
+      ..write(obj.recordings)
+      ..writeByte(18)
+      ..write(obj.consultationPricing);
   }
 
   @override

@@ -8,7 +8,7 @@ class GetDistrictsUsecase {
 
   GetDistrictsUsecase({required this.repository});
 
-  Future<Either<Failure, List<DistrictEntity>>> call(String cityId) async {
-    return await repository.getDistricts(cityId);
+  Future<Either<Failure, List<DistrictEntity>>> call(String stateId) async {
+    return await repository.getDistricts(stateId);
   }
 }

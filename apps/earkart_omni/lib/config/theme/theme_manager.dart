@@ -18,20 +18,28 @@ ThemeData theme = ThemeData.light().copyWith(
     elevation: 3,
   ),
   appBarTheme: AppBarTheme(
+    toolbarHeight: 60,
+    surfaceTintColor: Colors.transparent,
+    scrolledUnderElevation: 0,
     systemOverlayStyle: const SystemUiOverlayStyle(
-      statusBarColor: Colors.white,
+      statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark, // For Android (dark icons)
       statusBarBrightness: Brightness.light, // For iOS (dark icons)
     ),
-    backgroundColor: Colors.white,
-    foregroundColor: Colors.black,
+    backgroundColor: Colors.white.withOpacity(0.85),
+    foregroundColor: Colors.black87,
     titleTextStyle: CustomStyles.fixAppBarTextStyle.copyWith(
-      color: Colors.black,
-      fontWeight: FontWeight.bold,
+      color: Colors.black87,
+      fontWeight: FontWeight.w700,
+      fontSize: 20,
+      letterSpacing: 0.3,
     ),
     elevation: 0,
-    centerTitle: true,
-    titleSpacing: 5,
+    centerTitle: false,
+    titleSpacing: 20,
+    shape: const Border(
+      bottom: BorderSide(color: Color(0x1A000000), width: 0.5),
+    ),
   ),
   checkboxTheme: CheckboxThemeData(
     fillColor: WidgetStateProperty.all(Constants.primaryColor),

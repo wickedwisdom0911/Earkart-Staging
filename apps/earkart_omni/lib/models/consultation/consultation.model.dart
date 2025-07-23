@@ -1,5 +1,6 @@
 import 'package:earkart_omni/models/audiometry/audiometry_test.model.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation_pricing.entity.dart';
 import 'package:earkart_omni/models/tympanometry/tympanometry_test.model.dart';
 import 'package:earkart_omni/models/oae/oae_test.model.dart';
 import 'package:earkart_omni/models/otoscopy/otoscopy_test.model.dart';
@@ -75,6 +76,7 @@ class ConsultationModelData extends ConsultationEntity {
   final AudiologistEntity? audiologist;
   final CentreEntity? centre;
   final List<ConsultationRecording>? recordings;
+  final List<ConsultationPricingEntity>? consultationPricing;
 
   ConsultationModelData({
     required this.id,
@@ -95,6 +97,7 @@ class ConsultationModelData extends ConsultationEntity {
     this.audiologist,
     this.centre,
     this.recordings,
+    this.consultationPricing,
   }) : super(
          id: id,
          patientId: patientId,
@@ -113,6 +116,7 @@ class ConsultationModelData extends ConsultationEntity {
          audiologist: audiologist,
          centre: centre,
          recordings: recordings,
+         consultationPricing: consultationPricing,
        );
 
   factory ConsultationModelData.fromJson(Map<String, dynamic> json) {
@@ -160,6 +164,14 @@ class ConsultationModelData extends ConsultationEntity {
                 ),
               )
               : null,
+      consultationPricing:
+          json['consultationPricing'] != null
+              ? List<ConsultationPricingEntity>.from(
+                (json['consultationPricing'] as List).map(
+                  (x) => ConsultationPricingEntity.fromJson(x),
+                ),
+              )
+              : null,
     );
   }
 
@@ -183,6 +195,8 @@ class ConsultationModelData extends ConsultationEntity {
       'audiologist': audiologist?.toJson(),
       'centre': centre?.toJson(),
       'recordings': recordings?.map((x) => x.toJson()).toList(),
+      'consultationPricing':
+          consultationPricing?.map((x) => x.toJson()).toList(),
     };
   }
 }

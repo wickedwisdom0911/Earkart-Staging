@@ -18,8 +18,13 @@ class Constants {
   static const districtDb = "district_db";
   static const languageDb = "language_db";
   static const consultationDb = "consultation_db";
-  static final baseUrl = dotenv.env['BASE_URL'];
-  static final socketUrl = dotenv.env['SOCKET_URL'];
+  static final isProduction = dotenv.env['isProduction'] == 'true';
+  static final baseUrl =
+      isProduction ? dotenv.env['BASE_URL'] : dotenv.env['BASE_URL_DEV'];
+  static final socketUrl =
+      isProduction
+          ? dotenv.env['SOCKET_URL']
+          : dotenv.env['BASE_SOCKET_URL_DEV'];
   static final loginUrl = "${baseUrl}auth/login";
   static final deviceUrl = "${baseUrl}device/find-by-value";
   static final setupDeviceUrl = "${baseUrl}device/setup";
@@ -30,8 +35,8 @@ class Constants {
   static final languagesUrl = "${baseUrl}languages/get-all";
   static final countriesUrl = "${baseUrl}country/get-all-countries";
   static final statesUrl = "${baseUrl}states/get-states-by-country-id";
-  static final citiesUrl = "${baseUrl}city/get-cities-by-state-id";
-  static final districtsUrl = "${baseUrl}district/get-districts-by-city-id";
+  static final citiesUrl = "${baseUrl}city/get-cities-by-district-id";
+  static final districtsUrl = "${baseUrl}district/get-districts-by-state-id";
   static final createConsultationUrl = "${baseUrl}consultation/create";
   static final getConsultationByIdUrl = "${baseUrl}consultation/get-by-id";
   static final updateConsultationUrl = "${baseUrl}consultation/update";

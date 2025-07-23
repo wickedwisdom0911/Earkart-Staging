@@ -1,0 +1,71 @@
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <!-- Device Management -->
+        <force-lock />
+        <wipe-data />
+        <reset-password />
+        <limit-password />
+        <watch-login />
+        <set-global-proxy />
+        <expire-password />
+        <encrypted-storage />
+        <disable-camera />
+        <disable-keyguard-features />
+        
+        <!-- Network Management -->
+        <disable-wifi />
+        <enable-wifi />
+        <disable-bluetooth />
+        <enable-bluetooth />
+        <disable-location />
+        <enable-location />
+        <disable-airplane-mode />
+        <enable-airplane-mode />
+        
+        <!-- System Management -->
+        <disable-screen-capture />
+        <disable-account-management />
+        <disable-app-widgets />
+        <disable-status-bar />
+        <disable-safe-boot />
+        <disable-factory-reset />
+        <disable-add-user />
+        <disable-mount-physical-media />
+        <disable-unmute-microphone />
+        <disable-adjust-volume />
+        <disable-outgoing-calls />
+        <disable-sms />
+        <disable-outgoing-beam />
+        <disable-vpn />
+        <disable-data-usage-statistics />
+        <disable-set-wallpaper />
+        <disable-system-apps />
+        <disable-uninstall-apps />
+        <disable-app-installation />
+        <disable-app-uninstallation />
+        <disable-share-location />
+        <disable-install-apps />
+        <disable-uninstall-apps />
+        <disable-create-windows />
+        <disable-cross-profile-contacts-search />
+        <disable-cross-profile-caller-id />
+        <disable-contacts-search />
+        <disable-outgoing-beam />
+        <disable-phone-calls />
+        <disable-sms />
+        <disable-outgoing-calls />
+        <disable-phone-calls />
+        <disable-sms />
+        <disable-outgoing-calls />
+        <disable-phone-calls />
+        <disable-sms />
+        <disable-outgoing-calls />
+        <disable-phone-calls />
+        <disable-sms />
+        <disable-outgoing-calls />
+        <disable-phone-calls />
+        <disable-sms />
+        <disable-outgoing-calls />
+  
+    </uses-policies>
+</device-admin>

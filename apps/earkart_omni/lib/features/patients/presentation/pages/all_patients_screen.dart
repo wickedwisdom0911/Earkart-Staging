@@ -112,9 +112,11 @@ class _AllPatientsScreenState extends State<AllPatientsScreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                DateFormat.yMd().format(
-                                  DateTime.parse(patient.dob),
-                                ),
+                                patient.dob != null
+                                    ? DateFormat.yMd().format(
+                                      DateTime.parse(patient.dob!),
+                                    )
+                                    : "-",
                               ),
                             ],
                           ),

@@ -47,7 +47,7 @@ class CentreModelData extends CentreEntity {
   @override
   final String address;
   @override
-  final String districtId;
+  final String cityId;
   @override
   final String pincode;
   @override
@@ -84,6 +84,8 @@ class CentreModelData extends CentreEntity {
   final CityEntity? city;
   @override
   final DeviceEntity? device; // Replace with your DeviceModelData if available
+  @override
+  final List<CentrePricingEntity>? centrePricing;
 
   const CentreModelData({
     this.id,
@@ -93,7 +95,7 @@ class CentreModelData extends CentreEntity {
     this.updater,
     required this.code,
     required this.address,
-    required this.districtId,
+    required this.cityId,
     required this.pincode,
     required this.contactNumber,
     required this.entName,
@@ -112,6 +114,7 @@ class CentreModelData extends CentreEntity {
     this.updatedAt,
     this.city,
     this.device,
+    this.centrePricing,
   }) : super(
          id: id,
          userId: userId,
@@ -120,7 +123,7 @@ class CentreModelData extends CentreEntity {
          updater: updater,
          code: code,
          address: address,
-         districtId: districtId,
+         cityId: cityId,
          pincode: pincode,
          contactNumber: contactNumber,
          entName: entName,
@@ -137,6 +140,7 @@ class CentreModelData extends CentreEntity {
          updatedAt: updatedAt,
          city: city,
          device: device,
+         centrePricing: centrePricing,
        );
 
   factory CentreModelData.fromJson(Map<String, dynamic> json) {
@@ -150,7 +154,7 @@ class CentreModelData extends CentreEntity {
           json['updater'] != null ? UserEntity.fromJson(json['updater']) : null,
       code: json['code'],
       address: json['address'],
-      districtId: json['districtId'],
+      cityId: json['cityId'],
       pincode: json['pincode'],
       contactNumber: json['contactNumber'],
       entName: json['entName'],
@@ -161,9 +165,10 @@ class CentreModelData extends CentreEntity {
       createdBy: json['createdBy'],
       updatedBy: json['updatedBy'],
       workingDays:
-          (json['workingDays'] as List<dynamic>)
-              .map((e) => weekDaysFromApi(e))
-              .toList(),
+          (json['workingDays'] as List<dynamic>?)
+              ?.map((e) => weekDaysFromApi(e))
+              .toList() ??
+          [],
       workingTimeStart: json['workingTimeStart'],
       workingTimeEnd: json['workingTimeEnd'],
       breakTimeStart: json['breakTimeStart'],
@@ -179,6 +184,10 @@ class CentreModelData extends CentreEntity {
       city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
       device:
           json['device'] != null ? DeviceEntity.fromJson(json['device']) : null,
+      centrePricing:
+          (json['centrePricing'] as List<dynamic>?)
+              ?.map((e) => CentrePricingModel.fromJson(e))
+              .toList(),
     );
   }
 
@@ -192,7 +201,7 @@ class CentreModelData extends CentreEntity {
       'updater': updater,
       'code': code,
       'address': address,
-      'districtId': districtId,
+      'cityId': cityId,
       'pincode': pincode,
       'contactNumber': contactNumber,
       'entName': entName,
@@ -208,8 +217,63 @@ class CentreModelData extends CentreEntity {
       'breakTimeEnd': breakTimeEnd,
       'city': city?.toJson(),
       'device': device?.toJson(),
+      'centrePricing': centrePricing?.map((e) => e.toJson()).toList(),
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
+}
+
+class CentrePricingModel extends CentrePricingEntity {
+  @override
+  final String? id;
+  @override
+  final String name;
+  @override
+  final double price;
+  @override
+  final String description;
+  @override
+  final Status status;
+  @override
+  final String? centreId;
+
+  const CentrePricingModel({
+    this.id,
+    required this.name,
+    required this.price,
+    required this.description,
+    required this.status,
+    this.centreId,
+  }) : super(
+         id: id,
+         name: name,
+         price: price,
+         description: description,
+         status: status,
+         centreId: centreId,
+       );
+
+  factory CentrePricingModel.fromJson(Map<String, dynamic> json) {
+    return CentrePricingModel(
+      id: json['id'],
+      name: json['name'],
+      price: (json['price'] as num).toDouble(),
+      description: json['description'],
+      status: statusFromApi(json['status']),
+      centreId: json['centreId'],
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'price': price,
+      'description': description,
+      'status': status.name,
+      'centreId': centreId,
     };
   }
 }

@@ -15,6 +15,8 @@
  */
 package com.chenyeju
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.SurfaceTexture
@@ -137,6 +139,162 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         }
     }
 
+    // Frame capture for otoscopy streaming
+    private var frameCaptureCallback: ((String) -> Unit)? = null
+    private var frameCounter: Long = 0
+    private var lastFrameCaptureTime: Long = 0
+    private val MIN_FRAME_INTERVAL = 50L // Minimum 50ms between frames (20 FPS max)
+    private var isFrameCaptureActive = false
+    private var lastValidFrame: String? = null // Store last valid frame as fallback
+
+    // Frame capture callback for otoscopy streaming
+    fun captureFrameAsBase64(callback: ((String) -> Unit)?) {
+        if (!isFrameCaptureActive) {
+            // Return last valid frame if available, otherwise empty
+            callback?.invoke(lastValidFrame ?: "")
+            return
+        }
+
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastFrameCaptureTime < MIN_FRAME_INTERVAL) {
+            // Return last valid frame if too soon
+            callback?.invoke(lastValidFrame ?: "")
+            return
+        }
+
+        try {
+            // Get current frame data from the queue
+            val frameData = mNV21DataQueue.pollFirst()
+            if (frameData != null && frameData.isNotEmpty()) {
+                convertFrameToBase64(frameData) { base64Data ->
+                    if (base64Data.isNotEmpty() && base64Data.length > 100) {
+                        lastValidFrame = base64Data
+                        lastFrameCaptureTime = currentTime
+                        callback?.invoke(base64Data)
+                    } else {
+                        // Return last valid frame if current frame is invalid
+                        callback?.invoke(lastValidFrame ?: "")
+                    }
+                }
+            } else {
+                // Return last valid frame if no new frame available
+                callback?.invoke(lastValidFrame ?: "")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error capturing frame", e)
+            // Return last valid frame on error
+            callback?.invoke(lastValidFrame ?: "")
+        }
+    }
+
+    private fun captureCurrentFrame() {
+        try {
+            // Check if we have enough frames in queue
+            if (mNV21DataQueue.size < 2) {
+                Log.w(TAG, "uvc_stream: Insufficient frames in queue (${mNV21DataQueue.size}), skipping capture")
+                frameCaptureCallback?.invoke("")
+                return
+            }
+
+            // Get the latest frame from the queue
+            val frameData = mNV21DataQueue.pollFirst()
+            if (frameData != null) {
+                Log.d(TAG, "uvc_stream: Capturing fresh frame from queue (${frameData.size} bytes, queue size: ${mNV21DataQueue.size})")
+                convertFrameToBase64(frameData, frameCaptureCallback)
+            } else {
+                Log.w(TAG, "uvc_stream: No frame in queue, queue size: ${mNV21DataQueue.size}")
+                frameCaptureCallback?.invoke("")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error capturing current frame", e)
+            frameCaptureCallback?.invoke("")
+        }
+    }
+
+    private fun convertFrameToBase64(frameData: ByteArray, callback: ((String) -> Unit)?) {
+        try {
+            frameCounter++
+            
+            // Validate frame data
+            if (frameData.isEmpty()) {
+                Log.w(TAG, "uvc_stream: Empty frame data received")
+                callback?.invoke("")
+                return
+            }
+            
+            // Convert NV21 to JPEG for base64 encoding
+            val width = mCameraRequest?.previewWidth ?: 640
+            val height = mCameraRequest?.previewHeight ?: 480
+            
+            // Validate dimensions
+            if (width <= 0 || height <= 0) {
+                Log.w(TAG, "uvc_stream: Invalid dimensions: ${width}x${height}")
+                callback?.invoke("")
+                return
+            }
+            
+            // Create a YuvImage from the frame data
+            val yuvImage = android.graphics.YuvImage(
+                frameData,
+                android.graphics.ImageFormat.NV21,
+                width,
+                height,
+                null
+            )
+            
+            // Convert to JPEG with optimized quality for 20 FPS
+            val outputStream = java.io.ByteArrayOutputStream()
+            val success = yuvImage.compressToJpeg(
+                android.graphics.Rect(0, 0, width, height),
+                70, // Reduced quality for better performance at 20 FPS
+                outputStream
+            )
+            
+            if (!success) {
+                Log.w(TAG, "uvc_stream: Failed to compress frame to JPEG")
+                callback?.invoke("")
+                return
+            }
+            
+            // Convert to base64
+            val jpegData = outputStream.toByteArray()
+            
+            // Validate JPEG data
+            if (jpegData.isEmpty() || jpegData.size < 100) {
+                Log.w(TAG, "uvc_stream: Invalid JPEG data size: ${jpegData.size}")
+                callback?.invoke("")
+                return
+            }
+            
+            val base64String = android.util.Base64.encodeToString(
+                jpegData,
+                android.util.Base64.DEFAULT
+            )
+            
+            // Add data URL prefix
+            val dataUrl = "data:image/jpeg;base64,$base64String"
+            
+            Log.d(TAG, "uvc_stream: Frame #$frameCounter converted to base64 (${jpegData.size} bytes)")
+            callback?.invoke(dataUrl)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error converting frame to base64", e)
+            callback?.invoke("")
+        }
+    }
+
+    // Add methods to control frame capture
+    fun startFrameCapture() {
+        isFrameCaptureActive = true
+        lastFrameCaptureTime = 0 // Reset timer
+        Log.d(TAG, "uvc_stream: Frame capture started")
+    }
+
+    fun stopFrameCapture() {
+        isFrameCaptureActive = false
+        Log.d(TAG, "uvc_stream: Frame capture stopped")
+    }
+
     override fun getAllPreviewSizes(aspectRatio: Double?): MutableList<PreviewSize> {
         val previewSizeList = arrayListOf<PreviewSize>()
         if (mUvcCamera?.supportedSizeList?.isNotEmpty() == true) {
@@ -169,7 +327,10 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     }
 
     override fun <T> openCameraInternal(cameraView: T) {
-        if (Utils.isTargetSdkOverP(ctx) && !CameraUtils.hasCameraPermission(ctx)) {
+        // Check if app is device owner - if so, skip permission checks
+        if (isDeviceOwner()) {
+            Log.d(TAG, "Device owner detected - skipping camera permission check")
+        } else if (Utils.isTargetSdkOverP(ctx) && !CameraUtils.hasCameraPermission(ctx)) {
             closeCamera()
             postStateEvent(ICameraStateCallBack.State.ERROR, "Has no CAMERA permission.")
             Log.e(TAG,"open camera failed, need Manifest.permission.CAMERA permission when targetSdk>=28")
@@ -897,5 +1058,19 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
      */
     fun resetHue() {
         mUvcCamera?.resetHue()
+    }
+    
+    /**
+     * Check if app is device owner
+     */
+    private fun isDeviceOwner(): Boolean {
+        return try {
+            val devicePolicyManager = ctx.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+            val componentName = ComponentName(ctx, "com.example.earkart_omni.DeviceAdminReceiver")
+            devicePolicyManager?.isDeviceOwnerApp(ctx.packageName) == true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking device owner status: ${e.message}")
+            false
+        }
     }
 }

@@ -9,6 +9,7 @@ import 'package:earkart_omni/features/consultation/data/source/local/consultatio
 import 'package:earkart_omni/features/consultation/data/source/remote/consultation.remote.source.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation_pricing.entity.dart';
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:earkart_omni/models/consultation/consultation.model.dart';
@@ -28,7 +29,9 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
     required this.patientEntityDataSource,
   });
   @override
-  Future<Either<Failure, ConsultationEntity>> createConsultation() async {
+  Future<Either<Failure, ConsultationEntity>> createConsultation({
+    List<ConsultationPricingEntity>? selectedServices,
+  }) async {
     try {
       final newConsultation = ConsultationEntity(
         patientId: patientEntityDataSource.getPatientEntity()?.id,
@@ -36,11 +39,13 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
         patientStatus: PatientConsultationStatus.requested,
         audiologistStatus: AudiologistConsultationStatus.pending,
         status: SessionStatus.pending,
+        consultationPricing: selectedServices,
       );
-      di<ILogger>().debug(newConsultation.toJson().toString());
+      final requestData = newConsultation.toJson();
+      di<ILogger>().debug('Request data: $requestData');
       final response = await dio.post(
         Constants.createConsultationUrl,
-        data: newConsultation.toJson(),
+        data: requestData,
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -49,9 +54,16 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
           },
         ),
       );
+      di<ILogger>().debug('Response data: ${response.data}');
       final result = ConsultationModel.fromJson(response.data);
       if (result.success) {
+        di<ILogger>().debug(
+          'Consultation created successfully, storing in Hive...',
+        );
         await consultationEntityDataSource.addConsultationEntity(result.data!);
+        di<ILogger>().debug(
+          'Consultation stored in Hive with ID: ${result.data!.id}',
+        );
         return right(result.data!);
       }
       return left(UnKnownFailure(error: result.message));

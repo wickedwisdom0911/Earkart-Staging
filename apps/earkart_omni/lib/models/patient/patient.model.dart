@@ -49,14 +49,15 @@ class PatientModelData extends PatientEntity {
   const PatientModelData({
     super.id,
     required super.contactNumber,
-    required super.code,
+    super.code,
     required super.name,
     super.email,
     required super.gender,
-    required super.dob,
+    super.dob,
+    super.age,
     super.password,
     required super.address,
-    required super.districtId,
+    required super.cityId,
     required super.pincode,
     super.createdBy,
     super.updatedBy,
@@ -70,6 +71,10 @@ class PatientModelData extends PatientEntity {
     super.language,
     super.soldStatus,
     super.handledBy,
+    super.districtId,
+    super.stateId,
+    super.countryId,
+    super.city,
   });
 
   factory PatientModelData.fromJson(Map<String, dynamic> json) {
@@ -81,9 +86,15 @@ class PatientModelData extends PatientEntity {
       email: json['email'],
       gender: genderFromApi(json['gender']),
       dob: json["dob"],
+      age:
+          json['age'] is int
+              ? json['age']
+              : (json['age'] != null
+                  ? int.parse(json['age'].toString())
+                  : null),
       password: json['password'],
       address: json['address'],
-      districtId: json['districtId'],
+      cityId: json['cityId'],
       pincode: json['pincode'],
       createdBy: json['createdBy'],
       updatedBy: json['updatedBy'],
@@ -105,6 +116,10 @@ class PatientModelData extends PatientEntity {
               : null,
       soldStatus: patienSoldStatusFromApi(json['soldStatus']),
       handledBy: json['handledBy'],
+      districtId: json['districtId'],
+      stateId: json['stateId'],
+      countryId: json['countryId'],
+      city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
     );
   }
 
@@ -118,9 +133,10 @@ class PatientModelData extends PatientEntity {
       'email': email,
       'gender': gender.name.toUpperCase(),
       'dob': dob,
+      'age': age,
       'password': password,
       'address': address,
-      'districtId': districtId,
+      'cityId': cityId,
       'pincode': pincode,
       'createdBy': createdBy,
       'updatedBy': updatedBy,
@@ -134,6 +150,10 @@ class PatientModelData extends PatientEntity {
       'district': district?.toJson(),
       'soldStatus': toUpperSnakeCase(soldStatus?.name ?? ''),
       'handledBy': handledBy,
+      'districtId': districtId,
+      'stateId': stateId,
+      'countryId': countryId,
+      'city': city?.toJson(),
     };
   }
 }

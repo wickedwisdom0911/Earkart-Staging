@@ -1,5 +1,6 @@
 import 'package:earkart_omni/config/routes/router.dart';
 import 'package:earkart_omni/config/theme/theme_manager.dart';
+import 'package:earkart_omni/config/utils/wakelock_manager.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
@@ -12,12 +13,16 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/device.cub
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
+import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
+import 'package:earkart_omni/features/network/presentation/widgets/wakelock_status_widget.dart';
+import 'package:earkart_omni/features/consultation/presentation/widgets/device_status_widget.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation_pricing.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation_recording.entity.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
@@ -36,21 +41,56 @@ import 'package:flutter/material.dart';
 import 'package:get/route_manager.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:async';
+import 'dart:developer' as developer;
+import 'package:earkart_omni/utils/device_owner_helper.dart';
 
 Future<void> main() async {
   await dotenv.load(fileName: ".env");
   WidgetsFlutterBinding.ensureInitialized();
 
   await _setupSystemUI();
+  await _setupWakelock();
   await setupDI();
   await _initHive();
   await _initDataSources();
 
+  // Auto-grant device owner permissions if app is device owner
+  await _initializeDeviceOwnerPermissions();
+
   runApp(const MyApp());
+}
+
+/// Initialize device owner permissions automatically
+Future<void> _initializeDeviceOwnerPermissions() async {
+  try {
+    developer.log(
+      'Initializing device owner permissions...',
+      name: 'DeviceOwner',
+    );
+
+    // Check if app is device owner and auto-grant permissions
+    await DeviceOwnerHelper.autoGrantPermissionsIfDeviceOwner();
+
+    // Print permission status summary for debugging
+    await DeviceOwnerHelper.printPermissionSummary();
+
+    developer.log(
+      'Device owner permissions initialization complete',
+      name: 'DeviceOwner',
+    );
+  } catch (e) {
+    developer.log(
+      'Error initializing device owner permissions: $e',
+      name: 'DeviceOwner',
+    );
+  }
 }
 
 // Global timer for auto-hide functionality
 Timer? _autoHideTimer;
+
+// Global system UI observer instance to prevent memory leaks
+_SystemUIObserver? _systemUIObserver;
 
 Future<void> _setupSystemUI() async {
   // Lock orientation to landscape for optimal medical device usage
@@ -96,17 +136,24 @@ Future<void> _enableFullScreenMode() async {
 
 /// Set up auto-hide functionality for system UI
 void _setupAutoHideSystemUI() {
-  // Listen to system UI visibility changes
-  SystemChannels.platform.setMethodCallHandler((call) async {
-    if (call.method == 'SystemChrome.systemUIChange') {
-      // User interacted with system UI, start auto-hide timer
-      _startAutoHideTimer();
-    }
-    return null;
-  });
+  // Remove existing observer if any to prevent duplicates
+  if (_systemUIObserver != null) {
+    WidgetsBinding.instance.removeObserver(_systemUIObserver!);
+  }
 
-  // Also listen to app lifecycle changes
-  WidgetsBinding.instance.addObserver(_SystemUIObserver());
+  // Create and add new observer
+  _systemUIObserver = _SystemUIObserver();
+  WidgetsBinding.instance.addObserver(_systemUIObserver!);
+}
+
+/// Clean up system UI observer to prevent memory leaks
+void _cleanupSystemUIObserver() {
+  if (_systemUIObserver != null) {
+    WidgetsBinding.instance.removeObserver(_systemUIObserver!);
+    _systemUIObserver = null;
+  }
+  _autoHideTimer?.cancel();
+  _autoHideTimer = null;
 }
 
 /// Start timer to automatically hide system UI after user interaction
@@ -116,9 +163,12 @@ void _startAutoHideTimer() {
 
   // Start new timer - hide system UI after 3 seconds of inactivity
   _autoHideTimer = Timer(const Duration(seconds: 3), () async {
-    await _enableFullScreenMode();
-    // Optional: Show a brief notification that app went back to full screen
-    _showFullScreenNotification();
+    // Check if timer is still valid (not cancelled)
+    if (_autoHideTimer != null && _autoHideTimer!.isActive) {
+      await _enableFullScreenMode();
+      // Optional: Show a brief notification that app went back to full screen
+      _showFullScreenNotification();
+    }
   });
 }
 
@@ -145,10 +195,19 @@ class _SystemUIObserver extends WidgetsBindingObserver {
         // Cancel auto-hide timer when app is not active
         _autoHideTimer?.cancel();
         break;
+      case AppLifecycleState.inactive:
+        // App is inactive, cancel auto-hide timer
+        _autoHideTimer?.cancel();
+        break;
       default:
         break;
     }
   }
+}
+
+/// Setup wakelock to keep device awake during app usage
+Future<void> _setupWakelock() async {
+  await WakelockManager.initialize();
 }
 
 Future<void> _initHive() async {
@@ -162,6 +221,7 @@ void _registerHiveAdapters() {
   // Device & Centre
   Hive.registerAdapter(DeviceEntityAdapter());
   Hive.registerAdapter(CentreEntityAdapter());
+  Hive.registerAdapter(CentrePricingEntityAdapter());
   // Language & Location
   Hive.registerAdapter(LanguageEntityAdapter());
   Hive.registerAdapter(StateEntityAdapter());
@@ -171,6 +231,7 @@ void _registerHiveAdapters() {
   // Patient & Consultation
   Hive.registerAdapter(PatientEntityAdapter());
   Hive.registerAdapter(ConsultationEntityAdapter());
+  Hive.registerAdapter(ConsultationPricingEntityAdapter());
   Hive.registerAdapter(ConsultationRecordingEntityAdapter());
   // Audiometry
   Hive.registerAdapter(AudiometryTestEntityAdapter());
@@ -198,6 +259,7 @@ void _registerHiveAdapters() {
   Hive.registerAdapter(PaymentCycleAdapter());
   Hive.registerAdapter(WeekDaysAdapter());
   Hive.registerAdapter(EarAdapter());
+  Hive.registerAdapter(PatientSoldStatusAdapter());
   // Audiologist
   Hive.registerAdapter(AudiologistEntityAdapter());
 }
@@ -209,8 +271,55 @@ Future<void> _initDataSources() async {
   await di<ConsultationEntityDataSource>().init();
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    // Add app lifecycle observer for wakelock management
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    // Clean up system UI observer to prevent memory leaks
+    _cleanupSystemUIObserver();
+
+    // Remove lifecycle observer and cleanup wakelock
+    WidgetsBinding.instance.removeObserver(this);
+    WakelockManager.cleanup();
+
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App is in foreground, enable wakelock
+        WakelockManager.enable();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        // App is in background or being closed, disable wakelock to save battery
+        WakelockManager.disable();
+        break;
+      case AppLifecycleState.hidden:
+        // App is hidden but still running, keep wakelock enabled for this medical app
+        WakelockManager.enable();
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
@@ -241,27 +350,74 @@ class MyApp extends StatelessWidget {
 
         // Beautiful app configuration with full screen management
         builder: (context, child) {
-          return AnnotatedRegion<SystemUiOverlayStyle>(
-            value: const SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.dark,
-              systemNavigationBarColor: Colors.transparent,
-              systemNavigationBarIconBrightness: Brightness.dark,
-            ),
-            child: GestureDetector(
-              // Detect user interactions to manage auto-hide timer
-              onTap: () => _startAutoHideTimer(),
-              onPanDown: (_) => _startAutoHideTimer(),
-              onScaleStart: (_) => _startAutoHideTimer(),
-              behavior: HitTestBehavior.translucent,
-              child: MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  // Ensure text scaling doesn't break medical UI layouts
-                  textScaler: TextScaler.linear(1.0),
-                ),
-                child: child ?? const SizedBox.shrink(),
+          return Overlay(
+            initialEntries: [
+              OverlayEntry(
+                builder:
+                    (context) => AnnotatedRegion<SystemUiOverlayStyle>(
+                      value: const SystemUiOverlayStyle(
+                        statusBarColor: Colors.transparent,
+                        statusBarIconBrightness: Brightness.dark,
+                        systemNavigationBarColor: Colors.transparent,
+                        systemNavigationBarIconBrightness: Brightness.dark,
+                      ),
+                      child: GestureDetector(
+                        // Detect user interactions to manage auto-hide timer
+                        onTap: () => _startAutoHideTimer(),
+                        onPanDown: (_) => _startAutoHideTimer(),
+                        onScaleStart: (_) => _startAutoHideTimer(),
+                        behavior: HitTestBehavior.translucent,
+                        child: MediaQuery(
+                          data: MediaQuery.of(context).copyWith(
+                            // Ensure text scaling doesn't break medical UI layouts
+                            textScaler: TextScaler.linear(1.0),
+                          ),
+                          child: Stack(
+                            children: [
+                              // Main app content
+                              child ?? const SizedBox.shrink(),
+
+                              // Global network and wakelock status widgets overlay
+                              Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                child: SafeArea(
+                                  child: Container(
+                                    height: 60, // Match toolbar height
+                                    alignment: Alignment.center,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const WakelockStatusWidget(
+                                            showTooltip: true,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const NetworkStatusWidget(
+                                            showDetails: false,
+                                            showTooltips: true,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Center(child: DeviceStatusWidget()),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
               ),
-            ),
+            ],
           );
         },
 

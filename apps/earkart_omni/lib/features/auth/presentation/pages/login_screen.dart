@@ -179,9 +179,6 @@ class _LoginScreenState extends State<LoginScreen>
                                 HomeScreen.routeName,
                               );
                             }
-                            if (state is AuthError) {
-                              Fluttertoast.showToast(msg: state.message);
-                            }
                           },
                           builder: (context, state) {
                             print(state);

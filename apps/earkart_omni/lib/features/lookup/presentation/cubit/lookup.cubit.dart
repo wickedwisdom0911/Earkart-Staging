@@ -72,9 +72,9 @@ class LookupCubit extends Cubit<LookupState> {
     );
   }
 
-  Future<void> getCities(String stateId) async {
+  Future<void> getCities(String districtId) async {
     if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
-    final result = await getCitiesUsecase.call(stateId);
+    final result = await getCitiesUsecase.call(districtId);
     result.fold(
       (failure) {
         if (!isClosed) {
@@ -89,9 +89,9 @@ class LookupCubit extends Cubit<LookupState> {
     );
   }
 
-  Future<void> getDistricts(String cityId) async {
+  Future<void> getDistricts(String stateId) async {
     if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
-    final result = await getDistrictsUsecase.call(cityId);
+    final result = await getDistrictsUsecase.call(stateId);
     result.fold(
       (failure) {
         if (!isClosed) {

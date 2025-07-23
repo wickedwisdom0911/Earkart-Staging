@@ -34,4 +34,24 @@
     <!-- 0x046D / 0xC019: Logitech Webcam C930e -->
     <usb-device vendor-id="1133" product-id="4937" />
 
+    <!-- Generic UVC Camera Support -->
+    <!-- Most UVC cameras use class 255 (vendor specific) -->
+    <usb-device class="255" />
+    
+    <!-- Common UVC Camera Vendors -->
+    <!-- Logitech -->
+    <usb-device vendor-id="1133" />
+    
+    <!-- Microsoft -->
+    <usb-device vendor-id="1118" />
+    
+    <!-- Creative Technology -->
+    <usb-device vendor-id="1278" />
+    
+    <!-- Samsung -->
+    <usb-device vendor-id="1443" />
+    
+    <!-- Generic USB Video Class -->
+    <usb-device class="14" /> <!-- USB_CLASS_VIDEO -->
+
 </resources>

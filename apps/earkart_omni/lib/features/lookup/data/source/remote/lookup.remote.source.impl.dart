@@ -64,11 +64,11 @@ class LookupRemoteSourceImpl extends ILookupRemoteSource {
   }
 
   @override
-  Future<Either<Failure, List<CityEntity>>> getCities(String stateId) async {
+  Future<Either<Failure, List<CityEntity>>> getCities(String districtId) async {
     try {
       final response = await dio.post(
         Constants.citiesUrl,
-        data: {"stateId": stateId},
+        data: {"districtId": districtId},
       );
       final data = CityModel.fromJson(response.data);
       if (data.success) {
@@ -85,12 +85,12 @@ class LookupRemoteSourceImpl extends ILookupRemoteSource {
 
   @override
   Future<Either<Failure, List<DistrictEntity>>> getDistricts(
-    String cityId,
+    String stateId,
   ) async {
     try {
       final response = await dio.post(
         Constants.districtsUrl,
-        data: {"cityId": cityId},
+        data: {"stateId": stateId},
       );
       final data = DistrictModel.fromJson(response.data);
       if (data.success) {

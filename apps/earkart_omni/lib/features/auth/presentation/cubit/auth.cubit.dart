@@ -3,6 +3,7 @@ import 'package:earkart_omni/features/auth/domain/usecases/get.centre.data.useca
 import 'package:earkart_omni/features/auth/domain/usecases/get.current.user.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/login.usecase.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class AuthCubit extends Cubit<AuthState> {
@@ -22,6 +23,8 @@ class AuthCubit extends Cubit<AuthState> {
     final user = await loginUseCase(email, password);
     user.fold(
       (failure) {
+        print(failure.message);
+        Fluttertoast.showToast(msg: failure.message);
         if (!isClosed) emit(AuthError(message: failure.message));
       },
       (user) {

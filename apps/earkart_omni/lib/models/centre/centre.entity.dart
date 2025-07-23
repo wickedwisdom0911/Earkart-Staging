@@ -25,7 +25,7 @@ class CentreEntity extends Equatable {
   @HiveField(6)
   final String address;
   @HiveField(7)
-  final String districtId;
+  final String cityId;
   @HiveField(8)
   final String pincode;
   @HiveField(9)
@@ -62,6 +62,8 @@ class CentreEntity extends Equatable {
   final CityEntity? city; // Replace with DistrictEntity if available
   @HiveField(25)
   final DeviceEntity? device;
+  @HiveField(26)
+  final List<CentrePricingEntity>? centrePricing;
 
   const CentreEntity({
     this.id,
@@ -71,7 +73,7 @@ class CentreEntity extends Equatable {
     this.updater,
     required this.code,
     required this.address,
-    required this.districtId,
+    required this.cityId,
     required this.pincode,
     required this.contactNumber,
     required this.entName,
@@ -90,6 +92,7 @@ class CentreEntity extends Equatable {
     this.updatedAt,
     this.city,
     this.device,
+    this.centrePricing,
   });
 
   factory CentreEntity.fromJson(Map<String, dynamic> json) {
@@ -103,7 +106,7 @@ class CentreEntity extends Equatable {
           json['updater'] != null ? UserEntity.fromJson(json['updater']) : null,
       code: json['code'],
       address: json['address'],
-      districtId: json['districtId'],
+      cityId: json['cityId'],
       pincode: json['pincode'],
       contactNumber: json['contactNumber'],
       entName: json['entName'],
@@ -133,6 +136,11 @@ class CentreEntity extends Equatable {
       city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
       device:
           json['device'] != null ? DeviceEntity.fromJson(json['device']) : null,
+      centrePricing:
+          (json['centrePricing'] as List<dynamic>?)
+              ?.map((e) => CentrePricingEntity.fromJson(e))
+              .toList() ??
+          [],
     );
   }
 
@@ -145,7 +153,7 @@ class CentreEntity extends Equatable {
       'updater': updater?.toJson(),
       'code': code,
       'address': address,
-      'districtId': districtId,
+      'cityId': cityId,
       'pincode': pincode,
       'contactNumber': contactNumber,
       'entName': entName,
@@ -164,6 +172,7 @@ class CentreEntity extends Equatable {
       'updatedAt': updatedAt?.toIso8601String(),
       'city': city?.toJson(),
       'device': device?.toJson(),
+      'centrePricing': centrePricing?.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -176,7 +185,7 @@ class CentreEntity extends Equatable {
     updater,
     code,
     address,
-    districtId,
+    cityId,
     pincode,
     contactNumber,
     entName,
@@ -195,5 +204,56 @@ class CentreEntity extends Equatable {
     updatedAt,
     city,
     device,
+    centrePricing,
   ];
+}
+
+@HiveType(typeId: HiveTypes.centrePricingEntity)
+class CentrePricingEntity extends Equatable {
+  @HiveField(0)
+  final String? id;
+  @HiveField(1)
+  final String name;
+  @HiveField(2)
+  final double price;
+  @HiveField(3)
+  final String description;
+  @HiveField(4)
+  final Status status;
+  @HiveField(5)
+  final String? centreId;
+
+  const CentrePricingEntity({
+    this.id,
+    required this.name,
+    required this.price,
+    required this.description,
+    required this.status,
+    this.centreId,
+  });
+
+  factory CentrePricingEntity.fromJson(Map<String, dynamic> json) {
+    return CentrePricingEntity(
+      id: json['id'],
+      name: json['name'],
+      price: (json['price'] as num).toDouble(),
+      description: json['description'],
+      status: statusFromApi(json['status']),
+      centreId: json['centreId'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'price': price,
+      'description': description,
+      'status': status.name.toUpperCase(),
+      'centreId': centreId,
+    };
+  }
+
+  @override
+  List<Object?> get props => [id, name, price, description, status, centreId];
 }

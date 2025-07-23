@@ -102,6 +102,61 @@ class UVCCameraController {
     await _cameraChannel?.invokeMethod('openUVCCamera');
   }
 
+  /// Request USB device permissions
+  Future<String?> requestUsbDevicePermission() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod('requestUsbDevicePermission');
+      debugPrint("USB device permission request result: $result");
+      return result as String?;
+    } catch (e) {
+      debugPrint("Error requesting USB device permission: $e");
+      return null;
+    }
+  }
+
+  /// Check if native libraries are available
+  Future<bool> checkNativeLibraryAvailability() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod('checkNativeLibraryAvailability');
+      return result as bool? ?? false;
+    } catch (e) {
+      debugPrint("Error checking native library availability: $e");
+      return false;
+    }
+  }
+
+  /// Get detailed native library status
+  Future<Map<String, dynamic>> getNativeLibraryStatus() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod('getNativeLibraryStatus');
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      return {};
+    } catch (e) {
+      debugPrint("Error getting native library status: $e");
+      return {};
+    }
+  }
+
+  /// Test native library functionality
+  Future<Map<String, dynamic>> testNativeLibraryFunctionality() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod('testNativeLibraryFunctionality');
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      return {'success': false, 'message': 'Invalid result type'};
+    } catch (e) {
+      debugPrint("Error testing native library functionality: $e");
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
   // Future<void> writeToDevice(int data) async {
   //   if (_cameraState == UVCCameraState.opened) {
   //     final result = await _cameraChannel?.invokeMethod('writeToDevice', data);
@@ -173,6 +228,50 @@ class UVCCameraController {
     } catch (e) {
       _isRecording = !_isRecording; // Revert recording state on error
       rethrow;
+    }
+  }
+
+  /// Capture current frame as base64 image for streaming
+  Future<String?> captureFrameAsBase64() async {
+    if (_cameraState == UVCCameraState.closed) {
+      throw Exception('Camera must be opened before capturing frames');
+    }
+
+    try {
+      // Call native method to capture frame as base64
+      final result =
+          await _cameraChannel?.invokeMethod<String>('captureFrameAsBase64');
+      debugPrint("Frame captured as base64: ${result?.substring(0, 50)}...");
+      return result;
+    } catch (e) {
+      debugPrint("Error capturing frame as base64: $e");
+      return null;
+    }
+  }
+
+  /// Start continuous frame capture for streaming
+  void startFrameCapture() {
+    if (_cameraState == UVCCameraState.opened) {
+      _cameraChannel?.invokeMethod('startFrameCapture');
+      debugPrint("Started frame capture for streaming");
+    }
+  }
+
+  /// Stop continuous frame capture
+  void stopFrameCapture() {
+    _cameraChannel?.invokeMethod('stopFrameCapture');
+    debugPrint("Stopped frame capture");
+  }
+
+  /// Get the last captured frame as base64
+  Future<String?> getLastCapturedFrame() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod<String>('getLastCapturedFrame');
+      return result;
+    } catch (e) {
+      debugPrint("Error getting last captured frame: $e");
+      return null;
     }
   }
 

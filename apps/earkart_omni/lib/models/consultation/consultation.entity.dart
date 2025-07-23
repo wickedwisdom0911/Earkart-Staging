@@ -4,6 +4,7 @@ import 'package:earkart_omni/models/tympanometry/tympanometry_test.entity.dart';
 import 'package:earkart_omni/models/oae/oae_test.entity.dart';
 import 'package:earkart_omni/models/otoscopy/otoscopy_test.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation_recording.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation_pricing.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
@@ -51,6 +52,8 @@ class ConsultationEntity extends Equatable {
   final CentreEntity? centre;
   @HiveField(17)
   final List<ConsultationRecordingEntity>? recordings;
+  @HiveField(18)
+  final List<ConsultationPricingEntity>? consultationPricing;
 
   const ConsultationEntity({
     this.id,
@@ -71,6 +74,7 @@ class ConsultationEntity extends Equatable {
     this.audiologist,
     this.centre,
     this.recordings,
+    this.consultationPricing,
   });
 
   factory ConsultationEntity.fromJson(
@@ -122,9 +126,14 @@ class ConsultationEntity extends Equatable {
         (json['recordings'] as List?)
             ?.map((x) => ConsultationRecordingEntity.fromJson(x))
             .toList(),
+    consultationPricing:
+        (json['consultationPricing'] as List?)
+            ?.map((x) => ConsultationPricingEntity.fromJson(x))
+            .toList(),
   );
 
   Map<String, dynamic> toJson() => {
+    'id': id,
     'patientId': patientId,
     'audiologistId': audiologistId,
     'centreId': centreId,
@@ -136,6 +145,7 @@ class ConsultationEntity extends Equatable {
     // 'otoscopy': otoscopy?.toJson(),
     'notes': notes,
     'status': status != null ? toUpperSnakeCase(status!.name) : null,
+    'selectedServices': consultationPricing?.map((x) => x.toJson()).toList(),
   };
 
   ConsultationEntity copyWith({
@@ -157,6 +167,7 @@ class ConsultationEntity extends Equatable {
     AudiologistEntity? audiologist,
     CentreEntity? centre,
     List<ConsultationRecordingEntity>? recordings,
+    List<ConsultationPricingEntity>? consultationPricing,
   }) {
     return ConsultationEntity(
       id: id ?? this.id,
@@ -177,6 +188,7 @@ class ConsultationEntity extends Equatable {
       audiologist: audiologist ?? this.audiologist,
       centre: centre ?? this.centre,
       recordings: recordings ?? this.recordings,
+      consultationPricing: consultationPricing ?? this.consultationPricing,
     );
   }
 
@@ -200,5 +212,6 @@ class ConsultationEntity extends Equatable {
     audiologist,
     centre,
     recordings,
+    consultationPricing,
   ];
 }

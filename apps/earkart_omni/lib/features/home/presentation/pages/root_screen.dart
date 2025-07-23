@@ -1,5 +1,7 @@
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
@@ -15,8 +17,10 @@ import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
-import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:earkart_omni/utils/device_owner_helper.dart';
+import 'package:earkart_omni/di.dart';
+import 'package:earkart_omni/config/release_config.dart';
 
 class RootScreen extends StatefulWidget {
   static const routeName = '/';
@@ -39,14 +43,52 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void initState() {
     super.initState();
+
     context.read<AuthCubit>().getCurrentUser();
+
     context.read<AuthCubit>().getCentreData();
+
     context.read<PatientCubit>().getCurrentPatient();
+
     context.read<ConsultationCubit>().getCurrentConsultation();
+
     _checkAndRequestPermissions();
   }
 
   Future<void> _checkAndRequestPermissions() async {
+    // First check if app is device owner and auto-grant permissions
+    final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
+
+    if (isDeviceOwner) {
+      print('🎯 App is device owner - auto-granting permissions');
+      await DeviceOwnerHelper.grantAllPermissions();
+
+      // For device owner, we can skip permission dialogs
+      // But still check if permissions are actually granted
+      final storageStatus = await Permission.manageExternalStorage.status;
+      final cameraStatus = await Permission.camera.status;
+      final microphoneStatus = await Permission.microphone.status;
+      final usbStatus = await Permission.bluetooth.status;
+
+      if (storageStatus.isGranted &&
+          usbStatus.isGranted &&
+          cameraStatus.isGranted &&
+          microphoneStatus.isGranted) {
+        print('✅ All permissions granted for device owner');
+        _startGlobalDeviceMonitoring();
+        return;
+      } else {
+        print('⚠️ Some permissions still not granted for device owner');
+        // Even for device owner, request permissions as fallback
+        await _requestPermissionsAsFallback();
+      }
+    } else {
+      print('📱 App is not device owner - requesting permissions normally');
+      await _requestPermissionsAsFallback();
+    }
+  }
+
+  Future<void> _requestPermissionsAsFallback() async {
     final storageStatus = await Permission.manageExternalStorage.request();
     final cameraStatus = await Permission.camera.request();
     final microphoneStatus = await Permission.microphone.request();
@@ -56,14 +98,58 @@ class _RootScreenState extends State<RootScreen> {
         usbStatus.isGranted &&
         cameraStatus.isGranted &&
         microphoneStatus.isGranted) {
+      _startGlobalDeviceMonitoring();
       return;
     } else {
       _showPermissionDialog();
     }
   }
 
+  void _startGlobalDeviceMonitoring() {
+    // Start device monitoring globally for the device status widget
+    // This ensures device status is available throughout the app
+    try {
+      // Check if device monitoring is enabled in release mode
+      if (!ReleaseConfig.enableDeviceMonitoring) {
+        print('⚠️ Device monitoring is disabled in release mode');
+        return;
+      }
+
+      // Get the DeviceCubit and CommunicationCubit from the global context
+      final deviceCubit = di<DeviceCubit>();
+      final communicationCubit = di<CommunicationCubit>();
+
+      // Set up communication between DeviceCubit and CommunicationCubit
+      deviceCubit.setCommunicationCubit(communicationCubit);
+
+      // Start device monitoring
+      deviceCubit.startDeviceMonitoring();
+
+      print('✅ Global device monitoring started successfully');
+    } catch (e) {
+      // Log error but don't crash the app
+      print('Error starting global device monitoring: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    // Stop global device monitoring when root screen is disposed
+    try {
+      final deviceCubit = di<DeviceCubit>();
+      deviceCubit.stopDeviceMonitoring();
+      print('✅ Global device monitoring stopped');
+    } catch (e) {
+      print('Error stopping global device monitoring: $e');
+    }
+    super.dispose();
+  }
+
   void _showPermissionDialog() {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -104,6 +190,8 @@ class _RootScreenState extends State<RootScreen> {
                 centre = state.centre;
               });
             } else if (state is AuthError || state is AuthInitial) {
+              if (state is AuthError) {
+              } else {}
               setState(() {
                 checkedCentre = true;
                 centre = null;
@@ -143,55 +231,33 @@ class _RootScreenState extends State<RootScreen> {
           },
         ),
       ],
-      child: Stack(
-        children: [
-          // Main app content takes full screen
-          Builder(
-            builder: (context) {
-              if (!checkedCentre ||
-                  !checkedPatient ||
-                  !checkedConsultation ||
-                  !checkedUser) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (user != null && user!.role == Role.centre) {
-                return const HomeScreen();
-              }
-              if (user != null &&
-                  user!.role == Role.centre &&
-                  centre != null &&
-                  patient == null) {
-                return const HomeScreen();
-              }
-              if (user != null &&
-                  user!.role == Role.centre &&
-                  centre != null &&
-                  patient != null &&
-                  consultation == null) {
-                return const ConsultationRequestScreen();
-              }
-              if (centre != null && patient != null && consultation != null) {
-                return const ConsultationScreen();
-              }
-              return const LoginScreen();
-            },
-          ),
+      child: Builder(
+        builder: (context) {
+          if (!checkedCentre ||
+              !checkedPatient ||
+              !checkedConsultation ||
+              !checkedUser) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          // Minimal network status overlay in top-right corner
-          Positioned(
-            top: 16,
-            right: 16,
-            child: SafeArea(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: const NetworkStatusWidget(showDetails: false),
-              ),
-            ),
-          ),
-        ],
+          // Navigation logic with detailed logging
+          // Priority 1: If consultation exists, go to consultation screen
+          if (consultation != null) {
+            return const ConsultationScreen();
+          }
+
+          // Priority 2: If patient exists but no consultation, go to consultation request
+          if (patient != null && consultation == null) {
+            return const ConsultationRequestScreen();
+          }
+
+          // Priority 3: If user is centre role and no patient/consultation, go to home
+          if (user != null && user!.role == Role.centre) {
+            return const HomeScreen();
+          }
+
+          return const LoginScreen();
+        },
       ),
     );
   }

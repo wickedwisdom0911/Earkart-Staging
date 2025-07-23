@@ -26,14 +26,14 @@ class LookupRepositoryImpl extends ILookupRepository {
   }
 
   @override
-  Future<Either<Failure, List<CityEntity>>> getCities(String stateId) async {
-    return await remoteSource.getCities(stateId);
+  Future<Either<Failure, List<CityEntity>>> getCities(String districtId) async {
+    return await remoteSource.getCities(districtId);
   }
 
   @override
   Future<Either<Failure, List<DistrictEntity>>> getDistricts(
-    String cityId,
+    String stateId,
   ) async {
-    return await remoteSource.getDistricts(cityId);
+    return await remoteSource.getDistricts(stateId);
   }
 }

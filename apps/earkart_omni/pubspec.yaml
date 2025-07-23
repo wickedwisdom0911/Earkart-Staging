@@ -41,6 +41,7 @@ dependencies:
   socket_io_client: ^3.1.2
   connectivity_plus: ^6.0.5
   internet_connection_checker: ^3.0.1
+  wakelock_plus: ^1.2.8
 
   #ui
   figma_squircle: ^0.6.3
