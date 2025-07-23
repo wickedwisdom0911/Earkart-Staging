@@ -102,6 +102,19 @@ class UVCCameraController {
     await _cameraChannel?.invokeMethod('openUVCCamera');
   }
 
+  /// Request USB device permissions
+  Future<String?> requestUsbDevicePermission() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod('requestUsbDevicePermission');
+      debugPrint("USB device permission request result: $result");
+      return result as String?;
+    } catch (e) {
+      debugPrint("Error requesting USB device permission: $e");
+      return null;
+    }
+  }
+
   /// Check if native libraries are available
   Future<bool> checkNativeLibraryAvailability() async {
     try {

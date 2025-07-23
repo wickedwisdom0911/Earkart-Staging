@@ -934,6 +934,19 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         if (_isDisposed || !mounted) return;
 
         di<ILogger>().info('Camera state: $state');
+
+        // Handle permission denied state separately to prevent restart loop
+        if (state.toString().contains('PERMISSION_DENIED')) {
+          di<ILogger>().warning('USB permission denied, stopping restart loop');
+          setState(() {
+            _status = 'USB permission required - please grant permission';
+            _isViewReady = false;
+            _initializationTriggered = false;
+            // Don't increment error count for permission issues
+          });
+          return;
+        }
+
         setState(() {
           switch (state) {
             case UVCCameraState.opened:
@@ -1045,6 +1058,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           if (cameraController == null) {
             throw Exception('Camera controller is null');
           }
+
+          // For device owner apps, USB permissions are automatically granted
+          di<ILogger>().info(
+            'Device owner app - USB permissions automatically granted',
+          );
 
           // Initialize camera with timeout and better error handling
           di<ILogger>().info('Calling cameraController.initializeCamera()...');
@@ -1180,13 +1198,17 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     print('Camera error count: $_errorCount');
 
     // Check if it's a permission error and handle differently
-    if (_status.contains('设备权限被拒绝') || _status.contains('permission denied')) {
+    if (_status.contains('设备权限被拒绝') ||
+        _status.contains('permission denied') ||
+        _status.contains('PERMISSION_DENIED')) {
       print('Permission error detected, not attempting recovery');
       if (mounted && !_isDisposed) {
         setState(() {
           _status = 'USB permission required - please grant permission';
           _isViewReady = false;
           _initializationTriggered = false;
+          // Don't increment error count for permission issues
+          _errorCount = 0;
         });
       }
       return;
