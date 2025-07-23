@@ -22,6 +22,21 @@ const nextConfig: NextConfig = {
     // Disable ESLint during build for faster deployments
     ignoreDuringBuilds: true,
   },
+
+  // Add security headers to allow mixed content (NOT RECOMMENDED)
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "upgrade-insecure-requests;",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
