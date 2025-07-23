@@ -18,6 +18,7 @@ import {
 import { useActivity } from "@/providers/audiologyStatus-provider";
 import { AudiologistActivityType } from "@/models/enums";
 import { PatientAlertIndicator } from "./patient-alert-indicator";
+import { formatActivityLabel } from "@/utils";
 
 export const DashboardHeader: React.FC = () => {
   const { open, toggleSidebar } = useSidebar();
@@ -66,7 +67,7 @@ export const DashboardHeader: React.FC = () => {
                   <DropdownMenuSeparator />
                 {Object.values(AudiologistActivityType).map((act) => (
                   <DropdownMenuItem key={act} onClick={() => startActivity(act)} disabled={Boolean(currentActivity)} className="flex items-center gap-2">
-                    {act}
+                    {formatActivityLabel(act)}
                         </DropdownMenuItem>
                 ))}
                 </DropdownMenuContent>
