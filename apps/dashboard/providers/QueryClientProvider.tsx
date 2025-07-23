@@ -9,6 +9,8 @@ import {
 import { ReactNode } from "react";
 
 // Create a QueryClient instance
+
+
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {

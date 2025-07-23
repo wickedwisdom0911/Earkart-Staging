@@ -12,15 +12,23 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, Phone, Mail } from "lucide-react";
 import CircularText from "@/components/ui/circular-text";
 import useLoginUser from "@/hooks/auth/use-login-user";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
+  const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
   const router = useRouter();
 
   const formSchema = z.object({
@@ -160,7 +168,7 @@ export default function LoginPage() {
                   type="button"
                   variant="link"
                   className="text-sm p-0 h-auto cursor-pointer"
-                  onClick={() => alert("Forgot password clicked!")}
+                  onClick={() => setShowForgotPasswordDialog(true)}
                   tabIndex={0}
                 >
                   Forgot password?
@@ -177,6 +185,66 @@ export default function LoginPage() {
           </Form>
         </div>
       </div>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={showForgotPasswordDialog} onOpenChange={setShowForgotPasswordDialog}>
+        <DialogContent className="max-w-md mx-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-orange-100 rounded-full">
+                <AlertCircle className="w-6 h-6 text-orange-600" />
+              </div>
+              <DialogTitle className="text-xl font-semibold text-gray-900">
+                Password Reset Required
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-gray-600 text-left">
+              To reset your password, please contact the support team or Super Admin.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+              <h4 className="font-medium text-gray-900 mb-3">Contact Information:</h4>
+              
+              <div className="flex items-center gap-3 text-sm">
+                <div className="p-2 bg-blue-100 rounded-full">
+                  <Mail className="w-4 h-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">Email Support</p>
+                  <p className="text-gray-600">support@earkart.com</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-amber-50 p-3 rounded-lg border-l-4 border-amber-400">
+              <p className="text-sm text-amber-800">
+                <strong>Note:</strong> Only Super Admin or technical support can reset your password for security purposes.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setShowForgotPasswordDialog(false)}
+              className="px-6"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                window.open('mailto:support@earkart.com?subject=Password Reset Request', '_blank');
+                setShowForgotPasswordDialog(false);
+              }}
+              className="px-6 bg-primary-600 hover:bg-primary-700"
+            >
+              Email Support
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

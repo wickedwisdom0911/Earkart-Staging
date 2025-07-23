@@ -25,9 +25,9 @@ export const HEARING_LEVELS = Array.from({ length: 27 }, (_, i) => (i - 2) * 5);
 const COLORS = {
   leftEar: "#0000FF",
   rightEar: "#FF0000",
-  grid: "#CCCCCC",
-  midOctave: "#DDDDDD",
-  background: "#F5F5F5",
+  grid: "#D0D0D0",
+  midOctave: "#A0A0A0",
+  background: "#FFFFFF",
   text: "#333333",
   crosshair: "#800080",
 };
@@ -47,9 +47,18 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
   const graphH = height - margin.top - margin.bottom;
 
   const xScale = useCallback((f: number) => {
-    const minF = Math.log10(125), maxF = Math.log10(8000);
-    const t = (Math.log10(f) - minF) / (maxF - minF);
-    return margin.left + t * graphW;
+    // Create extended frequency array including mid-octaves for positioning
+    const extendedFrequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
+    const freqIndex = extendedFrequencies.indexOf(f);
+    
+    if (freqIndex !== -1) {
+      // Use uniform spacing for known frequencies
+      const cellWidth = graphW * 0.08; // Make each frequency interval smaller
+      return margin.left + freqIndex * cellWidth;
+    }
+    
+    // Fallback for unknown frequencies (shouldn't happen in normal use)
+    return margin.left;
   }, [graphW]);
 
   const yScale = useCallback((db: number) => {
@@ -71,117 +80,188 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
     const half = SYMBOL_SIZE / 2;
     let base: React.ReactNode = null;
 
-    // Air conduction
+    // Air conduction symbols (ASHA 1990)
     if (mode === "AC") {
       if (!masking) {
+        // AC unmasked: X for Left ear, Circle for Right ear
         base = ear === "L"
           ? <text x={x} y={y} fontSize={SYMBOL_SIZE} fill={color}
               textAnchor="middle" dominantBaseline="middle">×</text>
           : <circle cx={x} cy={y} r={half} fill="none" stroke={color}
               strokeWidth={LINE_THICKNESS} />;
       } else {
-        // masked AC: triangles
+        // AC masked: upward triangle for Left ear, square for Right ear (ASHA standard)
         base = ear === "L"
           ? <polygon points={`
               ${x-half},${y+half}
               ${x},${y-half}
               ${x+half},${y+half}
             `} fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />
-          : <polygon points={`
-              ${x-half},${y-half}
-              ${x},${y+half}
-              ${x+half},${y-half}
-            `} fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />;
+          : <rect x={x-half} y={y-half} width={SYMBOL_SIZE} height={SYMBOL_SIZE} 
+              fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />;
       }
     }
 
-    // Bone conduction
+    // Bone conduction symbols (ASHA 1990)
     if (mode === "BC") {
       const sym = (!masking ? (ear==="L" ? ">" : "<") : (ear==="L" ? "]" : "["));
       base = <text x={x} y={y} fontSize={SYMBOL_SIZE} fill={color}
         textAnchor="middle" dominantBaseline="middle">{sym}</text>;
     }
 
-    // No-response overlay
-    if (noResponse) {
+    // No-response overlay with diagonal arrows based on ear (ASHA 1990)
+    if (noResponse === 1) {
   const Icon = ear === "L" ? ArrowDownRight : ArrowDownLeft;
       return (
-        <g>
+        <g key={`symbol-${x}-${y}`}>
           {base}
-          <g transform={`translate(${x - half/2}, ${y + half/2}) scale(0.6)`}>
-<Icon stroke={color} />          
+          <g transform={`translate(${x - 10}, ${y + 10})`}>
+            <Icon stroke={color} strokeWidth={2} size={20} fill="none" />          
 </g>
         </g>
       );
     }
 
-    return base;
+    // Normal response - just the base symbol
+    return <g key={`symbol-${x}-${y}`}>{base}</g>;
   }, []);
 
-  const grid = useMemo(() => [
-    ...FREQUENCIES.map(f => {
-      const x = xScale(f);
-      return <line key={`v${f}`} x1={x} y1={margin.top}
-        x2={x} y2={height - margin.bottom}
-        stroke={COLORS.grid} />;
-    }),
-    ...HEARING_LEVELS.map(h => {
-      const y = yScale(h);
-      return <line key={`h${h}`} x1={margin.left} y1={y}
-        x2={width - margin.right} y2={y}
-        stroke={COLORS.grid} />;
-    }),
-  ], [xScale, yScale]);
-
-  const midOctaveLines = useMemo(() => {
-    const lines = [];
+  const grid = useMemo(() => {
+    const gridElements: React.ReactNode[] = [];
     
-    // Find the index where frequencies start doubling (750 Hz and above)
-    const doublingStartIndex = FREQUENCIES.findIndex(f => f >= 750);
+    // Use 10 dB intervals for more square-like cells
+    const hearingLevels10dB = HEARING_LEVELS.filter(level => level % 10 === 0);
+    const mainFrequencies = [125, 250, 500, 1000, 2000, 4000, 8000];
+    const midFrequencies = [750, 1500, 3000, 6000];
     
-    if (doublingStartIndex >= 0) {
-      // Add mid-octave lines for frequencies from 750 Hz onwards
-      for (let i = doublingStartIndex; i < FREQUENCIES.length - 1; i++) {
-        const freq1 = FREQUENCIES[i];
-        const freq2 = FREQUENCIES[i + 1];
+    // Create vertical lines for main frequencies (solid, dark)
+    mainFrequencies.forEach(freq => {
+      const x = xScale(freq);
+      
+      gridElements.push(
+        <line
+          key={`main-freq-line-${freq}`}
+          x1={x}
+          y1={margin.top}
+          x2={x}
+          y2={height - margin.bottom}
+          stroke={COLORS.grid}
+          strokeWidth={1}
+        />
+      );
+    });
         
-        // Calculate geometric mean (mid-octave frequency)
-        const midFreq = Math.sqrt(freq1 * freq2);
-        const x = xScale(midFreq);
+    // Create vertical lines for mid frequencies (dashed, lighter)
+    midFrequencies.forEach(freq => {
+      const x = xScale(freq);
         
-        lines.push(
+      gridElements.push(
           <line 
-            key={`mid${i}`} 
+          key={`mid-freq-line-${freq}`}
             x1={x} 
             y1={margin.top}
             x2={x} 
             y2={height - margin.bottom}
             stroke={COLORS.midOctave} 
-            strokeDasharray="3,3"
-            strokeWidth={2.5}
+          strokeWidth={1.5}
+          strokeDasharray="4,2"
+        />
+      );
+    });
+    
+    // Create horizontal lines for 10 dB intervals (solid, dark)
+    hearingLevels10dB.forEach(level => {
+      const y = yScale(level);
+      
+      gridElements.push(
+        <line
+          key={`main-level-line-${level}`}
+          x1={margin.left}
+          y1={y}
+          x2={width - margin.right}
+          y2={y}
+          stroke={COLORS.grid}
+          strokeWidth={1}
           />
         );
-      }
-    }
+    });
     
-    return lines;
-  }, [xScale]);
+    return gridElements;
+  }, [xScale, yScale, height, width]);
 
-
+  // Mid-intensity lines (5 dB intervals)
+  const midIntensityLines = useMemo(() => {
+    // Get 5 dB intervals that are not already in the 10 dB grid
+    const midLevels = HEARING_LEVELS.filter(level => level % 10 !== 0 && level % 5 === 0);
+    return midLevels.map(level => {
+      const y = yScale(level);
+      return (
+        <line
+          key={`mid-intensity-${level}`}
+          x1={margin.left}
+          y1={y}
+          x2={width - margin.right}
+          y2={y}
+          stroke={COLORS.midOctave}
+          strokeWidth={1.2}
+          strokeDasharray="4,2"
+        />
+      );
+    });
+  }, [yScale, width]);
   
-  const axes = useMemo(() => [
-    ...FREQUENCIES.map(f => {
+  const axes = useMemo(() => {
+    const axisElements: React.ReactNode[] = [];
+    const extendedFrequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
+    const midFrequencies = [750, 1500, 3000, 6000];
+    
+    // Frequency labels (x-axis)
+    extendedFrequencies.forEach(f => {
       const x = xScale(f);
-      return <text key={`xf${f}`} x={x} y={height - margin.bottom + 20}
-        textAnchor="middle" fill={COLORS.text}    fontSize={axisFontSize}>{f}</text>;
-    }),
-    ...HEARING_LEVELS.map(h => {
+      const isMidFreq = midFrequencies.includes(f);
+      const label = f >= 1000 ? `${f/1000}K` : `${f}`;
+      
+      axisElements.push(
+        <text 
+          key={`xf${f}`} 
+          x={x} 
+          y={height - margin.bottom + 20}
+          textAnchor="middle" 
+          fill={isMidFreq ? "#666666" : COLORS.text}
+          fontSize={isMidFreq ? axisFontSize - 1 : axisFontSize}
+          fontWeight={isMidFreq ? "normal" : "500"}
+        >
+          {label}
+        </text>
+      );
+    });
+    
+    // Hearing level labels (y-axis) - show both 10dB and 5dB levels
+    HEARING_LEVELS.forEach(h => {
       const y = yScale(h);
-      return <text key={`yh${h}`} x={margin.left - 10} y={y}
-        textAnchor="end" dominantBaseline="middle"
-        fill={COLORS.text}    fontSize={axisFontSize}>{h}</text>;
-    }),
-  ], [xScale, yScale]);
+      const is10dB = h % 10 === 0;
+      const is5dB = h % 5 === 0 && !is10dB;
+      
+      if (is10dB || is5dB) {
+        axisElements.push(
+          <text 
+            key={`yh${h}`} 
+            x={margin.left - 10} 
+            y={y}
+            textAnchor="end" 
+            dominantBaseline="middle"
+            fill={is5dB ? "#666666" : COLORS.text}
+            fontSize={is5dB ? axisFontSize - 1 : axisFontSize}
+            fontWeight={is5dB ? "normal" : "500"}
+          >
+            {h}
+          </text>
+        );
+      }
+    });
+    
+    return axisElements;
+  }, [xScale, yScale, height, axisFontSize]);
 
   const crosshair = useMemo(() => {
     const fx = xScale(FREQUENCIES[selectedLabelIndexes.x]);
@@ -196,10 +276,63 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
     ];
   }, [selectedLabelIndexes, xScale, yScale]);
 
+  // Connecting lines for audiogram symbols
+  const connectingLines = useMemo(() => {
+    const lines: React.ReactNode[] = [];
+    
+    // Group markings by ear and mode
+    const groups: { [key: string]: ResultMarking[] } = {};
+    
+    resultMarkings
+      .filter(m => m.noResponse === 0) // Only connect symbols with responses
+      .forEach(marking => {
+        const key = `${marking.ear}-${marking.mode}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(marking);
+      });
+    
+    // Create lines for each group
+    Object.entries(groups).forEach(([key, markings]) => {
+      if (markings.length < 2) return; // Need at least 2 points to draw a line
+      
+      // Sort by frequency for proper line connection
+      const sortedMarkings = markings.sort((a, b) => a.x - b.x);
+      
+      for (let i = 0; i < sortedMarkings.length - 1; i++) {
+        const current = sortedMarkings[i];
+        const next = sortedMarkings[i + 1];
+        
+        const x1 = xScale(current.x);
+        const y1 = yScale(current.y);
+        const x2 = xScale(next.x);
+        const y2 = yScale(next.y);
+        
+        const color = current.ear === "L" ? COLORS.leftEar : COLORS.rightEar;
+        const strokeDasharray = current.mode === "BC" ? "5,5" : "none";
+        
+        lines.push(
+          <line
+            key={`line-${key}-${i}`}
+            x1={x1}
+            y1={y1}
+            x2={x2}
+            y2={y2}
+            stroke={color}
+            strokeWidth={LINE_THICKNESS}
+            strokeDasharray={strokeDasharray}
+            fill="none"
+          />
+        );
+      }
+    });
+    
+    return lines;
+  }, [resultMarkings, xScale, yScale]);
+
   const symbols = useMemo(() => resultMarkings.map((m,i) => {
     const px = xScale(m.x), py = yScale(m.y);
     return <g key={i}>{renderSymbol(px,py,m.ear,m.mode,m.masking,m.noResponse)}</g>;
-  }), [resultMarkings, renderSymbol]);
+  }), [resultMarkings, renderSymbol, xScale, yScale]);
 
   const handleClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -223,8 +356,9 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
       onClick={handleClick}
     >
       {grid}
-      {midOctaveLines}
+      {midIntensityLines}
       {axes}
+      {connectingLines}
       {symbols}
       {crosshair}
     </svg>

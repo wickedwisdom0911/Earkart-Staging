@@ -15,7 +15,9 @@ const DeviceActivityModelDataSchema = z.object({
 });
 export const DeviceModelDataSchema = z.object({
   id: z.string().optional(),
-  deviceCode: z.string(),
+  code: z.string().optional().nullable(),
+  codeSequence: z.number().optional().nullable(),
+  otoscopeID: z.string().optional().nullable(),
   tabletID: z.string().optional().nullable(),
   deviceID: z.string().optional().nullable(),
   tabletAppVersion: z.string().optional().nullable(),

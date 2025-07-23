@@ -33,7 +33,7 @@ export default function DevicesPage() {
             key={device.id}
           >
             <div className="flex flex-col gap-1">
-              <div className="text-lg font-bold">{device.deviceCode}</div>
+              <div className="text-lg font-bold">{device.code || "No Code"}</div>
               <div className="text-sm">
                 {(device.centre && "Centre: " + device.centre.entName) ||
                   "UN_ASSIGNED"}
@@ -70,7 +70,7 @@ export default function DevicesPage() {
                 size="sm"
                 className="cursor-pointer"
                 onClick={() => {
-                  router.push(ROUTES.DEVICE(device.deviceCode));
+                  router.push(ROUTES.DEVICE(device.code || device.id || ""));
                 }}
               >
                 <Eye /> View

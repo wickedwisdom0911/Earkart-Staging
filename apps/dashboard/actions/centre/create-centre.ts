@@ -19,7 +19,13 @@ export async function createCentre(
     throw new Error("Unauthorized");
   }
   console.log(data);
-  const response = await apiRequest<CreateCentreModel>(
+  
+  // Ensure pricing is never undefined in the request data
+  if (data.centre && data.centre.pricing === undefined) {
+    data.centre.pricing = [];
+  }
+  
+  const response = await apiRequest(
     url,
     {
       method: "POST",
@@ -31,5 +37,11 @@ export async function createCentre(
     },
     CreateCentreModelSchema
   );
-  return response;
+  
+  // Fix pricing in the response if needed
+  if (response.data && response.data.pricing === undefined) {
+    response.data.pricing = [];
+  }
+  
+  return response as unknown as CreateCentreModel;
 }

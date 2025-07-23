@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import CustomQueryClientProvider from "@/providers/QueryClientProvider";
 import { SocketProvider } from "@/providers/socket-provider";
 import { DeviceProvider } from "@/providers/device-provider";
+import { PatientAlertProvider } from "@/providers/patient-alert-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -55,7 +56,9 @@ export default function RootLayout({
         <Toaster />
         <CustomQueryClientProvider>
           <SocketProvider>
-            <DeviceProvider>{children}</DeviceProvider>
+            <DeviceProvider>
+              <PatientAlertProvider>{children}</PatientAlertProvider>
+            </DeviceProvider>
           </SocketProvider>
         </CustomQueryClientProvider>
       </body>

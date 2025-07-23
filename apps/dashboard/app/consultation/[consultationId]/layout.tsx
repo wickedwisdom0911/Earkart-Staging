@@ -7,6 +7,7 @@ import { use } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useEffect } from "react";
 import { useDevice } from "@/providers/device-provider";
+import { usePathname } from "next/navigation";
 
 export default function ConsultationLayout({
   children,
@@ -24,10 +25,14 @@ export default function ConsultationLayout({
     error,
   } = useGetConsultation(resolvedParams.consultationId);
   const { deviceState } = useDevice();
-  const { r15c } = deviceState;
+  const { r15c, revo2 } = deviceState;
+  const pathname = usePathname();
+  
+  // Check if we're on the video otoscopy page
+  const isOtoscopyPage = pathname?.includes('/test/video-otoscopy');
 
 
-console.log(consultation, "Consultation Data");
+
 
   // Add socket connection handling
   useEffect(() => {
@@ -80,7 +85,7 @@ console.log(consultation, "Consultation Data");
           </div>
 
           {/* Revo2 Device Status */}
-          {/* <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <div
               className={`w-3 h-3 rounded-full ${
                 revo2.isConnected ? "bg-green-500" : "bg-red-500"
@@ -91,7 +96,7 @@ console.log(consultation, "Consultation Data");
               {revo2.connectionStatus.charAt(0).toUpperCase() +
                 revo2.connectionStatus.slice(1)}
             </span>
-          </div> */}
+          </div>
         </div>
       }
     >

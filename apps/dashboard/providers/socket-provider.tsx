@@ -58,11 +58,17 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       socketRef.current = null;
       setSocket(null);
     };
-  }, [user, socketUrl, socketUrlLoading]); // Added socketUrl and socketUrlLoading to dependencies
+  }, [user, socketUrl, socketUrlLoading]);
 
   return (
     <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>
   );
 };
 
-export const useSocket = () => useContext(SocketContext);
+export const useSocket = () => {
+  const context = useContext(SocketContext);
+  if (context === undefined) {
+    throw new Error("useSocket must be used within a SocketProvider");
+  }
+  return context;
+};

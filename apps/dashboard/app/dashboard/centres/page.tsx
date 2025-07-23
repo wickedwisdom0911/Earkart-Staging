@@ -72,11 +72,11 @@ export default function CentresPage() {
                   {centre?.entName || "ENT Name"}
                 </div>
                 <div className="text-gray-500 flex gap-4 items-center dark:text-gray-400 text-sm truncate">
-                  {centre?.code || "Centre Code"}
+                  {centre?.device?.code || "No Code"}
                   {centre?.device ? (
                     <>
                       <span className="text-xs text-neutral-500">
-                        {centre?.device?.deviceCode}
+                        {centre?.device?.code || "No Code"}
                       </span>
                     </>
                   ) : (

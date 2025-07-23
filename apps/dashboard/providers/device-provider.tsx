@@ -61,20 +61,12 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
           r15c: {
             ...prev.r15c,
             isConnected: data.r15cConnected,
-            connectionStatus: data.connectionStatus as
-              | "disconnected"
-              | "connected"
-              | "ready"
-              | "begin",
+            connectionStatus: data.r15cConnected ? "connected" : "disconnected",
           },
           revo2: {
             ...prev.revo2,
             isConnected: data.revo2Connected,
-            connectionStatus: data.connectionStatus as
-              | "disconnected"
-              | "connected"
-              | "ready"
-              | "begin",
+            connectionStatus: data.revo2Connected ? "connected" : "disconnected",
           },
         }));
         console.log(data);

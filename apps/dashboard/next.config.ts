@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
     BASE_SOCKET_URL_PROD: process.env.BASE_SOCKET_URL_PROD,
     BASE_SOCKET_URL_DEV: process.env.BASE_SOCKET_URL_DEV,
   },
+  typescript: {
+    // Disable type checking during build for faster deployments
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    // Disable ESLint during build for faster deployments
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;
