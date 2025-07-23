@@ -15,26 +15,65 @@ import AgoraRTC, {
   ILocalTrack,
 } from "agora-rtc-react";
 import useCreateToken from "@/hooks/agora/use-create-token";
-import { Mic, MicOff, PhoneOff, User } from "lucide-react";
+import { Mic, MicOff, PhoneOff, User, Loader2 } from "lucide-react";
 import { useDialog } from "@/hooks/use-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface VideoCallProps {
   channel: string;
   patientName: string;
 }
 
+const VideoCallSkeleton = () => {
+  return (
+    <div className="flex flex-col items-center h-full min-w-1/3 w-fit relative">
+      <div className="flex flex-col h-full w-full gap-1 mb-2">
+        {/* Remote user skeleton */}
+        <div className="w-full h-full rounded-2xl border bg-gray-900 overflow-hidden relative">
+          <Skeleton className="w-full h-full rounded-2xl" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-white mb-2" />
+            <div className="text-white text-sm">Connecting to patient...</div>
+          </div>
+        </div>
+
+        {/* Local user skeleton */}
+        <div className="absolute top-4 right-4 flex flex-col items-center gap-2">
+          <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-white shadow-lg bg-gray-900 relative">
+            <Skeleton className="w-full h-full rounded-full" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-white" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="w-10 h-10 rounded-full" />
+            <Skeleton className="w-10 h-10 rounded-full" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const VideoPlaceholder = ({
   name,
   size = "full",
+  isLoading = false,
 }: {
   name: string;
   size?: "full" | "small";
+  isLoading?: boolean;
 }) => {
   const isSmall = size === "small";
   return (
     <div
-      className={`flex flex-col items-center justify-center ${isSmall ? "w-32 h-32" : "w-full h-full"} bg-gray-900 rounded-2xl border border-gray-800`}
+      className={`flex flex-col items-center justify-center ${isSmall ? "w-32 h-32" : "w-full h-full"} bg-gray-900 rounded-2xl border border-gray-800 relative`}
     >
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-2xl">
+          <Loader2 className="w-6 h-6 animate-spin text-white" />
+        </div>
+      )}
       <div className="flex flex-col items-center gap-2">
         <div
           className={`${isSmall ? "w-12 h-12" : "w-24 h-24"} rounded-full bg-gray-800 flex items-center justify-center`}
@@ -65,6 +104,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   const [token, setToken] = useState<string | null>(null);
   const [appId, setAppId] = useState<string | null>(null);
   const [uid, setUid] = useState<number | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [showRefreshHint, setShowRefreshHint] = useState(false);
   const { Dialog, openDialog } = useDialog();
 
   // Get client and connection status
@@ -77,6 +119,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
 
     const handleJoinSuccess = () => {
       console.log("Successfully joined channel:", { channel, uid });
+      setIsInitializing(false);
+      setIsReconnecting(false);
+      setError(null);
     };
 
     const handleJoinError = (err: Error) => {
@@ -92,6 +137,8 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         uid,
       });
       setError(err.message);
+      setIsInitializing(false);
+      setIsReconnecting(false);
     };
 
     const handleConnectionStateChange = (
@@ -106,6 +153,13 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         hasAppId: !!appId,
         uid,
       });
+
+      // Handle reconnection states
+      if (curState === "CONNECTING" && prevState === "CONNECTED") {
+        setIsReconnecting(true);
+      } else if (curState === "CONNECTED" && prevState === "CONNECTING") {
+        setIsReconnecting(false);
+      }
     };
 
     const handlePublishSuccess = () => {
@@ -117,11 +171,23 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       setError(err.message);
     };
 
+    const handleUserJoined = (user: any) => {
+      console.log("User joined:", user);
+      setIsInitializing(false);
+      setShowRefreshHint(false);
+    };
+
+    const handleUserLeft = (user: any) => {
+      console.log("User left:", user);
+    };
+
     client.on("connection-state-change", handleConnectionStateChange);
     client.on("join-channel-success", handleJoinSuccess);
     client.on("error", handleJoinError);
     client.on("publish-success", handlePublishSuccess);
     client.on("publish-error", handlePublishError);
+    client.on("user-joined", handleUserJoined);
+    client.on("user-left", handleUserLeft);
 
     return () => {
       client.off("connection-state-change", handleConnectionStateChange);
@@ -129,6 +195,8 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       client.off("error", handleJoinError);
       client.off("publish-success", handlePublishSuccess);
       client.off("publish-error", handlePublishError);
+      client.off("user-joined", handleUserJoined);
+      client.off("user-left", handleUserLeft);
     };
   }, [client, channel, token, appId, uid]);
 
@@ -161,6 +229,8 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       if (!mounted) return;
 
       try {
+        setIsInitializing(true);
+        setError(null);
         console.log("Initializing call with channel:", channel);
         const { data } = await fetchToken(channel);
         console.log("Received token data:", {
@@ -191,6 +261,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         console.error("Error initializing call:", err);
         if (mounted) {
           setError((err as Error).message);
+          setIsInitializing(false);
         }
       }
     };
@@ -203,6 +274,19 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       mounted = false;
     };
   }, [channel, fetchToken, token]);
+
+  // Show refresh hint if connected but no remote users after a delay
+  useEffect(() => {
+    if (isConnected && remoteUsers.length === 0) {
+      const timer = setTimeout(() => {
+        setShowRefreshHint(true);
+      }, 5000); // Show hint after 5 seconds if no remote users
+
+      return () => clearTimeout(timer);
+    } else {
+      setShowRefreshHint(false);
+    }
+  }, [isConnected, remoteUsers.length]);
 
   // Handle leaving
   const handleLeave = useCallback(async () => {
@@ -267,6 +351,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           setToken(null);
           setAppId(null);
           setUid(null);
+          setIsInitializing(false);
+          setIsReconnecting(false);
+          setShowRefreshHint(false);
 
           // Force cleanup of any remaining tracks
           if (client.localTracks) {
@@ -324,12 +411,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
     openDialog,
   ]);
 
-  if (!isConnected && (!token || !appId)) {
-    return (
-      <div className="flex items-center justify-center p-4">
-        <div className="text-lg">Initializing video call...</div>
-      </div>
-    );
+  // Show loading skeleton during initialization
+  if (isInitializing || (!isConnected && (!token || !appId))) {
+    return <VideoCallSkeleton />;
   }
 
   return (
@@ -338,6 +422,18 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       {error && (
         <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
           {error}
+        </div>
+      )}
+      {isReconnecting && (
+        <div className="mb-4 p-2 bg-yellow-100 text-yellow-700 rounded-md flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Reconnecting...
+        </div>
+      )}
+      {showRefreshHint && (
+        <div className="mb-4 p-2 bg-blue-100 text-blue-700 rounded-md flex items-center gap-2">
+          <User className="w-4 h-4" />
+          Patient not visible? Try refreshing the page.
         </div>
       )}
       <div className="flex flex-col h-full w-full gap-1 mb-2">
@@ -359,7 +455,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
               </RemoteUser>
             ))
           ) : (
-            <VideoPlaceholder name={patientName} />
+            <VideoPlaceholder name={patientName} isLoading={isReconnecting} />
           )}
         </div>
 
@@ -383,7 +479,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                 </div>
               </LocalUser>
             ) : (
-              <VideoPlaceholder name="You" size="small" />
+              <VideoPlaceholder name="You" size="small" isLoading={isReconnecting} />
             )}
           </div>
           <div className="flex gap-2">

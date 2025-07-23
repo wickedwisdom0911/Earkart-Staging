@@ -17,7 +17,7 @@ export default async function deleteCentre(
   if (!user?.token) {
     throw new Error("Unauthorized");
   }
-  const response = await apiRequest<CreateCentreModel>(
+  const response = await apiRequest(
     url,
     {
       method: "DELETE",
@@ -27,5 +27,11 @@ export default async function deleteCentre(
     },
     CreateCentreModelSchema
   );
-  return response;
+  
+  // Fix pricing in the response if needed
+  if (response.data && response.data.pricing === undefined) {
+    response.data.pricing = [];
+  }
+  
+  return response as unknown as CreateCentreModel;
 }

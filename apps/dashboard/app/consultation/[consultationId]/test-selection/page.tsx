@@ -10,26 +10,31 @@ const testOptions = [
     id: "pure-tone",
     name: "Pure Tone Audiometry",
     description: "Test hearing sensitivity across different frequencies",
+    available: true,
   },
   {
     id: "speech",
     name: "Speech Audiometry",
     description: "Evaluate speech understanding abilities",
+    available: false,
   },
   {
     id: "tympanometry",
     name: "Tympanometry",
     description: "Assess middle ear function and mobility",
+    available: true,
   },
   {
     id: "otoacoustic",
     name: "Otoacoustic Emissions",
     description: "Measure inner ear response to sound",
+    available: false,
   },
   {
     id: "video-otoscopy",
     name: "Video Otoscopy",
     description: "Visualize the middle ear and tympanic membrane",
+    available: true,
   },
 ];
 
@@ -55,12 +60,29 @@ export default function TestSelectionPage() {
         {testOptions.map((test) => (
           <Card
             key={test.id}
-            className="cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => handleTestClick(test.id)}
+            className={`transition-shadow ${
+              test.available
+                ? "cursor-pointer hover:shadow-lg"
+                : "cursor-not-allowed opacity-50 bg-gray-100"
+            }`}
+            onClick={test.available ? () => handleTestClick(test.id) : undefined}
           >
             <CardContent className="p-6">
-              <h2 className="text-xl font-semibold mb-2">{test.name}</h2>
-              <p className="text-gray-600">{test.description}</p>
+              <h2 className={`text-xl font-semibold mb-2 ${
+                test.available ? "" : "text-gray-500"
+              }`}>
+                {test.name}
+              </h2>
+              <p className={`${
+                test.available ? "text-gray-600" : "text-gray-400"
+              }`}>
+                {test.description}
+              </p>
+              {!test.available && (
+                <p className="text-sm text-gray-500 mt-2 italic">
+                  Currently unavailable
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}

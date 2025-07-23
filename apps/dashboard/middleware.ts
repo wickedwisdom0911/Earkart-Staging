@@ -1,28 +1,38 @@
-import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { decrypt } from "./lib/session";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getSession } from "@/lib/session";
 
-// 1. Specify protected and public routes
-const protectedRoutes = ["/dashboard", "/consultation"];
-const publicRoutes = ["/login", "/"];
+export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
 
-export default async function middleware(req: NextRequest) {
-  // 2. Check if the current route is protected or public
-  const path = req.nextUrl.pathname;
-  const isProtectedRoute = protectedRoutes.includes(path);
-  const isPublicRoute = publicRoutes.includes(path);
-  // 3. Decrypt the session from the cookie
-  const cookie = await cookies();
-  const session = await decrypt(cookie.get("session_omni")?.value);
-  // 4. Redirect
-  if (isProtectedRoute && !session?.user?.token) {
-    return NextResponse.redirect(new URL("/login", req.nextUrl));
+  // Define protected and public routes
+  const isProtectedRoute = path.startsWith("/dashboard") || path.startsWith("/consultation");
+  const isPublicRoute = path === "/login" || path === "/";
+
+  // Get session
+  const session = await getSession();
+
+  // Redirect logic
+  if (isProtectedRoute && !session) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Only redirect from /login if logged in
-  if (isPublicRoute && session?.user?.token) {
-    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
+  if (isPublicRoute && session) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+  ],
+};

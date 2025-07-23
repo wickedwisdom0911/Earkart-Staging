@@ -1,26 +1,28 @@
 "use client";
 import React, { useState, useCallback, useMemo, useEffect } from "react";
-import PureToneGraph from "./_components/audiogram";
+  import { useQueryClient } from "@tanstack/react-query";
+import PureToneGraph, { FREQUENCIES, HEARING_LEVELS } from "./_components/audiogram";
 import { useSocket } from "@/providers/socket-provider";
 import { useParams } from "next/navigation";
 import { useDevice } from "@/providers/device-provider";
 import PureToneLoadingSkeleton from "./_components/loading-skeleton";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
-import { TestStatus, Ear } from "@/models/enums";
+import { TestStatus, Ear, SignalType } from "@/models/enums";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/routes";
-
-enum SignalType {
-  Steady = "Steady",
-  Warble = "Warble",
-  NB = "NB",
-  White = "White",
-  SpeechNoise = "SpeechNoise",
-}
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
 
 const SIGNAL_TYPE_MAP = {
   0: SignalType.Steady,
@@ -43,6 +45,10 @@ interface TestResult {
 
 interface TransducerData {
   Transducers: Array<{
+    ID?: string;
+    Name?: string;
+    HF?: boolean;
+    CalibrationDate?: string;
     ConductionType: number;
     Calibrations: Array<{
       SignalType: number;
@@ -55,6 +61,7 @@ interface TransducerData {
     }>;
     SignalTypes: number[];
     EarSides: number[];
+    Rates?: number[];
   }>;
 }
 
@@ -63,7 +70,7 @@ export default function PureTonePage() {
   const [selectedEar, setSelectedEar] = useState<"L" | "R">("R");
   const [selectedMode, setSelectedMode] = useState<"AC" | "BC">("AC");
   const [selectedFrequency, setSelectedFrequency] = useState(1000);
-  const [selectedLevel, setSelectedLevel] = useState(105);
+  const [selectedLevel, setSelectedLevel] = useState(25);
   const [selectedSignalType, setSelectedSignalType] = useState<SignalType>(
     SignalType.Steady
   );
@@ -72,15 +79,92 @@ export default function PureTonePage() {
   const [acTestResults, setAcTestResults] = useState<TestResult[]>([]);
   const [bcTestResults, setBcTestResults] = useState<TestResult[]>([]);
   const [selectedLabelIndexes, setSelectedLabelIndexes] = useState({
-    x: 5,
-    y: 13,
-  }); // Default to 1000Hz, 0dB
+    x: FREQUENCIES.findIndex(f => f === 1000), // Index 4 for 1000Hz
+    y: HEARING_LEVELS.findIndex(h => h === 25), // Index 7 for 25dB
+  }); // Default to 1000Hz, 25dB
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMasking, setIsMasking] = useState(false);
   const [maskingLevel, setMaskingLevel] = useState(0);
   const [transducerData, setTransducerData] = useState<TransducerData | null>(
     null
   );
+
+  // Dummy transducer data for testing
+  const dummyTransducerData: TransducerData = {
+    Transducers: [
+      {
+        ID: "8dc59de7-2e27-45cf-8b74-8b5fc09819d4",
+        Name: "CAEP8",
+        HF: false,
+        CalibrationDate: "2025-02-24",
+        ConductionType: 0, // Air Conduction
+        EarSides: [0, 1], // Left=0, Right=1
+        SignalTypes: [0, 1, 2, 3, 4, 7], // Steady, Warble, NB, White, SpeechNoise, Speech
+        Rates: [0.5, 1.0, 2.0],
+        Calibrations: [
+          {
+            SignalType: 0, // Steady
+            CalibrationFrequencies: [
+              { Frequency: 125, MaxLevelHL: 90, MinLevelHL: -10, Calibration: 38 },
+              { Frequency: 250, MaxLevelHL: 105, MinLevelHL: -10, Calibration: 23 },
+              { Frequency: 500, MaxLevelHL: 110, MinLevelHL: -10, Calibration: 18 },
+              { Frequency: 750, MaxLevelHL: 105, MinLevelHL: -10, Calibration: 24 },
+              { Frequency: 1000, MaxLevelHL: 110, MinLevelHL: -10, Calibration: 18 },
+              { Frequency: 1500, MaxLevelHL: 100, MinLevelHL: -10, Calibration: 23 },
+              { Frequency: 2000, MaxLevelHL: 105, MinLevelHL: -10, Calibration: 23 },
+              { Frequency: 3000, MaxLevelHL: 110, MinLevelHL: -10, Calibration: 20 },
+              { Frequency: 4000, MaxLevelHL: 110, MinLevelHL: -10, Calibration: 23 },
+              { Frequency: 6000, MaxLevelHL: 90, MinLevelHL: -10, Calibration: 38 },
+              { Frequency: 8000, MaxLevelHL: 80, MinLevelHL: -10, Calibration: 48 }
+            ]
+          },
+          {
+            SignalType: 1, // Warble
+            CalibrationFrequencies: [
+              { Frequency: 125, MaxLevelHL: 90, MinLevelHL: -10, Calibration: 38 },
+              { Frequency: 250, MaxLevelHL: 105, MinLevelHL: -10, Calibration: 23 },
+              { Frequency: 500, MaxLevelHL: 110, MinLevelHL: -10, Calibration: 18 },
+              { Frequency: 750, MaxLevelHL: 105, MinLevelHL: -10, Calibration: 24 },
+              { Frequency: 1000, MaxLevelHL: 110, MinLevelHL: -10, Calibration: 18 },
+              { Frequency: 1500, MaxLevelHL: 100, MinLevelHL: -10, Calibration: 23 },
+              { Frequency: 2000, MaxLevelHL: 105, MinLevelHL: -10, Calibration: 23 },
+              { Frequency: 3000, MaxLevelHL: 110, MinLevelHL: -10, Calibration: 20 },
+              { Frequency: 4000, MaxLevelHL: 110, MinLevelHL: -10, Calibration: 23 },
+              { Frequency: 6000, MaxLevelHL: 90, MinLevelHL: -10, Calibration: 38 },
+              { Frequency: 8000, MaxLevelHL: 80, MinLevelHL: -10, Calibration: 48 }
+            ]
+          }
+        ]
+      },
+      {
+        ID: "a0b4d9cd-66ac-4eb7-a1f9-135804a5bd4c",
+        Name: "B71",
+        HF: false,
+        CalibrationDate: "2025-02-24",
+        ConductionType: 1, // Bone Conduction
+        EarSides: [0, 1, 3], // Left=0, Right=1, Both=3
+        SignalTypes: [0, 1, 2, 3, 4, 7],
+        Rates: [0.5, 1.0, 2.0],
+        Calibrations: [
+          {
+            SignalType: 0, // Steady
+            CalibrationFrequencies: [
+              { Frequency: 250, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 78 },
+              { Frequency: 500, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 58 },
+              { Frequency: 750, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 55 },
+              { Frequency: 1000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 50 },
+              { Frequency: 1500, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 45 },
+              { Frequency: 2000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 45 },
+              { Frequency: 3000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 48 },
+              { Frequency: 4000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 49 },
+              { Frequency: 6000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 71 },
+              { Frequency: 8000, MaxLevelHL: 120, MinLevelHL: -10, Calibration: 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  };
   const socket = useSocket();
   const { consultationId } = useParams();
   const { deviceState } = useDevice();
@@ -89,6 +173,11 @@ export default function PureTonePage() {
     consultationId as string
   );
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // Track if data has been initially loaded to prevent overriding local changes
+  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
+  const [justCleared, setJustCleared] = useState(false);
 
   // Populate test results from existing audiometry data
   useEffect(() => {
@@ -103,47 +192,75 @@ export default function PureTonePage() {
 
     const consultationData = consultationResponse.data as ConsultationModelData;
 
+    // Only load data if we haven't loaded it initially, or if there are more results in backend than local state
+    // This prevents overriding local changes while still allowing for external updates
+    const backendAcCount = consultationData.audiometry?.acTests?.length || 0;
+    const backendBcCount = consultationData.audiometry?.bcTests?.length || 0;
+    const localTotalCount = acTestResults.length + bcTestResults.length;
+    const backendTotalCount = backendAcCount + backendBcCount;
+    
+    // Don't reload from backend if we just cleared the results
+    if (justCleared) {
+      return;
+    }
+    
+    if (hasInitiallyLoaded && backendTotalCount <= localTotalCount) {
+      return; // Don't override local state if backend doesn't have more data
+    }
+
+    let existingAcResults: TestResult[] = [];
+    let existingBcResults: TestResult[] = [];
+
     // Handle AC tests
     if (consultationData.audiometry?.acTests) {
-      const existingAcResults = consultationData.audiometry.acTests.map(
-        (test) => ({
+      existingAcResults = consultationData.audiometry.acTests
+        .filter(test => test.thresholdDb !== null) // Only include tests with valid thresholds
+        .map((test) => {
+          // More robust logic: explicitly check for true response, everything else is no-response
+          const patientResponded = test.response === true;
+          return {
           ear: test.ear === Ear.LEFT ? "L" : "R",
           x: test.frequencyHz,
-          y: test.thresholdDb,
+            y: test.thresholdDb!,
           mode: "AC",
           masking: test.maskingUsed
             ? test.maskingEar === Ear.LEFT
               ? 1
               : 2
             : 0,
-          noResponse: 0,
+            noResponse: patientResponded ? 0 : 1, // 0 = response (no arrow), 1 = no response (show arrow)
           signalType: SignalType.Steady,
           pulsed: false,
-        })
-      );
-      setAcTestResults(existingAcResults);
+          };
+        });
     }
 
     // Handle BC tests
     if (consultationData.audiometry?.bcTests) {
-      const existingBcResults = consultationData.audiometry.bcTests.map(
-        (test) => ({
+      existingBcResults = consultationData.audiometry.bcTests
+        .filter(test => test.thresholdDb !== null) // Only include tests with valid thresholds
+        .map((test) => {
+          // More robust logic: explicitly check for true response, everything else is no-response
+          const patientResponded = test.response === true;
+          return {
           ear: test.ear === Ear.LEFT ? "L" : "R",
           x: test.frequencyHz,
-          y: test.thresholdDb,
+            y: test.thresholdDb!,
           mode: "BC",
           masking: test.maskingUsed ? 1 : 0,
-          noResponse: 0,
+            noResponse: patientResponded ? 0 : 1, // 0 = response (no arrow), 1 = no response (show arrow)
           signalType: SignalType.Steady,
           pulsed: false,
-        })
-      );
-      setBcTestResults(existingBcResults);
+          };
+        });
     }
 
-    // Combine both types of results
-    setTestResults([...acTestResults, ...bcTestResults]);
-  }, [consultationResponse?.data]);
+    // Update state only once with the results
+    setAcTestResults(existingAcResults);
+      setBcTestResults(existingBcResults);
+    setTestResults([...existingAcResults, ...existingBcResults]);
+    setHasInitiallyLoaded(true);
+  }, [consultationResponse?.data, socket, hasInitiallyLoaded, acTestResults.length, bcTestResults.length]);
 
   // Auto-hide patient response indicator after 3 seconds
   useEffect(() => {
@@ -156,10 +273,24 @@ export default function PureTonePage() {
     }
   }, [isPatientResponse]);
 
-  // Update transducer data only when valid data is received
+  // Reset justCleared flag after a delay to allow backend sync
+  useEffect(() => {
+    if (justCleared) {
+      const timer = setTimeout(() => {
+        setJustCleared(false);
+      }, 2000); // Wait 2 seconds for backend to sync
+
+      return () => clearTimeout(timer);
+    }
+  }, [justCleared]);
+
+  // Update transducer data only when valid data is received, fallback to dummy data
   useEffect(() => {
     if (deviceState?.transducerResponse?.Transducers) {
       setTransducerData(deviceState.transducerResponse);
+    } else {
+      // Use dummy data for testing when no device is connected
+      setTransducerData(dummyTransducerData);
     }
   }, [deviceState?.transducerResponse]);
 
@@ -224,8 +355,8 @@ export default function PureTonePage() {
       if (!availableLevels.includes(selectedLevel)) {
         setSelectedLevel(availableLevels[0]);
       }
-      // Update the y-axis index for the audiogram
-      const levelIndex = availableLevels.findIndex((l) => l === selectedLevel);
+      // Update the y-axis index for the audiogram using HEARING_LEVELS array
+      const levelIndex = HEARING_LEVELS.findIndex((l) => l === selectedLevel);
       if (levelIndex !== -1) {
         setSelectedLabelIndexes((prev) => ({ ...prev, y: levelIndex }));
       }
@@ -378,8 +509,8 @@ export default function PureTonePage() {
   const handleFrequencyChange = (freq: number) => {
     setSelectedFrequency(freq);
 
-    // Find the index of the selected frequency in the available frequencies array
-    const freqIndex = availableFrequencies.findIndex((f) => f === freq);
+    // Find the index of the selected frequency in the FREQUENCIES array (used by audiogram)
+    const freqIndex = FREQUENCIES.findIndex((f) => f === freq);
     if (freqIndex !== -1) {
       setSelectedLabelIndexes((prev) => ({ ...prev, x: freqIndex }));
     }
@@ -389,8 +520,8 @@ export default function PureTonePage() {
       const newLevel = availableLevels[0];
       setSelectedLevel(newLevel);
 
-      // Update the y-axis index for the audiogram
-      const levelIndex = availableLevels.findIndex((l) => l === newLevel);
+      // Update the y-axis index for the audiogram using HEARING_LEVELS array
+      const levelIndex = HEARING_LEVELS.findIndex((l) => l === newLevel);
       if (levelIndex !== -1) {
         setSelectedLabelIndexes((prev) => ({ ...prev, y: levelIndex }));
       }
@@ -406,7 +537,8 @@ export default function PureTonePage() {
   // Handle level change
   const handleLevelChange = (level: number) => {
     setSelectedLevel(level);
-    const levelIndex = availableLevels.findIndex((l) => l === level);
+    // Find the index of the selected level in the HEARING_LEVELS array (used by audiogram)
+    const levelIndex = HEARING_LEVELS.findIndex((l) => l === level);
     if (levelIndex !== -1) {
       setSelectedLabelIndexes((prev) => ({ ...prev, y: levelIndex }));
     }
@@ -426,7 +558,7 @@ export default function PureTonePage() {
   };
 
   // Add test result
-  const addTestResult = () => {
+  const addTestResult = (noResponse = false) => {
     if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
       return;
 
@@ -436,49 +568,55 @@ export default function PureTonePage() {
       y: selectedLevel,
       mode: selectedMode,
       masking: isMasking ? maskingLevel : 0,
-      noResponse: 0,
+      noResponse: noResponse ? 1 : 0, // Only set to 1 when explicitly no response
       signalType: selectedSignalType,
       pulsed: isPulsed,
     };
 
-    // Create new arrays with the new result
-    const updatedAcResults =
-      selectedMode === "AC" ? [...acTestResults, newResult] : acTestResults;
-    const updatedBcResults =
-      selectedMode === "BC" ? [...bcTestResults, newResult] : bcTestResults;
+    // Remove any existing result for the same ear/frequency/mode
+    const isDuplicate = (result: TestResult) => 
+      result.ear === newResult.ear && 
+      result.x === newResult.x && 
+      result.mode === newResult.mode;
 
-    // Update state
-    if (selectedMode === "AC") {
+    // Update state arrays
+    const updatedAcResults = selectedMode === "AC" 
+      ? [...acTestResults.filter(r => !isDuplicate(r)), newResult]
+      : acTestResults;
+      
+    const updatedBcResults = selectedMode === "BC" 
+      ? [...bcTestResults.filter(r => !isDuplicate(r)), newResult]
+      : bcTestResults;
+
       setAcTestResults(updatedAcResults);
-    } else {
       setBcTestResults(updatedBcResults);
-    }
     setTestResults([...updatedAcResults, ...updatedBcResults]);
 
     // Transform test results to match ACReadingModelData schema
     const acTests = updatedAcResults.map((result) => ({
       ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
       frequencyHz: result.x,
-      thresholdDb: result.y,
+      thresholdDb: result.y, // Always store the test level, even for no response
+      response: result.noResponse === 0, // true if patient responded
       maskingUsed: result.masking > 0,
       maskingEar:
         result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
     }));
 
     // Transform test results to match BCReadingModelData schema
     const bcTests = updatedBcResults.map((result) => ({
       ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
       frequencyHz: result.x,
-      thresholdDb: result.y,
+      thresholdDb: result.y, // Always store the test level, even for no response
+      response: result.noResponse === 0, // true if patient responded
       maskingUsed: result.masking > 0,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
     }));
 
     const consultationData = consultationResponse.data as ConsultationModelData;
-    updateConsultation(
-      {
-        ...consultationData,
-        audiometry: {
-          id: consultationData.audiometry?.id,
+    const audiometryData: any = {
+      id: consultationData.audiometry?.id || undefined,
           sessionId: consultationId as string,
           status: TestStatus.IN_PROGRESS,
           acTests: acTests,
@@ -486,12 +624,23 @@ export default function PureTonePage() {
           createdAt:
             consultationData.audiometry?.createdAt || new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        },
-      },
-      {
+    };
+
+    const dataToSend = {
+        ...consultationData,
+        audiometry: audiometryData,
+    };
+
+ 
+          updateConsultation(dataToSend, {
         onSuccess: (data) => {
           if (data.success) {
-            toast.success("Test result added successfully");
+              toast.success(`Test result added successfully${noResponse ? ' (No Response)' : ''}`);
+              
+              // Force refresh of consultation data to get latest results
+              queryClient.invalidateQueries({ 
+                queryKey: ['consultation', consultationId] 
+              });
           } else {
             toast.error(data.message);
           }
@@ -503,66 +652,130 @@ export default function PureTonePage() {
     );
   };
 
-  // Clear test results
-  const clearTestResults = () => {
+  // Helper functions for button clicks
+  const addResponse = () => addTestResult(false);  // false = normal response, no arrow
+  const addNoResponse = () => addTestResult(true); // true = no response, show arrow
+
+  // Helper function to persist cleared results to backend
+  const persistClearedResults = (updatedAcResults: TestResult[], updatedBcResults: TestResult[]) => {
     if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
       return;
 
-    // Clear only the selected mode's results
-    if (selectedMode === "AC") {
-      setAcTestResults([]);
-    } else {
-      setBcTestResults([]);
-    }
+    // Transform test results to match backend schema
+    const acTests = updatedAcResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y,
+      response: result.noResponse === 0,
+      maskingUsed: result.masking > 0,
+      maskingEar: result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
 
-    // Update the combined results
-    setTestResults(selectedMode === "AC" ? bcTestResults : acTestResults);
+    const bcTests = updatedBcResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y,
+      response: result.noResponse === 0,
+      maskingUsed: result.masking > 0,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
     const consultationData = consultationResponse.data as ConsultationModelData;
+    const audiometryData: any = {
+      id: consultationData.audiometry?.id || undefined,
+        sessionId: consultationId as string,
+        status: TestStatus.IN_PROGRESS,
+        acTests: acTests,
+        bcTests: bcTests,
+      audiologicalDiagnosis: consultationData.audiometry?.audiologicalDiagnosis,
+      suggestion: consultationData.audiometry?.suggestion,
+      recommendation: consultationData.audiometry?.recommendation,
+        createdAt: consultationData.audiometry?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    };
 
-    // Transform remaining test results to match schemas
-    const acTests =
-      selectedMode === "AC" ? [] : consultationData.audiometry?.acTests;
+    const dataToSend = {
+      ...consultationData,
+      audiometry: audiometryData,
+    };
 
-    const bcTests =
-      selectedMode === "BC" ? [] : consultationData.audiometry?.bcTests;
-
-    updateConsultation(
-      {
-        ...consultationData,
-        audiometry: {
-          id: consultationData.audiometry?.id,
-          sessionId: consultationId as string,
-          status: TestStatus.IN_PROGRESS,
-          acTests: acTests,
-          bcTests: bcTests,
-          createdAt:
-            consultationData.audiometry?.createdAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
+    updateConsultation(dataToSend, {
+      onSuccess: (data) => {
+        if (data.success) {
+          // Force refresh of consultation data to sync with backend
+          queryClient.invalidateQueries({ 
+            queryKey: ['consultation', consultationId] 
+          });
+        } else {
+          toast.error(data.message);
+        }
       },
-      {
-        onSuccess: (data) => {
-          if (data.success) {
-            toast.success(`${selectedMode} test results cleared successfully`);
-          } else {
-            toast.error(data.message);
-          }
-        },
-        onError: (error) => {
-          toast.error(`Failed to clear test results: ${error.message}`);
-        },
-      }
-    );
+      onError: (error) => {
+        toast.error(`Failed to persist changes: ${error.message}`);
+      },
+    });
+  };
+
+  const clearTest = () => {
+    const updatedAcResults: TestResult[] = [];
+    const updatedBcResults: TestResult[] = [];
+    
+    setTestResults([]);
+    setAcTestResults([]);
+    setBcTestResults([]);
+    setJustCleared(true);
+    
+    // Persist cleared state to backend
+    persistClearedResults(updatedAcResults, updatedBcResults);
+    
+    toast.info("All test results cleared. You can start over.");
+  };
+
+  const clearEarResults = (ear: "L" | "R") => {
+    const filteredAcResults = acTestResults.filter(r => r.ear !== ear);
+    const filteredBcResults = bcTestResults.filter(r => r.ear !== ear);
+    
+    setAcTestResults(filteredAcResults);
+    setBcTestResults(filteredBcResults);
+    setTestResults([...filteredAcResults, ...filteredBcResults]);
+    setJustCleared(true);
+    
+    // Persist cleared state to backend
+    persistClearedResults(filteredAcResults, filteredBcResults);
+    
+    toast.info(`${ear === "L" ? "Left" : "Right"} ear results cleared.`);
+  };
+
+
+  
+  const clearModeResults = (mode: "AC" | "BC") => {
+    const updatedAcResults = mode === "AC" ? [] : acTestResults;
+    const updatedBcResults = mode === "BC" ? [] : bcTestResults;
+    
+    // Update all state arrays consistently
+    setAcTestResults(updatedAcResults);
+    setBcTestResults(updatedBcResults);
+    setTestResults([...updatedAcResults, ...updatedBcResults]);
+    setJustCleared(true);
+    
+    // Persist cleared state to backend
+    persistClearedResults(updatedAcResults, updatedBcResults);
+    
+    toast.info(`${mode === "AC" ? "Air Conduction" : "Bone Conduction"} results cleared.`);
   };
 
   // Handle audiogram click
   const handleAudiogramClick = (x: number, y: number) => {
-    const newFrequency = availableFrequencies[x];
-    const newLevel = availableLevels[y];
+    const newFrequency = FREQUENCIES[x];
+    const newLevel = HEARING_LEVELS[y];
 
+    // Only update if the clicked frequency and level are available
+    if (availableFrequencies.includes(newFrequency) && availableLevels.includes(newLevel)) {
     setSelectedLabelIndexes({ x, y });
     setSelectedFrequency(newFrequency);
     setSelectedLevel(newLevel);
+    }
 
     if (isPlaying) {
       _endAudiometrySignal();
@@ -576,6 +789,28 @@ export default function PureTonePage() {
       return;
 
     const consultationData = consultationResponse.data as ConsultationModelData;
+    
+    // Ensure we preserve all test data when completing
+    const acTests = acTestResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y, // Always store the test level, even for no response
+      response: result.noResponse === 0, // true if patient responded
+      maskingUsed: result.masking > 0,
+      maskingEar:
+        result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
+    const bcTests = bcTestResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y, // Always store the test level, even for no response
+      response: result.noResponse === 0, // true if patient responded
+      maskingUsed: result.masking > 0,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
     updateConsultation(
       {
         ...consultationData,
@@ -584,6 +819,13 @@ export default function PureTonePage() {
           id: consultationData.audiometry?.id,
           sessionId: consultationId as string,
           status: TestStatus.COMPLETED,
+          acTests: acTests,
+          bcTests: bcTests,
+          audiologicalDiagnosis: consultationData.audiometry?.audiologicalDiagnosis,
+          suggestion: consultationData.audiometry?.suggestion,
+          recommendation: consultationData.audiometry?.recommendation,
+          createdAt:
+            consultationData.audiometry?.createdAt || new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
       },
@@ -591,6 +833,7 @@ export default function PureTonePage() {
         onSuccess: (data) => {
           if (data.success) {
             toast.success("Test completed successfully");
+            console.log(`Test completed with ${acTests.length} AC tests and ${bcTests.length} BC tests`);
             router.push(
               ROUTES.AUDIOMETRY_TEST_REPORT(consultationId as string)
             );
@@ -626,6 +869,14 @@ export default function PureTonePage() {
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Pure Tone Audiometry</h1>
+          <div className="bg-gray-100 px-4 py-2 rounded-lg">
+            <div className="text-sm text-gray-600">Test Results:</div>
+            <div className="flex gap-4 text-sm font-medium">
+              <span className="text-green-600">AC: {acTestResults.length}</span>
+              <span className="text-purple-600">BC: {bcTestResults.length}</span>
+              <span className="text-gray-600">Total: {testResults.length}</span>
+            </div>
+          </div>
         </div>
 
         {/* Test Controls */}
@@ -837,30 +1088,66 @@ export default function PureTonePage() {
           </button>
           <button
             className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            onClick={addTestResult}
+            onClick={addResponse}
           >
-            Add Result
+            Add Response
           </button>
           <button
-            className="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-            onClick={clearTestResults}
+            className="px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
+            onClick={addNoResponse}
           >
-            Clear Results
+            No Response
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2">
+                Clear Test
+                <ChevronDown size={16} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => clearEarResults("L")}>
+                Clear Left Ear
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => clearEarResults("R")}>
+                Clear Right Ear
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => clearModeResults("AC")}>
+                Clear Air Conduction
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => clearModeResults("BC")}>
+                Clear Bone Conduction
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={clearTest} className="text-red-600">
+                Clear All Results
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            className="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-all duration-200 hover:shadow-lg hover:scale-105"
+            onClick={handleSubmit}
+          >
+            Submit Test
           </button>
         </div>
       </div>
 
+
+
       {/* Audiogram Display */}
       <div className="border flex items-center justify-center rounded p-4">
+        <div className="w-full">
         <PureToneGraph
           selectedLabelIndexes={selectedLabelIndexes}
           resultMarkings={testResults}
           onIndexChange={handleAudiogramClick}
         />
       </div>
-      <Button className="flex mt-4 mx-auto" onClick={handleSubmit}>
-        Submit Test
-      </Button>
+      </div>
     </div>
   );
 }

@@ -19,6 +19,7 @@ export default function DevicePage() {
     deviceCode as string
   );
   const device = data?.data;
+  const isAssignDisabled = !device?.id || device?.centreId;
   return (
     <DashboardBodyWrapper
       pageTitle={`Device Information`}
@@ -79,22 +80,24 @@ export default function DevicePage() {
               <Tablet className="w-10 h-10 text-primary-500" />
               <div>
                 <div className="text-2xl font-bold tracking-tight text-neutral-900">
-                  {device.deviceCode}
+                  {device.code || "No Device Code"}
                 </div>
                 <div className="text-xs text-neutral-400">Device Code</div>
               </div>
             </div>
             <div
-              className={`flex items-center w-fit gap-2 px-4 py-2 rounded-md transition-colors  select-none ${
+              className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
                 device.status === StatusEnum.ACTIVE
-                  ? "bg-green-100"
-                  : "bg-red-100"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-red-100 text-red-800"
               }`}
               role="button"
               tabIndex={0}
             >
               <span
-                className={`${device.status === StatusEnum.ACTIVE ? "text-green-500" : "text-red-500"} font-medium`}
+                className={`${
+                  device.status === StatusEnum.ACTIVE ? "text-green-500" : "text-red-500"
+                } font-medium`}
               >
                 {device.status === StatusEnum.ACTIVE ? "Active" : "Inactive"}
               </span>
@@ -102,6 +105,20 @@ export default function DevicePage() {
           </div>
           <Separator />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex flex-col gap-2">
+              <Label className="text-neutral-500">Code Sequence</Label>
+              <div className="flex items-center gap-2 text-base text-neutral-800">
+                <Hash className="w-4 h-4 text-neutral-300" />
+                {device.codeSequence || <span className="text-neutral-300">—</span>}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label className="text-neutral-500">Otoscope ID</Label>
+              <div className="flex items-center gap-2 text-base text-neutral-800">
+                <Hash className="w-4 h-4 text-neutral-300" />
+                {device.otoscopeID || <span className="text-neutral-300">—</span>}
+              </div>
+            </div>
             <div className="flex flex-col gap-2">
               <Label className="text-neutral-500">Tablet ID</Label>
               <div className="flex items-center gap-2 text-base text-neutral-800">
@@ -121,6 +138,15 @@ export default function DevicePage() {
               <div className="flex items-center gap-2 text-base text-neutral-800">
                 <span className="text-neutral-300">v</span>
                 {device.tabletAppVersion || (
+                  <span className="text-neutral-300">—</span>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label className="text-neutral-500">Tablet Android Version</Label>
+              <div className="flex items-center gap-2 text-base text-neutral-800">
+                <span className="text-neutral-300">v</span>
+                {device.tabletAndroidVersion || (
                   <span className="text-neutral-300">—</span>
                 )}
               </div>

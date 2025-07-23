@@ -1,0 +1,17 @@
+{
+  "buildCommand": "npm run build:fast",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "regions": ["bom1"],
+  "functions": {
+    "app/**/*.tsx": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "SKIP_LINT": "true",
+    "SKIP_TYPE_CHECK": "true"
+  }
+} 

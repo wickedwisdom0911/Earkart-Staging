@@ -12,7 +12,7 @@ export default async function getAllCentres(): Promise<CentreModel> {
   if (!user?.token) {
     throw new Error("Unauthorized");
   }
-  const response = await apiRequest<CentreModel>(
+  const response = await apiRequest(
     url,
     {
       method: "GET",
@@ -23,5 +23,13 @@ export default async function getAllCentres(): Promise<CentreModel> {
     },
     CentreModelSchema
   );
-  return response;
+  // Fix pricing for each centre in the array
+  if (response.data) {
+    response.data.forEach(centre => {
+      if (centre.pricing === undefined) {
+        centre.pricing = [];
+      }
+    });
+  }
+  return response as unknown as CentreModel;
 }

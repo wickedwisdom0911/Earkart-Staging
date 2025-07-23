@@ -6,9 +6,11 @@ export const ACReadingModelDataSchema = z.object({
   audiometryId: z.string().optional(),
   ear: z.nativeEnum(Ear),
   frequencyHz: z.number(),
-  thresholdDb: z.number(),
+  thresholdDb: z.number(), // Always require threshold value, even for no response
   maskingUsed: z.boolean(),
   maskingEar: z.nativeEnum(Ear).optional().nullable(),
+  response : z.boolean(),
+  maskingThresholdDb: z.number().optional().nullable(),
 });
 
 export const BCReadingModelDataSchema = z.object({
@@ -16,8 +18,10 @@ export const BCReadingModelDataSchema = z.object({
   audiometryId: z.string().optional(),
   ear: z.nativeEnum(Ear),
   frequencyHz: z.number(),
-  thresholdDb: z.number(),
+  thresholdDb: z.number(), // Always require threshold value, even for no response
   maskingUsed: z.boolean(),
+   response : z.boolean(),
+  maskingThresholdDb: z.number().optional().nullable(),
 });
 
 export const SpeechReadingModelDataSchema = z.object({
@@ -35,6 +39,9 @@ export const AudiometryTestModelDataSchema = z.object({
   acTests: z.array(ACReadingModelDataSchema).optional().nullable(),
   bcTests: z.array(BCReadingModelDataSchema).optional().nullable(),
   speechTests: z.array(SpeechReadingModelDataSchema).optional().nullable(),
+  audiologicalDiagnosis: z.string().optional().nullable(),
+  suggestion: z.string().optional().nullable(),
+  recommendation: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),

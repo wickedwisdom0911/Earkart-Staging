@@ -1,13 +1,5 @@
 import { z } from "zod";
-
-export enum AnswerType {
-  SHORT_TEXT = "SHORT_TEXT",
-  LONG_TEXT = "LONG_TEXT",
-  NUMBER = "NUMBER",
-  DATE = "DATE",
-  MULTIPLE_CHOICE = "MULTIPLE_CHOICE",
-  CHECKBOX = "CHECKBOX",
-}
+import { AnswerType } from "./enums";
 
 export const OptionSchema = z.object({
   label: z.string(),
@@ -48,6 +40,26 @@ export interface ReorderPayload {
 }
 
 
+
+
+export const SubmitAnswersRequestSchema = z.object({
+  consultationId: z.string(),
+  answers: z.array(
+    z.object({
+      questionId: z.string(),
+      value: z.string(),
+    })
+  ),
+});
+
+export const SubmitAnswersModelSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  data: z.any().optional().nullable(),
+});
+
+export type SubmitAnswersRequest = z.infer<typeof SubmitAnswersRequestSchema>;
+export type SubmitAnswersModel = z.infer<typeof SubmitAnswersModelSchema>;
 
 export type Option = z.infer<typeof OptionSchema>;
 export type QuestionModelData = z.infer<typeof QuestionModelDataSchema>;

@@ -1,7 +1,6 @@
 "use client";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useEffect, useState } from "react";
-import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { useSocket } from "@/providers/socket-provider";
 import { format } from "date-fns";
@@ -12,6 +11,7 @@ import {
 } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
+import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import {
   User,
   Building2,
@@ -23,6 +23,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { ROUTES } from "@/lib/routes";
+import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
+import getConsultation from "@/actions/consultations/get_consultation";
+import { toast } from "sonner";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -40,11 +43,47 @@ export default function DashboardPage() {
     string | null
   >(null);
 
+  // Add update consultation mutation
+  const { mutate: updateConsultationMutation } = useUpdateConsultation();
+
+  // Check if user is an audiologist
+  const isAudiologist = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+
   useEffect(() => {
     if (Array.isArray(consultations?.data)) {
       setAllConsulations(consultations?.data);
+      
+      // NEW: Check and notify for consultations that need attention when they're displayed
+      if (user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST) {
+        // Clear notification cache to allow re-checking of consultations
+        const clearCacheEvent = new CustomEvent('clearNotificationCache');
+        window.dispatchEvent(clearCacheEvent);
+        
+        // Small delay to ensure cache is cleared before checking consultations
+        setTimeout(() => {
+          if (Array.isArray(consultations.data)) {
+            consultations.data.forEach((consultation: ConsultationModelData) => {
+              // Check if consultation needs attention (no audiologist OR pending status) AND not in progress/completed/cancelled
+              const needsAttention = 
+                (!consultation.audiologist || 
+                consultation.status === SessionStatus.PENDING) &&
+                consultation.status !== SessionStatus.IN_PROGRESS && // NOT in progress (being handled)
+                consultation.status !== SessionStatus.COMPLETED && // NOT completed  
+                consultation.status !== SessionStatus.CANCELLED; // NOT cancelled
+              
+              if (needsAttention) {
+                // Create a notification for this consultation
+                const event = new CustomEvent('consultationNeedsAttention', {
+                  detail: consultation
+                });
+                window.dispatchEvent(event);
+              }
+            });
+          }
+        }, 100);
+      }
     }
-  }, [consultations]);
+  }, [consultations, user?.role]);
 
   useEffect(() => {
     if (!socket) return;
@@ -61,14 +100,59 @@ export default function DashboardPage() {
       });
     };
 
+    const onConsultationUpdate = (data: ConsultationModelData) => {
+      console.log("Consultation updated:", data);
+      setAllConsulations((prev) => {
+        return prev.map((consultation) => 
+          consultation.id === data.id ? data : consultation
+        );
+      });
+    };
+
     // NEW: Listen for connect/disconnect
     const handleConnect = () => setIsSocketConnected(true);
     const handleDisconnect = () => setIsSocketConnected(false);
 
     // Handle join consultation responses
-    const handleJoined = (data: string) => {
+    const handleJoined = async (data: string) => {
       console.log("Joined consultation:", data);
       if (joiningConsultationId && data === joiningConsultationId) {
+        try {
+          // Fetch current consultation data
+          const consultationResponse = await getConsultation(data);
+          if (consultationResponse.success && consultationResponse.data) {
+            const currentConsultation = consultationResponse.data as ConsultationModelData;
+            
+            // Update consultation status to IN_PROGRESS if it's currently PENDING
+            if (currentConsultation.status === SessionStatus.PENDING) {
+              const updatedConsultation = {
+                ...currentConsultation,
+                status: SessionStatus.IN_PROGRESS,
+                updatedAt: new Date().toISOString(),
+              };
+              
+              console.log("Updating consultation status to IN_PROGRESS for:", data);
+              
+              // Update consultation status
+              updateConsultationMutation(updatedConsultation, {
+                onSuccess: (response) => {
+                  if (response.success) {
+                    console.log("Successfully updated consultation status to IN_PROGRESS");
+                    toast.success("Consultation started successfully");
+                  }
+                },
+                onError: (error) => {
+                  console.error("Failed to update consultation status:", error);
+                  toast.error("Failed to update consultation status");
+                },
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error updating consultation status:", error);
+          toast.error("Failed to update consultation status");
+        }
+        
         setJoiningConsultationId(null);
         router.push(ROUTES.CONSULTATION(data));
       }
@@ -80,6 +164,7 @@ export default function DashboardPage() {
     };
 
     socket.on("new_consultation", onNewConsultation);
+    socket.on("consultation_updated", onConsultationUpdate);
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("joined", handleJoined);
@@ -91,6 +176,7 @@ export default function DashboardPage() {
     // Cleanup: remove listeners
     return () => {
       socket.off("new_consultation", onNewConsultation);
+      socket.off("consultation_updated", onConsultationUpdate);
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
       socket.off("joined", handleJoined);
