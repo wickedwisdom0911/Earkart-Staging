@@ -74,8 +74,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   // Add initialization state tracking
   bool _isInitializing = false;
   bool _isViewReady = false;
-  bool _isPlatformViewReady = false;
-  bool _isWidgetBuilt = false;
   bool _initializationTriggered = false;
   Timer? _initializationTimer;
   Timer? _platformViewTimer;
@@ -230,7 +228,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       final consultationState = context.read<ConsultationCubit>().state;
       consultationState.maybeWhen(
         success: (consultation) {
-          final newConsultationId = consultation?.id;
+          final newConsultationId = consultation.id;
           if (newConsultationId != null &&
               newConsultationId != _consultationId) {
             _consultationId = newConsultationId;
@@ -670,7 +668,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           setState(() {
             isInitialized = false;
             _isViewReady = false;
-            _isPlatformViewReady = false;
             _initializationTriggered = false;
             _status = 'Camera closed';
           });
@@ -1250,30 +1247,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     });
   }
 
-  void _showErrorDialog(String error) {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder:
-          (BuildContext dialogContext) => AlertDialog(
-            title: const Text('Camera Error'),
-            content: Text(error),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Mark that the widget has been built
-    _isWidgetBuilt = true;
-
-    // Safety wrapper to prevent crashes in release mode
     try {
       return Container(
         width: double.infinity,
@@ -1532,28 +1507,22 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   Widget _buildMinimalStatusIndicator() {
     Color indicatorColor;
     IconData indicatorIcon;
-    String tooltipText;
 
     if (!_permissionsGranted) {
       indicatorColor = Colors.red;
       indicatorIcon = Icons.block;
-      tooltipText = 'No Permissions';
     } else if (_errorCount >= ReleaseConfig.maxCameraRetries) {
       indicatorColor = Colors.red;
       indicatorIcon = Icons.error_outline;
-      tooltipText = 'Camera Error';
     } else if (_isInitializing) {
       indicatorColor = Colors.orange;
       indicatorIcon = Icons.hourglass_empty;
-      tooltipText = 'Initializing';
     } else if (!isInitialized) {
       indicatorColor = Colors.orange;
       indicatorIcon = Icons.videocam_off;
-      tooltipText = 'Not Ready';
     } else {
       indicatorColor = Colors.green;
       indicatorIcon = Icons.videocam;
-      tooltipText = 'Camera Ready';
     }
 
     return Container(

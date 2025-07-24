@@ -21,7 +21,6 @@ import 'package:earkart_omni/models/enums.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
-import 'package:permission_handler/permission_handler.dart';
 import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
@@ -63,78 +62,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   }
 
   void _initializeScreen() {
-    // Get current consultation first
     context.read<ConsultationCubit>().getCurrentConsultation();
-    // Then check permissions and initialize devices
-    _checkAndRequestPermissions();
-  }
-
-  Future<void> _checkAndRequestPermissions() async {
-    final storageStatus = await Permission.manageExternalStorage.request();
-    final usbStatus = await Permission.bluetooth.request();
-    if (storageStatus.isGranted && usbStatus.isGranted) {
-      _initializeDeviceMonitoring();
-    } else {
-      _showPermissionDialog();
-    }
-  }
-
-  void _initializeDeviceMonitoring() {
-    // Device monitoring is now started globally in main.dart
-    // We only need to setup listeners for device and communication state changes
-    _setupDeviceListeners();
-  }
-
-  void _setupDeviceListeners() {
-    // Listen for device state changes - use BlocListener instead of stream.listen
-    // This ensures proper state management and prevents memory leaks
-    // The actual listening is done in the BlocListener in the build method
-  }
-
-  void _handleDeviceStateChange(UsbDevice? r15cDevice, UsbDevice? revo2Device) {
-    if (!mounted) return;
-
-    final wasConnected = this.r15cDevice != null;
-    final isNowConnected = r15cDevice != null;
-
-    // Update device references
-    this.r15cDevice = r15cDevice;
-    this.revo2Device = revo2Device;
-
-    // Handle device state changes
-    if (wasConnected != isNowConnected) {
-      di<ILogger>().debug(
-        isNowConnected ? 'R15C device attached' : 'R15C device detached',
-      );
-
-      if (!isNowConnected) {
-        _handleDeviceDisconnection();
-      } else {
-        _handleDeviceConnection(r15cDevice);
-      }
-    }
-
-    // Emit device event to socket if connected
-    if (_isSocketInitialized) {
-      _emitDeviceEvent(context.read<CommunicationCubit>().state);
-    }
-  }
-
-  void _handleDeviceDisconnection() {
-    if (!mounted) return;
-
-    // Reset communication state
-    context.read<CommunicationCubit>().resetState();
-
-    // Show disconnection message
-    _showErrorSnackBar('Device disconnected. Attempting to reconnect...');
-  }
-
-  void _handleDeviceConnection(UsbDevice device) {
-    di<ILogger>().debug('Initializing newly attached R15C device');
-
-    // Initialize device with retry
-    _initializeDeviceWithRetry(device);
   }
 
   Future<void> _initializeDeviceWithRetry(UsbDevice device) async {
@@ -171,71 +99,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     }
   }
 
-  void _handleCommunicationStateChange(CommunicationState state) {
-    if (r15cDevice != null) {
-      if (!state.isConnected) {
-        _handleDisconnectedState();
-      } else if (state.isConnected && !state.isSynced) {
-        _handleConnectedState();
-      } else if (state.isSynced && state.transducerResponse == null) {
-        _handleSyncedState();
-      } else if (state.transducerResponse != null) {
-        _handleReadyState();
-      }
-    }
-
-    // Handle error states
-    if (state.error != null) {
-      _handleCommunicationError(state.error!);
-    }
-  }
-
-  void _handleDisconnectedState() {
-    if (!mounted) return;
-
-    di<ILogger>().debug('Device not connected, initializing port...');
-    if (r15cDevice != null) {
-      _initializeDeviceWithRetry(r15cDevice!);
-    }
-    _emitDeviceEvent(context.read<CommunicationCubit>().state);
-  }
-
-  void _handleConnectedState() {
-    if (!mounted) return;
-
-    di<ILogger>().debug(
-      'Device connected but not synced, sending sync packet...',
-    );
-    context.read<CommunicationCubit>().sendSyncPacket();
-    _emitDeviceEvent(context.read<CommunicationCubit>().state);
-  }
-
-  void _handleSyncedState() {
-    if (!mounted) return;
-
-    di<ILogger>().debug(
-      'Device synced but not ready, sending query info packet...',
-    );
-    context.read<CommunicationCubit>().sendQueryInfoPacket();
-    _emitDeviceEvent(context.read<CommunicationCubit>().state);
-  }
-
-  void _handleReadyState() {
-    if (!mounted) return;
-
-    di<ILogger>().debug('Device ready with transducer response');
-    _handleBeginPacket(testType);
-    _emitDeviceEvent(context.read<CommunicationCubit>().state);
-  }
-
-  void _handleCommunicationError(String error) {
-    if (!mounted) return;
-
-    di<ILogger>().error('Device error: $error');
-    _showErrorSnackBar('Device error: $error');
-    _emitDeviceEvent(context.read<CommunicationCubit>().state);
-  }
-
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -251,30 +114,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           },
         ),
       ),
-    );
-  }
-
-  void _showPermissionDialog() {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Permission Required'),
-            content: const Text(
-              'Storage and USB permissions are required to detect USB devices. Please grant the permissions in settings.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  openAppSettings();
-                },
-                child: const Text('Open Settings'),
-              ),
-            ],
-          ),
     );
   }
 
@@ -302,10 +141,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         socket.disconnect();
         socket.dispose();
       }
-      // Don't stop device monitoring here as it's now managed globally
-      // context.read<DeviceCubit>().stopDeviceMonitoring();
       _hasJoinedConsultation = false;
-      _videoWidget = null; // Clear video widget reference
+      _videoWidget = null;
     } catch (e) {
       di<ILogger>().error('Error in dispose: $e');
     }
@@ -314,7 +151,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
   void _setupSocket(String token) {
     try {
-      // Disconnect existing socket if any
       if (_isSocketInitialized) {
         socket.disconnect();
         socket.dispose();
