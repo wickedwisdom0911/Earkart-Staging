@@ -164,6 +164,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         'reconnectionAttempts': 5,
         'reconnectionDelay': 1000,
         'timeout': 10000,
+        'forceNew': true,
+        'upgrade': false,
+        'rememberUpgrade': false,
       });
 
       // Set up socket event handlers

@@ -69,10 +69,6 @@ class DeviceCubit extends Cubit<DeviceState> {
       _updateDeviceReferences(connectedDevices);
 
       // Log device status for debugging
-      di<ILogger>().debug(
-        'Device status - R15C: ${_r15cDevice != null ? "Connected" : "Disconnected"}, '
-        'Revo2: ${_revo2Device != null ? "Connected" : "Disconnected"}',
-      );
 
       emit(
         DeviceState.success(
@@ -144,6 +140,10 @@ class DeviceCubit extends Cubit<DeviceState> {
         }
       }
     }
+    di<ILogger>().debug(
+      'Device status - R15C: ${_r15cDevice != null ? "Connected" : "Disconnected"}, '
+      'Revo2: ${_revo2Device != null ? "Connected" : "Disconnected"}',
+    );
   }
 
   String? _getDeviceType(UsbDevice device) {
