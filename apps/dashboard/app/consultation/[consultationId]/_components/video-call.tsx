@@ -447,7 +447,11 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
               <RemoteUser
                 key={user.uid}
                 user={user}
-                style={{ width: "100%", height: "100%" }}
+                style={{ 
+                  width: "100%", 
+                  height: "100%",
+                  transform: "scaleX(-1)" // Flip patient video horizontally to fix mirroring
+                }}
               >
                 <div className="absolute bottom-3 left-3 text-white text-sm">
                   {patientName}
