@@ -76,7 +76,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       // Handle audio load success
       audioRef.current.oncanplaythrough = () => {
         if (process.env.NODE_ENV === "development") {
-          console.log("Notification sound loaded successfully");
+        console.log("Notification sound loaded successfully");
         }
         setAudioInitialized(true);
       };
