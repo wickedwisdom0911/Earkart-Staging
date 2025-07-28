@@ -139,6 +139,10 @@ export default function DashboardPage() {
                   if (response.success) {
                     console.log("Successfully updated consultation status to IN_PROGRESS");
                     toast.success("Consultation started successfully");
+                    
+                    // Stop notification sound when audiologist joins consultation
+                    const stopSoundEvent = new CustomEvent('stopContinuousSound');
+                    window.dispatchEvent(stopSoundEvent);
                   }
                 },
                 onError: (error) => {
@@ -146,6 +150,10 @@ export default function DashboardPage() {
                   toast.error("Failed to update consultation status");
                 },
               });
+            } else {
+              // Even if status wasn't PENDING, stop notification sound when joining
+              const stopSoundEvent = new CustomEvent('stopContinuousSound');
+              window.dispatchEvent(stopSoundEvent);
             }
           }
         } catch (error) {

@@ -126,12 +126,12 @@ const headAudiologistSidebarItems: SidebarItem[] = [
     name: "Questionnaire",
     icon: <ClipboardList className="text-slate-600" />,
     url: ROUTES.QUESTIONNAIRE,
-  },
-  {
-    name: "Patients",
-    icon: <UserPlusIcon className="text-slate-600" />,
-    url: "/dashboard/patients",
-  },
+},
+{
+  name: "Patients",
+  icon: <UserPlusIcon className="text-slate-600" />,
+  url: "/dashboard/patients",
+},
 ];
 
 const audiologistSidebarItems: SidebarItem[] = [

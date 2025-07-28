@@ -54,7 +54,8 @@ const MetricCard = ({
         return `$${val.toLocaleString()}`;
       }
       if (title.toLowerCase().includes('rate') || title.toLowerCase().includes('utilization')) {
-        return `${val}%`;
+        // Round to 1 decimal place for percentages
+        return `${val.toFixed(1)}%`;
       }
       if (title.toLowerCase().includes('duration')) {
         return `${val} min`;
