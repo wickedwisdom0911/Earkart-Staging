@@ -161,7 +161,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
           dimensions: VideoDimensions(width: 1280, height: 720),
           frameRate: 30,
           bitrate: 2500,
-          mirrorMode: VideoMirrorModeType.videoMirrorModeDisabled, // Disable mirroring to fix orientation
+          mirrorMode: VideoMirrorModeType.videoMirrorModeAuto,
           minBitrate: 1000,
           degradationPreference: DegradationPreference.maintainQuality,
         ),
