@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.app.Application
 import android.app.Service
+import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.PackageManager
@@ -342,28 +343,48 @@ internal class UVCCameraView(
     private fun checkCamera() {
         if(mCameraClient?.getDeviceList()?.isEmpty() == true)
         {
-            setCameraERRORState("未检测到设备")
+            setCameraERRORState("No device detected")
         }
     }
 
     override fun onPermissionResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        // 处理权限结果
+        // Handle permission results
         if (requestCode == 1230) {
             val index = permissions.indexOf(Manifest.permission.CAMERA)
             if (index >= 0 && grantResults[index] == PackageManager.PERMISSION_GRANTED) {
                 registerMultiCamera()
             } else {
-                callFlutter("设备权限被拒绝" )
-                setCameraERRORState(msg = "设备权限被拒绝")
+                callFlutter("Device permission denied")
+                setCameraERRORState(msg = "Device permission denied")
             }
-
-
         }
     }
+
+    private fun isDeviceOwner(): Boolean {
+        return try {
+            val devicePolicyManager = mContext.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            // For device owner apps, we can check if the app is device owner without needing the specific DeviceAdminReceiver class
+            val isOwner = devicePolicyManager.isDeviceOwnerApp(mContext.packageName)
+            Log.d(TAG, "Device owner check: $isOwner")
+            isOwner
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking device owner status: ${e.message}")
+            false
+        }
+    }
+
     private fun checkCameraPermission() : Boolean {
+        // If app is device owner, bypass standard permission checks
+        if (isDeviceOwner()) {
+            Log.d(TAG, "App is device owner - bypassing standard permission checks")
+            return true
+        }
+
         if (mActivity == null) {
+            Log.w(TAG, "Activity is null, cannot check permissions")
             return false
         }
+        
         val hasCameraPermission = PermissionChecker.checkSelfPermission(
             mActivity!!,
             Manifest.permission.CAMERA
@@ -373,9 +394,11 @@ internal class UVCCameraView(
             Manifest.permission.WRITE_EXTERNAL_STORAGE
         )
 
+        Log.d(TAG, "Permission check - Camera: $hasCameraPermission, Storage: $hasStoragePermission")
 
         if (hasCameraPermission != PermissionChecker.PERMISSION_GRANTED
             || hasStoragePermission != PermissionChecker.PERMISSION_GRANTED) {
+            Log.d(TAG, "Requesting permissions from user")
             ActivityCompat.requestPermissions(
                 mActivity!!,
                 arrayOf(
@@ -671,7 +694,7 @@ internal class UVCCameraView(
             if (camera !is CameraUVC) {
                 return@let null
             }
-            camera.setButtonCallback(IButtonCallback { button, state -> // 拍照按钮被按下
+            camera.setButtonCallback(IButtonCallback { button, state -> // Camera button pressed
                 if (button == 1 && state == 1) {
                     takePicture(
                         object : UVCStringCallback {
@@ -680,12 +703,12 @@ internal class UVCCameraView(
                             }
 
                             override fun onError(error: String) {
-                                callFlutter("拍照失败：$error","onError")
+                                callFlutter("Picture capture failed: $error","onError")
                             }
                         }
                     )
                 }
-                Logger.i(TAG,"点击了设备按钮：button=$button state=$state")
+                Logger.i(TAG,"Device button pressed: button=$button state=$state")
             }
             )
         }
@@ -732,13 +755,13 @@ internal class UVCCameraView(
     fun takePicture(callback: UVCStringCallback) {
 
         if (!isCameraOpened()) {
-            callFlutter("摄像头未打开")
-            setCameraERRORState("设备未打开")
+            callFlutter("Camera not opened")
+            setCameraERRORState("Device not opened")
             return
         }
         captureImage( object : ICaptureCallBack {
             override fun onBegin() {
-                callFlutter("开始拍照")
+                callFlutter("Starting picture capture")
             }
 
             override fun onComplete(path: String?) {
@@ -746,15 +769,15 @@ internal class UVCCameraView(
                     callback.onSuccess(path)
                     MediaScannerConnection.scanFile(view.context, arrayOf(path), null) {
                             mPath, uri ->
-                        // 文件已经被扫描到媒体数据库
+                        // File has been scanned into media database
                         println("Media scan completed for file: $mPath with uri: $uri")
                     }
                 } else {
-                    callback.onError("拍照失败，未能保存图片")
+                    callback.onError("Picture capture failed, image not saved")
                 }
             }
             override fun onError(error: String?) {
-                callback.onError(error ?: "未知错误")
+                callback.onError(error ?: "Unknown error")
             }
 
         })
