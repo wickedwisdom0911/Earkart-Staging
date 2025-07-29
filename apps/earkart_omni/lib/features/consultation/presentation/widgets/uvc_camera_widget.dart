@@ -74,6 +74,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   // Add initialization state tracking
   bool _isInitializing = false;
   bool _isViewReady = false;
+  bool _isPlatformViewReady = false;
+  bool _isWidgetBuilt = false;
   bool _initializationTriggered = false;
   Timer? _initializationTimer;
   Timer? _platformViewTimer;
@@ -228,7 +230,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       final consultationState = context.read<ConsultationCubit>().state;
       consultationState.maybeWhen(
         success: (consultation) {
-          final newConsultationId = consultation.id;
+          final newConsultationId = consultation?.id;
           if (newConsultationId != null &&
               newConsultationId != _consultationId) {
             _consultationId = newConsultationId;
@@ -668,6 +670,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           setState(() {
             isInitialized = false;
             _isViewReady = false;
+            _isPlatformViewReady = false;
             _initializationTriggered = false;
             _status = 'Camera closed';
           });
@@ -931,19 +934,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         if (_isDisposed || !mounted) return;
 
         di<ILogger>().info('Camera state: $state');
-
-        // Handle permission denied state separately to prevent restart loop
-        if (state.toString().contains('PERMISSION_DENIED')) {
-          di<ILogger>().warning('USB permission denied, stopping restart loop');
-          setState(() {
-            _status = 'USB permission required - please grant permission';
-            _isViewReady = false;
-            _initializationTriggered = false;
-            // Don't increment error count for permission issues
-          });
-          return;
-        }
-
         setState(() {
           switch (state) {
             case UVCCameraState.opened:
@@ -1055,11 +1045,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           if (cameraController == null) {
             throw Exception('Camera controller is null');
           }
-
-          // For device owner apps, USB permissions are automatically granted
-          di<ILogger>().info(
-            'Device owner app - USB permissions automatically granted',
-          );
 
           // Initialize camera with timeout and better error handling
           di<ILogger>().info('Calling cameraController.initializeCamera()...');
@@ -1195,17 +1180,13 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     print('Camera error count: $_errorCount');
 
     // Check if it's a permission error and handle differently
-    if (_status.contains('设备权限被拒绝') ||
-        _status.contains('permission denied') ||
-        _status.contains('PERMISSION_DENIED')) {
+    if (_status.contains('设备权限被拒绝') || _status.contains('permission denied')) {
       print('Permission error detected, not attempting recovery');
       if (mounted && !_isDisposed) {
         setState(() {
           _status = 'USB permission required - please grant permission';
           _isViewReady = false;
           _initializationTriggered = false;
-          // Don't increment error count for permission issues
-          _errorCount = 0;
         });
       }
       return;
@@ -1247,8 +1228,30 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     });
   }
 
+  void _showErrorDialog(String error) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder:
+          (BuildContext dialogContext) => AlertDialog(
+            title: const Text('Camera Error'),
+            content: Text(error),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Mark that the widget has been built
+    _isWidgetBuilt = true;
+
+    // Safety wrapper to prevent crashes in release mode
     try {
       return Container(
         width: double.infinity,
@@ -1507,22 +1510,28 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   Widget _buildMinimalStatusIndicator() {
     Color indicatorColor;
     IconData indicatorIcon;
+    String tooltipText;
 
     if (!_permissionsGranted) {
       indicatorColor = Colors.red;
       indicatorIcon = Icons.block;
+      tooltipText = 'No Permissions';
     } else if (_errorCount >= ReleaseConfig.maxCameraRetries) {
       indicatorColor = Colors.red;
       indicatorIcon = Icons.error_outline;
+      tooltipText = 'Camera Error';
     } else if (_isInitializing) {
       indicatorColor = Colors.orange;
       indicatorIcon = Icons.hourglass_empty;
+      tooltipText = 'Initializing';
     } else if (!isInitialized) {
       indicatorColor = Colors.orange;
       indicatorIcon = Icons.videocam_off;
+      tooltipText = 'Not Ready';
     } else {
       indicatorColor = Colors.green;
       indicatorIcon = Icons.videocam;
+      tooltipText = 'Camera Ready';
     }
 
     return Container(

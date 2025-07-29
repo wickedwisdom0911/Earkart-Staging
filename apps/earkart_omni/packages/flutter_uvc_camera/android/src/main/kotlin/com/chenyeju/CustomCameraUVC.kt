@@ -15,8 +15,6 @@
  */
 package com.chenyeju
 
-import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.SurfaceTexture
@@ -327,10 +325,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     }
 
     override fun <T> openCameraInternal(cameraView: T) {
-        // Check if app is device owner - if so, skip permission checks
-        if (isDeviceOwner()) {
-            Log.d(TAG, "Device owner detected - skipping camera permission check")
-        } else if (Utils.isTargetSdkOverP(ctx) && !CameraUtils.hasCameraPermission(ctx)) {
+        if (Utils.isTargetSdkOverP(ctx) && !CameraUtils.hasCameraPermission(ctx)) {
             closeCamera()
             postStateEvent(ICameraStateCallBack.State.ERROR, "Has no CAMERA permission.")
             Log.e(TAG,"open camera failed, need Manifest.permission.CAMERA permission when targetSdk>=28")
@@ -1058,19 +1053,5 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
      */
     fun resetHue() {
         mUvcCamera?.resetHue()
-    }
-    
-    /**
-     * Check if app is device owner
-     */
-    private fun isDeviceOwner(): Boolean {
-        return try {
-            val devicePolicyManager = ctx.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
-            val componentName = ComponentName(ctx, "com.example.earkart_omni.DeviceAdminReceiver")
-            devicePolicyManager?.isDeviceOwnerApp(ctx.packageName) == true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking device owner status: ${e.message}")
-            false
-        }
     }
 }
