@@ -38,4 +38,11 @@ class PatientRepositoryImpl implements IPatientRepository {
   ) async {
     return await patientRemoteSource.getPatientsByValue(value);
   }
+
+  @override
+  Future<Either<Failure, PatientEntity>> updatePatient(
+    PatientEntity patient,
+  ) async {
+    return await patientRemoteSource.updatePatient(patient);
+  }
 }

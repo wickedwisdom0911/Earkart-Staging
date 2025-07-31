@@ -413,9 +413,14 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       email: emailController.text.trim(),
       status: Status.active,
       languageId: selectedLanguage?.id ?? "",
+      soldStatus: PatientSoldStatus.unknown,
     );
     di<ILogger>().info(patient.toJson().toString());
-    context.read<PatientCubit>().createPatient(patient);
+    if (widget.patient.id != null) {
+      context.read<PatientCubit>().updatePatient(patient);
+    } else {
+      context.read<PatientCubit>().createPatient(patient);
+    }
   }
 
   Widget _buildSection({
@@ -431,7 +436,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withAlpha(5),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -900,16 +905,10 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
               listener: (context, state) {
                 di<ILogger>().info(state.toString());
                 if (state is PatientSuccess) {
-                  if (widget.patient.id != null) {
-                    // If updating, go back to previous screen
-                    Navigator.pop(context);
-                  } else {
-                    // If creating, go to consultation request
-                    Navigator.pushNamed(
-                      context,
-                      ConsultationRequestScreen.routeName,
-                    );
-                  }
+                  Navigator.pushNamed(
+                    context,
+                    ConsultationRequestScreen.routeName,
+                  );
                 }
               },
               builder: (context, state) {

@@ -3,6 +3,7 @@ import 'package:earkart_omni/features/patients/domain/usecases/delete_patient_se
 import 'package:earkart_omni/features/patients/domain/usecases/get_current_patient.usecase.dart';
 import 'package:earkart_omni/features/patients/domain/usecases/get_all_patient_by_centre_code.dart';
 import 'package:earkart_omni/features/patients/domain/usecases/get_patients_by_value_usecase.dart';
+import 'package:earkart_omni/features/patients/domain/usecases/update_patient_usecase.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -14,12 +15,14 @@ class PatientCubit extends Cubit<PatientState> {
   final DeletePatientSessionUsecase deletePatientSessionUsecase;
   final GetAllPatientByCentreCodeUsecase getAllPatientByCentreCodeUsecase;
   final GetPatientsByValueUsecase getPatientsByValueUsecase;
+  final UpdatePatientUsecase updatePatientUsecase;
   PatientCubit({
     required this.createPatientUsecase,
     required this.getCurrentPatientUsecase,
     required this.deletePatientSessionUsecase,
     required this.getAllPatientByCentreCodeUsecase,
     required this.getPatientsByValueUsecase,
+    required this.updatePatientUsecase,
   }) : super(PatientInitial());
 
   void createPatient(PatientEntity patient) async {
@@ -40,8 +43,13 @@ class PatientCubit extends Cubit<PatientState> {
     emit(PatientLoading());
     final result = await getCurrentPatientUsecase();
     result.fold(
-      (failure) => emit(PatientError(message: failure.message)),
-      (patient) => emit(CurrentPatientSuccess(patient: patient)),
+      (failure) {
+        Fluttertoast.showToast(msg: failure.message);
+        emit(PatientError(message: failure.message));
+      },
+      (patient) {
+        emit(CurrentPatientSuccess(patient: patient));
+      },
     );
   }
 
@@ -70,5 +78,14 @@ class PatientCubit extends Cubit<PatientState> {
       (failure) => emit(PatientError(message: failure.message)),
       (patients) => emit(AllPatientsSuccess(patients: patients)),
     );
+  }
+
+  void updatePatient(PatientEntity patient) async {
+    emit(PatientLoading());
+    final result = await updatePatientUsecase(patient);
+    result.fold((failure) {
+      Fluttertoast.showToast(msg: failure.message);
+      emit(PatientError(message: failure.message));
+    }, (patient) => emit(PatientSuccess(patient: patient)));
   }
 }

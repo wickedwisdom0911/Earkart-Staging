@@ -33,6 +33,7 @@ class Constants {
   static final getAllPatientsByCentreCodeUrl =
       "${baseUrl}patient/get-by-centre-code";
   static final getPatientsByValueUrl = "${baseUrl}patient/get-by-value";
+  static final updatePatientUrl = "${baseUrl}patient/update";
   static final languagesUrl = "${baseUrl}languages/get-all";
   static final countriesUrl = "${baseUrl}country/get-all-countries";
   static final statesUrl = "${baseUrl}states/get-states-by-country-id";

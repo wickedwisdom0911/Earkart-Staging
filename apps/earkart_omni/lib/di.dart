@@ -56,6 +56,7 @@ import 'package:earkart_omni/features/patients/domain/usecases/delete_patient_se
 import 'package:earkart_omni/features/patients/domain/usecases/get_all_patient_by_centre_code.dart';
 import 'package:earkart_omni/features/patients/domain/usecases/get_current_patient.usecase.dart';
 import 'package:earkart_omni/features/patients/domain/usecases/get_patients_by_value_usecase.dart';
+import 'package:earkart_omni/features/patients/domain/usecases/update_patient_usecase.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 
@@ -161,6 +162,9 @@ Future<void> setupDI() async {
   di.registerLazySingleton<GetPatientsByValueUsecase>(
     () => GetPatientsByValueUsecase(patientRepository: di.call()),
   );
+  di.registerLazySingleton<UpdatePatientUsecase>(
+    () => UpdatePatientUsecase(di.call()),
+  );
   di.registerLazySingleton<PatientCubit>(
     () => PatientCubit(
       createPatientUsecase: di.call(),
@@ -168,6 +172,7 @@ Future<void> setupDI() async {
       deletePatientSessionUsecase: di.call(),
       getAllPatientByCentreCodeUsecase: di.call(),
       getPatientsByValueUsecase: di.call(),
+      updatePatientUsecase: di.call(),
     ),
   );
 
