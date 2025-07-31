@@ -354,6 +354,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     if (_isInitializing) {
       return MaterialApp(
+        debugShowCheckedModeBanner: false,
         home: const AppLoadingScreen(subtitle: "Initializing..."),
       );
     }

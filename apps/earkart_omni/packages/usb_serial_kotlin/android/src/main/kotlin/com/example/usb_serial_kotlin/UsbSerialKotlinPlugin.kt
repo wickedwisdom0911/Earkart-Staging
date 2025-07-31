@@ -205,7 +205,7 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
         val isOwner = isDeviceOwner()
         
         if (isOwner) {
-            Log.d(TAG, "Device owner detected - auto-granting USB permissions for all devices")
+            // Log.d(TAG, "Device owner detected - auto-granting USB permissions for all devices")
             // For device owner, add all devices without permission requests
             transferDevices.addAll(devices.values.map { serializeDevice(it) })
         } else {
