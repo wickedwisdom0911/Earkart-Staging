@@ -2,6 +2,7 @@ import 'package:earkart_omni/config/routes/router.dart';
 import 'package:earkart_omni/config/theme/theme_manager.dart';
 import 'package:earkart_omni/config/utils/wakelock_manager.dart';
 import 'package:earkart_omni/config/widgets/app_loading_screen.dart';
+import 'package:earkart_omni/config/services/session_manager.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
@@ -321,6 +322,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     WakelockManager.cleanup();
 
+    // Clean up session manager
+    SessionManager.clearContext();
+
     super.dispose();
   }
 
@@ -385,6 +389,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
           // Beautiful app configuration with full screen management
           builder: (context, child) {
+            // Set up session manager context for global session handling
+            SessionManager.setContext(context);
+
             return Overlay(
               initialEntries: [
                 OverlayEntry(
