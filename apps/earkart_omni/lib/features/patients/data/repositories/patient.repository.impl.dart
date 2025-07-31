@@ -31,4 +31,11 @@ class PatientRepositoryImpl implements IPatientRepository {
   getAllPatientsByCentreCode() async {
     return await patientRemoteSource.getAllPatientsByCentreCode();
   }
+
+  @override
+  Future<Either<Failure, List<PatientEntity>>> getPatientsByValue(
+    String value,
+  ) async {
+    return await patientRemoteSource.getPatientsByValue(value);
+  }
 }

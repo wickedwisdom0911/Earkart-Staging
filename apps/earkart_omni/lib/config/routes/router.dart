@@ -5,6 +5,7 @@ import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
+import 'package:earkart_omni/features/patients/presentation/pages/patient_phone_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
@@ -32,6 +33,14 @@ Route<dynamic> generateRoute(RouteSettings settings) {
         Builder(
           builder: (context) {
             return const PatientFormScreen();
+          },
+        ),
+      );
+    case PatientPhoneScreen.routeName:
+      return router(
+        Builder(
+          builder: (context) {
+            return const PatientPhoneScreen();
           },
         ),
       );

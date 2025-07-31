@@ -101,4 +101,34 @@ class PatientRemoteSourceImpl implements IPatientSource {
       return left(UnKnownFailure(error: e.toString()));
     }
   }
+
+  @override
+  Future<Either<Failure, List<PatientEntity>>> getPatientsByValue(
+    String value,
+  ) async {
+    try {
+      final response = await dio.get(
+        "${Constants.getPatientsByValueUrl}/$value",
+        options: Options(
+          headers: {
+            "Content-Type": "application/json",
+
+            "Authorization":
+                "Bearer ${userEntityDataSource.getUserEntity()?.token}",
+          },
+        ),
+      );
+      final result = PatientModel.fromJson(response.data);
+      if (result.success) {
+        return right(result.data!);
+      } else {
+        return left(UnKnownFailure(error: result.message));
+      }
+    } on DioException catch (e) {
+      final error = DioExceptions.fromDioError(e).toFailure();
+      return left(error);
+    } catch (e) {
+      return left(UnKnownFailure(error: e.toString()));
+    }
+  }
 }

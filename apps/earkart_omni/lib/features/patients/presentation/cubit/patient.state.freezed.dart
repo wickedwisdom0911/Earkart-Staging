@@ -23,6 +23,7 @@ mixin _$PatientState {
     required TResult Function(PatientEntity patient) success,
     required TResult Function(PatientEntity? patient) currentPatientSuccess,
     required TResult Function(List<PatientEntity> patients) allPatientsSuccess,
+    required TResult Function(List<PatientEntity> patients) patientsByValue,
     required TResult Function() deletePatientSessionSuccess,
     required TResult Function(String message) error,
   }) =>
@@ -34,6 +35,7 @@ mixin _$PatientState {
     TResult? Function(PatientEntity patient)? success,
     TResult? Function(PatientEntity? patient)? currentPatientSuccess,
     TResult? Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult? Function(List<PatientEntity> patients)? patientsByValue,
     TResult? Function()? deletePatientSessionSuccess,
     TResult? Function(String message)? error,
   }) =>
@@ -45,6 +47,7 @@ mixin _$PatientState {
     TResult Function(PatientEntity patient)? success,
     TResult Function(PatientEntity? patient)? currentPatientSuccess,
     TResult Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult Function(List<PatientEntity> patients)? patientsByValue,
     TResult Function()? deletePatientSessionSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -58,6 +61,7 @@ mixin _$PatientState {
     required TResult Function(CurrentPatientSuccess value)
         currentPatientSuccess,
     required TResult Function(AllPatientsSuccess value) allPatientsSuccess,
+    required TResult Function(PatientsByValue value) patientsByValue,
     required TResult Function(DeletePatientSessionSuccess value)
         deletePatientSessionSuccess,
     required TResult Function(PatientError value) error,
@@ -70,6 +74,7 @@ mixin _$PatientState {
     TResult? Function(PatientSuccess value)? success,
     TResult? Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult? Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult? Function(PatientsByValue value)? patientsByValue,
     TResult? Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult? Function(PatientError value)? error,
@@ -82,6 +87,7 @@ mixin _$PatientState {
     TResult Function(PatientSuccess value)? success,
     TResult Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult Function(PatientsByValue value)? patientsByValue,
     TResult Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult Function(PatientError value)? error,
@@ -157,6 +163,7 @@ class _$PatientInitialImpl implements PatientInitial {
     required TResult Function(PatientEntity patient) success,
     required TResult Function(PatientEntity? patient) currentPatientSuccess,
     required TResult Function(List<PatientEntity> patients) allPatientsSuccess,
+    required TResult Function(List<PatientEntity> patients) patientsByValue,
     required TResult Function() deletePatientSessionSuccess,
     required TResult Function(String message) error,
   }) {
@@ -171,6 +178,7 @@ class _$PatientInitialImpl implements PatientInitial {
     TResult? Function(PatientEntity patient)? success,
     TResult? Function(PatientEntity? patient)? currentPatientSuccess,
     TResult? Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult? Function(List<PatientEntity> patients)? patientsByValue,
     TResult? Function()? deletePatientSessionSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -185,6 +193,7 @@ class _$PatientInitialImpl implements PatientInitial {
     TResult Function(PatientEntity patient)? success,
     TResult Function(PatientEntity? patient)? currentPatientSuccess,
     TResult Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult Function(List<PatientEntity> patients)? patientsByValue,
     TResult Function()? deletePatientSessionSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -204,6 +213,7 @@ class _$PatientInitialImpl implements PatientInitial {
     required TResult Function(CurrentPatientSuccess value)
         currentPatientSuccess,
     required TResult Function(AllPatientsSuccess value) allPatientsSuccess,
+    required TResult Function(PatientsByValue value) patientsByValue,
     required TResult Function(DeletePatientSessionSuccess value)
         deletePatientSessionSuccess,
     required TResult Function(PatientError value) error,
@@ -219,6 +229,7 @@ class _$PatientInitialImpl implements PatientInitial {
     TResult? Function(PatientSuccess value)? success,
     TResult? Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult? Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult? Function(PatientsByValue value)? patientsByValue,
     TResult? Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult? Function(PatientError value)? error,
@@ -234,6 +245,7 @@ class _$PatientInitialImpl implements PatientInitial {
     TResult Function(PatientSuccess value)? success,
     TResult Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult Function(PatientsByValue value)? patientsByValue,
     TResult Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult Function(PatientError value)? error,
@@ -296,6 +308,7 @@ class _$PatientLoadingImpl implements PatientLoading {
     required TResult Function(PatientEntity patient) success,
     required TResult Function(PatientEntity? patient) currentPatientSuccess,
     required TResult Function(List<PatientEntity> patients) allPatientsSuccess,
+    required TResult Function(List<PatientEntity> patients) patientsByValue,
     required TResult Function() deletePatientSessionSuccess,
     required TResult Function(String message) error,
   }) {
@@ -310,6 +323,7 @@ class _$PatientLoadingImpl implements PatientLoading {
     TResult? Function(PatientEntity patient)? success,
     TResult? Function(PatientEntity? patient)? currentPatientSuccess,
     TResult? Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult? Function(List<PatientEntity> patients)? patientsByValue,
     TResult? Function()? deletePatientSessionSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -324,6 +338,7 @@ class _$PatientLoadingImpl implements PatientLoading {
     TResult Function(PatientEntity patient)? success,
     TResult Function(PatientEntity? patient)? currentPatientSuccess,
     TResult Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult Function(List<PatientEntity> patients)? patientsByValue,
     TResult Function()? deletePatientSessionSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -343,6 +358,7 @@ class _$PatientLoadingImpl implements PatientLoading {
     required TResult Function(CurrentPatientSuccess value)
         currentPatientSuccess,
     required TResult Function(AllPatientsSuccess value) allPatientsSuccess,
+    required TResult Function(PatientsByValue value) patientsByValue,
     required TResult Function(DeletePatientSessionSuccess value)
         deletePatientSessionSuccess,
     required TResult Function(PatientError value) error,
@@ -358,6 +374,7 @@ class _$PatientLoadingImpl implements PatientLoading {
     TResult? Function(PatientSuccess value)? success,
     TResult? Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult? Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult? Function(PatientsByValue value)? patientsByValue,
     TResult? Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult? Function(PatientError value)? error,
@@ -373,6 +390,7 @@ class _$PatientLoadingImpl implements PatientLoading {
     TResult Function(PatientSuccess value)? success,
     TResult Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult Function(PatientsByValue value)? patientsByValue,
     TResult Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult Function(PatientError value)? error,
@@ -463,6 +481,7 @@ class _$PatientSuccessImpl implements PatientSuccess {
     required TResult Function(PatientEntity patient) success,
     required TResult Function(PatientEntity? patient) currentPatientSuccess,
     required TResult Function(List<PatientEntity> patients) allPatientsSuccess,
+    required TResult Function(List<PatientEntity> patients) patientsByValue,
     required TResult Function() deletePatientSessionSuccess,
     required TResult Function(String message) error,
   }) {
@@ -477,6 +496,7 @@ class _$PatientSuccessImpl implements PatientSuccess {
     TResult? Function(PatientEntity patient)? success,
     TResult? Function(PatientEntity? patient)? currentPatientSuccess,
     TResult? Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult? Function(List<PatientEntity> patients)? patientsByValue,
     TResult? Function()? deletePatientSessionSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -491,6 +511,7 @@ class _$PatientSuccessImpl implements PatientSuccess {
     TResult Function(PatientEntity patient)? success,
     TResult Function(PatientEntity? patient)? currentPatientSuccess,
     TResult Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult Function(List<PatientEntity> patients)? patientsByValue,
     TResult Function()? deletePatientSessionSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -510,6 +531,7 @@ class _$PatientSuccessImpl implements PatientSuccess {
     required TResult Function(CurrentPatientSuccess value)
         currentPatientSuccess,
     required TResult Function(AllPatientsSuccess value) allPatientsSuccess,
+    required TResult Function(PatientsByValue value) patientsByValue,
     required TResult Function(DeletePatientSessionSuccess value)
         deletePatientSessionSuccess,
     required TResult Function(PatientError value) error,
@@ -525,6 +547,7 @@ class _$PatientSuccessImpl implements PatientSuccess {
     TResult? Function(PatientSuccess value)? success,
     TResult? Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult? Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult? Function(PatientsByValue value)? patientsByValue,
     TResult? Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult? Function(PatientError value)? error,
@@ -540,6 +563,7 @@ class _$PatientSuccessImpl implements PatientSuccess {
     TResult Function(PatientSuccess value)? success,
     TResult Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult Function(PatientsByValue value)? patientsByValue,
     TResult Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult Function(PatientError value)? error,
@@ -640,6 +664,7 @@ class _$CurrentPatientSuccessImpl implements CurrentPatientSuccess {
     required TResult Function(PatientEntity patient) success,
     required TResult Function(PatientEntity? patient) currentPatientSuccess,
     required TResult Function(List<PatientEntity> patients) allPatientsSuccess,
+    required TResult Function(List<PatientEntity> patients) patientsByValue,
     required TResult Function() deletePatientSessionSuccess,
     required TResult Function(String message) error,
   }) {
@@ -654,6 +679,7 @@ class _$CurrentPatientSuccessImpl implements CurrentPatientSuccess {
     TResult? Function(PatientEntity patient)? success,
     TResult? Function(PatientEntity? patient)? currentPatientSuccess,
     TResult? Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult? Function(List<PatientEntity> patients)? patientsByValue,
     TResult? Function()? deletePatientSessionSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -668,6 +694,7 @@ class _$CurrentPatientSuccessImpl implements CurrentPatientSuccess {
     TResult Function(PatientEntity patient)? success,
     TResult Function(PatientEntity? patient)? currentPatientSuccess,
     TResult Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult Function(List<PatientEntity> patients)? patientsByValue,
     TResult Function()? deletePatientSessionSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -687,6 +714,7 @@ class _$CurrentPatientSuccessImpl implements CurrentPatientSuccess {
     required TResult Function(CurrentPatientSuccess value)
         currentPatientSuccess,
     required TResult Function(AllPatientsSuccess value) allPatientsSuccess,
+    required TResult Function(PatientsByValue value) patientsByValue,
     required TResult Function(DeletePatientSessionSuccess value)
         deletePatientSessionSuccess,
     required TResult Function(PatientError value) error,
@@ -702,6 +730,7 @@ class _$CurrentPatientSuccessImpl implements CurrentPatientSuccess {
     TResult? Function(PatientSuccess value)? success,
     TResult? Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult? Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult? Function(PatientsByValue value)? patientsByValue,
     TResult? Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult? Function(PatientError value)? error,
@@ -717,6 +746,7 @@ class _$CurrentPatientSuccessImpl implements CurrentPatientSuccess {
     TResult Function(PatientSuccess value)? success,
     TResult Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult Function(PatientsByValue value)? patientsByValue,
     TResult Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult Function(PatientError value)? error,
@@ -823,6 +853,7 @@ class _$AllPatientsSuccessImpl implements AllPatientsSuccess {
     required TResult Function(PatientEntity patient) success,
     required TResult Function(PatientEntity? patient) currentPatientSuccess,
     required TResult Function(List<PatientEntity> patients) allPatientsSuccess,
+    required TResult Function(List<PatientEntity> patients) patientsByValue,
     required TResult Function() deletePatientSessionSuccess,
     required TResult Function(String message) error,
   }) {
@@ -837,6 +868,7 @@ class _$AllPatientsSuccessImpl implements AllPatientsSuccess {
     TResult? Function(PatientEntity patient)? success,
     TResult? Function(PatientEntity? patient)? currentPatientSuccess,
     TResult? Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult? Function(List<PatientEntity> patients)? patientsByValue,
     TResult? Function()? deletePatientSessionSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -851,6 +883,7 @@ class _$AllPatientsSuccessImpl implements AllPatientsSuccess {
     TResult Function(PatientEntity patient)? success,
     TResult Function(PatientEntity? patient)? currentPatientSuccess,
     TResult Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult Function(List<PatientEntity> patients)? patientsByValue,
     TResult Function()? deletePatientSessionSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -870,6 +903,7 @@ class _$AllPatientsSuccessImpl implements AllPatientsSuccess {
     required TResult Function(CurrentPatientSuccess value)
         currentPatientSuccess,
     required TResult Function(AllPatientsSuccess value) allPatientsSuccess,
+    required TResult Function(PatientsByValue value) patientsByValue,
     required TResult Function(DeletePatientSessionSuccess value)
         deletePatientSessionSuccess,
     required TResult Function(PatientError value) error,
@@ -885,6 +919,7 @@ class _$AllPatientsSuccessImpl implements AllPatientsSuccess {
     TResult? Function(PatientSuccess value)? success,
     TResult? Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult? Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult? Function(PatientsByValue value)? patientsByValue,
     TResult? Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult? Function(PatientError value)? error,
@@ -900,6 +935,7 @@ class _$AllPatientsSuccessImpl implements AllPatientsSuccess {
     TResult Function(PatientSuccess value)? success,
     TResult Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult Function(PatientsByValue value)? patientsByValue,
     TResult Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult Function(PatientError value)? error,
@@ -922,6 +958,195 @@ abstract class AllPatientsSuccess implements PatientState {
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$AllPatientsSuccessImplCopyWith<_$AllPatientsSuccessImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$PatientsByValueImplCopyWith<$Res> {
+  factory _$$PatientsByValueImplCopyWith(_$PatientsByValueImpl value,
+          $Res Function(_$PatientsByValueImpl) then) =
+      __$$PatientsByValueImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({List<PatientEntity> patients});
+}
+
+/// @nodoc
+class __$$PatientsByValueImplCopyWithImpl<$Res>
+    extends _$PatientStateCopyWithImpl<$Res, _$PatientsByValueImpl>
+    implements _$$PatientsByValueImplCopyWith<$Res> {
+  __$$PatientsByValueImplCopyWithImpl(
+      _$PatientsByValueImpl _value, $Res Function(_$PatientsByValueImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of PatientState
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? patients = null,
+  }) {
+    return _then(_$PatientsByValueImpl(
+      patients: null == patients
+          ? _value._patients
+          : patients // ignore: cast_nullable_to_non_nullable
+              as List<PatientEntity>,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$PatientsByValueImpl implements PatientsByValue {
+  const _$PatientsByValueImpl({required final List<PatientEntity> patients})
+      : _patients = patients;
+
+  final List<PatientEntity> _patients;
+  @override
+  List<PatientEntity> get patients {
+    if (_patients is EqualUnmodifiableListView) return _patients;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_patients);
+  }
+
+  @override
+  String toString() {
+    return 'PatientState.patientsByValue(patients: $patients)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$PatientsByValueImpl &&
+            const DeepCollectionEquality().equals(other._patients, _patients));
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, const DeepCollectionEquality().hash(_patients));
+
+  /// Create a copy of PatientState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$PatientsByValueImplCopyWith<_$PatientsByValueImpl> get copyWith =>
+      __$$PatientsByValueImplCopyWithImpl<_$PatientsByValueImpl>(
+          this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() initial,
+    required TResult Function() loading,
+    required TResult Function(PatientEntity patient) success,
+    required TResult Function(PatientEntity? patient) currentPatientSuccess,
+    required TResult Function(List<PatientEntity> patients) allPatientsSuccess,
+    required TResult Function(List<PatientEntity> patients) patientsByValue,
+    required TResult Function() deletePatientSessionSuccess,
+    required TResult Function(String message) error,
+  }) {
+    return patientsByValue(patients);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? initial,
+    TResult? Function()? loading,
+    TResult? Function(PatientEntity patient)? success,
+    TResult? Function(PatientEntity? patient)? currentPatientSuccess,
+    TResult? Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult? Function(List<PatientEntity> patients)? patientsByValue,
+    TResult? Function()? deletePatientSessionSuccess,
+    TResult? Function(String message)? error,
+  }) {
+    return patientsByValue?.call(patients);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? initial,
+    TResult Function()? loading,
+    TResult Function(PatientEntity patient)? success,
+    TResult Function(PatientEntity? patient)? currentPatientSuccess,
+    TResult Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult Function(List<PatientEntity> patients)? patientsByValue,
+    TResult Function()? deletePatientSessionSuccess,
+    TResult Function(String message)? error,
+    required TResult orElse(),
+  }) {
+    if (patientsByValue != null) {
+      return patientsByValue(patients);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(PatientInitial value) initial,
+    required TResult Function(PatientLoading value) loading,
+    required TResult Function(PatientSuccess value) success,
+    required TResult Function(CurrentPatientSuccess value)
+        currentPatientSuccess,
+    required TResult Function(AllPatientsSuccess value) allPatientsSuccess,
+    required TResult Function(PatientsByValue value) patientsByValue,
+    required TResult Function(DeletePatientSessionSuccess value)
+        deletePatientSessionSuccess,
+    required TResult Function(PatientError value) error,
+  }) {
+    return patientsByValue(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(PatientInitial value)? initial,
+    TResult? Function(PatientLoading value)? loading,
+    TResult? Function(PatientSuccess value)? success,
+    TResult? Function(CurrentPatientSuccess value)? currentPatientSuccess,
+    TResult? Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult? Function(PatientsByValue value)? patientsByValue,
+    TResult? Function(DeletePatientSessionSuccess value)?
+        deletePatientSessionSuccess,
+    TResult? Function(PatientError value)? error,
+  }) {
+    return patientsByValue?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(PatientInitial value)? initial,
+    TResult Function(PatientLoading value)? loading,
+    TResult Function(PatientSuccess value)? success,
+    TResult Function(CurrentPatientSuccess value)? currentPatientSuccess,
+    TResult Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult Function(PatientsByValue value)? patientsByValue,
+    TResult Function(DeletePatientSessionSuccess value)?
+        deletePatientSessionSuccess,
+    TResult Function(PatientError value)? error,
+    required TResult orElse(),
+  }) {
+    if (patientsByValue != null) {
+      return patientsByValue(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class PatientsByValue implements PatientState {
+  const factory PatientsByValue({required final List<PatientEntity> patients}) =
+      _$PatientsByValueImpl;
+
+  List<PatientEntity> get patients;
+
+  /// Create a copy of PatientState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$PatientsByValueImplCopyWith<_$PatientsByValueImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 
@@ -974,6 +1199,7 @@ class _$DeletePatientSessionSuccessImpl implements DeletePatientSessionSuccess {
     required TResult Function(PatientEntity patient) success,
     required TResult Function(PatientEntity? patient) currentPatientSuccess,
     required TResult Function(List<PatientEntity> patients) allPatientsSuccess,
+    required TResult Function(List<PatientEntity> patients) patientsByValue,
     required TResult Function() deletePatientSessionSuccess,
     required TResult Function(String message) error,
   }) {
@@ -988,6 +1214,7 @@ class _$DeletePatientSessionSuccessImpl implements DeletePatientSessionSuccess {
     TResult? Function(PatientEntity patient)? success,
     TResult? Function(PatientEntity? patient)? currentPatientSuccess,
     TResult? Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult? Function(List<PatientEntity> patients)? patientsByValue,
     TResult? Function()? deletePatientSessionSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -1002,6 +1229,7 @@ class _$DeletePatientSessionSuccessImpl implements DeletePatientSessionSuccess {
     TResult Function(PatientEntity patient)? success,
     TResult Function(PatientEntity? patient)? currentPatientSuccess,
     TResult Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult Function(List<PatientEntity> patients)? patientsByValue,
     TResult Function()? deletePatientSessionSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -1021,6 +1249,7 @@ class _$DeletePatientSessionSuccessImpl implements DeletePatientSessionSuccess {
     required TResult Function(CurrentPatientSuccess value)
         currentPatientSuccess,
     required TResult Function(AllPatientsSuccess value) allPatientsSuccess,
+    required TResult Function(PatientsByValue value) patientsByValue,
     required TResult Function(DeletePatientSessionSuccess value)
         deletePatientSessionSuccess,
     required TResult Function(PatientError value) error,
@@ -1036,6 +1265,7 @@ class _$DeletePatientSessionSuccessImpl implements DeletePatientSessionSuccess {
     TResult? Function(PatientSuccess value)? success,
     TResult? Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult? Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult? Function(PatientsByValue value)? patientsByValue,
     TResult? Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult? Function(PatientError value)? error,
@@ -1051,6 +1281,7 @@ class _$DeletePatientSessionSuccessImpl implements DeletePatientSessionSuccess {
     TResult Function(PatientSuccess value)? success,
     TResult Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult Function(PatientsByValue value)? patientsByValue,
     TResult Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult Function(PatientError value)? error,
@@ -1141,6 +1372,7 @@ class _$PatientErrorImpl implements PatientError {
     required TResult Function(PatientEntity patient) success,
     required TResult Function(PatientEntity? patient) currentPatientSuccess,
     required TResult Function(List<PatientEntity> patients) allPatientsSuccess,
+    required TResult Function(List<PatientEntity> patients) patientsByValue,
     required TResult Function() deletePatientSessionSuccess,
     required TResult Function(String message) error,
   }) {
@@ -1155,6 +1387,7 @@ class _$PatientErrorImpl implements PatientError {
     TResult? Function(PatientEntity patient)? success,
     TResult? Function(PatientEntity? patient)? currentPatientSuccess,
     TResult? Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult? Function(List<PatientEntity> patients)? patientsByValue,
     TResult? Function()? deletePatientSessionSuccess,
     TResult? Function(String message)? error,
   }) {
@@ -1169,6 +1402,7 @@ class _$PatientErrorImpl implements PatientError {
     TResult Function(PatientEntity patient)? success,
     TResult Function(PatientEntity? patient)? currentPatientSuccess,
     TResult Function(List<PatientEntity> patients)? allPatientsSuccess,
+    TResult Function(List<PatientEntity> patients)? patientsByValue,
     TResult Function()? deletePatientSessionSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -1188,6 +1422,7 @@ class _$PatientErrorImpl implements PatientError {
     required TResult Function(CurrentPatientSuccess value)
         currentPatientSuccess,
     required TResult Function(AllPatientsSuccess value) allPatientsSuccess,
+    required TResult Function(PatientsByValue value) patientsByValue,
     required TResult Function(DeletePatientSessionSuccess value)
         deletePatientSessionSuccess,
     required TResult Function(PatientError value) error,
@@ -1203,6 +1438,7 @@ class _$PatientErrorImpl implements PatientError {
     TResult? Function(PatientSuccess value)? success,
     TResult? Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult? Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult? Function(PatientsByValue value)? patientsByValue,
     TResult? Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult? Function(PatientError value)? error,
@@ -1218,6 +1454,7 @@ class _$PatientErrorImpl implements PatientError {
     TResult Function(PatientSuccess value)? success,
     TResult Function(CurrentPatientSuccess value)? currentPatientSuccess,
     TResult Function(AllPatientsSuccess value)? allPatientsSuccess,
+    TResult Function(PatientsByValue value)? patientsByValue,
     TResult Function(DeletePatientSessionSuccess value)?
         deletePatientSessionSuccess,
     TResult Function(PatientError value)? error,

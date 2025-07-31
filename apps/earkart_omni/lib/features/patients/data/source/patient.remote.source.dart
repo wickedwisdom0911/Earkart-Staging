@@ -7,4 +7,5 @@ abstract class IPatientSource {
   Future<Either<Failure, List<PatientEntity>>> getAllPatientsByCentreCode();
   Future<Either<Failure, PatientEntity?>> getCurrentPatient();
   Future<Either<Failure, void>> clearPatientSession();
+  Future<Either<Failure, List<PatientEntity>>> getPatientsByValue(String value);
 }
