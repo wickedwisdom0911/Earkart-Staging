@@ -359,7 +359,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       extendBodyBehindAppBar: true,
       appBar: GlassmorphismAppBar(
         title: Text(
-          widget.patient.id != null ? "Edit Patient" : "New Patient",
+          "Patient Details Form",
           style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w700,
@@ -420,9 +420,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              widget.patient.id != null
-                                  ? "Edit Patient"
-                                  : "Patient Registration",
+                              "Patient Details Form",
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
@@ -432,9 +430,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              widget.patient.id != null
-                                  ? "Update the patient's information"
-                                  : "Fill in the details to register a new patient",
+                              "Fill in the details of the patient",
                               style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey,
