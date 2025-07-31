@@ -4,6 +4,7 @@ import 'package:earkart_omni/config/widgets/gender_selector.dart';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/config/widgets/gradient_button.dart';
 import 'package:earkart_omni/config/widgets/phone_number_input.dart';
+import 'package:earkart_omni/config/widgets/app_loading_screen.dart';
 import 'package:earkart_omni/config/constants/country_codes.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
@@ -56,12 +57,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   void initState() {
     super.initState();
 
-    // Prefill form fields with patient data
     _prefillFormFields();
-
-    final lookupCubit = context.read<LookupCubit>();
-    lookupCubit.getLanguages();
-    lookupCubit.getCountries();
   }
 
   void _prefillFormFields() {
@@ -113,6 +109,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
     if (patient.language != null) {
       selectedLanguage = patient.language;
     }
+    // Note: If no language is set, we'll set default in _setLocationEntitiesFromPatient
 
     // Set location entities if available from related entities
     if (patient.countryId != null) {
@@ -181,21 +178,105 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   void _setLocationEntitiesFromPatient(LookupState state) {
     final patient = widget.patient;
 
-    // Set country if available
-    if (patient.countryId != null &&
-        selectedCountry == null &&
-        state.countries.isNotEmpty) {
-      try {
-        final country = state.countries.firstWhere(
-          (country) => country.id == patient.countryId,
-        );
-        setState(() {
-          selectedCountry = country;
-        });
-        // Fetch states for this country
-        context.read<LookupCubit>().getStates(country.id ?? "");
-      } catch (e) {
-        // Country not found, ignore
+    // Set language with default fallback
+    if (selectedLanguage == null && state.languages.isNotEmpty) {
+      // Try to find the language by ID first
+      if (patient.languageId != null && patient.languageId.isNotEmpty) {
+        try {
+          final language = state.languages.firstWhere(
+            (lang) => lang.id == patient.languageId,
+          );
+          setState(() {
+            selectedLanguage = language;
+          });
+        } catch (e) {
+          // Language not found by ID, try to find by code
+          try {
+            final language = state.languages.firstWhere(
+              (lang) => lang.code == 'EN',
+            );
+            setState(() {
+              selectedLanguage = language;
+            });
+          } catch (e) {
+            // Default to first language if EN not found
+            setState(() {
+              selectedLanguage = state.languages.first;
+            });
+          }
+        }
+      } else {
+        // No language ID, try to find by code EN
+        try {
+          final language = state.languages.firstWhere(
+            (lang) => lang.code == 'EN',
+          );
+          setState(() {
+            selectedLanguage = language;
+          });
+        } catch (e) {
+          // Default to first language if EN not found
+          setState(() {
+            selectedLanguage = state.languages.first;
+          });
+        }
+      }
+    }
+
+    // Set country with default fallback
+    if (selectedCountry == null && state.countries.isNotEmpty) {
+      // Try to find the country by ID first
+      if (patient.countryId != null && patient.countryId!.isNotEmpty) {
+        try {
+          final country = state.countries.firstWhere(
+            (country) => country.id == patient.countryId,
+          );
+          setState(() {
+            selectedCountry = country;
+          });
+          // Fetch states for this country
+          context.read<LookupCubit>().getStates(country.id ?? "");
+        } catch (e) {
+          // Country not found by ID, try to find by code IN
+          try {
+            final country = state.countries.firstWhere(
+              (country) => country.code == 'IN',
+            );
+            setState(() {
+              selectedCountry = country;
+            });
+            // Fetch states for this country
+            context.read<LookupCubit>().getStates(country.id ?? "");
+          } catch (e) {
+            // Default to first country if IN not found
+            setState(() {
+              selectedCountry = state.countries.first;
+            });
+            // Fetch states for default country
+            context.read<LookupCubit>().getStates(
+              state.countries.first.id ?? "",
+            );
+          }
+        }
+      } else {
+        // No country ID, try to find by code IN
+        try {
+          final country = state.countries.firstWhere(
+            (country) => country.code == 'IN',
+          );
+          setState(() {
+            selectedCountry = country;
+          });
+          // Fetch states for this country
+          context.read<LookupCubit>().getStates(country.id ?? "");
+        } catch (e) {
+          // Default to first country if IN not found
+          setState(() {
+            selectedCountry = state.countries.first;
+          });
+          // Fetch states for default country
+          context.read<LookupCubit>().getStates(state.countries.first.id ?? "");
+        }
       }
     }
 
@@ -681,10 +762,12 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                 BlocBuilder<LookupCubit, LookupState>(
                   builder: (context, state) {
                     if (state.isLoading) {
-                      return const Center(
+                      return Center(
                         child: Padding(
-                          padding: EdgeInsets.all(20.0),
-                          child: CircularProgressIndicator(),
+                          padding: const EdgeInsets.all(20.0),
+                          child: AppLoadingScreen.simple(
+                            message: "Loading location data...",
+                          ),
                         ),
                       );
                     }
@@ -833,22 +916,12 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                 return GradientButton(
                   child:
                       state is PatientLoading
-                          ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
+                          ? AppLoadingScreen.whiteSpinner(
+                            size: 20,
+                            strokeWidth: 2,
                           )
                           : Text(
-                            state is PatientError
-                                ? "Retry Registration"
-                                : widget.patient.id != null
-                                ? "Update Patient"
-                                : "Register Patient",
+                            state is PatientError ? "Retry " : "Continue ",
                           ),
                   onPressed: () {
                     submitPatient();

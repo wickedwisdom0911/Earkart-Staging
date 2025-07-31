@@ -21,6 +21,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:earkart_omni/utils/device_owner_helper.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:earkart_omni/config/widgets/app_loading_screen.dart';
 
 class RootScreen extends StatefulWidget {
   static const routeName = '/';
@@ -237,7 +238,7 @@ class _RootScreenState extends State<RootScreen> {
               !checkedPatient ||
               !checkedConsultation ||
               !checkedUser) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoadingScreen.compact();
           }
 
           // Navigation logic with detailed logging
