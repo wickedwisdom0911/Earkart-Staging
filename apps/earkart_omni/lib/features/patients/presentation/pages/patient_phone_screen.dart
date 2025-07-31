@@ -3,7 +3,6 @@ import 'package:earkart_omni/models/enums.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:earkart_omni/config/widgets/phone_number_input.dart';
-import 'package:earkart_omni/config/constants/country_codes.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
@@ -645,29 +644,6 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
       context,
       PatientFormScreen.routeName,
       arguments: patient,
-    );
-  }
-
-  void _navigateToAddPatient() {
-    // Combine country code with phone number
-    final fullPhoneNumber = "$_selectedCountryCode$_searchQuery";
-
-    Navigator.pushNamed(
-      context,
-      PatientFormScreen.routeName,
-      arguments: PatientEntity(
-        contactNumber: fullPhoneNumber,
-        name: "",
-        gender: Gender.male,
-        password: "",
-        address: "",
-        pincode: "",
-        languageId: "",
-        countryId: "",
-        stateId: "",
-        districtId: "",
-        cityId: "",
-      ),
     );
   }
 }

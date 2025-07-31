@@ -181,7 +181,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
     // Set language with default fallback
     if (selectedLanguage == null && state.languages.isNotEmpty) {
       // Try to find the language by ID first
-      if (patient.languageId != null && patient.languageId.isNotEmpty) {
+      if (patient.languageId.isNotEmpty) {
         try {
           final language = state.languages.firstWhere(
             (lang) => lang.id == patient.languageId,
