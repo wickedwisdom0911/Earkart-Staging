@@ -792,34 +792,9 @@ internal class UVCCameraView(
     private val frameCaptureRunnable = object : Runnable {
         override fun run() {
             if (isFrameCaptureActive && isCameraOpened()) {
-                captureFrameAsBase64Internal()
+                captureFrameAsBinaryInternal()
                 frameCaptureHandler.postDelayed(this, 50) // 20 FPS (50ms)
             }
-        }
-    }
-
-    fun captureFrameAsBase64(callback: UVCStringCallback) {
-        if (!isCameraOpened()) {
-            callback.onError("Camera not opened")
-            return
-        }
-        
-        if (!isFrameCaptureActive) {
-            callback.onSuccess("")
-            return
-        }
-        
-        try {
-            val currentCamera = getCurrentCamera()
-            if (currentCamera is CameraUVC) {
-                currentCamera.captureFrameAsBase64 { base64Data ->
-                    callback.onSuccess(base64Data)
-                }
-            } else {
-                callback.onError("Camera not available")
-            }
-        } catch (e: Exception) {
-            callback.onError("Frame capture error: ${e.message}")
         }
     }
 
@@ -879,15 +854,32 @@ internal class UVCCameraView(
     }
 
     fun getLastCapturedFrame(callback: UVCStringCallback) {
-        // Always capture a fresh frame instead of returning cached one
-        captureFrameAsBase64(callback)
+        // Convert binary to base64 for backward compatibility
+        captureFrameAsBinary(object : UVCBinaryCallback {
+            override fun onSuccess(binaryData: ByteArray) {
+                try {
+                    val base64String = android.util.Base64.encodeToString(
+                        binaryData,
+                        android.util.Base64.DEFAULT
+                    )
+                    val dataUrl = "data:image/jpeg;base64,$base64String"
+                    callback.onSuccess(dataUrl)
+                } catch (e: Exception) {
+                    callback.onError("Error converting binary to base64: ${e.message}")
+                }
+            }
+            
+            override fun onError(error: String) {
+                callback.onError(error)
+            }
+        })
     }
 
-    private fun captureFrameAsBase64Internal() {
+    private fun captureFrameAsBinaryInternal() {
         try {
             val currentCamera = getCurrentCamera()
             if (currentCamera is CameraUVC) {
-                currentCamera.captureFrameAsBase64 { base64Data ->
+                currentCamera.captureFrameAsBinary { binaryData ->
                     // Frame captured successfully, but we don't store it
                     // This ensures we always get fresh frames
                 }

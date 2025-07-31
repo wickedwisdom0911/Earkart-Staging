@@ -80,45 +80,49 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   IO.Socket? _socket;
   String? _consultationId;
 
-  // Performance optimization settings
-  static const int _maxStreamingFps = 30; // Increased from 20 to 30 FPS
+  // Optimized streaming parameters for maximum FPS and smooth preview
+  static const int _maxStreamingFps = 60; // Maximum 60 FPS
   static const Duration _streamingInterval = Duration(
-    milliseconds: 33, // 33ms = 30 FPS
-  );
+    milliseconds: 16,
+  ); // ~60 FPS
+  static const int _maxConsecutiveEmptyFrames = 3; // Reduced from 5
+  static const Duration _frameTimeout = Duration(
+    milliseconds: 30,
+  ); // Reduced from 100ms
 
-  // Adaptive quality settings
-  int _currentJpegQuality = 70; // Start with 70% quality
-  int _minJpegQuality = 30;
-  int _maxJpegQuality = 90;
-  double _targetLatency = 100.0; // 100ms target latency
+  // Pure binary streaming - no quality settings needed
+  // No JPEG quality settings - pure binary only
+  // No frame skip settings - maximum FPS
+
+  // Performance tracking
   double _currentLatency = 0.0;
-
-  // Network and performance monitoring
-  int _frameCount = 0;
-  DateTime? _lastFrameRateCheck;
-  double _currentFps = 0.0;
   int _totalFramesSent = 0;
   int _totalBytesSent = 0;
   int _consecutiveEmptyFrames = 0;
-  static const int _maxConsecutiveEmptyFrames = 3; // Reduced from 5
+  static const int _historySize = 10;
+
+  // Frame rate tracking
+  int _frameCount = 0;
+  DateTime? _lastFrameRateCheck;
+  double _currentFps = 0.0;
 
   // Frame buffering and optimization
   Uint8List? _lastValidFrame;
   DateTime? _lastFrameTime;
-  static const Duration _frameTimeout = Duration(
-    milliseconds: 150,
-  ); // Reduced from 200ms
 
   // Performance tracking
   List<double> _latencyHistory = [];
   List<int> _frameSizeHistory = [];
-  static const int _historySize = 10;
 
   // Network condition monitoring
   double _averageFrameSize = 0.0;
   double _averageLatency = 0.0;
   int _droppedFrames = 0;
   int _totalFramesAttempted = 0;
+
+  // No frame skipping for maximum FPS
+  int _frameSkipCounter = 0;
+  static const int _frameSkipInterval = 1; // No skipping for maximum FPS
 
   @override
   void initState() {
@@ -356,20 +360,12 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     _socket!.on('stream-quality', (data) {
       print('uvc_stream: ⚙️ Received stream quality settings: $data');
       if (data is Map<String, dynamic>) {
-        final quality = data['jpegQuality'] as int?;
         final targetLatency = data['targetLatency'] as double?;
 
-        if (quality != null &&
-            quality >= _minJpegQuality &&
-            quality <= _maxJpegQuality) {
-          _currentJpegQuality = quality;
-          print('uvc_stream: ⚙️ Updated JPEG quality to: $_currentJpegQuality');
-        }
-
         if (targetLatency != null && targetLatency > 0) {
-          _targetLatency = targetLatency;
+          _currentLatency = targetLatency;
           print(
-            'uvc_stream: ⚙️ Updated target latency to: ${_targetLatency}ms',
+            'uvc_stream: ⚙️ Updated target latency to: ${_currentLatency}ms',
           );
         }
       }
@@ -378,13 +374,25 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     // Listen for socket connection status
     _socket!.onConnect((_) {
       print('uvc_stream: 🎥 Optimized otoscopy socket connected');
+      // If we were streaming before disconnect, restart streaming
+      if (_consultationId != null && !_isOtoscopyStreaming) {
+        print('uvc_stream: 🔄 Restarting streaming after socket reconnection');
+        _startOptimizedOtoscopyStreaming();
+      }
     });
 
     _socket!.onDisconnect((_) {
       print('uvc_stream: 🎥 Optimized otoscopy socket disconnected');
-      if (_isOtoscopyStreaming) {
-        _stopOptimizedOtoscopyStreaming();
-      }
+      // Don't stop streaming immediately on disconnect - wait for reconnection
+      // Only stop if we can't reconnect within a reasonable time
+      Future.delayed(const Duration(seconds: 5), () {
+        if (_socket != null && !_socket!.connected && _isOtoscopyStreaming) {
+          print(
+            'uvc_stream: ⚠️ Socket still disconnected after 5 seconds, pausing streaming',
+          );
+          _pauseStreamingTemporarily();
+        }
+      });
     });
 
     // Listen for any socket events for debugging
@@ -428,6 +436,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       _totalBytesSent = 0;
       _droppedFrames = 0;
       _totalFramesAttempted = 0;
+      _frameSkipCounter = 0; // Reset frame skip counter
     });
 
     // Reset performance tracking
@@ -442,12 +451,16 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     // Start frame capture in the camera controller
     cameraController?.startFrameCapture();
 
-    // Start periodic frame capture and streaming
+    // Start periodic frame capture and streaming with performance monitoring
     _streamingTimer = Timer.periodic(_streamingInterval, (timer) {
       if (!_isOtoscopyStreaming || _isDisposed || !mounted) {
         timer.cancel();
         return;
       }
+
+      // Monitor performance and auto-adjust if needed
+      _monitorBinaryPerformance();
+
       _captureAndStreamOptimizedFrame();
     });
   }
@@ -480,11 +493,12 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     _totalFramesAttempted++;
 
     try {
-      // Capture current frame as optimized binary data
-      _captureOptimizedFrame()
+      // Capture current frame as binary data only
+      _captureOptimizedFrameFromCamera()
           .then((frameData) {
             if (frameData != null &&
                 frameData.isNotEmpty &&
+                frameData.length > 100 &&
                 _isOtoscopyStreaming &&
                 !_isDisposed) {
               // Calculate latency
@@ -508,12 +522,13 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               _consecutiveEmptyFrames++;
               _droppedFrames++;
 
-              // Use last valid frame if available and not too old
+              // Use last valid frame if available and not too old (reduced timeout)
               if (_lastValidFrame != null && _lastFrameTime != null) {
                 final timeSinceLastFrame = DateTime.now().difference(
                   _lastFrameTime!,
                 );
-                if (timeSinceLastFrame < _frameTimeout) {
+                if (timeSinceLastFrame.inMilliseconds < 30) {
+                  // Reduced timeout for better responsiveness
                   _streamOptimizedFrameToDashboard(_lastValidFrame!, 0.0);
                   print(
                     'uvc_stream: Using cached frame (${timeSinceLastFrame.inMilliseconds}ms old)',
@@ -523,7 +538,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                 }
               }
 
-              if (_consecutiveEmptyFrames >= _maxConsecutiveEmptyFrames) {
+              if (_consecutiveEmptyFrames >= 5) {
+                // Increased from 2 to 5
                 print(
                   'uvc_stream: ⚠️ Too many consecutive empty frames ($_consecutiveEmptyFrames), pausing streaming temporarily',
                 );
@@ -541,7 +557,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               final timeSinceLastFrame = DateTime.now().difference(
                 _lastFrameTime!,
               );
-              if (timeSinceLastFrame < _frameTimeout) {
+              if (timeSinceLastFrame.inMilliseconds < 30) {
+                // Reduced timeout for better responsiveness
                 _streamOptimizedFrameToDashboard(_lastValidFrame!, 0.0);
               }
             }
@@ -554,14 +571,15 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       // Use last valid frame on error
       if (_lastValidFrame != null && _lastFrameTime != null) {
         final timeSinceLastFrame = DateTime.now().difference(_lastFrameTime!);
-        if (timeSinceLastFrame < _frameTimeout) {
+        if (timeSinceLastFrame.inMilliseconds < 30) {
+          // Reduced timeout for better responsiveness
           _streamOptimizedFrameToDashboard(_lastValidFrame!, 0.0);
         }
       }
     }
   }
 
-  // Update performance metrics for adaptive quality
+  // Update performance metrics for pure binary streaming
   void _updatePerformanceMetrics(int frameSize, double latency) {
     // Update latency history
     _latencyHistory.add(latency);
@@ -581,70 +599,52 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     _averageFrameSize =
         _frameSizeHistory.reduce((a, b) => a + b) / _frameSizeHistory.length;
 
-    // Adaptive quality adjustment
-    _adjustQualityBasedOnPerformance();
+    // Monitor performance for pure binary streaming
+    _monitorBinaryPerformance();
   }
 
-  // Adjust quality based on performance metrics
-  void _adjustQualityBasedOnPerformance() {
-    if (_latencyHistory.length < 5) return; // Need enough data
+  // Monitor performance for pure binary streaming
+  void _monitorBinaryPerformance() {
+    if (_latencyHistory.length < 5) return;
 
     final currentLatency = _averageLatency;
-    final currentFrameSize = _averageFrameSize;
+    final dropRate =
+        _totalFramesAttempted > 0
+            ? _droppedFrames / _totalFramesAttempted
+            : 0.0;
 
-    // If latency is too high, reduce quality
-    if (currentLatency > _targetLatency * 1.2) {
-      if (_currentJpegQuality > _minJpegQuality) {
-        _currentJpegQuality = (_currentJpegQuality - 5).clamp(
-          _minJpegQuality,
-          _maxJpegQuality,
-        );
-        print(
-          'uvc_stream: ⚙️ Reducing quality to $_currentJpegQuality due to high latency (${currentLatency.toStringAsFixed(1)}ms)',
-        );
-      }
-    }
-    // If latency is good and frame size is small, increase quality
-    else if (currentLatency < _targetLatency * 0.8 &&
-        currentFrameSize < 50000) {
-      if (_currentJpegQuality < _maxJpegQuality) {
-        _currentJpegQuality = (_currentJpegQuality + 2).clamp(
-          _minJpegQuality,
-          _maxJpegQuality,
-        );
-        print(
-          'uvc_stream: ⚙️ Increasing quality to $_currentJpegQuality due to good performance (${currentLatency.toStringAsFixed(1)}ms)',
-        );
-      }
+    // If performance is degrading, log warning but don't adjust quality (pure binary)
+    if (currentLatency > _currentLatency * 2.0 || dropRate > 0.2) {
+      print(
+        'uvc_stream: ⚠️ Performance degradation detected (Latency: ${currentLatency.toStringAsFixed(1)}ms, Drop rate: ${(dropRate * 100).toStringAsFixed(1)}%)',
+      );
     }
   }
 
-  // Pause streaming temporarily to let camera catch up
+  // Pause streaming temporarily (for network issues)
   void _pauseStreamingTemporarily() {
     if (!_isOtoscopyStreaming) return;
 
-    print(
-      'uvc_stream: ⏸️ Pausing streaming temporarily to let camera catch up',
-    );
-    _streamingTimer?.cancel();
+    print('uvc_stream: ⏸️ Pausing streaming temporarily due to network issues');
 
-    // Resume after 1 second
-    Timer(const Duration(seconds: 1), () {
-      if (_isOtoscopyStreaming && !_isDisposed && mounted) {
-        print('uvc_stream: ▶️ Resuming streaming after pause');
-        _consecutiveEmptyFrames = 0;
-        _streamingTimer = Timer.periodic(_streamingInterval, (timer) {
-          if (!_isOtoscopyStreaming || _isDisposed || !mounted) {
-            timer.cancel();
-            return;
-          }
-          _captureAndStreamOptimizedFrame();
-        });
+    // Stop the timer but keep the streaming state
+    _streamingTimer?.cancel();
+    _streamingTimer = null;
+
+    // Try to restart streaming after a short delay
+    Future.delayed(const Duration(seconds: 2), () {
+      if (_isOtoscopyStreaming &&
+          _socket != null &&
+          _socket!.connected &&
+          mounted &&
+          !_isDisposed) {
+        print('uvc_stream: 🔄 Restarting streaming after temporary pause');
+        _startOptimizedOtoscopyStreaming();
       }
     });
   }
 
-  // Capture optimized frame as binary data
+  // Capture optimized frame as pure binary data
   Future<Uint8List?> _captureOptimizedFrame() async {
     try {
       // Use the camera controller to capture a frame
@@ -659,70 +659,27 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     }
   }
 
-  // Capture optimized frame from UVC camera
+  // Capture optimized frame from UVC camera (pure binary only)
   Future<Uint8List?> _captureOptimizedFrameFromCamera() async {
-    try {
-      // Use the camera controller's optimized capture functionality
-      if (cameraController != null && isInitialized) {
-        // Try to capture frame as binary data directly
-        try {
-          final binaryFrame = await cameraController!.captureFrameAsBinary();
-          if (binaryFrame != null && binaryFrame.isNotEmpty) {
-            return binaryFrame;
-          }
-        } catch (e) {
-          print('uvc_stream: ⚠️ Direct binary frame capture failed: $e');
-        }
-
-        // Fallback: try to get last captured frame as binary
-        try {
-          final lastFrame =
-              await cameraController!.getLastCapturedFrameAsBinary();
-          if (lastFrame != null && lastFrame.isNotEmpty) {
-            return lastFrame;
-          }
-        } catch (e) {
-          print('uvc_stream: ⚠️ Last binary frame capture failed: $e');
-        }
-
-        // Final fallback: convert base64 to binary (temporary until native binary support)
-        try {
-          final base64Frame = await cameraController!.captureFrameAsBase64();
-          if (base64Frame != null &&
-              base64Frame.isNotEmpty &&
-              base64Frame != 'data:image/jpeg;base64,') {
-            // Extract base64 data and convert to binary
-            final base64Data = base64Frame.replaceFirst(
-              'data:image/jpeg;base64,',
-              '',
-            );
-            return base64Decode(base64Data);
-          }
-        } catch (e) {
-          print('uvc_stream: ⚠️ Base64 fallback frame capture failed: $e');
-        }
-
-        // Final fallback: simulate frame capture
-        return await _simulateOptimizedFrameCapture();
-      }
-      return null;
-    } catch (e) {
-      print('uvc_stream: ❌ Error capturing optimized frame from camera: $e');
+    if (cameraController == null) {
+      print('uvc_stream: ⚠️ Camera controller not available');
       return null;
     }
-  }
 
-  // Simulate optimized frame capture (replace with actual implementation)
-  Future<Uint8List?> _simulateOptimizedFrameCapture() async {
-    // This is a placeholder - you'll need to implement actual binary frame capture
-    // in the UVC camera plugin
-    await Future.delayed(const Duration(milliseconds: 5));
+    try {
+      // Use getLastCapturedFrameAsBinary for immediate access to latest frame
+      final frameData = await cameraController!.getLastCapturedFrameAsBinary();
 
-    // Create a minimal test frame (1x1 pixel JPEG)
-    final testFrame = base64Decode(
-      '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxAAPwCdABmX/9k=',
-    );
-    return Uint8List.fromList(testFrame);
+      if (frameData != null && frameData.isNotEmpty && frameData.length > 100) {
+        return frameData;
+      } else {
+        print('uvc_stream: ⚠️ Empty or invalid frame data received');
+        return null;
+      }
+    } catch (e) {
+      print('uvc_stream: ❌ Error capturing frame: $e');
+      return null;
+    }
   }
 
   // Stream optimized frame to dashboard via socket
@@ -742,20 +699,20 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             _frameCount = 0;
             _lastFrameRateCheck = now;
             print(
-              'uvc_stream: 📊 Current streaming FPS: ${_currentFps.toStringAsFixed(1)}, Latency: ${latency.toStringAsFixed(1)}ms, Quality: $_currentJpegQuality%',
+              'uvc_stream: 📊 Current streaming FPS: ${_currentFps.toStringAsFixed(1)}, Latency: ${latency.toStringAsFixed(1)}ms, Binary streaming',
             );
           }
         }
 
-        // Create optimized frame data
+        // Create optimized frame data with pure binary approach
         final frameDataMap = {
-          'type': 'otoscopy_frame_binary',
+          'type': 'otoscopy_frame_pure_binary',
           'consultationId': _consultationId,
           'timestamp': now.millisecondsSinceEpoch,
-          'frame': frameData, // Binary data directly
+          'frame': frameData, // Pure binary data - no encoding
           'fps': _maxStreamingFps,
           'currentFps': _currentFps,
-          'quality': _currentJpegQuality,
+          'encoding': 'pure_binary', // Indicate this is pure binary data
           'latency': latency,
           'frameSize': frameData.length,
           'resolution': '1280x720',
@@ -767,11 +724,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         _totalFramesSent++;
         _totalBytesSent += frameData.length;
 
-        // Log frame streaming less frequently to avoid spam at 30 FPS
-        if (_frameCount % 30 == 0) {
-          // Log every 30 frames (once per second at 30 FPS)
+        // Log frame streaming less frequently to avoid spam
+        if (_frameCount % 60 == 0) {
+          // Log every 60 frames (once per second at 60 FPS)
           print(
-            'uvc_stream: 📡 Streamed optimized otoscopy frame to dashboard (${frameData.length} bytes, FPS: ${_currentFps.toStringAsFixed(1)}, Quality: $_currentJpegQuality%, Total frames: $_totalFramesSent, Total bytes: $_totalBytesSent)',
+            'uvc_stream: 📡 Streamed pure binary otoscopy frame to dashboard (${frameData.length} bytes, FPS: ${_currentFps.toStringAsFixed(1)}, Total frames: $_totalFramesSent, Total bytes: $_totalBytesSent)',
           );
         }
       } else {
@@ -794,12 +751,15 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         'droppedFrames': _droppedFrames,
         'averageLatency': _averageLatency,
         'averageFrameSize': _averageFrameSize,
-        'finalQuality': _currentJpegQuality,
+        'encoding': 'pure_binary',
         'finalFps': _currentFps,
+        'maxFps': _maxStreamingFps,
       };
 
-      _socket!.emit('stream-stats', stats);
-      print('uvc_stream: 📊 Sent stream statistics: $stats');
+      _socket!.emit('stream-statistics', stats);
+      print(
+        'uvc_stream: 📊 Sent stream statistics - FPS: ${_currentFps.toStringAsFixed(1)}, Total frames: $_totalFramesSent, Total bytes: $_totalBytesSent',
+      );
     }
   }
 

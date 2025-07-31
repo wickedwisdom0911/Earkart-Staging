@@ -95,46 +95,27 @@ class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private va
         }
     }
 
-    fun captureFrameAsBase64(callback: UVCStringCallback) {
-        if (cameraView != null) {
-            cameraView!!.captureFrameAsBase64(callback)
-        } else {
-            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
-            callback.onError("Camera view not initialized")
-        }
-    }
-
     fun captureFrameAsBinary(callback: UVCBinaryCallback) {
         if (cameraView != null) {
             cameraView!!.captureFrameAsBinary(callback)
-        } else {
-            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
-            callback.onError("Camera view not initialized")
         }
     }
 
     fun getLastCapturedFrameAsBinary(callback: UVCBinaryCallback) {
         if (cameraView != null) {
             cameraView!!.getLastCapturedFrameAsBinary(callback)
-        } else {
-            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
-            callback.onError("Camera view not initialized")
         }
     }
 
     fun startFrameCapture() {
         if (cameraView != null) {
             cameraView!!.startFrameCapture()
-        } else {
-            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
         }
     }
 
     fun stopFrameCapture() {
         if (cameraView != null) {
             cameraView!!.stopFrameCapture()
-        } else {
-            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
         }
     }
 
