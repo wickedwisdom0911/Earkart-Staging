@@ -24,6 +24,8 @@ import 'package:earkart_omni/config/widgets/state_selector.dart';
 import 'package:earkart_omni/config/widgets/city_selector.dart';
 import 'package:earkart_omni/config/widgets/district_selector.dart';
 
+enum AgeOrDob { age, dob }
+
 class PatientFormScreen extends StatefulWidget {
   final PatientEntity patient;
   const PatientFormScreen({super.key, required this.patient});
@@ -48,6 +50,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   DateTime? selectedDate;
   Gender selectedGender = Gender.male;
   String selectedCountryCode = '+91'; // Default to India country code
+  AgeOrDob selectedAgeOrDob = AgeOrDob.age; // Default to age
 
   @override
   void initState() {
@@ -71,20 +74,34 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
     pincodeController.text = patient.pincode;
     selectedGender = patient.gender;
 
-    // Prefill age
-    if (patient.age != null) {
+    // Determine which option to select based on available data
+    if (patient.age != null && patient.age! > 0) {
+      // Age is available, select age option
+      selectedAgeOrDob = AgeOrDob.age;
       ageController.text = patient.age.toString();
-    }
-
-    // Prefill date of birth
-    if (patient.dob != null) {
+      // Clear DOB
+      dobController.clear();
+      selectedDate = null;
+    } else if (patient.dob != null) {
+      // DOB is available, select DOB option
+      selectedAgeOrDob = AgeOrDob.dob;
       try {
         selectedDate = DateTime.parse(patient.dob!);
         dobController.text = DateFormat('dd/MM/yyyy').format(selectedDate!);
+        // Clear age
+        ageController.clear();
       } catch (e) {
         // Handle invalid date format
         di<ILogger>().error('Invalid date format: ${patient.dob}');
+        // Default to age if DOB is invalid
+        selectedAgeOrDob = AgeOrDob.age;
       }
+    } else {
+      // Neither age nor DOB available, default to age
+      selectedAgeOrDob = AgeOrDob.age;
+      ageController.clear();
+      dobController.clear();
+      selectedDate = null;
     }
 
     // Prefill phone number and extract country code
@@ -149,6 +166,16 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       selectedCountryCode = extractedCountryCode;
       phoneController.text = phoneNumber;
     });
+  }
+
+  int? _calculateAgeFromDob(DateTime dob) {
+    final now = DateTime.now();
+    int age = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      age--;
+    }
+    return age > 0 ? age : null;
   }
 
   void _setLocationEntitiesFromPatient(LookupState state) {
@@ -265,15 +292,24 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   }
 
   void submitPatient() {
-    int age =
-        ageController.text.trim().isEmpty
-            ? 0
-            : int.parse(ageController.text.trim());
-
+    int? age;
     String? dobString;
-    if (selectedDate != null) {
-      // Send complete ISO-8601 DateTime string as expected by backend
-      dobString = selectedDate!.toUtc().toIso8601String();
+
+    // Handle based on user selection
+    if (selectedAgeOrDob == AgeOrDob.age) {
+      // User chose to enter age
+      if (ageController.text.trim().isNotEmpty) {
+        age = int.tryParse(ageController.text.trim());
+      }
+      dobString = null; // Clear DOB when age is selected
+    } else {
+      // User chose to enter DOB
+      if (selectedDate != null) {
+        // Calculate age from DOB
+        age = _calculateAgeFromDob(selectedDate!);
+        // Send complete ISO-8601 DateTime string as expected by backend
+        dobString = selectedDate!.toUtc().toIso8601String();
+      }
     }
 
     final patient = PatientEntity(
@@ -471,41 +507,110 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: CustomTextField(
-                        hint: "Enter age",
-                        title: "Age (Optional)",
-                        controller: ageController,
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 20),
-                CustomTextField(
-                  hint: "Select date of birth",
-                  title: "Date of Birth (Optional)",
-                  controller: dobController,
-                  readOnly: true,
-                  onTap: () {
-                    showDatePicker(
-                      context: context,
-                      firstDate: DateTime(1900),
-                      initialEntryMode: DatePickerEntryMode.calendarOnly,
-                      lastDate: DateTime.now(),
-                    ).then((value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedDate = value;
-                          dobController.text = DateFormat(
-                            'dd/MM/yyyy',
-                          ).format(value);
-                        });
-                      }
-                    });
-                  },
+
+                // Age or DOB Selection
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Age Information",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<AgeOrDob>(
+                              title: const Text(
+                                "Enter Age",
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              value: AgeOrDob.age,
+                              groupValue: selectedAgeOrDob,
+                              onChanged: (AgeOrDob? value) {
+                                setState(() {
+                                  selectedAgeOrDob = value!;
+                                  // Clear DOB when switching to age
+                                  dobController.clear();
+                                  selectedDate = null;
+                                });
+                              },
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                          Expanded(
+                            child: RadioListTile<AgeOrDob>(
+                              title: const Text(
+                                "Enter Date of Birth",
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              value: AgeOrDob.dob,
+                              groupValue: selectedAgeOrDob,
+                              onChanged: (AgeOrDob? value) {
+                                setState(() {
+                                  selectedAgeOrDob = value!;
+                                  // Clear age when switching to DOB
+                                  ageController.clear();
+                                });
+                              },
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 20),
+
+                // Conditional Input Field
+                if (selectedAgeOrDob == AgeOrDob.age)
+                  CustomTextField(
+                    hint: "Enter age",
+                    title: "Age",
+                    controller: ageController,
+                    keyboardType: TextInputType.number,
+                  )
+                else
+                  CustomTextField(
+                    hint: "Select date of birth",
+                    title: "Date of Birth",
+                    controller: dobController,
+                    readOnly: true,
+                    onTap: () {
+                      showDatePicker(
+                        context: context,
+                        firstDate: DateTime(1900),
+                        initialEntryMode: DatePickerEntryMode.calendarOnly,
+                        lastDate: DateTime.now(),
+                      ).then((value) {
+                        if (value != null) {
+                          setState(() {
+                            selectedDate = value;
+                            dobController.text = DateFormat(
+                              'dd/MM/yyyy',
+                            ).format(value);
+                          });
+                        }
+                      });
+                    },
+                  ),
               ],
             ),
             const SizedBox(height: 24),

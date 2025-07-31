@@ -2,7 +2,6 @@ import 'package:earkart_omni/features/patients/presentation/pages/patient_form_s
 import 'package:earkart_omni/models/enums.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:earkart_omni/config/widgets/custom_text_field.dart';
 import 'package:earkart_omni/config/widgets/phone_number_input.dart';
 import 'package:earkart_omni/config/constants/country_codes.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
@@ -48,28 +47,6 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
       final fullPhoneNumber = "$_selectedCountryCode$_searchQuery";
       context.read<PatientCubit>().getPatientsByValue(fullPhoneNumber);
     }
-  }
-
-  void _extractCountryCodeAndPhoneNumber(String fullPhoneNumber) {
-    // Get country codes from global constants
-    final countryCodes = CountryCodes.getCodes();
-
-    String extractedCountryCode = '+91'; // Default
-    String phoneNumber = fullPhoneNumber;
-
-    // Try to find a matching country code
-    for (String code in countryCodes) {
-      if (fullPhoneNumber.startsWith(code)) {
-        extractedCountryCode = code;
-        phoneNumber = fullPhoneNumber.substring(code.length);
-        break;
-      }
-    }
-
-    setState(() {
-      _selectedCountryCode = extractedCountryCode;
-      _phoneController.text = phoneNumber;
-    });
   }
 
   @override
