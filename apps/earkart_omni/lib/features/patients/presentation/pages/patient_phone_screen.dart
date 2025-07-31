@@ -1,6 +1,10 @@
+import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
+import 'package:earkart_omni/models/enums.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:earkart_omni/config/widgets/custom_text_field.dart';
+import 'package:earkart_omni/config/widgets/phone_number_input.dart';
+import 'package:earkart_omni/config/constants/country_codes.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
@@ -17,6 +21,7 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final FocusNode _phoneFocusNode = FocusNode();
   String _searchQuery = '';
+  String _selectedCountryCode = '+91'; // Default to India country code
 
   @override
   void initState() {
@@ -38,9 +43,33 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
     });
 
     // Search for patients when phone number is entered
-    if (_searchQuery.isNotEmpty && _searchQuery.length >= 10) {
-      context.read<PatientCubit>().getPatientsByValue(_searchQuery);
+    if (_searchQuery.isNotEmpty && _searchQuery.length >= 7) {
+      // Combine country code with phone number for search
+      final fullPhoneNumber = "$_selectedCountryCode$_searchQuery";
+      context.read<PatientCubit>().getPatientsByValue(fullPhoneNumber);
     }
+  }
+
+  void _extractCountryCodeAndPhoneNumber(String fullPhoneNumber) {
+    // Get country codes from global constants
+    final countryCodes = CountryCodes.getCodes();
+
+    String extractedCountryCode = '+91'; // Default
+    String phoneNumber = fullPhoneNumber;
+
+    // Try to find a matching country code
+    for (String code in countryCodes) {
+      if (fullPhoneNumber.startsWith(code)) {
+        extractedCountryCode = code;
+        phoneNumber = fullPhoneNumber.substring(code.length);
+        break;
+      }
+    }
+
+    setState(() {
+      _selectedCountryCode = extractedCountryCode;
+      _phoneController.text = phoneNumber;
+    });
   }
 
   @override
@@ -91,20 +120,20 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
                   style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 16),
-                CustomTextField(
-                  controller: _phoneController,
-                  hint: 'Enter phone number (e.g., +91 9876543210)',
-                  title: 'Phone Number',
-                  keyboardType: TextInputType.phone,
-                  focusNode: _phoneFocusNode,
-                  prefix: Icon(
-                    Icons.phone_outlined,
-                    color: Colors.grey.shade600,
-                    size: 20,
-                  ),
-                  onChanged: (value) {
-                    // Search is handled in _onPhoneChanged
+                PhoneNumberInput(
+                  countryCode: _selectedCountryCode,
+                  phoneNumber: _phoneController.text,
+                  onCountryCodeChanged: (String countryCode) {
+                    setState(() {
+                      _selectedCountryCode = countryCode;
+                    });
                   },
+                  onPhoneNumberChanged: (String phoneNumber) {
+                    _phoneController.text = phoneNumber;
+                  },
+                  title: "Phone Number",
+                  hint: "Enter phone number",
+                  controller: _phoneController,
                 ),
               ],
             ),
@@ -156,7 +185,10 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
             ElevatedButton(
               onPressed: () {
                 if (_searchQuery.isNotEmpty) {
-                  context.read<PatientCubit>().getPatientsByValue(_searchQuery);
+                  final fullPhoneNumber = "$_selectedCountryCode$_searchQuery";
+                  context.read<PatientCubit>().getPatientsByValue(
+                    fullPhoneNumber,
+                  );
                 }
               },
               child: const Text('Try Again'),
@@ -232,7 +264,7 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'No patients found with phone number: $_searchQuery',
+            'No patients found with phone number: ${_selectedCountryCode}$_searchQuery',
             style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
             textAlign: TextAlign.center,
           ),
@@ -488,26 +520,32 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
   }
 
   void _selectPatient(PatientEntity patient) {
-    // Handle patient selection
-    // You can navigate to patient details or perform any action
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Selected patient: ${patient.name}'),
-        backgroundColor: Colors.green,
-      ),
+    Navigator.pushNamed(
+      context,
+      PatientFormScreen.routeName,
+      arguments: patient,
     );
-
-    // Navigate back with selected patient
-    Navigator.of(context).pop(patient);
   }
 
   void _navigateToAddPatient() {
-    // Navigate to add new patient screen
-    // You can implement this based on your navigation structure
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Navigate to Add New Patient screen'),
-        backgroundColor: Colors.blue,
+    // Combine country code with phone number
+    final fullPhoneNumber = "$_selectedCountryCode$_searchQuery";
+
+    Navigator.pushNamed(
+      context,
+      PatientFormScreen.routeName,
+      arguments: PatientEntity(
+        contactNumber: fullPhoneNumber,
+        name: "",
+        gender: Gender.male,
+        password: "",
+        address: "",
+        pincode: "",
+        languageId: "",
+        countryId: "",
+        stateId: "",
+        districtId: "",
+        cityId: "",
       ),
     );
   }

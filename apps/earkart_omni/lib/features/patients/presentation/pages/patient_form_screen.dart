@@ -4,6 +4,7 @@ import 'package:earkart_omni/config/widgets/gender_selector.dart';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/config/widgets/gradient_button.dart';
 import 'package:earkart_omni/config/widgets/phone_number_input.dart';
+import 'package:earkart_omni/config/constants/country_codes.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
@@ -24,7 +25,8 @@ import 'package:earkart_omni/config/widgets/city_selector.dart';
 import 'package:earkart_omni/config/widgets/district_selector.dart';
 
 class PatientFormScreen extends StatefulWidget {
-  const PatientFormScreen({super.key});
+  final PatientEntity patient;
+  const PatientFormScreen({super.key, required this.patient});
   static const routeName = "/patient-form";
   @override
   State<PatientFormScreen> createState() => _PatientFormScreenState();
@@ -50,9 +52,216 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Prefill form fields with patient data
+    _prefillFormFields();
+
     final lookupCubit = context.read<LookupCubit>();
     lookupCubit.getLanguages();
     lookupCubit.getCountries();
+  }
+
+  void _prefillFormFields() {
+    final patient = widget.patient;
+
+    // Prefill basic information
+    nameController.text = patient.name;
+    emailController.text = patient.email ?? '';
+    addressController.text = patient.address;
+    pincodeController.text = patient.pincode;
+    selectedGender = patient.gender;
+
+    // Prefill age
+    if (patient.age != null) {
+      ageController.text = patient.age.toString();
+    }
+
+    // Prefill date of birth
+    if (patient.dob != null) {
+      try {
+        selectedDate = DateTime.parse(patient.dob!);
+        dobController.text = DateFormat('dd/MM/yyyy').format(selectedDate!);
+      } catch (e) {
+        // Handle invalid date format
+        di<ILogger>().error('Invalid date format: ${patient.dob}');
+      }
+    }
+
+    // Prefill phone number and extract country code
+    if (patient.contactNumber.isNotEmpty) {
+      _extractCountryCodeAndPhoneNumber(patient.contactNumber);
+    }
+
+    // Set language if available (either from languageId or language entity)
+    if (patient.language != null) {
+      selectedLanguage = patient.language;
+    }
+
+    // Set location entities if available from related entities
+    if (patient.countryId != null) {
+      // We'll need to fetch the country data and set it
+      // This will be handled when the lookup data is loaded
+    }
+
+    if (patient.stateId != null) {
+      // We'll need to fetch the state data and set it
+      // This will be handled when the lookup data is loaded
+    }
+
+    if (patient.districtId != null) {
+      // We'll need to fetch the district data and set it
+      // This will be handled when the lookup data is loaded
+    }
+
+    if (patient.cityId != null) {
+      // We'll need to fetch the city data and set it
+      // This will be handled when the lookup data is loaded
+    }
+
+    // If we have the full entity objects, we can set them directly
+    // These will be overridden by the lookup data if available
+    if (patient.city != null) {
+      selectedCity = patient.city;
+    }
+
+    if (patient.district != null) {
+      selectedDistrict = patient.district;
+    }
+  }
+
+  void _extractCountryCodeAndPhoneNumber(String fullPhoneNumber) {
+    // Get country codes from global constants
+    final countryCodes = CountryCodes.getCodes();
+
+    String extractedCountryCode = '+91'; // Default
+    String phoneNumber = fullPhoneNumber;
+
+    // Try to find a matching country code
+    for (String code in countryCodes) {
+      if (fullPhoneNumber.startsWith(code)) {
+        extractedCountryCode = code;
+        phoneNumber = fullPhoneNumber.substring(code.length);
+        break;
+      }
+    }
+
+    setState(() {
+      selectedCountryCode = extractedCountryCode;
+      phoneController.text = phoneNumber;
+    });
+  }
+
+  void _setLocationEntitiesFromPatient(LookupState state) {
+    final patient = widget.patient;
+
+    // Set country if available
+    if (patient.countryId != null &&
+        selectedCountry == null &&
+        state.countries.isNotEmpty) {
+      try {
+        final country = state.countries.firstWhere(
+          (country) => country.id == patient.countryId,
+        );
+        setState(() {
+          selectedCountry = country;
+        });
+        // Fetch states for this country
+        context.read<LookupCubit>().getStates(country.id ?? "");
+      } catch (e) {
+        // Country not found, ignore
+      }
+    }
+
+    // Set state if available
+    if (patient.stateId != null &&
+        selectedState == null &&
+        state.states.isNotEmpty) {
+      try {
+        final stateEntity = state.states.firstWhere(
+          (stateEntity) => stateEntity.id == patient.stateId,
+        );
+        setState(() {
+          selectedState = stateEntity;
+        });
+        // Fetch districts for this state
+        context.read<LookupCubit>().getDistricts(stateEntity.id ?? "");
+      } catch (e) {
+        // State not found, ignore
+      }
+    }
+
+    // Set district if available
+    if (patient.districtId != null &&
+        selectedDistrict == null &&
+        state.districts.isNotEmpty) {
+      try {
+        final district = state.districts.firstWhere(
+          (district) => district.id == patient.districtId,
+        );
+        setState(() {
+          selectedDistrict = district;
+        });
+        // Fetch cities for this district
+        context.read<LookupCubit>().getCities(district.id ?? "");
+      } catch (e) {
+        // District not found, ignore
+      }
+    }
+
+    // Set city if available
+    if (patient.cityId != null &&
+        selectedCity == null &&
+        state.cities.isNotEmpty) {
+      try {
+        final city = state.cities.firstWhere(
+          (city) => city.id == patient.cityId,
+        );
+        setState(() {
+          selectedCity = city;
+        });
+      } catch (e) {
+        // City not found, ignore
+      }
+    }
+
+    // Handle the case where we have district/city entities but need to fetch parent entities
+    if (selectedDistrict != null &&
+        selectedCountry == null &&
+        state.countries.isNotEmpty) {
+      // If we have a district but no country, try to find the country
+      // This is a fallback for when we have the district entity but not the country
+      if (patient.countryId != null) {
+        try {
+          final country = state.countries.firstWhere(
+            (country) => country.id == patient.countryId,
+          );
+          setState(() {
+            selectedCountry = country;
+          });
+        } catch (e) {
+          // Country not found, ignore
+        }
+      }
+    }
+
+    if (selectedCity != null &&
+        selectedState == null &&
+        state.states.isNotEmpty) {
+      // If we have a city but no state, try to find the state
+      // This is a fallback for when we have the city entity but not the state
+      if (patient.stateId != null) {
+        try {
+          final stateEntity = state.states.firstWhere(
+            (stateEntity) => stateEntity.id == patient.stateId,
+          );
+          setState(() {
+            selectedState = stateEntity;
+          });
+        } catch (e) {
+          // State not found, ignore
+        }
+      }
+    }
   }
 
   void submitPatient() {
@@ -68,6 +277,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
     }
 
     final patient = PatientEntity(
+      id: widget.patient.id, // Include the ID if it exists (for updates)
       contactNumber:
           phoneController.text.trim().isEmpty
               ? ""
@@ -148,9 +358,9 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       backgroundColor: Colors.grey.shade50,
       extendBodyBehindAppBar: true,
       appBar: GlassmorphismAppBar(
-        title: const Text(
-          "New Patient",
-          style: TextStyle(
+        title: Text(
+          widget.patient.id != null ? "Edit Patient" : "New Patient",
+          style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w700,
             color: Colors.black87,
@@ -205,23 +415,27 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Patient Registration",
-                              style: TextStyle(
+                              widget.patient.id != null
+                                  ? "Edit Patient"
+                                  : "Patient Registration",
+                              style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.black87,
                                 letterSpacing: 0.2,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
-                              "Fill in the details to register a new patient",
-                              style: TextStyle(
+                              widget.patient.id != null
+                                  ? "Update the patient's information"
+                                  : "Fill in the details to register a new patient",
+                              style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey,
                                 letterSpacing: 0.1,
@@ -384,6 +598,12 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                         ),
                       );
                     }
+
+                    // Set location entities from patient data when lookup data is available
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _setLocationEntitiesFromPatient(state);
+                    });
+
                     return Column(
                       children: [
                         Row(
@@ -496,10 +716,16 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
               listener: (context, state) {
                 di<ILogger>().info(state.toString());
                 if (state is PatientSuccess) {
-                  Navigator.pushNamed(
-                    context,
-                    ConsultationRequestScreen.routeName,
-                  );
+                  if (widget.patient.id != null) {
+                    // If updating, go back to previous screen
+                    Navigator.pop(context);
+                  } else {
+                    // If creating, go to consultation request
+                    Navigator.pushNamed(
+                      context,
+                      ConsultationRequestScreen.routeName,
+                    );
+                  }
                 }
               },
               builder: (context, state) {
@@ -519,6 +745,8 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                           : Text(
                             state is PatientError
                                 ? "Retry Registration"
+                                : widget.patient.id != null
+                                ? "Update Patient"
                                 : "Register Patient",
                           ),
                   onPressed: () {

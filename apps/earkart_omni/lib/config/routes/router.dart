@@ -6,6 +6,8 @@ import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_phone_screen.dart';
+import 'package:earkart_omni/models/enums.dart';
+import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
@@ -13,7 +15,7 @@ import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 
 Route<dynamic> generateRoute(RouteSettings settings) {
   Logger l = Logger();
-  // final args = settings.arguments;
+  final args = settings.arguments;
   l.i(settings.name);
   Route<dynamic> router(Widget w) {
     return MaterialWithModalsPageRoute(builder: (_) => w, settings: settings);
@@ -32,7 +34,24 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       return router(
         Builder(
           builder: (context) {
-            return const PatientFormScreen();
+            if (args is PatientEntity) {
+              return PatientFormScreen(patient: args);
+            }
+            return const PatientFormScreen(
+              patient: PatientEntity(
+                contactNumber: "",
+                name: "",
+                gender: Gender.male,
+                password: "",
+                address: "",
+                pincode: "",
+                languageId: "",
+                countryId: "",
+                stateId: "",
+                districtId: "",
+                cityId: "",
+              ),
+            );
           },
         ),
       );

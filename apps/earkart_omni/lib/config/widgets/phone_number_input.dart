@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:earkart_omni/config/constants/country_codes.dart';
 
 class PhoneNumberInput extends StatefulWidget {
   final String countryCode;
@@ -27,61 +28,6 @@ class PhoneNumberInput extends StatefulWidget {
 class _PhoneNumberInputState extends State<PhoneNumberInput> {
   bool _isFocused = false;
   late FocusNode _focusNode;
-
-  // Popular country codes with flags
-  final List<Map<String, String>> countryCodes = [
-    {'code': '+1', 'name': 'United States', 'flag': '🇺🇸'},
-    {'code': '+91', 'name': 'India', 'flag': '🇮🇳'},
-    {'code': '+44', 'name': 'United Kingdom', 'flag': '🇬🇧'},
-    {'code': '+33', 'name': 'France', 'flag': '🇫🇷'},
-    {'code': '+49', 'name': 'Germany', 'flag': '🇩🇪'},
-    {'code': '+86', 'name': 'China', 'flag': '🇨🇳'},
-    {'code': '+81', 'name': 'Japan', 'flag': '🇯🇵'},
-    {'code': '+61', 'name': 'Australia', 'flag': '🇦🇺'},
-    {'code': '+55', 'name': 'Brazil', 'flag': '🇧🇷'},
-    {'code': '+7', 'name': 'Russia', 'flag': '🇷🇺'},
-    {'code': '+34', 'name': 'Spain', 'flag': '🇪🇸'},
-    {'code': '+39', 'name': 'Italy', 'flag': '🇮🇹'},
-    {'code': '+31', 'name': 'Netherlands', 'flag': '🇳🇱'},
-    {'code': '+41', 'name': 'Switzerland', 'flag': '🇨🇭'},
-    {'code': '+46', 'name': 'Sweden', 'flag': '🇸🇪'},
-    {'code': '+47', 'name': 'Norway', 'flag': '🇳🇴'},
-    {'code': '+45', 'name': 'Denmark', 'flag': '🇩🇰'},
-    {'code': '+358', 'name': 'Finland', 'flag': '🇫🇮'},
-    {'code': '+82', 'name': 'South Korea', 'flag': '🇰🇷'},
-    {'code': '+65', 'name': 'Singapore', 'flag': '🇸🇬'},
-    {'code': '+852', 'name': 'Hong Kong', 'flag': '🇭🇰'},
-    {'code': '+971', 'name': 'UAE', 'flag': '🇦🇪'},
-    {'code': '+966', 'name': 'Saudi Arabia', 'flag': '🇸🇦'},
-    {'code': '+27', 'name': 'South Africa', 'flag': '🇿🇦'},
-    {'code': '+52', 'name': 'Mexico', 'flag': '🇲🇽'},
-    {'code': '+54', 'name': 'Argentina', 'flag': '🇦🇷'},
-    {'code': '+60', 'name': 'Malaysia', 'flag': '🇲🇾'},
-    {'code': '+66', 'name': 'Thailand', 'flag': '🇹🇭'},
-    {'code': '+84', 'name': 'Vietnam', 'flag': '🇻🇳'},
-    {'code': '+63', 'name': 'Philippines', 'flag': '🇵🇭'},
-    {'code': '+62', 'name': 'Indonesia', 'flag': '🇮🇩'},
-    {'code': '+92', 'name': 'Pakistan', 'flag': '🇵🇰'},
-    {'code': '+880', 'name': 'Bangladesh', 'flag': '🇧🇩'},
-    {'code': '+94', 'name': 'Sri Lanka', 'flag': '🇱🇰'},
-    {'code': '+977', 'name': 'Nepal', 'flag': '🇳🇵'},
-    {'code': '+98', 'name': 'Iran', 'flag': '🇮🇷'},
-    {'code': '+90', 'name': 'Turkey', 'flag': '🇹🇷'},
-    {'code': '+30', 'name': 'Greece', 'flag': '🇬🇷'},
-    {'code': '+351', 'name': 'Portugal', 'flag': '🇵🇹'},
-    {'code': '+353', 'name': 'Ireland', 'flag': '🇮🇪'},
-    {'code': '+48', 'name': 'Poland', 'flag': '🇵🇱'},
-    {'code': '+420', 'name': 'Czech Republic', 'flag': '🇨🇿'},
-    {'code': '+36', 'name': 'Hungary', 'flag': '🇭🇺'},
-    {'code': '+40', 'name': 'Romania', 'flag': '🇷🇴'},
-    {'code': '+380', 'name': 'Ukraine', 'flag': '🇺🇦'},
-    {'code': '+20', 'name': 'Egypt', 'flag': '🇪🇬'},
-    {'code': '+234', 'name': 'Nigeria', 'flag': '🇳🇬'},
-    {'code': '+254', 'name': 'Kenya', 'flag': '🇰🇪'},
-    {'code': '+233', 'name': 'Ghana', 'flag': '🇬🇭'},
-    {'code': '+213', 'name': 'Algeria', 'flag': '🇩🇿'},
-    {'code': '+212', 'name': 'Morocco', 'flag': '🇲🇦'},
-  ];
 
   @override
   void initState() {
@@ -253,11 +199,8 @@ class _PhoneNumberInputState extends State<PhoneNumberInput> {
   }
 
   String _getSelectedCountryFlag() {
-    final country = countryCodes.firstWhere(
-      (country) => country['code'] == widget.countryCode,
-      orElse: () => {'code': '+1', 'name': 'United States', 'flag': '🇺🇸'},
-    );
-    return country['flag'] ?? '🇺🇸';
+    final country = CountryCodes.getByCode(widget.countryCode);
+    return country?.flag ?? '🇺🇸';
   }
 
   void _showCountryCodePicker(BuildContext context) {
@@ -315,14 +258,14 @@ class _PhoneNumberInputState extends State<PhoneNumberInput> {
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: countryCodes.length,
+                    itemCount: CountryCodes.codes.length,
                     itemBuilder: (context, index) {
-                      final country = countryCodes[index];
-                      final isSelected = country['code'] == widget.countryCode;
+                      final country = CountryCodes.codes[index];
+                      final isSelected = country.code == widget.countryCode;
 
                       return InkWell(
                         onTap: () {
-                          widget.onCountryCodeChanged(country['code']!);
+                          widget.onCountryCodeChanged(country.code);
                           Navigator.pop(context);
                         },
                         child: Container(
@@ -339,7 +282,7 @@ class _PhoneNumberInputState extends State<PhoneNumberInput> {
                           child: Row(
                             children: [
                               Text(
-                                country['flag']!,
+                                country.flag,
                                 style: const TextStyle(fontSize: 24),
                               ),
                               const SizedBox(width: 16),
@@ -348,7 +291,7 @@ class _PhoneNumberInputState extends State<PhoneNumberInput> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      country['name']!,
+                                      country.name,
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w500,
@@ -360,7 +303,7 @@ class _PhoneNumberInputState extends State<PhoneNumberInput> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      country['code']!,
+                                      country.code,
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: Colors.grey.shade600,
