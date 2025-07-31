@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
@@ -232,6 +235,43 @@ class UVCCameraController {
       return result;
     } catch (e) {
       debugPrint("Error capturing frame as base64: $e");
+      return null;
+    }
+  }
+
+  /// Capture current frame as binary data for optimized streaming
+  Future<Uint8List?> captureFrameAsBinary() async {
+    if (_cameraState == UVCCameraState.closed) {
+      throw Exception('Camera must be opened before capturing frames');
+    }
+
+    try {
+      // Call native method to capture frame as binary data
+      final result =
+          await _cameraChannel?.invokeMethod<Uint8List>('captureFrameAsBinary');
+      debugPrint("Frame captured as binary: ${result?.length ?? 0} bytes");
+      return result;
+    } catch (e) {
+      debugPrint("Error capturing frame as binary: $e");
+      return null;
+    }
+  }
+
+  /// Get last captured frame as binary data
+  Future<Uint8List?> getLastCapturedFrameAsBinary() async {
+    if (_cameraState == UVCCameraState.closed) {
+      throw Exception('Camera must be opened before getting frames');
+    }
+
+    try {
+      // Call native method to get last captured frame as binary
+      final result = await _cameraChannel
+          ?.invokeMethod<Uint8List>('getLastCapturedFrameAsBinary');
+      debugPrint(
+          "Last frame retrieved as binary: ${result?.length ?? 0} bytes");
+      return result;
+    } catch (e) {
+      debugPrint("Error getting last frame as binary: $e");
       return null;
     }
   }

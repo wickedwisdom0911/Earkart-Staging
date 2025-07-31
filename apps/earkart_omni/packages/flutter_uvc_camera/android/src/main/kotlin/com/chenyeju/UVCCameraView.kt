@@ -43,8 +43,10 @@ import com.jiangdg.ausbc.widget.CaptureMediaView
 import com.jiangdg.ausbc.widget.IAspectRatio
 import com.jiangdg.usb.USBMonitor
 import com.jiangdg.uvc.IButtonCallback
+import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.platform.PlatformView
+import io.flutter.plugin.platform.PlatformViewFactory
 import java.io.File
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
@@ -52,6 +54,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.Date
 import java.util.Locale
+import android.view.Surface
 
 internal class UVCCameraView(
     private val mContext: Context,
@@ -818,6 +821,36 @@ internal class UVCCameraView(
         } catch (e: Exception) {
             callback.onError("Frame capture error: ${e.message}")
         }
+    }
+
+    fun captureFrameAsBinary(callback: UVCBinaryCallback) {
+        if (!isCameraOpened()) {
+            callback.onError("Camera not opened")
+            return
+        }
+        
+        if (!isFrameCaptureActive) {
+            callback.onSuccess(ByteArray(0))
+            return
+        }
+        
+        try {
+            val currentCamera = getCurrentCamera()
+            if (currentCamera is CameraUVC) {
+                currentCamera.captureFrameAsBinary { binaryData ->
+                    callback.onSuccess(binaryData)
+                }
+            } else {
+                callback.onError("Camera not available")
+            }
+        } catch (e: Exception) {
+            callback.onError("Binary frame capture error: ${e.message}")
+        }
+    }
+
+    fun getLastCapturedFrameAsBinary(callback: UVCBinaryCallback) {
+        // Always capture a fresh frame instead of returning cached one
+        captureFrameAsBinary(callback)
     }
 
     fun startFrameCapture() {

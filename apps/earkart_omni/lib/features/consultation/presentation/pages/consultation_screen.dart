@@ -197,7 +197,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       // Try to rejoin consultation if we have one
       _tryJoinConsultation();
     });
-
+    socket.onAny((event, data) {
+      di<ILogger>().debug('Socket event: $event with data: $data');
+    });
     socket.onDisconnect((_) {
       if (!mounted) return;
       di<ILogger>().debug('Socket disconnected');
