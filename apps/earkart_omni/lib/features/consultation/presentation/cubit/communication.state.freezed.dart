@@ -25,6 +25,7 @@ mixin _$CommunicationState {
   bool get tabletBatteryLevel => throw _privateConstructorUsedError;
   bool get isTabletBatteryCharging => throw _privateConstructorUsedError;
   String get connectionStatus => throw _privateConstructorUsedError;
+  bool get isCameraOpen => throw _privateConstructorUsedError;
   TransducerResponse? get transducerResponse =>
       throw _privateConstructorUsedError;
   ImpedanceStatus? get impedanceStatus => throw _privateConstructorUsedError;
@@ -55,6 +56,7 @@ abstract class $CommunicationStateCopyWith<$Res> {
       bool tabletBatteryLevel,
       bool isTabletBatteryCharging,
       String connectionStatus,
+      bool isCameraOpen,
       TransducerResponse? transducerResponse,
       ImpedanceStatus? impedanceStatus,
       ImpedanceData? impedanceData,
@@ -86,6 +88,7 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
     Object? tabletBatteryLevel = null,
     Object? isTabletBatteryCharging = null,
     Object? connectionStatus = null,
+    Object? isCameraOpen = null,
     Object? transducerResponse = freezed,
     Object? impedanceStatus = freezed,
     Object? impedanceData = freezed,
@@ -129,6 +132,10 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
           ? _value.connectionStatus
           : connectionStatus // ignore: cast_nullable_to_non_nullable
               as String,
+      isCameraOpen: null == isCameraOpen
+          ? _value.isCameraOpen
+          : isCameraOpen // ignore: cast_nullable_to_non_nullable
+              as bool,
       transducerResponse: freezed == transducerResponse
           ? _value.transducerResponse
           : transducerResponse // ignore: cast_nullable_to_non_nullable
@@ -171,6 +178,7 @@ abstract class _$$CommunicationStateImplCopyWith<$Res>
       bool tabletBatteryLevel,
       bool isTabletBatteryCharging,
       String connectionStatus,
+      bool isCameraOpen,
       TransducerResponse? transducerResponse,
       ImpedanceStatus? impedanceStatus,
       ImpedanceData? impedanceData,
@@ -200,6 +208,7 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
     Object? tabletBatteryLevel = null,
     Object? isTabletBatteryCharging = null,
     Object? connectionStatus = null,
+    Object? isCameraOpen = null,
     Object? transducerResponse = freezed,
     Object? impedanceStatus = freezed,
     Object? impedanceData = freezed,
@@ -243,6 +252,10 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
           ? _value.connectionStatus
           : connectionStatus // ignore: cast_nullable_to_non_nullable
               as String,
+      isCameraOpen: null == isCameraOpen
+          ? _value.isCameraOpen
+          : isCameraOpen // ignore: cast_nullable_to_non_nullable
+              as bool,
       transducerResponse: freezed == transducerResponse
           ? _value.transducerResponse
           : transducerResponse // ignore: cast_nullable_to_non_nullable
@@ -274,12 +287,13 @@ class _$CommunicationStateImpl implements _CommunicationState {
       {this.isConnected = false,
       this.isSynced = false,
       this.isReleased = false,
-      this.isInBeginMode = false,
+      this.isInBeginMode = true,
       this.batteryLevel = 100,
       this.isCharging = false,
       this.tabletBatteryLevel = false,
       this.isTabletBatteryCharging = false,
       this.connectionStatus = 'Disconnected',
+      this.isCameraOpen = false,
       this.transducerResponse,
       this.impedanceStatus,
       this.impedanceData,
@@ -314,6 +328,9 @@ class _$CommunicationStateImpl implements _CommunicationState {
   @JsonKey()
   final String connectionStatus;
   @override
+  @JsonKey()
+  final bool isCameraOpen;
+  @override
   final TransducerResponse? transducerResponse;
   @override
   final ImpedanceStatus? impedanceStatus;
@@ -327,7 +344,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
 
   @override
   String toString() {
-    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, connectionStatus: $connectionStatus, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, isNewImpedanceData: $isNewImpedanceData, error: $error)';
+    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, connectionStatus: $connectionStatus, isCameraOpen: $isCameraOpen, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, isNewImpedanceData: $isNewImpedanceData, error: $error)';
   }
 
   @override
@@ -354,6 +371,8 @@ class _$CommunicationStateImpl implements _CommunicationState {
                 other.isTabletBatteryCharging == isTabletBatteryCharging) &&
             (identical(other.connectionStatus, connectionStatus) ||
                 other.connectionStatus == connectionStatus) &&
+            (identical(other.isCameraOpen, isCameraOpen) ||
+                other.isCameraOpen == isCameraOpen) &&
             (identical(other.transducerResponse, transducerResponse) ||
                 other.transducerResponse == transducerResponse) &&
             (identical(other.impedanceStatus, impedanceStatus) ||
@@ -377,6 +396,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
       tabletBatteryLevel,
       isTabletBatteryCharging,
       connectionStatus,
+      isCameraOpen,
       transducerResponse,
       impedanceStatus,
       impedanceData,
@@ -404,6 +424,7 @@ abstract class _CommunicationState implements CommunicationState {
       final bool tabletBatteryLevel,
       final bool isTabletBatteryCharging,
       final String connectionStatus,
+      final bool isCameraOpen,
       final TransducerResponse? transducerResponse,
       final ImpedanceStatus? impedanceStatus,
       final ImpedanceData? impedanceData,
@@ -428,6 +449,8 @@ abstract class _CommunicationState implements CommunicationState {
   bool get isTabletBatteryCharging;
   @override
   String get connectionStatus;
+  @override
+  bool get isCameraOpen;
   @override
   TransducerResponse? get transducerResponse;
   @override

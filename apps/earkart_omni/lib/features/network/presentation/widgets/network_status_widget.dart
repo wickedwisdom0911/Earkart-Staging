@@ -35,6 +35,8 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
 
   @override
   Widget build(BuildContext context) {
+    print('🌐 NetworkStatusWidget - build() called at ${DateTime.now()}');
+
     return _isExpanded
         ? _buildExpandedView(context)
         : _buildCompactView(context);
@@ -45,6 +47,10 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
       onTap: _toggleExpanded,
       child: BlocBuilder<NetworkCubit, NetworkState>(
         builder: (context, state) {
+          print(
+            '🌐 NetworkStatusWidget - NetworkCubit state changed at ${DateTime.now()}: $state',
+          );
+
           return AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             transitionBuilder: (Widget child, Animation<double> animation) {

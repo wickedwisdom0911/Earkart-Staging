@@ -47,7 +47,9 @@ import 'package:earkart_omni/config/release_config.dart';
 
 class UVCCameraWidget extends StatefulWidget {
   final IO.Socket? socket; // Pass socket from consultation screen
-  const UVCCameraWidget({super.key, this.socket});
+  final Function(bool)?
+  onCameraStateChanged; // Callback for camera state changes
+  const UVCCameraWidget({super.key, this.socket, this.onCameraStateChanged});
 
   @override
   State<UVCCameraWidget> createState() => _UVCCameraWidgetState();
@@ -671,6 +673,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             _initializationTriggered = false;
             _status = 'Camera closed';
           });
+
+          // Notify parent about camera state change
+          widget.onCameraStateChanged?.call(false);
         }
       }
     }
@@ -696,6 +701,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       _socket!.off('start-otoscopy');
       _socket!.off('stop-otoscopy');
     }
+
+    // Notify parent about camera state change
+    widget.onCameraStateChanged?.call(false);
 
     WidgetsBinding.instance.removeObserver(this);
 
@@ -944,6 +952,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                 'Camera state: opened - camera is ready and streaming',
               );
 
+              // Notify parent about camera state change
+              widget.onCameraStateChanged?.call(true);
+
               // Start video streaming when camera is ready
               // _setupSocketConnection(); // This is now handled by _setupOtoscopyStreaming
               break;
@@ -953,6 +964,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               _status = 'Camera closed';
               di<ILogger>().info('Camera state: closed');
 
+              // Notify parent about camera state change
+              widget.onCameraStateChanged?.call(false);
+
               // Stop video streaming when camera is closed
               _stopOtoscopyStreaming();
               break;
@@ -961,6 +975,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               _isViewReady = false;
               _status = 'Camera error';
               di<ILogger>().error('Camera state: error');
+
+              // Notify parent about camera state change
+              widget.onCameraStateChanged?.call(false);
 
               // Stop video streaming on error
               _stopOtoscopyStreaming();

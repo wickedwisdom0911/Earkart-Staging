@@ -25,6 +25,7 @@ import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'dart:async';
 
 class ConsultationScreen extends StatefulWidget {
   static const routeName = '/consultation';
@@ -55,6 +56,16 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   final GlobalKey _videoWidgetKey = GlobalKey();
   // Keep video widget instance to prevent rebuilding
   VideoCallWidget? _videoWidget;
+
+  // Device event debouncing
+  Timer? _deviceEventDebounceTimer;
+  CommunicationState? _lastEmittedDeviceState;
+  bool _isCameraOpen = false;
+
+  // Debounce duration for device events
+  static const Duration _deviceEventDebounceDuration = Duration(
+    milliseconds: 500,
+  );
   @override
   void initState() {
     super.initState();
@@ -129,6 +140,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   @override
   void dispose() {
     try {
+      // Cancel debounce timer
+      _deviceEventDebounceTimer?.cancel();
+
       if (_isSocketInitialized) {
         socket.off('user_joined');
         socket.off('start-test');
@@ -196,6 +210,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
       // Try to rejoin consultation if we have one
       _tryJoinConsultation();
+
+      // Send current device status when socket connects
+      _forceDeviceEventEmission();
     });
     socket.onAny((event, data) {
       di<ILogger>().debug('Socket event: $event with data: $data');
@@ -241,6 +258,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         _socketReconnectFailed = false; // Reset reconnect failed flag
       });
       _tryJoinConsultation(); // Try to rejoin on reconnect
+
+      // Send current device status when socket reconnects
+      _forceDeviceEventEmission();
     });
 
     socket.onReconnectAttempt((attempt) {
@@ -271,7 +291,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.on("user_joined", (data) {
       if (!mounted) return;
 
-      _emitDeviceEvent(context.read<CommunicationCubit>().state);
+      di<ILogger>().info('👥 User joined consultation, sending device status');
+      _scheduleDeviceEventEmission(context.read<CommunicationCubit>().state);
       _handleBeginPacket(testType);
 
       if (data == null) {
@@ -553,6 +574,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                           if (_showCamera) {
                             _showReport = false;
                           }
+                          // Update camera state when toggling
+                          _updateCameraState(_showCamera);
                         });
                       }
                     });
@@ -576,6 +599,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 // Hide camera if showing report
                 if (_showReport) {
                   _showCamera = false;
+                  // Update camera state when hiding camera
+                  _updateCameraState(false);
                 }
               });
             },
@@ -633,6 +658,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   consultation = state.consultation;
                 });
                 _tryJoinConsultation();
+                // Trigger device event emission when consultation is loaded
+                _forceDeviceEventEmission();
               }
               // Handle consultation update success
               if (state is ConsultationSuccess) {
@@ -680,10 +707,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
                   // Handle R15C device state changes
                   if (wasConnected != isNowConnected) {
-                    di<ILogger>().debug(
+                    di<ILogger>().info(
                       isNowConnected
-                          ? 'R15C device attached'
-                          : 'R15C device detached',
+                          ? '🔌 R15C device attached'
+                          : '🔌 R15C device detached',
                     );
 
                     // Reset communication state on detachment
@@ -694,10 +721,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
                   // Handle Revo2 device state changes
                   if (wasRevo2Connected != isNowRevo2Connected) {
-                    di<ILogger>().debug(
+                    di<ILogger>().info(
                       isNowRevo2Connected
-                          ? 'Revo2 device attached - auto-showing camera'
-                          : 'Revo2 device detached - hiding camera',
+                          ? '📷 Revo2 device attached - auto-showing camera'
+                          : '📷 Revo2 device detached - hiding camera',
                     );
 
                     // Auto-show camera when Revo2 is connected with delay
@@ -710,6 +737,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                             _showReport =
                                 false; // Hide report when showing camera
                           });
+                          // Update camera state when auto-showing
+                          _updateCameraState(true);
                         }
                       });
                     } else if (!isNowRevo2Connected && _showCamera) {
@@ -717,12 +746,16 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                       setState(() {
                         _showCamera = false;
                       });
+                      // Update camera state when auto-hiding
+                      _updateCameraState(false);
                     }
                   }
 
                   // Emit device event to socket
                   if (_isSocketInitialized) {
-                    _emitDeviceEvent(context.read<CommunicationCubit>().state);
+                    _scheduleDeviceEventEmission(
+                      context.read<CommunicationCubit>().state,
+                    );
                   }
 
                   // Initialize device if newly attached
@@ -741,12 +774,14 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
           BlocListener<CommunicationCubit, CommunicationState>(
             listener: (context, state) {
+              // Always emit patient response events
               if (!state.isReleased) {
                 _emitPatientResponseEvent(state.isReleased);
               }
               if (state.isReleased) {
                 _emitPatientResponseEvent(state.isReleased);
               }
+
               // Handle impedance status
               if (state.impedanceStatus != null) {
                 _emitTympanometryStatus(state);
@@ -757,16 +792,19 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 _emitTympanometryData(state);
               }
 
-              if (r15cDevice != null) {
+              // Enhanced device event emission for all communication state changes
+              if (r15cDevice != null || revo2Device != null) {
                 // Handle connection state
                 if (!state.isConnected) {
                   di<ILogger>().debug(
                     'Device not connected, initializing port...',
                   );
-                  context.read<CommunicationCubit>().initializePort(
-                    r15cDevice!,
-                  );
-                  _emitDeviceEvent(state);
+                  if (r15cDevice != null) {
+                    context.read<CommunicationCubit>().initializePort(
+                      r15cDevice!,
+                    );
+                  }
+                  _scheduleDeviceEventEmission(state);
                 }
                 // Handle initialization state
                 else if (state.isConnected && !state.isSynced) {
@@ -774,7 +812,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     'Device connected but not synced, sending sync packet...',
                   );
                   context.read<CommunicationCubit>().sendSyncPacket();
-                  _emitDeviceEvent(state);
+                  _scheduleDeviceEventEmission(state);
                 }
                 // Handle ready state
                 else if (state.isSynced && state.transducerResponse == null) {
@@ -782,20 +820,33 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     'Device synced but not ready, sending query info packet...',
                   );
                   context.read<CommunicationCubit>().sendQueryInfoPacket();
-                  _emitDeviceEvent(state);
+                  _scheduleDeviceEventEmission(state);
                 }
                 // Device is ready - send begin packet
                 else if (state.transducerResponse != null) {
                   di<ILogger>().debug('Device ready with transducer response');
                   _handleBeginPacket(testType);
-                  _emitDeviceEvent(state);
+                  _scheduleDeviceEventEmission(state);
                 }
               }
 
               // Handle error states
               if (state.error != null) {
                 di<ILogger>().error('Device error: ${state.error}');
-                _emitDeviceEvent(state);
+                _scheduleDeviceEventEmission(state);
+              }
+
+              // Additional triggers for any communication state change
+              if (state.isConnected != _lastEmittedDeviceState?.isConnected ||
+                  state.isSynced != _lastEmittedDeviceState?.isSynced ||
+                  state.connectionStatus !=
+                      _lastEmittedDeviceState?.connectionStatus ||
+                  state.transducerResponse !=
+                      _lastEmittedDeviceState?.transducerResponse) {
+                di<ILogger>().debug(
+                  'Communication state change detected, scheduling device event',
+                );
+                _scheduleDeviceEventEmission(state);
               }
             },
           ),
@@ -919,7 +970,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                       flex: 1,
                       child:
                           ReleaseConfig.enableUVCCamera
-                              ? UVCCameraWidget(socket: socket)
+                              ? UVCCameraWidget(
+                                socket: socket,
+                                onCameraStateChanged: _updateCameraState,
+                              )
                               : Container(
                                 decoration: BoxDecoration(
                                   color: Colors.black87,
@@ -969,6 +1023,108 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     );
   }
 
+  // Update camera state
+  void _updateCameraState(bool isOpen) {
+    if (_isCameraOpen != isOpen) {
+      di<ILogger>().info(
+        '📷 Camera state changed: ${_isCameraOpen} -> $isOpen',
+      );
+      setState(() {
+        _isCameraOpen = isOpen;
+      });
+      // Trigger device event emission with camera state change
+      _scheduleDeviceEventEmission(context.read<CommunicationCubit>().state);
+    }
+  }
+
+  // Check if device state has meaningful changes
+  bool _hasDeviceStateChanged(CommunicationState newState) {
+    if (_lastEmittedDeviceState == null) return true;
+
+    final last = _lastEmittedDeviceState!;
+
+    return last.isConnected != newState.isConnected ||
+        last.isSynced != newState.isSynced ||
+        last.isReleased != newState.isReleased ||
+        last.isInBeginMode != newState.isInBeginMode ||
+        last.batteryLevel != newState.batteryLevel ||
+        last.isCharging != newState.isCharging ||
+        last.connectionStatus != newState.connectionStatus ||
+        last.transducerResponse != newState.transducerResponse ||
+        last.error != newState.error ||
+        _isCameraOpen != newState.isCameraOpen;
+  }
+
+  // Force device event emission for any USB device-related event
+  void _forceDeviceEventEmission() {
+    if (_isSocketInitialized) {
+      di<ILogger>().info(
+        '🔧 Force triggering device event emission for USB event',
+      );
+      _scheduleDeviceEventEmission(context.read<CommunicationCubit>().state);
+    }
+  }
+
+  /*
+   * USB Device Event Triggers for Device Status Updates:
+   * 
+   * 1. Device Attachment/Detachment (DeviceCubit listener)
+   *    - R15C device connected/disconnected
+   *    - Revo2 device connected/disconnected
+   * 
+   * 2. Communication State Changes (CommunicationCubit listener)
+   *    - Device connection status changes
+   *    - Device sync status changes
+   *    - Device ready status changes
+   *    - Error states
+   *    - Any meaningful state change detected
+   * 
+   * 3. Camera State Changes
+   *    - Camera opened/closed
+   *    - Camera toggle button pressed
+   *    - Auto-show/hide camera for Revo2
+   * 
+   * 4. Socket Events
+   *    - Socket connected
+   *    - Socket reconnected
+   *    - User joined consultation
+   * 
+   * 5. Consultation Events
+   *    - Consultation loaded successfully
+   * 
+   * 6. Manual Triggers
+   *    - Begin packet sent
+   *    - Force emission for any USB event
+   * 
+   * All events are debounced (500ms) and only emit if state has meaningful changes
+   */
+
+  // Schedule device event emission with debouncing
+  void _scheduleDeviceEventEmission(CommunicationState state) {
+    // Cancel existing timer
+    _deviceEventDebounceTimer?.cancel();
+
+    // Check if state has meaningful changes
+    if (!_hasDeviceStateChanged(state)) {
+      di<ILogger>().debug('Device state unchanged, skipping emission');
+      return;
+    }
+
+    di<ILogger>().info(
+      '⏰ Scheduling device event emission (debounced for ${_deviceEventDebounceDuration.inMilliseconds}ms)',
+    );
+    di<ILogger>().debug(
+      '📋 State changes detected - Connected: ${state.isConnected}, Synced: ${state.isSynced}, Camera: $_isCameraOpen',
+    );
+
+    // Schedule new emission with debounce
+    _deviceEventDebounceTimer = Timer(_deviceEventDebounceDuration, () {
+      if (mounted && _isSocketInitialized) {
+        _emitDeviceEvent(state);
+      }
+    });
+  }
+
   void _emitDeviceEvent(CommunicationState state) {
     if (_isSocketInitialized) {
       String connectionStatus = "Disconnected";
@@ -981,13 +1137,40 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         connectionStatus = "Connected";
       }
 
-      socket.emit("device_event", {
+      // Create device event data with comprehensive status information
+      final deviceEventData = {
         "consultationId": consultation?.id,
         "r15cConnected": r15cDevice != null,
         "revo2Connected": revo2Device != null,
         "connectionStatus": connectionStatus,
         "transducerResponse": state.transducerResponse,
-      });
+        "isCameraOpen": _isCameraOpen,
+        "deviceState": {
+          "isConnected": state.isConnected,
+          "isSynced": state.isSynced,
+          "isReleased": state.isReleased,
+          "isInBeginMode": state.isInBeginMode,
+          "batteryLevel": state.batteryLevel,
+          "isCharging": state.isCharging,
+          "connectionStatus": state.connectionStatus,
+          "error": state.error,
+        },
+        "timestamp": DateTime.now().toIso8601String(),
+      };
+
+      socket.emit("device_event", deviceEventData);
+
+      // Update last emitted state
+      _lastEmittedDeviceState = state.copyWith(isCameraOpen: _isCameraOpen);
+
+      di<ILogger>().info('🚀 DEVICE EVENT EMITTED: $deviceEventData');
+      di<ILogger>().info(
+        '📊 Current state - R15C: ${r15cDevice != null}, Revo2: ${revo2Device != null}, Camera: $_isCameraOpen, Status: $connectionStatus',
+      );
+    } else {
+      di<ILogger>().error(
+        '❌ Cannot emit device event - socket not initialized',
+      );
     }
   }
 
@@ -1001,7 +1184,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       context.read<CommunicationCubit>().sendBeginPacket(
         testType ?? TestType.PTA,
       );
-      _emitDeviceEvent(context.read<CommunicationCubit>().state);
+      _scheduleDeviceEventEmission(context.read<CommunicationCubit>().state);
     } else {
       di<ILogger>().debug(
         'Device not connected or transducer response is null',

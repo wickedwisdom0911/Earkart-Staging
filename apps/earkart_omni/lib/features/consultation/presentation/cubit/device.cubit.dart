@@ -30,6 +30,8 @@ class DeviceCubit extends Cubit<DeviceState> {
   }
 
   void startDeviceMonitoring() {
+    di<ILogger>().info('🚀 Starting device monitoring...');
+    print('🚀 Starting device monitoring...');
     _usbTimer?.cancel();
 
     // Initial device fetch to handle already connected devices
@@ -44,14 +46,21 @@ class DeviceCubit extends Cubit<DeviceState> {
     });
 
     _usbTimer = Timer.periodic(_usbPollInterval, (timer) async {
+      print('⏰ Device monitoring timer tick - fetching devices...');
       await _fetchDevices();
     });
+
+    di<ILogger>().info('✅ Device monitoring started successfully');
+    print('✅ Device monitoring started successfully');
   }
 
   Future<void> _fetchDevices() async {
     try {
       final connectedDevices = await UsbSerial.listDevices();
       final previousDevices = List<UsbDevice>.from(_devices);
+
+      di<ILogger>().debug('📱 Found ${connectedDevices.length} USB devices');
+      print('📱 Found ${connectedDevices.length} USB devices');
 
       // Check for device changes
       final deviceChanges = _detectDeviceChanges(
@@ -60,6 +69,12 @@ class DeviceCubit extends Cubit<DeviceState> {
       );
 
       if (deviceChanges.hasChanges) {
+        di<ILogger>().info(
+          '🔄 Device changes detected: ${deviceChanges.attached.length} attached, ${deviceChanges.detached.length} detached',
+        );
+        print(
+          '🔄 Device changes detected: ${deviceChanges.attached.length} attached, ${deviceChanges.detached.length} detached',
+        );
         _handleDeviceChanges(deviceChanges);
       }
 
@@ -69,6 +84,12 @@ class DeviceCubit extends Cubit<DeviceState> {
       _updateDeviceReferences(connectedDevices);
 
       // Log device status for debugging
+      di<ILogger>().debug(
+        '📊 Device status - R15C: ${_r15cDevice != null ? "Connected" : "Disconnected"}, Revo2: ${_revo2Device != null ? "Connected" : "Disconnected"}',
+      );
+      print(
+        '📊 Device status - R15C: ${_r15cDevice != null ? "Connected" : "Disconnected"}, Revo2: ${_revo2Device != null ? "Connected" : "Disconnected"}',
+      );
 
       emit(
         DeviceState.success(
@@ -77,8 +98,10 @@ class DeviceCubit extends Cubit<DeviceState> {
           revo2Device: _revo2Device,
         ),
       );
+      print('📤 Emitted DeviceState.success');
     } catch (e) {
       di<ILogger>().error('Error fetching devices: $e');
+      print('❌ Error fetching devices: $e');
       emit(DeviceState.error(message: e.toString()));
     }
   }
@@ -90,36 +113,43 @@ class DeviceCubit extends Cubit<DeviceState> {
     final attached =
         current
             .where(
-              (device) =>
-                  !previous.any(
-                    (prev) => prev.pid == device.pid && prev.vid == device.vid,
-                  ),
+              (device) => !previous.any((prev) => _isSameDevice(prev, device)),
             )
             .toList();
 
     final detached =
         previous
             .where(
-              (device) =>
-                  !current.any(
-                    (curr) => curr.pid == device.pid && curr.vid == device.vid,
-                  ),
+              (device) => !current.any((curr) => _isSameDevice(device, curr)),
             )
             .toList();
 
     return DeviceChanges(attached: attached, detached: detached);
   }
 
+  bool _isSameDevice(UsbDevice device1, UsbDevice device2) {
+    // Compare by vid and pid for reliable device identification
+    return device1.vid == device2.vid && device1.pid == device2.pid;
+  }
+
   void _handleDeviceChanges(DeviceChanges changes) {
+    print(
+      '🔄 Handling device changes: ${changes.attached.length} attached, ${changes.detached.length} detached',
+    );
+
     // Handle device attachment
     for (final device in changes.attached) {
       final deviceType = _getDeviceType(device);
       if (deviceType != null) {
         di<ILogger>().info('Device attached: $deviceType');
+        print(
+          '🔌 Device attached: $deviceType (VID: ${device.vid}, PID: ${device.pid})',
+        );
 
         // Auto-initialize communication for R15C device
         if (deviceType == 'r15c' && _communicationCubit != null) {
           di<ILogger>().info('Auto-initializing communication for R15C device');
+          print('🔌 Auto-initializing communication for R15C device');
           _communicationCubit!.initializePort(device);
         }
       }
@@ -130,12 +160,16 @@ class DeviceCubit extends Cubit<DeviceState> {
       final deviceType = _getDeviceType(device);
       if (deviceType != null) {
         di<ILogger>().info('Device detached: $deviceType');
+        print(
+          '🔌 Device detached: $deviceType (VID: ${device.vid}, PID: ${device.pid})',
+        );
 
         // Reset communication state when R15C device is detached
         if (deviceType == 'r15c' && _communicationCubit != null) {
           di<ILogger>().info(
             'Resetting communication state for detached R15C device',
           );
+          print('🔌 Resetting communication state for detached R15C device');
           _communicationCubit!.resetState();
         }
       }
@@ -143,6 +177,9 @@ class DeviceCubit extends Cubit<DeviceState> {
     di<ILogger>().debug(
       'Device status - R15C: ${_r15cDevice != null ? "Connected" : "Disconnected"}, '
       'Revo2: ${_revo2Device != null ? "Connected" : "Disconnected"}',
+    );
+    print(
+      '📊 Device status - R15C: ${_r15cDevice != null ? "Connected" : "Disconnected"}, Revo2: ${_revo2Device != null ? "Connected" : "Disconnected"}',
     );
   }
 
@@ -153,12 +190,21 @@ class DeviceCubit extends Cubit<DeviceState> {
   }
 
   void _updateDeviceReferences(List<UsbDevice> devices) {
+    final previousR15C = _r15cDevice;
+    final previousRevo2 = _revo2Device;
+
     try {
       _r15cDevice = devices.firstWhere(
         (device) => device.pid == 206 && device.vid == 1118,
         orElse: () => throw Exception('R15C device not found'),
       );
+      if (previousR15C == null && _r15cDevice != null) {
+        print('🔌 R15C device reference updated: Connected');
+      }
     } catch (e) {
+      if (previousR15C != null && _r15cDevice == null) {
+        print('🔌 R15C device reference updated: Disconnected');
+      }
       _r15cDevice = null;
     }
 
@@ -167,7 +213,13 @@ class DeviceCubit extends Cubit<DeviceState> {
         (device) => device.pid == 8325 && device.vid == 7119,
         orElse: () => throw Exception('Revo2 device not found'),
       );
+      if (previousRevo2 == null && _revo2Device != null) {
+        print('📷 Revo2 device reference updated: Connected');
+      }
     } catch (e) {
+      if (previousRevo2 != null && _revo2Device == null) {
+        print('📷 Revo2 device reference updated: Disconnected');
+      }
       _revo2Device = null;
     }
   }
@@ -175,6 +227,13 @@ class DeviceCubit extends Cubit<DeviceState> {
   void stopDeviceMonitoring() {
     _usbTimer?.cancel();
     _usbTimer = null;
+  }
+
+  // Manual method to force device status check
+  Future<void> forceDeviceCheck() async {
+    di<ILogger>().info('🔧 Force checking device status...');
+    print('🔧 Force checking device status...');
+    await _fetchDevices();
   }
 
   @override

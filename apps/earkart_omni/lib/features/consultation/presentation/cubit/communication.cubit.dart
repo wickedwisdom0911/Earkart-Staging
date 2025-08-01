@@ -27,16 +27,13 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   StreamSubscription<Uint8List>? _subscription;
   final _commandQueue = Queue<_Command>();
   bool _processing = false;
-  Timer? _connectionCheckTimer;
   Timer? _commandTimeoutTimer;
 
   static const int MAX_CONSECUTIVE_ERRORS = 15;
   static const int MAX_RETRY_ATTEMPTS = 3;
   static const int RETRY_DELAY_MS = 500;
   static const int COMMAND_TIMEOUT_MS = 2000;
-  static const int CONNECTION_CHECK_INTERVAL_MS = 5000;
   int _errorCount = 0;
-  int _consecutiveTimeouts = 0;
 
   CommunicationCubit() : super(const CommunicationState());
 
@@ -60,7 +57,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
       await _configureFTDIDevice();
       _setupListener();
-      _startConnectionMonitoring();
 
       di<ILogger>().info('Device initialized successfully');
       emit(
@@ -94,32 +90,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         di<ILogger>().error('Error closing port: $e');
       }
       _port = null;
-    }
-  }
-
-  void _startConnectionMonitoring() {
-    _connectionCheckTimer?.cancel();
-    _connectionCheckTimer = Timer.periodic(
-      const Duration(milliseconds: CONNECTION_CHECK_INTERVAL_MS),
-      (_) => _checkConnection(),
-    );
-  }
-
-  Future<void> _checkConnection() async {
-    if (_port == null || !state.isConnected) return;
-
-    try {
-      // Send a simple ping command
-      await _port!.write(Uint8List.fromList([0x00]));
-      _consecutiveTimeouts = 0;
-    } catch (e) {
-      di<ILogger>().error('Connection check failed: $e');
-      _consecutiveTimeouts++;
-
-      if (_consecutiveTimeouts >= 3) {
-        di<ILogger>().error('Connection lost, attempting to reset...');
-        await _resetConnection();
-      }
     }
   }
 
@@ -517,7 +487,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   @override
   Future<void> close() {
-    _connectionCheckTimer?.cancel();
     _commandTimeoutTimer?.cancel();
     _cleanupPort();
     return super.close();

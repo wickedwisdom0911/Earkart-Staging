@@ -17,6 +17,7 @@ class CommunicationState with _$CommunicationState {
     @Default(false) bool tabletBatteryLevel,
     @Default(false) bool isTabletBatteryCharging,
     @Default('Disconnected') String connectionStatus,
+    @Default(false) bool isCameraOpen,
     TransducerResponse? transducerResponse,
     ImpedanceStatus? impedanceStatus,
     ImpedanceData? impedanceData,

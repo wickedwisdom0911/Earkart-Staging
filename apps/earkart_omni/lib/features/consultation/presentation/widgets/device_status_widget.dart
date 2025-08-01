@@ -12,16 +12,38 @@ class DeviceStatusWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    di<ILogger>().info(
+      '🔧 DeviceStatusWidget - build() called at ${DateTime.now()}',
+    );
+    print('🔧 DeviceStatusWidget - build() called at ${DateTime.now()}');
+
     return BlocBuilder<DeviceCubit, DeviceState>(
       builder: (context, deviceState) {
+        di<ILogger>().info(
+          '🔧 DeviceStatusWidget - DeviceCubit state changed: $deviceState',
+        );
+        print(
+          '🔧 DeviceStatusWidget - DeviceCubit state changed at ${DateTime.now()}: $deviceState',
+        );
+
         return BlocBuilder<CommunicationCubit, CommunicationState>(
           builder: (context, commState) {
+            di<ILogger>().info(
+              '🔧 DeviceStatusWidget - CommunicationCubit state changed: ${commState.isConnected}, ${commState.isSynced}',
+            );
+            print(
+              '🔧 DeviceStatusWidget - CommunicationCubit state changed at ${DateTime.now()}: ${commState.isConnected}, ${commState.isSynced}',
+            );
+
             final r15cStatus = _getR15CStatus(deviceState, commState);
             final revo2Status = _getRevo2Status(deviceState);
 
-            // Debug logging for device status
-            di<ILogger>().debug(
-              'DeviceStatusWidget - R15C: $r15cStatus, Revo2: $revo2Status',
+            // Enhanced debug logging for device status
+            di<ILogger>().info(
+              '🔧 DeviceStatusWidget - R15C: $r15cStatus, Revo2: $revo2Status',
+            );
+            print(
+              '🔧 DeviceStatusWidget - Status at ${DateTime.now()}: R15C: $r15cStatus, Revo2: $revo2Status',
             );
             di<ILogger>().debug(
               'DeviceStatusWidget - DeviceState: $deviceState',
@@ -51,6 +73,7 @@ class DeviceStatusWidget extends StatelessWidget {
                     context,
                   ),
                 ),
+                const SizedBox(width: 4),
               ],
             );
           },
