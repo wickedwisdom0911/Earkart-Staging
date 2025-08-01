@@ -20,6 +20,10 @@ mixin _$CommunicationState {
   bool get isSynced => throw _privateConstructorUsedError;
   bool get isReleased => throw _privateConstructorUsedError;
   bool get isInBeginMode => throw _privateConstructorUsedError;
+  int get batteryLevel => throw _privateConstructorUsedError;
+  bool get isCharging => throw _privateConstructorUsedError;
+  bool get tabletBatteryLevel => throw _privateConstructorUsedError;
+  bool get isTabletBatteryCharging => throw _privateConstructorUsedError;
   String get connectionStatus => throw _privateConstructorUsedError;
   TransducerResponse? get transducerResponse =>
       throw _privateConstructorUsedError;
@@ -46,6 +50,10 @@ abstract class $CommunicationStateCopyWith<$Res> {
       bool isSynced,
       bool isReleased,
       bool isInBeginMode,
+      int batteryLevel,
+      bool isCharging,
+      bool tabletBatteryLevel,
+      bool isTabletBatteryCharging,
       String connectionStatus,
       TransducerResponse? transducerResponse,
       ImpedanceStatus? impedanceStatus,
@@ -73,6 +81,10 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
     Object? isSynced = null,
     Object? isReleased = null,
     Object? isInBeginMode = null,
+    Object? batteryLevel = null,
+    Object? isCharging = null,
+    Object? tabletBatteryLevel = null,
+    Object? isTabletBatteryCharging = null,
     Object? connectionStatus = null,
     Object? transducerResponse = freezed,
     Object? impedanceStatus = freezed,
@@ -96,6 +108,22 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
       isInBeginMode: null == isInBeginMode
           ? _value.isInBeginMode
           : isInBeginMode // ignore: cast_nullable_to_non_nullable
+              as bool,
+      batteryLevel: null == batteryLevel
+          ? _value.batteryLevel
+          : batteryLevel // ignore: cast_nullable_to_non_nullable
+              as int,
+      isCharging: null == isCharging
+          ? _value.isCharging
+          : isCharging // ignore: cast_nullable_to_non_nullable
+              as bool,
+      tabletBatteryLevel: null == tabletBatteryLevel
+          ? _value.tabletBatteryLevel
+          : tabletBatteryLevel // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isTabletBatteryCharging: null == isTabletBatteryCharging
+          ? _value.isTabletBatteryCharging
+          : isTabletBatteryCharging // ignore: cast_nullable_to_non_nullable
               as bool,
       connectionStatus: null == connectionStatus
           ? _value.connectionStatus
@@ -138,6 +166,10 @@ abstract class _$$CommunicationStateImplCopyWith<$Res>
       bool isSynced,
       bool isReleased,
       bool isInBeginMode,
+      int batteryLevel,
+      bool isCharging,
+      bool tabletBatteryLevel,
+      bool isTabletBatteryCharging,
       String connectionStatus,
       TransducerResponse? transducerResponse,
       ImpedanceStatus? impedanceStatus,
@@ -163,6 +195,10 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
     Object? isSynced = null,
     Object? isReleased = null,
     Object? isInBeginMode = null,
+    Object? batteryLevel = null,
+    Object? isCharging = null,
+    Object? tabletBatteryLevel = null,
+    Object? isTabletBatteryCharging = null,
     Object? connectionStatus = null,
     Object? transducerResponse = freezed,
     Object? impedanceStatus = freezed,
@@ -186,6 +222,22 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
       isInBeginMode: null == isInBeginMode
           ? _value.isInBeginMode
           : isInBeginMode // ignore: cast_nullable_to_non_nullable
+              as bool,
+      batteryLevel: null == batteryLevel
+          ? _value.batteryLevel
+          : batteryLevel // ignore: cast_nullable_to_non_nullable
+              as int,
+      isCharging: null == isCharging
+          ? _value.isCharging
+          : isCharging // ignore: cast_nullable_to_non_nullable
+              as bool,
+      tabletBatteryLevel: null == tabletBatteryLevel
+          ? _value.tabletBatteryLevel
+          : tabletBatteryLevel // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isTabletBatteryCharging: null == isTabletBatteryCharging
+          ? _value.isTabletBatteryCharging
+          : isTabletBatteryCharging // ignore: cast_nullable_to_non_nullable
               as bool,
       connectionStatus: null == connectionStatus
           ? _value.connectionStatus
@@ -223,6 +275,10 @@ class _$CommunicationStateImpl implements _CommunicationState {
       this.isSynced = false,
       this.isReleased = false,
       this.isInBeginMode = false,
+      this.batteryLevel = 100,
+      this.isCharging = false,
+      this.tabletBatteryLevel = false,
+      this.isTabletBatteryCharging = false,
       this.connectionStatus = 'Disconnected',
       this.transducerResponse,
       this.impedanceStatus,
@@ -244,6 +300,18 @@ class _$CommunicationStateImpl implements _CommunicationState {
   final bool isInBeginMode;
   @override
   @JsonKey()
+  final int batteryLevel;
+  @override
+  @JsonKey()
+  final bool isCharging;
+  @override
+  @JsonKey()
+  final bool tabletBatteryLevel;
+  @override
+  @JsonKey()
+  final bool isTabletBatteryCharging;
+  @override
+  @JsonKey()
   final String connectionStatus;
   @override
   final TransducerResponse? transducerResponse;
@@ -259,7 +327,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
 
   @override
   String toString() {
-    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, isInBeginMode: $isInBeginMode, connectionStatus: $connectionStatus, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, isNewImpedanceData: $isNewImpedanceData, error: $error)';
+    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, connectionStatus: $connectionStatus, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, isNewImpedanceData: $isNewImpedanceData, error: $error)';
   }
 
   @override
@@ -275,6 +343,15 @@ class _$CommunicationStateImpl implements _CommunicationState {
                 other.isReleased == isReleased) &&
             (identical(other.isInBeginMode, isInBeginMode) ||
                 other.isInBeginMode == isInBeginMode) &&
+            (identical(other.batteryLevel, batteryLevel) ||
+                other.batteryLevel == batteryLevel) &&
+            (identical(other.isCharging, isCharging) ||
+                other.isCharging == isCharging) &&
+            (identical(other.tabletBatteryLevel, tabletBatteryLevel) ||
+                other.tabletBatteryLevel == tabletBatteryLevel) &&
+            (identical(
+                    other.isTabletBatteryCharging, isTabletBatteryCharging) ||
+                other.isTabletBatteryCharging == isTabletBatteryCharging) &&
             (identical(other.connectionStatus, connectionStatus) ||
                 other.connectionStatus == connectionStatus) &&
             (identical(other.transducerResponse, transducerResponse) ||
@@ -295,6 +372,10 @@ class _$CommunicationStateImpl implements _CommunicationState {
       isSynced,
       isReleased,
       isInBeginMode,
+      batteryLevel,
+      isCharging,
+      tabletBatteryLevel,
+      isTabletBatteryCharging,
       connectionStatus,
       transducerResponse,
       impedanceStatus,
@@ -318,6 +399,10 @@ abstract class _CommunicationState implements CommunicationState {
       final bool isSynced,
       final bool isReleased,
       final bool isInBeginMode,
+      final int batteryLevel,
+      final bool isCharging,
+      final bool tabletBatteryLevel,
+      final bool isTabletBatteryCharging,
       final String connectionStatus,
       final TransducerResponse? transducerResponse,
       final ImpedanceStatus? impedanceStatus,
@@ -333,6 +418,14 @@ abstract class _CommunicationState implements CommunicationState {
   bool get isReleased;
   @override
   bool get isInBeginMode;
+  @override
+  int get batteryLevel;
+  @override
+  bool get isCharging;
+  @override
+  bool get tabletBatteryLevel;
+  @override
+  bool get isTabletBatteryCharging;
   @override
   String get connectionStatus;
   @override
