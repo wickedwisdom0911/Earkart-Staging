@@ -35,8 +35,6 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
 
   @override
   Widget build(BuildContext context) {
-    print('🌐 NetworkStatusWidget - build() called at ${DateTime.now()}');
-
     return _isExpanded
         ? _buildExpandedView(context)
         : _buildCompactView(context);
@@ -47,10 +45,6 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
       onTap: _toggleExpanded,
       child: BlocBuilder<NetworkCubit, NetworkState>(
         builder: (context, state) {
-          print(
-            '🌐 NetworkStatusWidget - NetworkCubit state changed at ${DateTime.now()}: $state',
-          );
-
           return AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             transitionBuilder: (Widget child, Animation<double> animation) {
@@ -85,7 +79,6 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
         Positioned.fill(
           child: GestureDetector(
             onTap: () {
-              print('Background tapped - closing'); // Debug line
               _closeExpanded();
             },
             child: Container(color: Colors.transparent),
@@ -95,7 +88,6 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
         // Compact view
         GestureDetector(
           onTap: () {
-            print('Compact view tapped - closing'); // Debug line
             _closeExpanded();
           },
           child: BlocBuilder<NetworkCubit, NetworkState>(
@@ -113,7 +105,6 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
             constraints: const BoxConstraints(maxWidth: 300, maxHeight: 600),
             child: _ExpandedNetworkPopup(
               onClose: () {
-                print('Popup close callback called'); // Debug line
                 _closeExpanded();
               },
               networkState: context.read<NetworkCubit>().state,
@@ -219,7 +210,6 @@ class _ExpandedNetworkPopupState extends State<_ExpandedNetworkPopup>
             opacity: _opacityAnimation.value,
             child: GestureDetector(
               onTap: () {
-                ; // Debug line
                 // Prevent taps inside popup from propagating to background
               },
               child: Material(

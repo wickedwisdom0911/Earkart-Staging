@@ -14,7 +14,7 @@ class CommunicationState with _$CommunicationState {
     @Default(true) bool isInBeginMode,
     @Default(100) int batteryLevel,
     @Default(false) bool isCharging,
-    @Default(false) bool tabletBatteryLevel,
+    @Default(0) int tabletBatteryLevel,
     @Default(false) bool isTabletBatteryCharging,
     @Default('Disconnected') String connectionStatus,
     @Default(false) bool isCameraOpen,

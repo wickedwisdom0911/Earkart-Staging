@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:async' show unawaited;
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -12,6 +13,7 @@ import 'package:earkart_omni/models/communication/audiometer_core_state.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/communication/impedance_data.dart';
 import 'package:earkart_omni/models/communication/impedance_status.dart';
+import 'package:earkart_omni/services/battery_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 
@@ -28,14 +30,20 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   final _commandQueue = Queue<_Command>();
   bool _processing = false;
   Timer? _commandTimeoutTimer;
+  Timer? _syncRetryTimer;
+  Timer? _tabletBatteryUpdateTimer;
 
   static const int MAX_CONSECUTIVE_ERRORS = 15;
   static const int MAX_RETRY_ATTEMPTS = 3;
   static const int RETRY_DELAY_MS = 500;
   static const int COMMAND_TIMEOUT_MS = 2000;
+  static const int SYNC_RETRY_DELAY_MS = 3000; // 3 seconds
   int _errorCount = 0;
 
-  CommunicationCubit() : super(const CommunicationState());
+  CommunicationCubit() : super(const CommunicationState()) {
+    // Start periodic tablet battery updates
+    _startTabletBatteryUpdates();
+  }
 
   Future<bool> initializePort(UsbDevice device) async {
     try {
@@ -66,6 +74,9 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           error: null,
         ),
       );
+
+      // Automatically send sync packet after successful initialization
+      await _sendSyncPacketIfNeeded();
       return true;
     } catch (e) {
       di<ILogger>().error('Port initialization error: $e');
@@ -124,7 +135,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     di<ILogger>().debug('Setting up USB listener...');
     _subscription?.cancel();
     _subscription = _port!.inputStream!.listen(
-      _handleIncomingData,
+      (data) => unawaited(_handleIncomingData(data)),
       onError: _handleError,
       cancelOnError: false,
     );
@@ -143,14 +154,14 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     }
   }
 
-  void _handleIncomingData(Uint8List data) {
+  Future<void> _handleIncomingData(Uint8List data) async {
     if (data.isEmpty) return;
 
     try {
       di<ILogger>().debug('Received data: ${data.length} bytes');
       List<int>? processedPacket = _packetInterpreter.onListenerDataReady(data);
       if (processedPacket != null) {
-        _handleProcessedPacket(processedPacket);
+        await _handleProcessedPacket(processedPacket);
       }
     } catch (e) {
       di<ILogger>().error('Data processing error: $e');
@@ -158,7 +169,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     }
   }
 
-  void _handleProcessedPacket(List<int> packet) {
+  Future<void> _handleProcessedPacket(List<int> packet) async {
     try {
       List<int>? payload = _packetInterpreter.extractPayload(packet);
       if (payload == null) return;
@@ -171,6 +182,10 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
       if (jsonString.contains("R15C")) {
         di<ILogger>().info('Device synced successfully');
+
+        // Cancel sync retry timer since we're now synced
+        _syncRetryTimer?.cancel();
+
         emit(
           state.copyWith(
             isSynced: true,
@@ -179,6 +194,12 @@ class CommunicationCubit extends Cubit<CommunicationState> {
             isInBeginMode: false,
           ),
         );
+
+        // Automatically send query packet once synced
+        _sendQueryPacketAfterSync();
+
+        // Send device status packet after syncing
+        await sendDeviceStatusPacket();
         return;
       }
 
@@ -232,6 +253,14 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           );
           // Reset the flag after emitting
           emit(state.copyWith(isNewImpedanceData: false));
+          break;
+        case 19: // Battery Status
+          di<ILogger>().debug('Received battery status');
+          final isCharging = json['Battery']['Powered'];
+          final batteryLevel = json['Battery']['Level'];
+          emit(
+            state.copyWith(isCharging: isCharging, batteryLevel: batteryLevel),
+          );
           break;
       }
     } catch (e) {
@@ -294,6 +323,57 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     di<ILogger>().debug('Sending sync packet');
     final packet = _packetInterpreter.sendSerialNumberQuery();
     await sendCommand(packet);
+  }
+
+  /// Automatically sends sync packet if device is not synced
+  Future<void> _sendSyncPacketIfNeeded() async {
+    if (!state.isSynced && state.isConnected) {
+      di<ILogger>().debug(
+        'Device not synced, sending sync packet automatically',
+      );
+      await sendSyncPacket();
+
+      // Set up retry timer if still not synced after delay
+      _syncRetryTimer?.cancel();
+      _syncRetryTimer = Timer(
+        const Duration(milliseconds: SYNC_RETRY_DELAY_MS),
+        () {
+          if (!state.isSynced && state.isConnected && !isClosed) {
+            di<ILogger>().debug(
+              'Sync retry: device still not synced, retrying...',
+            );
+            _sendSyncPacketIfNeeded();
+          }
+        },
+      );
+    }
+  }
+
+  /// Public method to trigger sync packet if needed
+  Future<void> triggerSyncIfNeeded() async {
+    await _sendSyncPacketIfNeeded();
+  }
+
+  /// Start the sync process for connected device
+  Future<void> startSyncProcess() async {
+    if (state.isConnected && !state.isSynced) {
+      di<ILogger>().info('Starting sync process for connected device');
+      await _sendSyncPacketIfNeeded();
+    } else if (!state.isConnected) {
+      di<ILogger>().warning('Cannot start sync process: device not connected');
+    } else if (state.isSynced) {
+      di<ILogger>().info(
+        'Device already synced, no need to start sync process',
+      );
+    }
+  }
+
+  /// Automatically sends query packet after successful sync
+  Future<void> _sendQueryPacketAfterSync() async {
+    if (state.isSynced) {
+      di<ILogger>().debug('Device synced, sending query packet automatically');
+      await sendQueryInfoPacket();
+    }
   }
 
   Future<void> sendQueryInfoPacket() async {
@@ -452,8 +532,84 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     final packet = _packetInterpreter.constructPacket({
       "PacketType": 6,
       "Exit": true,
+      "ShutDown": false,
     });
     await sendCommand(packet);
+  }
+
+  Future<void> sendDeviceStatusPacket() async {
+    try {
+      di<ILogger>().info(
+        'Sending device status packet with tablet battery info: ${state.tabletBatteryLevel}%, charging: ${state.isTabletBatteryCharging}',
+      );
+      print(
+        '🔋 Sending device status packet with tablet battery info: ${state.tabletBatteryLevel}%, charging: ${state.isTabletBatteryCharging}',
+      );
+
+      final packet = _packetInterpreter.constructPacket({
+        "PacketType": 18,
+        "Notify": true,
+        "TabletBattery": {
+          "level": state.tabletBatteryLevel,
+          "isCharging": state.isTabletBatteryCharging,
+          "timestamp": DateTime.now().toIso8601String(),
+        },
+      });
+      await sendCommand(packet);
+    } catch (e) {
+      di<ILogger>().error('Error sending device status packet: $e');
+      print('❌ Error sending device status packet: $e');
+
+      // Send packet without battery info if there's an error
+      final packet = _packetInterpreter.constructPacket({
+        "PacketType": 18,
+        "Notify": true,
+      });
+      await sendCommand(packet);
+    }
+  }
+
+  /// Get current tablet battery information
+  Future<Map<String, dynamic>> getTabletBatteryInfo() async {
+    try {
+      final batteryService = di<BatteryService>();
+      return await batteryService.getBatteryInfo();
+    } catch (e) {
+      di<ILogger>().error('Error getting tablet battery info: $e');
+      return {
+        'level': 0,
+        'isCharging': false,
+        'timestamp': DateTime.now().toIso8601String(),
+        'error': e.toString(),
+      };
+    }
+  }
+
+  /// Update tablet battery status in the state
+  Future<void> updateTabletBatteryStatus() async {
+    try {
+      final batteryService = di<BatteryService>();
+      final batteryInfo = await batteryService.getBatteryInfo();
+
+      final level = batteryInfo['level'] as int? ?? 0;
+      final isCharging = batteryInfo['isCharging'] as bool? ?? false;
+
+      // Only emit if the values have changed
+      if (state.tabletBatteryLevel != level ||
+          state.isTabletBatteryCharging != isCharging) {
+        emit(
+          state.copyWith(
+            tabletBatteryLevel: level,
+            isTabletBatteryCharging: isCharging,
+          ),
+        );
+        di<ILogger>().debug(
+          'Tablet battery status updated: $level%, charging: $isCharging',
+        );
+      }
+    } catch (e) {
+      di<ILogger>().error('Error updating tablet battery status: $e');
+    }
   }
 
   void clearImpedanceData() {
@@ -485,9 +641,30 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     );
   }
 
+  void _startTabletBatteryUpdates() {
+    // Update tablet battery status immediately
+    updateTabletBatteryStatus();
+
+    // Set up periodic updates every 30 seconds
+    _tabletBatteryUpdateTimer = Timer.periodic(const Duration(seconds: 30), (
+      timer,
+    ) {
+      if (!isClosed) {
+        updateTabletBatteryStatus();
+      }
+    });
+  }
+
+  /// Force refresh tablet battery status
+  Future<void> forceRefreshTabletBattery() async {
+    await updateTabletBatteryStatus();
+  }
+
   @override
   Future<void> close() {
     _commandTimeoutTimer?.cancel();
+    _syncRetryTimer?.cancel();
+    _tabletBatteryUpdateTimer?.cancel();
     _cleanupPort();
     return super.close();
   }

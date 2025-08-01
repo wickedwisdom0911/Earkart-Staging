@@ -25,7 +25,15 @@ class DeviceCubit extends Cubit<DeviceState> {
       di<ILogger>().info(
         'Initializing communication for already connected R15C device',
       );
-      _communicationCubit!.initializePort(_r15cDevice!);
+      print(
+        '🔌 Auto-initializing communication for already connected R15C device (setCommunicationCubit)',
+      );
+      // Add a small delay to ensure proper initialization
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (_communicationCubit != null) {
+          _communicationCubit!.initializePort(_r15cDevice!);
+        }
+      });
     }
   }
 
@@ -41,12 +49,19 @@ class DeviceCubit extends Cubit<DeviceState> {
         di<ILogger>().info(
           'Initializing communication for already connected R15C device',
         );
-        _communicationCubit!.initializePort(_r15cDevice!);
+        print(
+          '🔌 Auto-initializing communication for already connected R15C device',
+        );
+        // Add a small delay to ensure proper initialization
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (_communicationCubit != null) {
+            _communicationCubit!.initializePort(_r15cDevice!);
+          }
+        });
       }
     });
 
     _usbTimer = Timer.periodic(_usbPollInterval, (timer) async {
-      print('⏰ Device monitoring timer tick - fetching devices...');
       await _fetchDevices();
     });
 
@@ -58,9 +73,6 @@ class DeviceCubit extends Cubit<DeviceState> {
     try {
       final connectedDevices = await UsbSerial.listDevices();
       final previousDevices = List<UsbDevice>.from(_devices);
-
-      di<ILogger>().debug('📱 Found ${connectedDevices.length} USB devices');
-      print('📱 Found ${connectedDevices.length} USB devices');
 
       // Check for device changes
       final deviceChanges = _detectDeviceChanges(
@@ -83,14 +95,6 @@ class DeviceCubit extends Cubit<DeviceState> {
       // Update device references
       _updateDeviceReferences(connectedDevices);
 
-      // Log device status for debugging
-      di<ILogger>().debug(
-        '📊 Device status - R15C: ${_r15cDevice != null ? "Connected" : "Disconnected"}, Revo2: ${_revo2Device != null ? "Connected" : "Disconnected"}',
-      );
-      print(
-        '📊 Device status - R15C: ${_r15cDevice != null ? "Connected" : "Disconnected"}, Revo2: ${_revo2Device != null ? "Connected" : "Disconnected"}',
-      );
-
       emit(
         DeviceState.success(
           devices: _devices,
@@ -98,7 +102,6 @@ class DeviceCubit extends Cubit<DeviceState> {
           revo2Device: _revo2Device,
         ),
       );
-      print('📤 Emitted DeviceState.success');
     } catch (e) {
       di<ILogger>().error('Error fetching devices: $e');
       print('❌ Error fetching devices: $e');
@@ -150,7 +153,12 @@ class DeviceCubit extends Cubit<DeviceState> {
         if (deviceType == 'r15c' && _communicationCubit != null) {
           di<ILogger>().info('Auto-initializing communication for R15C device');
           print('🔌 Auto-initializing communication for R15C device');
-          _communicationCubit!.initializePort(device);
+          // Add a small delay to ensure proper initialization
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (_communicationCubit != null) {
+              _communicationCubit!.initializePort(device);
+            }
+          });
         }
       }
     }

@@ -59,6 +59,7 @@ import 'package:earkart_omni/features/patients/domain/usecases/get_patients_by_v
 import 'package:earkart_omni/features/patients/domain/usecases/update_patient_usecase.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
+import 'package:earkart_omni/services/battery_service.dart';
 
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
@@ -270,4 +271,7 @@ Future<void> setupDI() async {
 
   //network
   di.registerLazySingleton<NetworkCubit>(() => NetworkCubit());
+
+  //battery
+  di.registerLazySingleton<BatteryService>(() => BatteryService());
 }

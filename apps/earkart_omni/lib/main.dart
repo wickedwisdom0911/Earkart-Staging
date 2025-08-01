@@ -20,6 +20,7 @@ import 'package:earkart_omni/features/network/presentation/widgets/wakelock_stat
 import 'package:earkart_omni/features/consultation/presentation/widgets/device_status_widget.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
+import 'package:earkart_omni/services/battery_service.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
@@ -57,10 +58,36 @@ Future<void> main() async {
   await _initDataSources();
   await _initLookupData(); // Add lookup data initialization
 
+  // Initialize battery service
+  await _initializeBatteryService();
+
   // Auto-grant device owner permissions if app is device owner
   await _initializeDeviceOwnerPermissions();
 
   runApp(const MyApp());
+}
+
+/// Initialize battery service
+Future<void> _initializeBatteryService() async {
+  try {
+    developer.log(
+      'Initializing battery service...',
+      name: 'BatteryService',
+    );
+
+    final batteryService = di<BatteryService>();
+    await batteryService.initialize();
+
+    developer.log(
+      'Battery service initialized successfully',
+      name: 'BatteryService',
+    );
+  } catch (e) {
+    developer.log(
+      'Error initializing battery service: $e',
+      name: 'BatteryService',
+    );
+  }
 }
 
 /// Initialize device owner permissions automatically

@@ -22,7 +22,7 @@ mixin _$CommunicationState {
   bool get isInBeginMode => throw _privateConstructorUsedError;
   int get batteryLevel => throw _privateConstructorUsedError;
   bool get isCharging => throw _privateConstructorUsedError;
-  bool get tabletBatteryLevel => throw _privateConstructorUsedError;
+  int get tabletBatteryLevel => throw _privateConstructorUsedError;
   bool get isTabletBatteryCharging => throw _privateConstructorUsedError;
   String get connectionStatus => throw _privateConstructorUsedError;
   bool get isCameraOpen => throw _privateConstructorUsedError;
@@ -53,7 +53,7 @@ abstract class $CommunicationStateCopyWith<$Res> {
       bool isInBeginMode,
       int batteryLevel,
       bool isCharging,
-      bool tabletBatteryLevel,
+      int tabletBatteryLevel,
       bool isTabletBatteryCharging,
       String connectionStatus,
       bool isCameraOpen,
@@ -123,7 +123,7 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
       tabletBatteryLevel: null == tabletBatteryLevel
           ? _value.tabletBatteryLevel
           : tabletBatteryLevel // ignore: cast_nullable_to_non_nullable
-              as bool,
+              as int,
       isTabletBatteryCharging: null == isTabletBatteryCharging
           ? _value.isTabletBatteryCharging
           : isTabletBatteryCharging // ignore: cast_nullable_to_non_nullable
@@ -175,7 +175,7 @@ abstract class _$$CommunicationStateImplCopyWith<$Res>
       bool isInBeginMode,
       int batteryLevel,
       bool isCharging,
-      bool tabletBatteryLevel,
+      int tabletBatteryLevel,
       bool isTabletBatteryCharging,
       String connectionStatus,
       bool isCameraOpen,
@@ -243,7 +243,7 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
       tabletBatteryLevel: null == tabletBatteryLevel
           ? _value.tabletBatteryLevel
           : tabletBatteryLevel // ignore: cast_nullable_to_non_nullable
-              as bool,
+              as int,
       isTabletBatteryCharging: null == isTabletBatteryCharging
           ? _value.isTabletBatteryCharging
           : isTabletBatteryCharging // ignore: cast_nullable_to_non_nullable
@@ -290,7 +290,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
       this.isInBeginMode = true,
       this.batteryLevel = 100,
       this.isCharging = false,
-      this.tabletBatteryLevel = false,
+      this.tabletBatteryLevel = 0,
       this.isTabletBatteryCharging = false,
       this.connectionStatus = 'Disconnected',
       this.isCameraOpen = false,
@@ -320,7 +320,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
   final bool isCharging;
   @override
   @JsonKey()
-  final bool tabletBatteryLevel;
+  final int tabletBatteryLevel;
   @override
   @JsonKey()
   final bool isTabletBatteryCharging;
@@ -421,7 +421,7 @@ abstract class _CommunicationState implements CommunicationState {
       final bool isInBeginMode,
       final int batteryLevel,
       final bool isCharging,
-      final bool tabletBatteryLevel,
+      final int tabletBatteryLevel,
       final bool isTabletBatteryCharging,
       final String connectionStatus,
       final bool isCameraOpen,
@@ -444,7 +444,7 @@ abstract class _CommunicationState implements CommunicationState {
   @override
   bool get isCharging;
   @override
-  bool get tabletBatteryLevel;
+  int get tabletBatteryLevel;
   @override
   bool get isTabletBatteryCharging;
   @override
