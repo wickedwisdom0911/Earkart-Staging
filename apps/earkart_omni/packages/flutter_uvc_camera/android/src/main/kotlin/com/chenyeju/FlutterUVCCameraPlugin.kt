@@ -211,23 +211,11 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 mUVCCameraViewFactory?.updateResolution(call.arguments())
             }
 
-            "captureFrameAsBinary" -> {
-                mUVCCameraViewFactory?.captureFrameAsBinary(
-                    object : UVCBinaryCallback {
-                        override fun onSuccess(binaryData: ByteArray) {
-                            result.success(binaryData)
-                        }
-                        override fun onError(error: String) {
-                            result.error("error", error, error)
-                        }
-                    }
-                )
-            }
-            "getLastCapturedFrameAsBinary" -> {
-                mUVCCameraViewFactory?.getLastCapturedFrameAsBinary(
-                    object : UVCBinaryCallback {
-                        override fun onSuccess(binaryData: ByteArray) {
-                            result.success(binaryData)
+            "captureFrameAsBase64" -> {
+                mUVCCameraViewFactory?.captureFrameAsBase64(
+                    object : UVCStringCallback {
+                        override fun onSuccess(base64Data: String) {
+                            result.success(base64Data)
                         }
                         override fun onError(error: String) {
                             result.error("error", error, error)

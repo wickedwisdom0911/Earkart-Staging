@@ -43,10 +43,8 @@ import com.jiangdg.ausbc.widget.CaptureMediaView
 import com.jiangdg.ausbc.widget.IAspectRatio
 import com.jiangdg.usb.USBMonitor
 import com.jiangdg.uvc.IButtonCallback
-import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.platform.PlatformView
-import io.flutter.plugin.platform.PlatformViewFactory
 import java.io.File
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
@@ -54,7 +52,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.Date
 import java.util.Locale
-import android.view.Surface
 
 internal class UVCCameraView(
     private val mContext: Context,
@@ -792,40 +789,35 @@ internal class UVCCameraView(
     private val frameCaptureRunnable = object : Runnable {
         override fun run() {
             if (isFrameCaptureActive && isCameraOpened()) {
-                captureFrameAsBinaryInternal()
+                captureFrameAsBase64Internal()
                 frameCaptureHandler.postDelayed(this, 50) // 20 FPS (50ms)
             }
         }
     }
 
-    fun captureFrameAsBinary(callback: UVCBinaryCallback) {
+    fun captureFrameAsBase64(callback: UVCStringCallback) {
         if (!isCameraOpened()) {
             callback.onError("Camera not opened")
             return
         }
         
         if (!isFrameCaptureActive) {
-            callback.onSuccess(ByteArray(0))
+            callback.onSuccess("")
             return
         }
         
         try {
             val currentCamera = getCurrentCamera()
             if (currentCamera is CameraUVC) {
-                currentCamera.captureFrameAsBinary { binaryData ->
-                    callback.onSuccess(binaryData)
+                currentCamera.captureFrameAsBase64 { base64Data ->
+                    callback.onSuccess(base64Data)
                 }
             } else {
                 callback.onError("Camera not available")
             }
         } catch (e: Exception) {
-            callback.onError("Binary frame capture error: ${e.message}")
+            callback.onError("Frame capture error: ${e.message}")
         }
-    }
-
-    fun getLastCapturedFrameAsBinary(callback: UVCBinaryCallback) {
-        // Always capture a fresh frame instead of returning cached one
-        captureFrameAsBinary(callback)
     }
 
     fun startFrameCapture() {
@@ -854,32 +846,15 @@ internal class UVCCameraView(
     }
 
     fun getLastCapturedFrame(callback: UVCStringCallback) {
-        // Convert binary to base64 for backward compatibility
-        captureFrameAsBinary(object : UVCBinaryCallback {
-            override fun onSuccess(binaryData: ByteArray) {
-                try {
-                    val base64String = android.util.Base64.encodeToString(
-                        binaryData,
-                        android.util.Base64.DEFAULT
-                    )
-                    val dataUrl = "data:image/jpeg;base64,$base64String"
-                    callback.onSuccess(dataUrl)
-                } catch (e: Exception) {
-                    callback.onError("Error converting binary to base64: ${e.message}")
-                }
-            }
-            
-            override fun onError(error: String) {
-                callback.onError(error)
-            }
-        })
+        // Always capture a fresh frame instead of returning cached one
+        captureFrameAsBase64(callback)
     }
 
-    private fun captureFrameAsBinaryInternal() {
+    private fun captureFrameAsBase64Internal() {
         try {
             val currentCamera = getCurrentCamera()
             if (currentCamera is CameraUVC) {
-                currentCamera.captureFrameAsBinary { binaryData ->
+                currentCamera.captureFrameAsBase64 { base64Data ->
                     // Frame captured successfully, but we don't store it
                     // This ensures we always get fresh frames
                 }

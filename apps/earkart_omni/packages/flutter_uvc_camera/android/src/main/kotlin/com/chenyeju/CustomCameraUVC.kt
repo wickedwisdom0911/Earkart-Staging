@@ -123,13 +123,12 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                             Log.e(TAG, "Error in preview callback", e)
                         }
                     }
-                    // Optimized queue management for maximum FPS
-                    if (mNV21DataQueue.size >= 2) {
-                        // Remove oldest frame to make room for new one (smaller queue for lower latency)
-                        mNV21DataQueue.pollLast()
+                    // for video frame queue
+                    if (mNV21DataQueue.size >= MAX_NV21_DATA) {
+                        mNV21DataQueue.clear() // Clear old frames to prevent lag
                     }
                     mNV21DataQueue.offerFirst(data)
-                    // Update frame immediately for preview
+                    // Update frame immediately
                     putVideoData(data)
                 }
             } catch (e: Exception) {
@@ -138,12 +137,149 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         }
     }
 
-    // Frame capture for otoscopy streaming - PURE BINARY ONLY
+    // Frame capture for otoscopy streaming
+    private var frameCaptureCallback: ((String) -> Unit)? = null
     private var frameCounter: Long = 0
     private var lastFrameCaptureTime: Long = 0
-    private val MIN_FRAME_INTERVAL = 16L // 16ms = 60 FPS support for maximum performance
+    private val MIN_FRAME_INTERVAL = 50L // Minimum 50ms between frames (20 FPS max)
     private var isFrameCaptureActive = false
-    private var lastValidBinaryFrame: ByteArray? = null
+    private var lastValidFrame: String? = null // Store last valid frame as fallback
+
+    // Frame capture callback for otoscopy streaming
+    fun captureFrameAsBase64(callback: ((String) -> Unit)?) {
+        if (!isFrameCaptureActive) {
+            // Return last valid frame if available, otherwise empty
+            callback?.invoke(lastValidFrame ?: "")
+            return
+        }
+
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastFrameCaptureTime < MIN_FRAME_INTERVAL) {
+            // Return last valid frame if too soon
+            callback?.invoke(lastValidFrame ?: "")
+            return
+        }
+
+        try {
+            // Get current frame data from the queue
+            val frameData = mNV21DataQueue.pollFirst()
+            if (frameData != null && frameData.isNotEmpty()) {
+                convertFrameToBase64(frameData) { base64Data ->
+                    if (base64Data.isNotEmpty() && base64Data.length > 100) {
+                        lastValidFrame = base64Data
+                        lastFrameCaptureTime = currentTime
+                        callback?.invoke(base64Data)
+                    } else {
+                        // Return last valid frame if current frame is invalid
+                        callback?.invoke(lastValidFrame ?: "")
+                    }
+                }
+            } else {
+                // Return last valid frame if no new frame available
+                callback?.invoke(lastValidFrame ?: "")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error capturing frame", e)
+            // Return last valid frame on error
+            callback?.invoke(lastValidFrame ?: "")
+        }
+    }
+
+    private fun captureCurrentFrame() {
+        try {
+            // Check if we have enough frames in queue
+            if (mNV21DataQueue.size < 2) {
+                Log.w(TAG, "uvc_stream: Insufficient frames in queue (${mNV21DataQueue.size}), skipping capture")
+                frameCaptureCallback?.invoke("")
+                return
+            }
+
+            // Get the latest frame from the queue
+            val frameData = mNV21DataQueue.pollFirst()
+            if (frameData != null) {
+                Log.d(TAG, "uvc_stream: Capturing fresh frame from queue (${frameData.size} bytes, queue size: ${mNV21DataQueue.size})")
+                convertFrameToBase64(frameData, frameCaptureCallback)
+            } else {
+                Log.w(TAG, "uvc_stream: No frame in queue, queue size: ${mNV21DataQueue.size}")
+                frameCaptureCallback?.invoke("")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error capturing current frame", e)
+            frameCaptureCallback?.invoke("")
+        }
+    }
+
+    private fun convertFrameToBase64(frameData: ByteArray, callback: ((String) -> Unit)?) {
+        try {
+            frameCounter++
+            
+            // Validate frame data
+            if (frameData.isEmpty()) {
+                Log.w(TAG, "uvc_stream: Empty frame data received")
+                callback?.invoke("")
+                return
+            }
+            
+            // Convert NV21 to JPEG for base64 encoding
+            val width = mCameraRequest?.previewWidth ?: 640
+            val height = mCameraRequest?.previewHeight ?: 480
+            
+            // Validate dimensions
+            if (width <= 0 || height <= 0) {
+                Log.w(TAG, "uvc_stream: Invalid dimensions: ${width}x${height}")
+                callback?.invoke("")
+                return
+            }
+            
+            // Create a YuvImage from the frame data
+            val yuvImage = android.graphics.YuvImage(
+                frameData,
+                android.graphics.ImageFormat.NV21,
+                width,
+                height,
+                null
+            )
+            
+            // Convert to JPEG with optimized quality for 20 FPS
+            val outputStream = java.io.ByteArrayOutputStream()
+            val success = yuvImage.compressToJpeg(
+                android.graphics.Rect(0, 0, width, height),
+                70, // Reduced quality for better performance at 20 FPS
+                outputStream
+            )
+            
+            if (!success) {
+                Log.w(TAG, "uvc_stream: Failed to compress frame to JPEG")
+                callback?.invoke("")
+                return
+            }
+            
+            // Convert to base64
+            val jpegData = outputStream.toByteArray()
+            
+            // Validate JPEG data
+            if (jpegData.isEmpty() || jpegData.size < 100) {
+                Log.w(TAG, "uvc_stream: Invalid JPEG data size: ${jpegData.size}")
+                callback?.invoke("")
+                return
+            }
+            
+            val base64String = android.util.Base64.encodeToString(
+                jpegData,
+                android.util.Base64.DEFAULT
+            )
+            
+            // Add data URL prefix
+            val dataUrl = "data:image/jpeg;base64,$base64String"
+            
+            Log.d(TAG, "uvc_stream: Frame #$frameCounter converted to base64 (${jpegData.size} bytes)")
+            callback?.invoke(dataUrl)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error converting frame to base64", e)
+            callback?.invoke("")
+        }
+    }
 
     // Add methods to control frame capture
     fun startFrameCapture() {
@@ -155,98 +291,6 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     fun stopFrameCapture() {
         isFrameCaptureActive = false
         Log.d(TAG, "uvc_stream: Frame capture stopped")
-    }
-
-    // Pure binary frame capture - NO JPEG/Base64 conversion
-    fun captureFrameAsBinary(callback: ((ByteArray) -> Unit)?) {
-        if (!isFrameCaptureActive) {
-            // Return last valid binary frame if available, otherwise empty
-            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
-            return
-        }
-
-        val currentTime = System.currentTimeMillis()
-        if (currentTime - lastFrameCaptureTime < MIN_FRAME_INTERVAL) {
-            // Return last valid binary frame if too soon
-            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
-            return
-        }
-
-        try {
-            // Get current frame data from the queue with non-blocking approach
-            val frameData = mNV21DataQueue.pollFirst()
-            if (frameData != null && frameData.isNotEmpty()) {
-                // Use background thread for processing to avoid blocking UI
-                Thread {
-                    // Direct binary conversion - NO JPEG compression
-                    convertFrameToPureBinary(frameData) { binaryData ->
-                        if (binaryData.isNotEmpty() && binaryData.size > 100) {
-                            lastValidBinaryFrame = binaryData
-                            lastFrameCaptureTime = currentTime
-                            callback?.invoke(binaryData)
-                        } else {
-                            // Return last valid binary frame if current frame is invalid
-                            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
-                        }
-                    }
-                }.start()
-            } else {
-                // Return last valid binary frame if no new frame available
-                callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error capturing binary frame", e)
-            // Return last valid binary frame on error
-            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
-        }
-    }
-
-    // Get last captured binary frame
-    fun getLastCapturedFrameAsBinary(callback: ((ByteArray) -> Unit)?) {
-        callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
-    }
-
-    // Pure binary conversion - NO JPEG compression, direct NV21 to optimized binary
-    private fun convertFrameToPureBinary(frameData: ByteArray, callback: ((ByteArray) -> Unit)?) {
-        try {
-            frameCounter++
-            
-            // Validate frame data
-            if (frameData.isEmpty()) {
-                Log.w(TAG, "uvc_stream: Empty frame data received for binary conversion")
-                callback?.invoke(ByteArray(0))
-                return
-            }
-            
-            // Get dimensions
-            val width = mCameraRequest?.previewWidth ?: 640
-            val height = mCameraRequest?.previewHeight ?: 480
-            
-            // Validate dimensions
-            if (width <= 0 || height <= 0) {
-                Log.w(TAG, "uvc_stream: Invalid dimensions for binary conversion: ${width}x${height}")
-                callback?.invoke(ByteArray(0))
-                return
-            }
-            
-            // Create simple binary frame data - just return the raw frame data
-            // This is the simplest approach that should definitely compile
-            val binaryData = frameData.copyOf()
-            
-            // Validate binary data
-            if (binaryData.isEmpty() || binaryData.size < 100) {
-                Log.w(TAG, "uvc_stream: Invalid binary data size: ${binaryData.size}")
-                callback?.invoke(ByteArray(0))
-                return
-            }
-            
-            Log.d(TAG, "uvc_stream: Frame #$frameCounter converted to pure binary (${binaryData.size} bytes, ${width}x${height})")
-            callback?.invoke(binaryData)
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error converting frame to pure binary", e)
-            callback?.invoke(ByteArray(0))
-        }
     }
 
     override fun getAllPreviewSizes(aspectRatio: Double?): MutableList<PreviewSize> {
