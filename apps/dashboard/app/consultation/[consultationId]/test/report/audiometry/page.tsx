@@ -9,6 +9,7 @@ import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowDownRight, ArrowDownLeft } from "lucide-react";
 
 import { ROUTES } from "@/lib/routes";
 import { toast } from "sonner";
@@ -129,119 +130,161 @@ const AudiogramChart: React.FC<{
   
   const renderSymbol = (result: TestResult, x: number, y: number) => {
     const color = getSymbolColor(result.ear);
-    const size = 8;
+    const SYMBOL_SIZE = 14;
+    const LINE_THICKNESS = 2;
+    const half = SYMBOL_SIZE / 2;
     
     // Handle no response cases first
     if (result.noResponse === 1) {
-      // No response arrows - down-right for left ear, down-left for right ear
-      const arrowSize = 12;
-      if (result.ear === "L") {
-        // Down-right arrow for left ear (↘)
-        return (
-          <g key={`${result.x}-${result.y}-${result.ear}-noresponse`}>
-            <line
-              x1={x - arrowSize/2}
-              y1={y - arrowSize/2}
-              x2={x + arrowSize/2}
-              y2={y + arrowSize/2}
-              stroke={color}
-              strokeWidth={3}
-            />
-            <polygon
-              points={`${x + arrowSize/2},${y + arrowSize/2} ${x + arrowSize/2 - 4},${y + arrowSize/2 - 2} ${x + arrowSize/2 - 2},${y + arrowSize/2 - 4}`}
+      // No-response overlay with diagonal arrows based on ear (ASHA 1990)
+      const Icon = result.ear === "L" ? ArrowDownRight : ArrowDownLeft;
+      
+      // First render the base symbol
+      let baseSymbol = null;
+      
+      if (result.mode === "AC") {
+        if (result.masking === 0) {
+          // Unmasked AC: X for Left ear, Circle for Right ear (ASHA standard)
+          baseSymbol = result.ear === "L" ? (
+            <text 
+              x={x} 
+              y={y} 
+              fontSize={SYMBOL_SIZE} 
               fill={color}
+              textAnchor="middle" 
+              dominantBaseline="middle"
+            >
+              ×
+            </text>
+          ) : (
+            <circle 
+              cx={x} 
+              cy={y} 
+              r={half} 
+              fill="none" 
+              stroke={color}
+              strokeWidth={LINE_THICKNESS}
             />
-          </g>
         );
       } else {
-        // Down-left arrow for right ear (↙)
-        return (
-          <g key={`${result.x}-${result.y}-${result.ear}-noresponse`}>
-            <line
-              x1={x + arrowSize/2}
-              y1={y - arrowSize/2}
-              x2={x - arrowSize/2}
-              y2={y + arrowSize/2}
+          // Masked AC: upward triangle for Left ear, square for Right ear (ASHA standard)
+          baseSymbol = result.ear === "L" ? (
+            <polygon 
+              points={`
+                ${x-half},${y+half}
+                ${x},${y-half}
+                ${x+half},${y+half}
+              `} 
+              fill="none" 
               stroke={color}
-              strokeWidth={3}
+              strokeWidth={LINE_THICKNESS}
             />
-            <polygon
-              points={`${x - arrowSize/2},${y + arrowSize/2} ${x - arrowSize/2 + 4},${y + arrowSize/2 - 2} ${x - arrowSize/2 + 2},${y + arrowSize/2 - 4}`}
-              fill={color}
+          ) : (
+            <rect 
+              x={x-half} 
+              y={y-half} 
+              width={SYMBOL_SIZE} 
+              height={SYMBOL_SIZE} 
+              fill="none" 
+              stroke={color} 
+              strokeWidth={LINE_THICKNESS}
             />
-          </g>
+          );
+        }
+      } else if (result.mode === "BC") {
+        // Bone conduction symbols (ASHA standard)
+        const sym = (!result.masking ? (result.ear==="L" ? ">" : "<") : (result.ear==="L" ? "]" : "["));
+        baseSymbol = (
+          <text 
+            x={x} 
+            y={y} 
+            fontSize={SYMBOL_SIZE} 
+            fill={color}
+            textAnchor="middle" 
+            dominantBaseline="middle"
+          >
+            {sym}
+          </text>
         );
       }
+      
+      return (
+        <g key={`${result.x}-${result.y}-${result.ear}-noresponse`}>
+          {baseSymbol}
+          <g transform={`translate(${x - 10}, ${y + 10})`}>
+            <Icon stroke={color} strokeWidth={2} size={20} fill="none" />          
+          </g>
+          </g>
+        );
     }
     
     if (result.mode === "AC") {
       if (result.masking === 0) {
-        // Unmasked AC: Circle for Right ear, X for Left ear (ASHA standard)
-        return result.ear === "R" ? (
-          <circle
-            cx={x}
-            cy={y}
-            r={size}
-            fill="none"
-            stroke={color}
-            strokeWidth={2}
-            key={`${result.x}-${result.y}-${result.ear}`}
-          />
-        ) : (
+        // Unmasked AC: X for Left ear, Circle for Right ear (ASHA standard)
+        return result.ear === "L" ? (
           <text
             x={x}
             y={y}
+            fontSize={SYMBOL_SIZE} 
+            fill={color}
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize={size * 2}
-            fill={color}
             key={`${result.x}-${result.y}-${result.ear}`}
-            fontWeight="bold"
           >
             ×
           </text>
+        ) : (
+          <circle 
+            cx={x} 
+            cy={y} 
+            r={half} 
+            fill="none" 
+            stroke={color}
+            strokeWidth={LINE_THICKNESS}
+            key={`${result.x}-${result.y}-${result.ear}`}
+          />
         );
       } else {
-        // Masked AC: Triangle for Left ear, Square for Right ear (ASHA standard)
+        // Masked AC: upward triangle for Left ear, square for Right ear (ASHA standard)
         return result.ear === "L" ? (
           <polygon
-            points={`${x},${y-size} ${x-size},${y+size} ${x+size},${y+size}`}
+            points={`
+              ${x-half},${y+half}
+              ${x},${y-half}
+              ${x+half},${y+half}
+            `} 
             fill="none"
             stroke={color}
-            strokeWidth={2}
+            strokeWidth={LINE_THICKNESS}
             key={`${result.x}-${result.y}-${result.ear}`}
           />
         ) : (
           <rect
-            x={x - size}
-            y={y - size}
-            width={size * 2}
-            height={size * 2}
+            x={x-half} 
+            y={y-half} 
+            width={SYMBOL_SIZE} 
+            height={SYMBOL_SIZE} 
             fill="none"
             stroke={color}
-            strokeWidth={2}
+            strokeWidth={LINE_THICKNESS}
             key={`${result.x}-${result.y}-${result.ear}`}
           />
         );
       }
     } else if (result.mode === "BC") {
       // Bone conduction symbols (ASHA standard)
-      const symbol = result.masking === 0 ? 
-        (result.ear === "L" ? ">" : "<") : 
-        (result.ear === "L" ? "]" : "[");
-      
+      const sym = (!result.masking ? (result.ear==="L" ? ">" : "<") : (result.ear==="L" ? "]" : "["));
       return (
         <text
           x={x}
           y={y}
+          fontSize={SYMBOL_SIZE} 
+          fill={color}
           textAnchor="middle"
           dominantBaseline="middle"
-          fontSize={size * 2}
-          fill={color}
           key={`${result.x}-${result.y}-${result.ear}`}
-          fontWeight="bold"
         >
-          {symbol}
+          {sym}
         </text>
       );
     }
@@ -659,44 +702,20 @@ export default function ReportPage() {
       const pdfW = pdf.internal.pageSize.getWidth();
       const pdfH = pdf.internal.pageSize.getHeight();
       
-      // Calculate if we need multiple pages
+      // Calculate scaling to fit on single page while using most width
       const widthRatio = pdfW / canvas.width;
       const heightRatio = pdfH / canvas.height;
+      
+      // Use the smaller ratio to ensure it fits on one page
       const ratio = Math.min(widthRatio, heightRatio);
       
       const scaledWidth = canvas.width * ratio;
       const scaledHeight = canvas.height * ratio;
       
-      if (scaledHeight <= pdfH) {
-        // Single page
-        const xOffset = (pdfW - scaledWidth) / 2;
-        const yOffset = (pdfH - scaledHeight) / 2;
+      // Single page - use calculated scaling
+      const xOffset = (pdfW - scaledWidth) / 2; // Center horizontally
+      const yOffset = (pdfH - scaledHeight) / 2; // Center vertically
         pdf.addImage(imgData, "PNG", xOffset, yOffset, scaledWidth, scaledHeight);
-      } else {
-        // Multiple pages
-        const pageHeight = pdfH / ratio;
-        let position = 0;
-        
-        while (position < canvas.height) {
-          const pageCanvas = document.createElement('canvas');
-          const pageCtx = pageCanvas.getContext('2d');
-          pageCanvas.width = canvas.width;
-          pageCanvas.height = Math.min(pageHeight, canvas.height - position);
-          
-          if (pageCtx) {
-            pageCtx.drawImage(canvas, 0, -position);
-            const pageImgData = pageCanvas.toDataURL("image/png");
-            
-            if (position > 0) {
-              pdf.addPage();
-            }
-            
-            pdf.addImage(pageImgData, "PNG", 0, 0, pdfW, (pageCanvas.height * pdfW) / canvas.width);
-          }
-          
-          position += pageHeight;
-        }
-      }
       
       pdf.save(`audiometry-report-${consultationData.patient?.code || "unknown"}.pdf`);
     } finally {
@@ -841,9 +860,16 @@ export default function ReportPage() {
               <div className="col-span-2 flex items-center">
                 <span className="font-medium mr-2">Age :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
-                  {consultationData.patient?.dob ? 
-                    Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) 
-                    : ""}
+                  {(() => {
+                    if (consultationData.patient?.age) {
+                      return consultationData.patient.age;
+                    } else if (consultationData.patient?.dob) {
+                      const calculatedAge = Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                      return calculatedAge > 0 ? calculatedAge : "?";
+                    } else {
+                      return "?";
+                    }
+                  })()}
                 </span>
               </div>
               <div className="col-span-2 flex items-center">

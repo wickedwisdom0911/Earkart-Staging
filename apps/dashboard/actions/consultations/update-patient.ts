@@ -22,9 +22,9 @@ export async function updatePatient(
     url,
     {
       method: "POST",
-      body: JSON.stringify({
+      body: JSON.stringify(
         data,
-      }),
+      ),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${user.token}`,

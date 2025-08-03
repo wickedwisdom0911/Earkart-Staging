@@ -29,6 +29,11 @@ export default function VideoOtoscopyPage() {
   const frameSkipRef = useRef(0); // Frame skipping for performance
   const lastFrameTimeRef = useRef(0); // Track frame timing
   const stopStreamingRef = useRef(false); // Flag to stop frame processing immediately
+  const canvasSizedRef = useRef(false); // Track if canvas has been sized
+  const frameQueueRef = useRef<OtoscopyStreamData[]>([]);
+  const isProcessingFrameRef = useRef(false);
+  const statsUpdateCounterRef = useRef(0);
+  const lastStatsUpdateRef = useRef(0);
   
   // State management
   const [isStreaming, setIsStreaming] = useState(false);
@@ -38,7 +43,6 @@ export default function VideoOtoscopyPage() {
   const [frameCount, setFrameCount] = useState(0);
   const [lastFrameHash, setLastFrameHash] = useState<string>('');
   const [performanceStats, setPerformanceStats] = useState({
-    frameProcessingTime: 0,
     framesPerSecond: 0,
     latency: 0
   });
@@ -74,7 +78,124 @@ export default function VideoOtoscopyPage() {
     setLastFrameHash('');
     setLastImageData(null);
     setError(null);
+    canvasSizedRef.current = false; // Reset canvas sizing flag
+    frameQueueRef.current = [];
+    isProcessingFrameRef.current = false;
+    statsUpdateCounterRef.current = 0;
+    lastStatsUpdateRef.current = 0;
   }, []);
+
+  // Optimized frame processing with queue
+  const processNextFrame = useCallback(() => {
+    if (isProcessingFrameRef.current || frameQueueRef.current.length === 0) {
+      return;
+    }
+    
+    isProcessingFrameRef.current = true;
+    
+    // Get the LATEST frame and drop all older ones (adaptive frame dropping)
+    const latestFrame = frameQueueRef.current.pop();
+    frameQueueRef.current = []; // Clear entire queue - only show latest
+    
+    if (!latestFrame || stopStreamingRef.current || !isStreamingRef.current) {
+      isProcessingFrameRef.current = false;
+      return;
+    }
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    
+    if (ctx && canvas) {
+      // Use createImageBitmap for better performance (when available)
+      if ('createImageBitmap' in window) {
+        try {
+          // Convert base64 to blob
+          fetch(latestFrame.frame)
+            .then(response => response.blob())
+            .then(blob => createImageBitmap(blob))
+            .then(imageBitmap => {
+              if (!stopStreamingRef.current && isStreamingRef.current) {
+                // Size canvas only once
+                if (!canvasSizedRef.current && imageBitmap.width > 0) {
+                  canvas.width = imageBitmap.width;
+                  canvas.height = imageBitmap.height;
+                  canvasSizedRef.current = true;
+                }
+                
+                // Draw without clearing (faster)
+                ctx.drawImage(imageBitmap, 0, 0);
+                imageBitmap.close(); // Important: free memory
+                
+                // Update stats less frequently (every 30 frames = ~1 second)
+                statsUpdateCounterRef.current++;
+                if (statsUpdateCounterRef.current >= 30) {
+                  const now = Date.now();
+                  const timeSinceLastStats = now - lastStatsUpdateRef.current;
+                  if (timeSinceLastStats > 0) {
+                    const fps = Math.round(30000 / timeSinceLastStats); // 30 frames over time period
+                    const latency = now - latestFrame.timestamp;
+                    
+                    setPerformanceStats({
+                      framesPerSecond: fps,
+                      latency: latency
+                    });
+                    
+                    setFrameCount(prev => prev + 30); // Batch update
+                  }
+                  
+                  statsUpdateCounterRef.current = 0;
+                  lastStatsUpdateRef.current = now;
+                }
+              }
+              isProcessingFrameRef.current = false;
+              
+              // Schedule next frame if queue has more
+              if (frameQueueRef.current.length > 0) {
+                requestAnimationFrame(processNextFrame);
+              }
+            })
+            .catch(() => {
+              // Fallback to regular Image
+              drawWithRegularImage(ctx, canvas, latestFrame);
+            });
+        } catch (error) {
+          drawWithRegularImage(ctx, canvas, latestFrame);
+        }
+      } else {
+        drawWithRegularImage(ctx, canvas, latestFrame);
+      }
+    } else {
+      isProcessingFrameRef.current = false;
+    }
+  }, []);
+
+  // Fallback drawing method
+  const drawWithRegularImage = useCallback((ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, frameData: OtoscopyStreamData) => {
+    const img = new Image();
+    img.onload = () => {
+      if (!stopStreamingRef.current && isStreamingRef.current) {
+        if (!canvasSizedRef.current && img.width > 0) {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          canvasSizedRef.current = true;
+        }
+        ctx.drawImage(img, 0, 0); // No clearing needed
+      }
+      isProcessingFrameRef.current = false;
+      
+      // Schedule next frame
+      if (frameQueueRef.current.length > 0) {
+        requestAnimationFrame(processNextFrame);
+      }
+    };
+    img.onerror = () => {
+      isProcessingFrameRef.current = false;
+      if (frameQueueRef.current.length > 0) {
+        requestAnimationFrame(processNextFrame);
+      }
+    };
+    img.src = frameData.frame;
+  }, [processNextFrame]);
 
   // Calculate FPS
   const calculateFPS = useCallback(() => {
@@ -89,69 +210,19 @@ export default function VideoOtoscopyPage() {
     }
   }, []);
 
-  // Optimized frame processing with ImageBitmap
-  const processFrame = useCallback(async (frameData: string) => {
-    const startTime = performance.now();
-    
-    try {
-      // Convert base64 to blob
-      const response = await fetch(frameData);
-      const blob = await response.blob();
-      
-      // Create ImageBitmap (hardware accelerated)
-      const imageBitmap = await createImageBitmap(blob);
-      
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      
-      if (ctx && canvas) {
-        // Only resize once
-        if (canvas.width !== imageBitmap.width || canvas.height !== imageBitmap.height) {
-          canvas.width = imageBitmap.width;
-          canvas.height = imageBitmap.height;
-        }
-        
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(imageBitmap, 0, 0);
-      }
-      
-      imageBitmap.close(); // Free memory
-      
-      // Update performance stats
-      const processingTime = performance.now() - startTime;
-      setPerformanceStats(prev => ({
-        ...prev,
-        frameProcessingTime: processingTime
-      }));
-      
-      // Calculate FPS
-      calculateFPS();
-      
-    } catch (error) {
-      console.error("Error processing frame:", error);
-      // Fallback to regular Image if ImageBitmap fails
-      const img = new Image();
-      img.onload = () => {
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        if (ctx && canvas) {
-          if (canvas.width !== img.width || canvas.height !== img.height) {
-            canvas.width = img.width;
-            canvas.height = img.height;
-          }
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0);
-        }
-      };
-      img.src = frameData;
-    }
-  }, [calculateFPS]);
-
   // Force stop function for cleanup
   const forceStopVideo = useCallback(() => {
-    // Set stop flag first
+    // Set stop flags first
     stopStreamingRef.current = true;
     isStreamingRef.current = false;
+    isProcessingFrameRef.current = false;
+    
+    // Clear frame queue immediately
+    frameQueueRef.current = [];
+    
+    // Reset counters
+    statsUpdateCounterRef.current = 0;
+    lastStatsUpdateRef.current = 0;
     
     // Update UI state
     setIsStreaming(false);
@@ -181,7 +252,9 @@ export default function VideoOtoscopyPage() {
       clearTimeout(stopTimeoutRef.current);
       stopTimeoutRef.current = null;
     }
-    }, []);
+    
+    canvasSizedRef.current = false;
+  }, []);
   
   // Reset everything on component mount
   useEffect(() => {
@@ -195,79 +268,39 @@ export default function VideoOtoscopyPage() {
     };
   }, [forceStopVideo]);
   
+  // HEAVILY OPTIMIZED handleOtoscopyStream
+  const handleOtoscopyStream = useCallback((data: OtoscopyStreamData) => {
+    // Early exit - minimal processing
+    if (stopStreamingRef.current || !data.frame) {
+      return;
+    }
+    
+    // Update streaming state only if needed
+    if (!isStreamingRef.current) {
+      isStreamingRef.current = true;
+      setIsStreaming(true);
+      setStreamStatus("streaming");
+      setError(null);
+      stopStreamingRef.current = false;
+    }
+    
+    // Aggressive frame dropping - keep only 1 frame in queue max
+    if (frameQueueRef.current.length >= 1) {
+      frameQueueRef.current = []; // Drop all queued frames
+    }
+    
+    // Add new frame
+    frameQueueRef.current.push(data);
+    
+    // Start processing if not already running
+    if (!isProcessingFrameRef.current) {
+      requestAnimationFrame(processNextFrame);
+    }
+  }, [processNextFrame]);
+
   // Handle socket events for otoscopy
   useEffect(() => {
     if (!socket) return;
-
-    const handleOtoscopyStream = (data: OtoscopyStreamData) => {
-      // Only process if we're supposed to be streaming
-      if (stopStreamingRef.current) {
-        return;
-      }
-      
-      if (data.frame) {
-        // If we receive frames, update streaming state
-        if (!isStreamingRef.current) {
-          isStreamingRef.current = true;
-          setIsStreaming(true);
-          setStreamStatus("streaming");
-          setError(null);
-          stopStreamingRef.current = false; // Ensure stop flag is cleared
-        }
-        
-        // Frame rate limiting - target 15 FPS
-        const now = Date.now();
-        const timeSinceLastFrame = now - lastFrameTimeRef.current;
-        const TARGET_FPS = 15;
-        const FRAME_INTERVAL = 1000 / TARGET_FPS;
-        
-        if (timeSinceLastFrame < FRAME_INTERVAL) {
-          return; // Skip frame to maintain target FPS
-        }
-        
-        lastFrameTimeRef.current = now;
-        
-        // Frame skipping for performance
-        frameSkipRef.current++;
-        if (frameSkipRef.current % Math.floor(30 / TARGET_FPS) !== 0) {
-          return;
-        }
-        
-        // Simple hash check to see if frames are different
-        const frameHash = data.frame.substring(0, 100);
-        
-        setLastFrameHash(frameHash);
-        setLastImageData(data.frame);
-        setFrameCount(prev => prev + 1);
-        
-        // Calculate latency
-        const latency = Date.now() - data.timestamp;
-        setPerformanceStats(prev => ({
-          ...prev,
-          latency: latency
-        }));
-        
-        // Process frame with additional safety check
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        
-        if (ctx && canvas) {
-          const img = new Image();
-          img.onload = () => {
-            // Check again before drawing (in case stop was called during image load)
-            if (!stopStreamingRef.current && isStreamingRef.current) {
-              if (canvas.width !== img.width || canvas.height !== img.height) {
-                canvas.width = img.width;
-                canvas.height = img.height;
-              }
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              ctx.drawImage(img, 0, 0);
-            }
-          };
-          img.src = data.frame;
-        }
-      }
-    };
 
     const handleOtoscopyStart = (data: { success: boolean; message?: string }) => {
       if (data.success) {
@@ -336,7 +369,7 @@ export default function VideoOtoscopyPage() {
       socket.off("otoscopy-stop", handleOtoscopyStop);
       socket.off("otoscopy-error", handleOtoscopyError);
     };
-  }, [socket, cleanupVideoStream, cleanupCanvas, resetStreamingState, processFrame]); // Added missing dependencies
+  }, [socket, cleanupVideoStream, cleanupCanvas, resetStreamingState, handleOtoscopyStream]);
 
   // Cleanup video on unmount
   useEffect(() => {
@@ -344,6 +377,15 @@ export default function VideoOtoscopyPage() {
       forceStopVideo();
     };
   }, [forceStopVideo]);
+
+  // Memory cleanup
+  useEffect(() => {
+    return () => {
+      frameQueueRef.current = [];
+      isProcessingFrameRef.current = false;
+      statsUpdateCounterRef.current = 0;
+    };
+  }, []);
 
   // Handle video element events
   useEffect(() => {
@@ -461,7 +503,6 @@ export default function VideoOtoscopyPage() {
           {isStreaming && (
             <div className="text-xs text-gray-500 mt-1">
               Latency: {performanceStats.latency}ms | 
-              Processing: {performanceStats.frameProcessingTime.toFixed(1)}ms | 
               FPS: {performanceStats.framesPerSecond}
             </div>
           )}
