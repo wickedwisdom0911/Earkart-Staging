@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
+import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
@@ -106,10 +107,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   WebRTCService? _webrtcService;
   bool _isWebRTCStreaming = false;
   bool _isWebRTCConnected = false;
-  bool _isAudioEnabled = true;
-  bool _isVideoEnabled = true;
-  String? _webrtcRoomId;
-  String? _webrtcUserId;
 
   @override
   void initState() {
@@ -230,18 +227,57 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     try {
       di<ILogger>().info('Setting up WebRTC streaming...');
 
+      // Check if consultation ID is available
+      if (_consultationId == null) {
+        di<ILogger>().warning(
+          'Consultation ID not available for WebRTC initialization',
+        );
+        return;
+      }
+
+      // Get user token and ID from auth state
+      final authState = context.read<AuthCubit>().state;
+      String? userToken;
+      String? webrtcUserId;
+
+      authState.when(
+        initial: () => null,
+        loading: () => null,
+        success: (user) {
+          userToken = user?.token;
+          webrtcUserId = user?.id;
+        },
+        centreSuccess: (centre) => null,
+        centreError: (error) => null,
+        error: (error) => null,
+      );
+
+      if (userToken == null) {
+        di<ILogger>().error(
+          'User token not available for WebRTC initialization',
+        );
+        return;
+      }
+
+      if (webrtcUserId == null) {
+        di<ILogger>().error('User ID not available for WebRTC initialization');
+        return;
+      }
+
       // Initialize WebRTC service
       _webrtcService = WebRTCService();
 
-      // Get user ID from consultation state or generate one
-      _webrtcUserId =
-          _consultationId ?? 'patient_${DateTime.now().millisecondsSinceEpoch}';
-      _webrtcRoomId = _consultationId;
+      final webrtcRoomId = _consultationId;
 
-      // Initialize WebRTC service as sender
-      _webrtcService!.initializeAsSender(
-        userId: _webrtcUserId!,
-        consultationId: _consultationId,
+      print('uvc_stream: 🎯 WebRTC setup - consultation ID: $_consultationId');
+      print('uvc_stream: 🎯 WebRTC setup - user ID: $webrtcUserId');
+      print('uvc_stream: 🎯 WebRTC setup - room ID: $webrtcRoomId');
+
+      // Initialize WebRTC service
+      _webrtcService!.initialize(
+        userId: webrtcUserId!,
+        consultationId: webrtcRoomId,
+        token: userToken!,
         onConnectionStateChanged: (isConnected) {
           if (mounted && !_isDisposed) {
             setState(() {
@@ -258,7 +294,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           }
         },
         onStreamStarted: () {
-          di<ILogger>().info('WebRTC stream started');
           if (mounted && !_isDisposed) {
             setState(() {
               _isWebRTCStreaming = true;
@@ -266,7 +301,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           }
         },
         onStreamStopped: () {
-          di<ILogger>().info('WebRTC stream stopped');
           if (mounted && !_isDisposed) {
             setState(() {
               _isWebRTCStreaming = false;
@@ -274,8 +308,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           }
         },
       );
-
-      di<ILogger>().info('WebRTC streaming setup complete');
     } catch (e) {
       di<ILogger>().error('Error setting up WebRTC streaming: $e');
     }
@@ -284,15 +316,58 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   void _updateConsultationId() {
     try {
       final consultationState = context.read<ConsultationCubit>().state;
+      print('uvc_stream: 🔍 Current consultation state: $consultationState');
+
       consultationState.maybeWhen(
         success: (consultation) {
           final newConsultationId = consultation.id;
+          print(
+            'uvc_stream: 📋 Success state - consultation ID: $newConsultationId',
+          );
           if (newConsultationId != null &&
               newConsultationId != _consultationId) {
             _consultationId = newConsultationId;
             print(
               'uvc_stream: 🎥 Otoscopy streaming consultation ID updated: $_consultationId',
             );
+            // Re-initialize WebRTC if it was previously null
+            if (_webrtcService == null) {
+              _setupWebRTCStreaming();
+            }
+          }
+        },
+        createConsultationSuccess: (consultation) {
+          final newConsultationId = consultation.id;
+          print(
+            'uvc_stream: 📋 CreateConsultationSuccess state - consultation ID: $newConsultationId',
+          );
+          if (newConsultationId != null &&
+              newConsultationId != _consultationId) {
+            _consultationId = newConsultationId;
+            print(
+              'uvc_stream: 🎥 Otoscopy streaming consultation ID updated (from creation): $_consultationId',
+            );
+            // Re-initialize WebRTC if it was previously null
+            if (_webrtcService == null) {
+              _setupWebRTCStreaming();
+            }
+          }
+        },
+        currentConsultationSuccess: (consultation) {
+          final newConsultationId = consultation.id;
+          print(
+            'uvc_stream: 📋 CurrentConsultationSuccess state - consultation ID: $newConsultationId',
+          );
+          if (newConsultationId != null &&
+              newConsultationId != _consultationId) {
+            _consultationId = newConsultationId;
+            print(
+              'uvc_stream: 🎥 Otoscopy streaming consultation ID updated (from current): $_consultationId',
+            );
+            // Re-initialize WebRTC if it was previously null
+            if (_webrtcService == null) {
+              _setupWebRTCStreaming();
+            }
           }
         },
         orElse: () {
@@ -393,36 +468,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       }
     } catch (e) {
       di<ILogger>().error('Error stopping WebRTC streaming: $e');
-    }
-  }
-
-  Future<void> _toggleWebRTCAudio() async {
-    try {
-      if (_webrtcService != null) {
-        await _webrtcService!.toggleAudio();
-        setState(() {
-          _isAudioEnabled = !_isAudioEnabled;
-        });
-      } else {
-        di<ILogger>().warning('WebRTC service not initialized');
-      }
-    } catch (e) {
-      di<ILogger>().error('Error toggling WebRTC audio: $e');
-    }
-  }
-
-  Future<void> _toggleWebRTCVideo() async {
-    try {
-      if (_webrtcService != null) {
-        await _webrtcService!.toggleVideo();
-        setState(() {
-          _isVideoEnabled = !_isVideoEnabled;
-        });
-      } else {
-        di<ILogger>().warning('WebRTC service not initialized');
-      }
-    } catch (e) {
-      di<ILogger>().error('Error toggling WebRTC video: $e');
     }
   }
 
@@ -1479,7 +1524,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Start/Stop WebRTC streaming button
           FloatingActionButton(
@@ -1495,27 +1540,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             ),
           ),
 
-          // Audio toggle button
-          FloatingActionButton(
-            onPressed: _toggleWebRTCAudio,
-            backgroundColor: _isAudioEnabled ? Colors.blue : Colors.grey,
-            mini: true,
-            child: Icon(
-              _isAudioEnabled ? Icons.mic : Icons.mic_off,
-              color: Colors.white,
-            ),
-          ),
-
-          // Video toggle button
-          FloatingActionButton(
-            onPressed: _toggleWebRTCVideo,
-            backgroundColor: _isVideoEnabled ? Colors.blue : Colors.grey,
-            mini: true,
-            child: Icon(
-              _isVideoEnabled ? Icons.videocam : Icons.videocam_off,
-              color: Colors.white,
-            ),
-          ),
+          const SizedBox(width: 20),
 
           // Connection status indicator
           Container(
