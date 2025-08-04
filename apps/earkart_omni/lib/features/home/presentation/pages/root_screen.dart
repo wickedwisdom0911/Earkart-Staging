@@ -60,32 +60,85 @@ class _RootScreenState extends State<RootScreen> {
   Future<void> _checkAndRequestPermissions() async {
     // First check if app is device owner and auto-grant permissions
     final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
+    print('🔍 Device owner check result: $isDeviceOwner');
 
     if (isDeviceOwner) {
       print('🎯 App is device owner - auto-granting permissions');
       await DeviceOwnerHelper.grantAllPermissions();
 
-      // For device owner, we can skip permission dialogs
-      // But still check if permissions are actually granted
-      final storageStatus = await Permission.manageExternalStorage.status;
-      final cameraStatus = await Permission.camera.status;
-      final microphoneStatus = await Permission.microphone.status;
-      final usbStatus = await Permission.bluetooth.status;
+      // Add a small delay to ensure permissions are properly applied
+      await Future.delayed(const Duration(milliseconds: 500));
 
-      if (storageStatus.isGranted &&
-          usbStatus.isGranted &&
-          cameraStatus.isGranted &&
-          microphoneStatus.isGranted) {
-        print('✅ All permissions granted for device owner');
+      // For device owner, use DeviceOwnerHelper to check permissions
+      // instead of permission_handler which doesn't work properly for device owners
+      final permissionStatus = await DeviceOwnerHelper.checkCommonPermissions();
+
+      print('🔍 Permission status after device owner grant:');
+      permissionStatus.forEach((permission, granted) {
+        print('   $permission: ${granted ? "✅ GRANTED" : "❌ DENIED"}');
+      });
+
+      // Print detailed permission summary for debugging
+      await DeviceOwnerHelper.printPermissionSummary();
+
+      // For device owner, we should trust that permissions are granted
+      // Check if any critical permissions are explicitly denied
+      final criticalPermissions = [
+        'android.permission.CAMERA',
+        'android.permission.RECORD_AUDIO',
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.BLUETOOTH',
+        'android.permission.BLUETOOTH_CONNECT',
+      ];
+
+      bool hasDeniedCriticalPermissions = false;
+      for (final permission in criticalPermissions) {
+        if (permissionStatus[permission] == false) {
+          print('⚠️ Critical permission denied: $permission');
+          hasDeniedCriticalPermissions = true;
+        }
+      }
+
+      if (hasDeniedCriticalPermissions) {
+        print('⚠️ Some critical permissions denied for device owner');
+        // Try one more time with a longer delay
+        await Future.delayed(const Duration(seconds: 1));
+        await DeviceOwnerHelper.grantAllPermissions();
+
+        // Check permissions again
+        final retryPermissionStatus =
+            await DeviceOwnerHelper.checkCommonPermissions();
+        bool stillHasDeniedPermissions = false;
+
+        for (final permission in criticalPermissions) {
+          if (retryPermissionStatus[permission] == false) {
+            print(
+              '⚠️ Critical permission still denied after retry: $permission',
+            );
+            stillHasDeniedPermissions = true;
+          }
+        }
+
+        if (stillHasDeniedPermissions) {
+          print(
+            '⚠️ Some permissions still denied after retry - using fallback',
+          );
+          await _requestPermissionsAsFallback();
+        } else {
+          print('✅ All critical permissions granted after retry');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _startGlobalDeviceMonitoring();
+          });
+          return;
+        }
+      } else {
+        print('✅ All critical permissions granted for device owner');
         // Delay the start to ensure BlocProvider is set up
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _startGlobalDeviceMonitoring();
         });
         return;
-      } else {
-        print('⚠️ Some permissions still not granted for device owner');
-        // Even for device owner, request permissions as fallback
-        await _requestPermissionsAsFallback();
       }
     } else {
       print('📱 App is not device owner - requesting permissions normally');
@@ -114,8 +167,6 @@ class _RootScreenState extends State<RootScreen> {
   }
 
   void _startGlobalDeviceMonitoring() {
-    // Start device monitoring globally for the device status widget
-    // This ensures device status is available throughout the app
     try {
       // Check if device monitoring is enabled in release mode
       if (!ReleaseConfig.enableDeviceMonitoring) {

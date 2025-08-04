@@ -307,8 +307,18 @@ class MainActivity: FlutterActivity() {
 
     private fun checkPermissionStatus(permission: String): Boolean {
         return try {
+            // If we're device owner, we have all permissions
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                Log.d("MainActivity", "Device owner - permission $permission automatically granted")
+                return true
+            }
+            
+            // For non-device owner, check runtime permissions
             val result = ContextCompat.checkSelfPermission(this, permission)
-            result == PackageManager.PERMISSION_GRANTED
+            val granted = result == PackageManager.PERMISSION_GRANTED
+            Log.d("MainActivity", "Permission $permission: ${if (granted) "GRANTED" else "DENIED"}")
+            granted
         } catch (e: Exception) {
             Log.e("MainActivity", "Error checking permission $permission: ${e.message}")
             false

@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   agora_rtc_engine
   battery_plus
   connectivity_plus
+  flutter_webrtc
   iris_method_channel
   permission_handler_windows
   url_launcher_windows

@@ -3,53 +3,57 @@ import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'dart:io';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:earkart_omni/features/consultation/services/webrtc_service.dart';
 
-/// UVC Camera Widget for Otoscopy Streaming
+/// UVC Camera Widget with WebRTC Video Streaming
 ///
-/// This widget provides a UVC camera interface with otoscopy streaming capabilities.
-/// It listens for socket events from the dashboard to control streaming:
+/// This widget provides a UVC camera interface with WebRTC video streaming capabilities.
+/// It streams video to the NextJS dashboard where audiologists can view the patient's
+/// video feed in real-time during consultations.
 ///
-/// Socket Events:
-/// - 'start-otoscopy': Starts streaming camera frames to dashboard
-/// - 'stop-otoscopy': Stops streaming camera frames
-///
-/// Emitted Events:
-/// - 'otoscopy-stream': Streams base64 encoded frames to dashboard
+/// WebRTC Events:
+/// - 'join_webrtc_room': Join consultation room
+/// - 'user_joined_webrtc': Audiologist joined (start streaming)
+/// - 'user_left_webrtc': Audiologist left (stop streaming)
+/// - 'webrtc_offer': Send video stream offer to audiologist
+/// - 'webrtc_answer': Handle audiologist's answer
+/// - 'webrtc_ice_candidate': Handle ICE candidates
+/// - 'connection_state': Monitor connection status
 ///
 /// Features:
 /// - Automatic camera initialization and permission handling
 /// - High-performance frame capture at 30 FPS
-/// - Base64 frame encoding for web transmission
-/// - Socket-based streaming control
+/// - WebRTC video streaming at HD quality (1280x720, 30fps)
 /// - Real-time frame rate monitoring
 /// - Error handling and recovery
 /// - Lifecycle management
 /// - Performance optimizations for smooth streaming
+/// - Audio/video controls for WebRTC
+/// - Connection status monitoring
 ///
 /// Usage:
 /// ```dart
-/// UVCCameraWidget(socket: consultationSocket)
+/// UVCCameraWidget()
 /// ```
 ///
 /// The widget automatically handles:
 /// - Camera permissions
 /// - USB device detection
 /// - Frame capture and encoding at 30 FPS
-/// - Socket event listening
+/// - WebRTC peer connection management
 /// - Streaming lifecycle management
 /// - Performance monitoring and optimization
+/// - Audio/video track management
 
 class UVCCameraWidget extends StatefulWidget {
-  final IO.Socket? socket; // Pass socket from consultation screen
   final Function(bool)?
   onCameraStateChanged; // Callback for camera state changes
-  const UVCCameraWidget({super.key, this.socket, this.onCameraStateChanged});
+  const UVCCameraWidget({super.key, this.onCameraStateChanged});
 
   @override
   State<UVCCameraWidget> createState() => _UVCCameraWidgetState();
@@ -80,15 +84,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   Timer? _initializationTimer;
   Timer? _platformViewTimer;
 
-  // Otoscopy streaming properties
-  bool _isOtoscopyStreaming = false;
-  Timer? _streamingTimer;
-  IO.Socket? _socket;
+  // Consultation properties
   String? _consultationId;
-  static const int _maxStreamingFps = 20; // Reduced from 30 to 20 FPS
-  static const Duration _streamingInterval = Duration(
-    milliseconds: 50, // 50ms = 20 FPS
-  );
 
   // Frame rate monitoring and adaptation
   int _frameCount = 0;
@@ -104,6 +101,15 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   static const Duration _frameTimeout = Duration(
     milliseconds: 200,
   ); // 200ms timeout for frames
+
+  // WebRTC streaming properties
+  WebRTCService? _webrtcService;
+  bool _isWebRTCStreaming = false;
+  bool _isWebRTCConnected = false;
+  bool _isAudioEnabled = true;
+  bool _isVideoEnabled = true;
+  String? _webrtcRoomId;
+  String? _webrtcUserId;
 
   @override
   void initState() {
@@ -197,12 +203,18 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           _checkPermissionsAndInitialize();
           _setupOtoscopyStreaming();
           _setupConsultationListener();
+          _setupWebRTCStreaming();
         }
       });
     } catch (e) {
       di<ILogger>().error('Error during UVC camera initialization: $e');
       setState(() => _status = 'Camera initialization failed');
     }
+  }
+
+  void _setupOtoscopyStreaming() {
+    // Get consultation ID from context
+    _updateConsultationId();
   }
 
   void _setupConsultationListener() {
@@ -214,15 +226,59 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     });
   }
 
-  void _setupOtoscopyStreaming() {
-    // Use the socket passed from consultation screen
-    _socket = widget.socket;
+  void _setupWebRTCStreaming() {
+    try {
+      di<ILogger>().info('Setting up WebRTC streaming...');
 
-    // Get consultation ID from context
-    _updateConsultationId();
+      // Initialize WebRTC service
+      _webrtcService = WebRTCService();
 
-    // Setup socket event listeners for otoscopy control
-    _setupSocketEventListeners();
+      // Get user ID from consultation state or generate one
+      _webrtcUserId =
+          _consultationId ?? 'patient_${DateTime.now().millisecondsSinceEpoch}';
+      _webrtcRoomId = _consultationId;
+
+      // Initialize WebRTC service as sender
+      _webrtcService!.initializeAsSender(
+        userId: _webrtcUserId!,
+        consultationId: _consultationId,
+        onConnectionStateChanged: (isConnected) {
+          if (mounted && !_isDisposed) {
+            setState(() {
+              _isWebRTCConnected = isConnected;
+            });
+          }
+        },
+        onError: (error) {
+          di<ILogger>().error('WebRTC error: $error');
+          if (mounted && !_isDisposed) {
+            setState(() {
+              _isWebRTCStreaming = false;
+            });
+          }
+        },
+        onStreamStarted: () {
+          di<ILogger>().info('WebRTC stream started');
+          if (mounted && !_isDisposed) {
+            setState(() {
+              _isWebRTCStreaming = true;
+            });
+          }
+        },
+        onStreamStopped: () {
+          di<ILogger>().info('WebRTC stream stopped');
+          if (mounted && !_isDisposed) {
+            setState(() {
+              _isWebRTCStreaming = false;
+            });
+          }
+        },
+      );
+
+      di<ILogger>().info('WebRTC streaming setup complete');
+    } catch (e) {
+      di<ILogger>().error('Error setting up WebRTC streaming: $e');
+    }
   }
 
   void _updateConsultationId() {
@@ -249,221 +305,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     } catch (e) {
       print('uvc_stream: ⚠️ Error getting consultation ID: $e');
     }
-  }
-
-  void _setupSocketEventListeners() {
-    if (_socket == null) {
-      print('uvc_stream: ⚠️ Socket not available for otoscopy streaming');
-      return;
-    }
-
-    // Listen for start-otoscopy event
-    _socket!.on('start-otoscopy', (data) {
-      print('uvc_stream: 🎥 Received start-otoscopy event: $data');
-
-      // Extract consultation ID from the event data
-      if (data is Map<String, dynamic>) {
-        if (data['consultationId'] != null) {
-          _consultationId = data['consultationId'].toString();
-          print(
-            'uvc_stream: 🎥 Got consultation ID from start-otoscopy event: $_consultationId',
-          );
-        } else {
-          print(
-            'uvc_stream: ⚠️ start-otoscopy event received but consultationId is missing',
-          );
-        }
-      } else {
-        print(
-          'uvc_stream: ⚠️ start-otoscopy event data is not in expected format: $data',
-        );
-      }
-
-      if (mounted && !_isDisposed) {
-        _startOtoscopyStreaming();
-      }
-    });
-
-    // Listen for stop-otoscopy event
-    _socket!.on('stop-otoscopy', (data) {
-      print('uvc_stream: 🛑 Received stop-otoscopy event: $data');
-      if (mounted && !_isDisposed) {
-        _stopOtoscopyStreaming();
-      }
-    });
-
-    // Listen for socket connection status
-    _socket!.onConnect((_) {
-      print('uvc_stream: 🎥 Otoscopy socket connected');
-    });
-
-    _socket!.onDisconnect((_) {
-      print('uvc_stream: 🎥 Otoscopy socket disconnected');
-      if (_isOtoscopyStreaming) {
-        _stopOtoscopyStreaming();
-      }
-    });
-
-    print('uvc_stream: 🎥 Otoscopy socket event listeners setup complete');
-  }
-
-  // Start otoscopy streaming to dashboard
-  void _startOtoscopyStreaming() {
-    if (_isOtoscopyStreaming || !isInitialized) {
-      print(
-        'uvc_stream: ⚠️ Cannot start otoscopy streaming - streaming: $_isOtoscopyStreaming, initialized: $isInitialized',
-      );
-      return;
-    }
-
-    if (_consultationId == null) {
-      print(
-        'uvc_stream: ⚠️ Consultation ID is null, cannot start streaming. Waiting for start-otoscopy event with consultation ID.',
-      );
-      return;
-    }
-
-    print(
-      'uvc_stream: 🎥 Starting otoscopy streaming to dashboard at $_maxStreamingFps FPS for consultation: $_consultationId',
-    );
-    setState(() {
-      _isOtoscopyStreaming = true;
-      _frameCount = 0;
-      _lastFrameRateCheck = null;
-      _currentFps = 0.0;
-      _consecutiveEmptyFrames = 0;
-    });
-
-    // Start pulse animation
-    _pulseAnimationController.repeat(reverse: true);
-
-    // Start frame capture in the camera controller
-    cameraController?.startFrameCapture();
-
-    // Start periodic frame capture and streaming
-    _streamingTimer = Timer.periodic(_streamingInterval, (timer) {
-      if (!_isOtoscopyStreaming || _isDisposed || !mounted) {
-        timer.cancel();
-        return;
-      }
-      _captureAndStreamFrame();
-    });
-  }
-
-  // Stop otoscopy streaming
-  void _stopOtoscopyStreaming() {
-    if (!_isOtoscopyStreaming) return;
-
-    print('uvc_stream: 🛑 Stopping otoscopy streaming...');
-    setState(() {
-      _isOtoscopyStreaming = false;
-    });
-
-    // Stop pulse animation
-    _pulseAnimationController.stop();
-
-    _streamingTimer?.cancel();
-    _streamingTimer = null;
-
-    // Stop frame capture in the camera controller
-    cameraController?.stopFrameCapture();
-  }
-
-  // Capture frame and stream to dashboard
-  void _captureAndStreamFrame() {
-    try {
-      // Capture current frame as base64 image
-      _captureFrameAsBase64()
-          .then((base64Image) {
-            if (base64Image != null &&
-                base64Image.isNotEmpty &&
-                base64Image != 'data:image/jpeg;base64,' &&
-                base64Image.length > 100 && // Ensure frame has actual data
-                _isOtoscopyStreaming &&
-                !_isDisposed) {
-              // Store valid frame
-              _lastValidFrame = base64Image;
-              _lastFrameTime = DateTime.now();
-
-              _streamFrameToDashboard(base64Image);
-              _consecutiveEmptyFrames = 0; // Reset counter on successful frame
-            } else {
-              _consecutiveEmptyFrames++;
-
-              // Use last valid frame if available and not too old
-              if (_lastValidFrame != null && _lastFrameTime != null) {
-                final timeSinceLastFrame = DateTime.now().difference(
-                  _lastFrameTime!,
-                );
-                if (timeSinceLastFrame < _frameTimeout) {
-                  _streamFrameToDashboard(_lastValidFrame!);
-                  print(
-                    'uvc_stream: Using cached frame (${timeSinceLastFrame.inMilliseconds}ms old)',
-                  );
-                } else {
-                  print('uvc_stream: Cached frame too old, skipping');
-                }
-              }
-
-              if (_consecutiveEmptyFrames >= _maxConsecutiveEmptyFrames) {
-                print(
-                  'uvc_stream: ⚠️ Too many consecutive empty frames ($_consecutiveEmptyFrames), pausing streaming temporarily',
-                );
-                _pauseStreamingTemporarily();
-              }
-            }
-          })
-          .catchError((error) {
-            print('uvc_stream: ❌ Error capturing frame: $error');
-            _consecutiveEmptyFrames++;
-
-            // Use last valid frame on error
-            if (_lastValidFrame != null && _lastFrameTime != null) {
-              final timeSinceLastFrame = DateTime.now().difference(
-                _lastFrameTime!,
-              );
-              if (timeSinceLastFrame < _frameTimeout) {
-                _streamFrameToDashboard(_lastValidFrame!);
-              }
-            }
-          });
-    } catch (e) {
-      print('uvc_stream: ❌ Error in frame capture: $e');
-      _consecutiveEmptyFrames++;
-
-      // Use last valid frame on error
-      if (_lastValidFrame != null && _lastFrameTime != null) {
-        final timeSinceLastFrame = DateTime.now().difference(_lastFrameTime!);
-        if (timeSinceLastFrame < _frameTimeout) {
-          _streamFrameToDashboard(_lastValidFrame!);
-        }
-      }
-    }
-  }
-
-  // Pause streaming temporarily to let camera catch up
-  void _pauseStreamingTemporarily() {
-    if (!_isOtoscopyStreaming) return;
-
-    print(
-      'uvc_stream: ⏸️ Pausing streaming temporarily to let camera catch up',
-    );
-    _streamingTimer?.cancel();
-
-    // Resume after 1 second
-    Timer(const Duration(seconds: 1), () {
-      if (_isOtoscopyStreaming && !_isDisposed && mounted) {
-        print('uvc_stream: ▶️ Resuming streaming after pause');
-        _consecutiveEmptyFrames = 0;
-        _streamingTimer = Timer.periodic(_streamingInterval, (timer) {
-          if (!_isOtoscopyStreaming || _isDisposed || !mounted) {
-            timer.cancel();
-            return;
-          }
-          _captureAndStreamFrame();
-        });
-      }
-    });
   }
 
   // Capture frame as base64 image
@@ -528,53 +369,60 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     return 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxAAPwCdABmX/9k=';
   }
 
-  // Stream frame to dashboard via socket
-  void _streamFrameToDashboard(String base64Image) {
+  // WebRTC control methods
+  Future<void> _startWebRTCStreaming() async {
     try {
-      if (_socket != null && _socket!.connected && _consultationId != null) {
-        // Update frame rate monitoring
-        _frameCount++;
-        final now = DateTime.now();
-        if (_lastFrameRateCheck == null) {
-          _lastFrameRateCheck = now;
-        } else {
-          final elapsed = now.difference(_lastFrameRateCheck!).inMilliseconds;
-          if (elapsed >= 1000) {
-            // Check FPS every second
-            _currentFps = (_frameCount * 1000) / elapsed;
-            _frameCount = 0;
-            _lastFrameRateCheck = now;
-            print(
-              'uvc_stream: 📊 Current streaming FPS: ${_currentFps.toStringAsFixed(1)}',
-            );
-          }
-        }
-
-        final frameData = {
-          'type': 'otoscopy_frame',
-          'consultationId': _consultationId,
-          'timestamp': now.millisecondsSinceEpoch,
-          'frame': base64Image,
-          'fps': _maxStreamingFps,
-          'currentFps': _currentFps,
-          'resolution': '1280x720',
-        };
-
-        _socket!.emit('otoscopy-stream', frameData);
-
-        // Log frame streaming less frequently to avoid spam at 30 FPS
-        if (_frameCount % 30 == 0) {
-          // Log every 30 frames (once per second at 30 FPS)
-          _totalFramesSent += 30;
-          print(
-            'uvc_stream: 📡 Streamed otoscopy frame to dashboard (${base64Image.length} bytes, FPS: ${_currentFps.toStringAsFixed(1)}, Total frames: $_totalFramesSent)',
-          );
-        }
-      } else {
-        print('uvc_stream: ⚠️ Socket not connected or consultation ID missing');
+      if (_webrtcService != null && !_isWebRTCStreaming) {
+        await _webrtcService!.startStreaming();
+        di<ILogger>().info('WebRTC streaming started');
+      } else if (_webrtcService == null) {
+        di<ILogger>().warning('WebRTC service not initialized');
       }
     } catch (e) {
-      print('uvc_stream: ❌ Error streaming frame: $e');
+      di<ILogger>().error('Error starting WebRTC streaming: $e');
+    }
+  }
+
+  Future<void> _stopWebRTCStreaming() async {
+    try {
+      if (_webrtcService != null && _isWebRTCStreaming) {
+        await _webrtcService!.stopStreaming();
+        di<ILogger>().info('WebRTC streaming stopped');
+      } else if (_webrtcService == null) {
+        di<ILogger>().warning('WebRTC service not initialized');
+      }
+    } catch (e) {
+      di<ILogger>().error('Error stopping WebRTC streaming: $e');
+    }
+  }
+
+  Future<void> _toggleWebRTCAudio() async {
+    try {
+      if (_webrtcService != null) {
+        await _webrtcService!.toggleAudio();
+        setState(() {
+          _isAudioEnabled = !_isAudioEnabled;
+        });
+      } else {
+        di<ILogger>().warning('WebRTC service not initialized');
+      }
+    } catch (e) {
+      di<ILogger>().error('Error toggling WebRTC audio: $e');
+    }
+  }
+
+  Future<void> _toggleWebRTCVideo() async {
+    try {
+      if (_webrtcService != null) {
+        await _webrtcService!.toggleVideo();
+        setState(() {
+          _isVideoEnabled = !_isVideoEnabled;
+        });
+      } else {
+        di<ILogger>().warning('WebRTC service not initialized');
+      }
+    } catch (e) {
+      di<ILogger>().error('Error toggling WebRTC video: $e');
     }
   }
 
@@ -694,13 +542,10 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     _pulseAnimationController.dispose();
 
     // Clean up otoscopy streaming resources
-    _stopOtoscopyStreaming();
+    // _stopOtoscopyStreaming(); // Removed as per edit hint
 
-    // Clean up socket event listeners
-    if (_socket != null) {
-      _socket!.off('start-otoscopy');
-      _socket!.off('stop-otoscopy');
-    }
+    // Clean up WebRTC streaming resources
+    _webrtcService?.dispose();
 
     // Notify parent about camera state change
     widget.onCameraStateChanged?.call(false);
@@ -959,28 +804,22 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               // _setupSocketConnection(); // This is now handled by _setupOtoscopyStreaming
               break;
             case UVCCameraState.closed:
-              isInitialized = false;
-              _isViewReady = false;
-              _status = 'Camera closed';
-              di<ILogger>().info('Camera state: closed');
-
-              // Notify parent about camera state change
-              widget.onCameraStateChanged?.call(false);
+              print('Camera closed');
+              setState(() {
+                _status = 'Camera closed';
+                isInitialized = false;
+              });
 
               // Stop video streaming when camera is closed
-              _stopOtoscopyStreaming();
               break;
             case UVCCameraState.error:
-              isInitialized = false;
-              _isViewReady = false;
-              _status = 'Camera error';
-              di<ILogger>().error('Camera state: error');
-
-              // Notify parent about camera state change
-              widget.onCameraStateChanged?.call(false);
+              print('Camera error occurred');
+              setState(() {
+                _status = 'Camera error';
+                isInitialized = false;
+              });
 
               // Stop video streaming on error
-              _stopOtoscopyStreaming();
               _handleCameraError();
               break;
           }
@@ -1258,8 +1097,16 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             _buildCameraContent(),
 
             // Live stream indicator - always show when streaming
-            if (_isOtoscopyStreaming)
-              Positioned(top: 12, left: 12, child: _buildLiveStreamIndicator()),
+            // if (_isOtoscopyStreaming) // Removed as per edit hint
+            //   Positioned(top: 12, left: 12, child: _buildLiveStreamIndicator()), // Removed as per edit hint
+
+            // WebRTC streaming indicator
+            if (_isWebRTCStreaming)
+              Positioned(
+                top: 12,
+                left: 120,
+                child: _buildWebRTCStreamIndicator(),
+              ),
 
             // Minimal status indicator overlay
             if (!_permissionsGranted ||
@@ -1270,6 +1117,14 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                 right: 12,
                 child: _buildMinimalStatusIndicator(),
               ),
+
+            // WebRTC controls overlay
+            Positioned(
+              bottom: 20,
+              left: 0,
+              right: 0,
+              child: _buildWebRTCControls(),
+            ),
           ],
         ),
       );
@@ -1576,6 +1431,119 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildWebRTCStreamIndicator() {
+    return Tooltip(
+      message: 'WebRTC Video Streaming Active',
+      child: AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _pulseAnimation.value,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.videocam,
+                    color: _isWebRTCConnected ? Colors.green : Colors.orange,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: _isWebRTCConnected ? Colors.green : Colors.orange,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildWebRTCControls() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // Start/Stop WebRTC streaming button
+          FloatingActionButton(
+            onPressed:
+                _isWebRTCStreaming
+                    ? _stopWebRTCStreaming
+                    : _startWebRTCStreaming,
+            backgroundColor: _isWebRTCStreaming ? Colors.red : Colors.green,
+            mini: true,
+            child: Icon(
+              _isWebRTCStreaming ? Icons.stop : Icons.play_arrow,
+              color: Colors.white,
+            ),
+          ),
+
+          // Audio toggle button
+          FloatingActionButton(
+            onPressed: _toggleWebRTCAudio,
+            backgroundColor: _isAudioEnabled ? Colors.blue : Colors.grey,
+            mini: true,
+            child: Icon(
+              _isAudioEnabled ? Icons.mic : Icons.mic_off,
+              color: Colors.white,
+            ),
+          ),
+
+          // Video toggle button
+          FloatingActionButton(
+            onPressed: _toggleWebRTCVideo,
+            backgroundColor: _isVideoEnabled ? Colors.blue : Colors.grey,
+            mini: true,
+            child: Icon(
+              _isVideoEnabled ? Icons.videocam : Icons.videocam_off,
+              color: Colors.white,
+            ),
+          ),
+
+          // Connection status indicator
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _isWebRTCConnected ? Colors.green : Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _isWebRTCConnected ? 'Connected' : 'Disconnected',
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

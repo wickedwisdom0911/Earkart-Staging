@@ -965,13 +965,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                         child: videoWidget,
                       ),
                     ),
-                    // Right half - UVC Camera (disabled in release mode)
                     Expanded(
                       flex: 1,
                       child:
                           ReleaseConfig.enableUVCCamera
                               ? UVCCameraWidget(
-                                socket: socket,
                                 onCameraStateChanged: _updateCameraState,
                               )
                               : Container(
