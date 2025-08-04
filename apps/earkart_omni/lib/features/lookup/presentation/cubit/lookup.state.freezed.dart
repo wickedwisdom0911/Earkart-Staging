@@ -16,12 +16,12 @@ final _privateConstructorUsedError = UnsupportedError(
 
 /// @nodoc
 mixin _$LookupState {
+  bool get isLoading => throw _privateConstructorUsedError;
   List<LanguageEntity> get languages => throw _privateConstructorUsedError;
   List<CountryEntity> get countries => throw _privateConstructorUsedError;
   List<StateEntity> get states => throw _privateConstructorUsedError;
   List<CityEntity> get cities => throw _privateConstructorUsedError;
   List<DistrictEntity> get districts => throw _privateConstructorUsedError;
-  bool get isLoading => throw _privateConstructorUsedError;
   String? get error => throw _privateConstructorUsedError;
 
   /// Create a copy of LookupState
@@ -38,12 +38,12 @@ abstract class $LookupStateCopyWith<$Res> {
       _$LookupStateCopyWithImpl<$Res, LookupState>;
   @useResult
   $Res call(
-      {List<LanguageEntity> languages,
+      {bool isLoading,
+      List<LanguageEntity> languages,
       List<CountryEntity> countries,
       List<StateEntity> states,
       List<CityEntity> cities,
       List<DistrictEntity> districts,
-      bool isLoading,
       String? error});
 }
 
@@ -62,15 +62,19 @@ class _$LookupStateCopyWithImpl<$Res, $Val extends LookupState>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? isLoading = null,
     Object? languages = null,
     Object? countries = null,
     Object? states = null,
     Object? cities = null,
     Object? districts = null,
-    Object? isLoading = null,
     Object? error = freezed,
   }) {
     return _then(_value.copyWith(
+      isLoading: null == isLoading
+          ? _value.isLoading
+          : isLoading // ignore: cast_nullable_to_non_nullable
+              as bool,
       languages: null == languages
           ? _value.languages
           : languages // ignore: cast_nullable_to_non_nullable
@@ -91,10 +95,6 @@ class _$LookupStateCopyWithImpl<$Res, $Val extends LookupState>
           ? _value.districts
           : districts // ignore: cast_nullable_to_non_nullable
               as List<DistrictEntity>,
-      isLoading: null == isLoading
-          ? _value.isLoading
-          : isLoading // ignore: cast_nullable_to_non_nullable
-              as bool,
       error: freezed == error
           ? _value.error
           : error // ignore: cast_nullable_to_non_nullable
@@ -112,12 +112,12 @@ abstract class _$$LookupStateImplCopyWith<$Res>
   @override
   @useResult
   $Res call(
-      {List<LanguageEntity> languages,
+      {bool isLoading,
+      List<LanguageEntity> languages,
       List<CountryEntity> countries,
       List<StateEntity> states,
       List<CityEntity> cities,
       List<DistrictEntity> districts,
-      bool isLoading,
       String? error});
 }
 
@@ -134,15 +134,19 @@ class __$$LookupStateImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? isLoading = null,
     Object? languages = null,
     Object? countries = null,
     Object? states = null,
     Object? cities = null,
     Object? districts = null,
-    Object? isLoading = null,
     Object? error = freezed,
   }) {
     return _then(_$LookupStateImpl(
+      isLoading: null == isLoading
+          ? _value.isLoading
+          : isLoading // ignore: cast_nullable_to_non_nullable
+              as bool,
       languages: null == languages
           ? _value._languages
           : languages // ignore: cast_nullable_to_non_nullable
@@ -163,10 +167,6 @@ class __$$LookupStateImplCopyWithImpl<$Res>
           ? _value._districts
           : districts // ignore: cast_nullable_to_non_nullable
               as List<DistrictEntity>,
-      isLoading: null == isLoading
-          ? _value.isLoading
-          : isLoading // ignore: cast_nullable_to_non_nullable
-              as bool,
       error: freezed == error
           ? _value.error
           : error // ignore: cast_nullable_to_non_nullable
@@ -179,12 +179,12 @@ class __$$LookupStateImplCopyWithImpl<$Res>
 
 class _$LookupStateImpl implements _LookupState {
   const _$LookupStateImpl(
-      {final List<LanguageEntity> languages = const [],
+      {this.isLoading = false,
+      final List<LanguageEntity> languages = const [],
       final List<CountryEntity> countries = const [],
       final List<StateEntity> states = const [],
       final List<CityEntity> cities = const [],
       final List<DistrictEntity> districts = const [],
-      this.isLoading = false,
       this.error})
       : _languages = languages,
         _countries = countries,
@@ -192,6 +192,9 @@ class _$LookupStateImpl implements _LookupState {
         _cities = cities,
         _districts = districts;
 
+  @override
+  @JsonKey()
+  final bool isLoading;
   final List<LanguageEntity> _languages;
   @override
   @JsonKey()
@@ -238,14 +241,11 @@ class _$LookupStateImpl implements _LookupState {
   }
 
   @override
-  @JsonKey()
-  final bool isLoading;
-  @override
   final String? error;
 
   @override
   String toString() {
-    return 'LookupState(languages: $languages, countries: $countries, states: $states, cities: $cities, districts: $districts, isLoading: $isLoading, error: $error)';
+    return 'LookupState(isLoading: $isLoading, languages: $languages, countries: $countries, states: $states, cities: $cities, districts: $districts, error: $error)';
   }
 
   @override
@@ -253,6 +253,8 @@ class _$LookupStateImpl implements _LookupState {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$LookupStateImpl &&
+            (identical(other.isLoading, isLoading) ||
+                other.isLoading == isLoading) &&
             const DeepCollectionEquality()
                 .equals(other._languages, _languages) &&
             const DeepCollectionEquality()
@@ -261,20 +263,18 @@ class _$LookupStateImpl implements _LookupState {
             const DeepCollectionEquality().equals(other._cities, _cities) &&
             const DeepCollectionEquality()
                 .equals(other._districts, _districts) &&
-            (identical(other.isLoading, isLoading) ||
-                other.isLoading == isLoading) &&
             (identical(other.error, error) || other.error == error));
   }
 
   @override
   int get hashCode => Object.hash(
       runtimeType,
+      isLoading,
       const DeepCollectionEquality().hash(_languages),
       const DeepCollectionEquality().hash(_countries),
       const DeepCollectionEquality().hash(_states),
       const DeepCollectionEquality().hash(_cities),
       const DeepCollectionEquality().hash(_districts),
-      isLoading,
       error);
 
   /// Create a copy of LookupState
@@ -288,14 +288,16 @@ class _$LookupStateImpl implements _LookupState {
 
 abstract class _LookupState implements LookupState {
   const factory _LookupState(
-      {final List<LanguageEntity> languages,
+      {final bool isLoading,
+      final List<LanguageEntity> languages,
       final List<CountryEntity> countries,
       final List<StateEntity> states,
       final List<CityEntity> cities,
       final List<DistrictEntity> districts,
-      final bool isLoading,
       final String? error}) = _$LookupStateImpl;
 
+  @override
+  bool get isLoading;
   @override
   List<LanguageEntity> get languages;
   @override
@@ -306,8 +308,6 @@ abstract class _LookupState implements LookupState {
   List<CityEntity> get cities;
   @override
   List<DistrictEntity> get districts;
-  @override
-  bool get isLoading;
   @override
   String? get error;
 

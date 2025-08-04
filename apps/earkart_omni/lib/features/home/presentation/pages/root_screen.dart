@@ -2,6 +2,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/consultati
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
+import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
@@ -21,6 +22,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:earkart_omni/utils/device_owner_helper.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:earkart_omni/config/widgets/app_loading_screen.dart';
 
 class RootScreen extends StatefulWidget {
   static const routeName = '/';
@@ -75,7 +77,10 @@ class _RootScreenState extends State<RootScreen> {
           cameraStatus.isGranted &&
           microphoneStatus.isGranted) {
         print('✅ All permissions granted for device owner');
-        _startGlobalDeviceMonitoring();
+        // Delay the start to ensure BlocProvider is set up
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _startGlobalDeviceMonitoring();
+        });
         return;
       } else {
         print('⚠️ Some permissions still not granted for device owner');
@@ -98,7 +103,10 @@ class _RootScreenState extends State<RootScreen> {
         usbStatus.isGranted &&
         cameraStatus.isGranted &&
         microphoneStatus.isGranted) {
-      _startGlobalDeviceMonitoring();
+      // Delay the start to ensure BlocProvider is set up
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _startGlobalDeviceMonitoring();
+      });
       return;
     } else {
       _showPermissionDialog();
@@ -125,7 +133,15 @@ class _RootScreenState extends State<RootScreen> {
       // Start device monitoring
       deviceCubit.startDeviceMonitoring();
 
+      // Force initial device check
+      deviceCubit.forceDeviceCheck();
+
+      // Force initial network check
+      final networkCubit = di<NetworkCubit>();
+      networkCubit.forceNetworkCheck();
+
       print('✅ Global device monitoring started successfully');
+      print('✅ Global network monitoring started successfully');
     } catch (e) {
       // Log error but don't crash the app
       print('Error starting global device monitoring: $e');
@@ -237,7 +253,7 @@ class _RootScreenState extends State<RootScreen> {
               !checkedPatient ||
               !checkedConsultation ||
               !checkedUser) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoadingScreen.compact();
           }
 
           // Navigation logic with detailed logging

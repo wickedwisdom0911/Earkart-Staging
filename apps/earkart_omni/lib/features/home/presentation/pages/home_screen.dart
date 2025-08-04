@@ -4,7 +4,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/consultati
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
-import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
+import 'package:earkart_omni/features/patients/presentation/pages/patient_phone_screen.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -197,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () {
                         Navigator.pushNamed(
                           context,
-                          PatientFormScreen.routeName,
+                          PatientPhoneScreen.routeName,
                         );
                       },
                     ),

@@ -32,13 +32,17 @@ class NetworkCubit extends Cubit<NetworkState> {
   }
 
   void _initializeNetworkMonitoring() {
+    print('🌐 Initializing network monitoring...');
+
     // Listen to connectivity changes with error handling
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
       (List<ConnectivityResult> results) {
         final bestResult = _selectBestConnectivityResult(results);
+        print('📡 Connectivity changed: $bestResult');
         _debouncedNetworkCheck(bestResult);
       },
       onError: (error) {
+        print('❌ Connectivity listener error: $error');
         if (!isClosed) {
           emit(NetworkError(message: 'Connectivity listener error: $error'));
         }
@@ -48,9 +52,11 @@ class NetworkCubit extends Cubit<NetworkState> {
     // Listen to internet connection status with error handling
     _internetSubscription = _internetChecker.onStatusChange.listen(
       (InternetConnectionStatus status) {
+        print('🌍 Internet status changed: $status');
         _debouncedInternetStatusCheck(status);
       },
       onError: (error) {
+        print('❌ Internet checker error: $error');
         if (!isClosed) {
           emit(NetworkError(message: 'Internet checker error: $error'));
         }
@@ -60,9 +66,12 @@ class NetworkCubit extends Cubit<NetworkState> {
     // Initial check with slight delay to avoid race conditions
     _networkCheckTimer = Timer(_networkCheckDelay, () {
       if (!isClosed) {
+        print('🔍 Performing initial network status check...');
         checkNetworkStatus();
       }
     });
+
+    print('✅ Network monitoring initialized');
   }
 
   void _debouncedNetworkCheck(ConnectivityResult result) {
@@ -88,6 +97,7 @@ class NetworkCubit extends Cubit<NetworkState> {
 
     try {
       _isCheckingNetwork = true;
+      print('🔍 Checking network status...');
 
       if (!isClosed) {
         emit(NetworkLoading());
@@ -96,27 +106,56 @@ class NetworkCubit extends Cubit<NetworkState> {
       final connectivityResults = await _connectivity.checkConnectivity();
       final hasInternet = await _internetChecker.hasConnection;
 
+      print('📡 Connectivity results: $connectivityResults');
+      print('🌍 Has internet: $hasInternet');
+      print(
+        '🔍 Primary connectivity result: ${_selectBestConnectivityResult(connectivityResults)}',
+      );
+
       final primaryResult = _selectBestConnectivityResult(connectivityResults);
+
+      // Fallback: if we have WiFi/mobile connectivity but internet checker says no,
+      // assume we have internet (internet checker can be unreliable)
+      bool effectiveHasInternet = hasInternet;
+      if (primaryResult != ConnectivityResult.none && !hasInternet) {
+        print(
+          '⚠️ Internet checker says no internet, but we have connectivity. Assuming internet is available.',
+        );
+        effectiveHasInternet = true;
+      }
+
       final networkStatus = await _buildNetworkStatus(
         primaryResult,
-        hasInternet,
+        effectiveHasInternet,
+      );
+
+      print(
+        '📊 Network status: ${networkStatus.isConnected}, ${networkStatus.hasInternet}, ${networkStatus.connectionType}',
       );
 
       // Only emit if state actually changed
       if (!_isStatusEqual(networkStatus, _lastKnownStatus)) {
         _lastKnownStatus = networkStatus;
+        print('🔄 Network state changed, emitting new state');
 
-        if (networkStatus.isConnected && networkStatus.hasInternet) {
+        // More lenient logic: if we have connectivity, consider it connected
+        // Internet checker might be too strict on some devices
+        if (networkStatus.isConnected) {
           if (!isClosed) {
             emit(NetworkConnected(status: networkStatus));
+            print('✅ Emitted NetworkConnected state (connectivity detected)');
           }
         } else {
           if (!isClosed) {
             emit(NetworkDisconnected());
+            print('❌ Emitted NetworkDisconnected state (no connectivity)');
           }
         }
+      } else {
+        print('⏭️ Network state unchanged, skipping emission');
       }
     } catch (e) {
+      print('❌ Error checking network status: $e');
       if (!isClosed) {
         emit(
           NetworkError(
@@ -145,7 +184,8 @@ class NetworkCubit extends Cubit<NetworkState> {
       if (!_isStatusEqual(networkStatus, _lastKnownStatus)) {
         _lastKnownStatus = networkStatus;
 
-        if (networkStatus.isConnected && networkStatus.hasInternet) {
+        // More lenient logic: if we have connectivity, consider it connected
+        if (networkStatus.isConnected) {
           if (!isClosed) {
             emit(NetworkConnected(status: networkStatus));
           }
@@ -181,16 +221,26 @@ class NetworkCubit extends Cubit<NetworkState> {
       final primaryResult = _selectBestConnectivityResult(connectivityResults);
       final hasInternet = status == InternetConnectionStatus.connected;
 
+      // Fallback: if we have connectivity but internet checker says no, assume internet is available
+      bool effectiveHasInternet = hasInternet;
+      if (primaryResult != ConnectivityResult.none && !hasInternet) {
+        print(
+          '⚠️ Internet checker says no internet, but we have connectivity. Assuming internet is available.',
+        );
+        effectiveHasInternet = true;
+      }
+
       final networkStatus = await _buildNetworkStatus(
         primaryResult,
-        hasInternet,
+        effectiveHasInternet,
       );
 
       // Only emit if state actually changed
       if (!_isStatusEqual(networkStatus, _lastKnownStatus)) {
         _lastKnownStatus = networkStatus;
 
-        if (networkStatus.isConnected && networkStatus.hasInternet) {
+        // More lenient logic: if we have connectivity, consider it connected
+        if (networkStatus.isConnected) {
           if (!isClosed) {
             emit(NetworkConnected(status: networkStatus));
           }
@@ -381,6 +431,12 @@ class NetworkCubit extends Cubit<NetworkState> {
         );
       }
     }
+  }
+
+  // Manual method to force network status check
+  Future<void> forceNetworkCheck() async {
+    print('🔧 Force checking network status...');
+    await checkNetworkStatus();
   }
 
   @override

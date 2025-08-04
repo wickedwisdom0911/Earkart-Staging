@@ -6,6 +6,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/communicat
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
+import 'package:earkart_omni/services/battery_service.dart';
 
 class DeviceStatusWidget extends StatelessWidget {
   const DeviceStatusWidget({super.key});
@@ -19,17 +20,6 @@ class DeviceStatusWidget extends StatelessWidget {
             final r15cStatus = _getR15CStatus(deviceState, commState);
             final revo2Status = _getRevo2Status(deviceState);
 
-            // Debug logging for device status
-            di<ILogger>().debug(
-              'DeviceStatusWidget - R15C: $r15cStatus, Revo2: $revo2Status',
-            );
-            di<ILogger>().debug(
-              'DeviceStatusWidget - DeviceState: $deviceState',
-            );
-            di<ILogger>().debug(
-              'DeviceStatusWidget - CommState: ${commState.isConnected}, ${commState.isSynced}, ${commState.transducerResponse != null}',
-            );
-
             return Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -40,6 +30,7 @@ class DeviceStatusWidget extends StatelessWidget {
                     r15cStatus,
                     Icons.hearing,
                     context,
+                    commState,
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -49,8 +40,12 @@ class DeviceStatusWidget extends StatelessWidget {
                     revo2Status,
                     Icons.videocam,
                     context,
+                    commState,
                   ),
                 ),
+                const SizedBox(width: 4),
+                // Tablet battery indicator
+                Flexible(child: _buildTabletBatteryIndicator(context)),
               ],
             );
           },
@@ -82,19 +77,23 @@ class DeviceStatusWidget extends StatelessWidget {
       return DeviceStatus.active;
     }
 
-    if (commState.transducerResponse != null) {
-      return DeviceStatus.ready;
-    }
-
     if (commState.isSynced) {
+      // If synced and has transducer response, show as ready (green)
+      if (commState.transducerResponse != null) {
+        return DeviceStatus.ready;
+      }
+      // If synced but no transducer response yet, show as syncing (purple)
       return DeviceStatus.syncing;
     }
 
+    // If communication is connected but not synced, show as connecting
     if (commState.isConnected) {
-      return DeviceStatus.connected;
+      return DeviceStatus.connecting;
     }
 
-    return DeviceStatus.connecting;
+    // If device is physically connected but communication is not established yet,
+    // show as connected (green) - this handles app restart scenario
+    return DeviceStatus.connected;
   }
 
   DeviceStatus _getRevo2Status(DeviceState deviceState) {
@@ -117,12 +116,21 @@ class DeviceStatusWidget extends StatelessWidget {
     DeviceStatus status,
     IconData icon,
     BuildContext context,
+    CommunicationState commState,
   ) {
     final statusConfig = _getStatusConfig(status);
     final tooltip = '$deviceName: ${statusConfig.label}';
 
+    // Get battery info for R15C device
+    String batteryInfo = '';
+    if (deviceName == 'R15C' && commState.isConnected) {
+      final batteryLevel = commState.batteryLevel;
+      final isCharging = commState.isCharging;
+      batteryInfo = ' | Battery: ${batteryLevel}%${isCharging ? ' ⚡' : ''}';
+    }
+
     return Tooltip(
-      message: tooltip,
+      message: tooltip + batteryInfo,
       child: Container(
         constraints: const BoxConstraints(minWidth: 60, maxWidth: 120),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -148,9 +156,82 @@ class DeviceStatusWidget extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
             ),
+            // Show battery indicator for R15C if connected
+            if (deviceName == 'R15C' && commState.isConnected) ...[
+              const SizedBox(width: 4),
+              _buildBatteryIndicator(
+                commState.batteryLevel,
+                commState.isCharging,
+                size: 12,
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTabletBatteryIndicator(BuildContext context) {
+    return BlocBuilder<CommunicationCubit, CommunicationState>(
+      builder: (context, commState) {
+        final level = commState.tabletBatteryLevel;
+        final isCharging = commState.isTabletBatteryCharging;
+
+        return Tooltip(
+          message: 'Tablet Battery: $level%${isCharging ? ' ⚡' : ''}',
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 40, maxWidth: 80),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.withOpacity(0.3), width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.battery_std, size: 12, color: Colors.grey[600]),
+                const SizedBox(width: 2),
+                _buildBatteryIndicator(level, isCharging, size: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBatteryIndicator(
+    int level,
+    bool isCharging, {
+    double size = 12,
+  }) {
+    Color batteryColor;
+    if (level > 50) {
+      batteryColor = Colors.green;
+    } else if (level > 20) {
+      batteryColor = Colors.orange;
+    } else {
+      batteryColor = Colors.red;
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$level%',
+          style: TextStyle(
+            fontSize: size - 2,
+            color: batteryColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        if (isCharging) ...[
+          const SizedBox(width: 2),
+          Icon(Icons.bolt, size: size - 2, color: Colors.yellow[700]),
+        ],
+      ],
     );
   }
 

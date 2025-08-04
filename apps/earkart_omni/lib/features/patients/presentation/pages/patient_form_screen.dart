@@ -4,6 +4,8 @@ import 'package:earkart_omni/config/widgets/gender_selector.dart';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/config/widgets/gradient_button.dart';
 import 'package:earkart_omni/config/widgets/phone_number_input.dart';
+import 'package:earkart_omni/config/widgets/app_loading_screen.dart';
+import 'package:earkart_omni/config/constants/country_codes.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
@@ -23,8 +25,11 @@ import 'package:earkart_omni/config/widgets/state_selector.dart';
 import 'package:earkart_omni/config/widgets/city_selector.dart';
 import 'package:earkart_omni/config/widgets/district_selector.dart';
 
+enum AgeOrDob { age, dob }
+
 class PatientFormScreen extends StatefulWidget {
-  const PatientFormScreen({super.key});
+  final PatientEntity patient;
+  const PatientFormScreen({super.key, required this.patient});
   static const routeName = "/patient-form";
   @override
   State<PatientFormScreen> createState() => _PatientFormScreenState();
@@ -46,28 +51,350 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   DateTime? selectedDate;
   Gender selectedGender = Gender.male;
   String selectedCountryCode = '+91'; // Default to India country code
+  AgeOrDob selectedAgeOrDob = AgeOrDob.age; // Default to age
 
   @override
   void initState() {
     super.initState();
-    final lookupCubit = context.read<LookupCubit>();
-    lookupCubit.getLanguages();
-    lookupCubit.getCountries();
+
+    _prefillFormFields();
+  }
+
+  void _prefillFormFields() {
+    final patient = widget.patient;
+
+    // Prefill basic information
+    nameController.text = patient.name;
+    emailController.text = patient.email ?? '';
+    addressController.text = patient.address;
+    pincodeController.text = patient.pincode;
+    selectedGender = patient.gender;
+
+    // Determine which option to select based on available data
+    if (patient.age != null && patient.age! > 0) {
+      // Age is available, select age option
+      selectedAgeOrDob = AgeOrDob.age;
+      ageController.text = patient.age.toString();
+      // Clear DOB
+      dobController.clear();
+      selectedDate = null;
+    } else if (patient.dob != null) {
+      // DOB is available, select DOB option
+      selectedAgeOrDob = AgeOrDob.dob;
+      try {
+        selectedDate = DateTime.parse(patient.dob!);
+        dobController.text = DateFormat('dd/MM/yyyy').format(selectedDate!);
+        // Clear age
+        ageController.clear();
+      } catch (e) {
+        // Handle invalid date format
+        di<ILogger>().error('Invalid date format: ${patient.dob}');
+        // Default to age if DOB is invalid
+        selectedAgeOrDob = AgeOrDob.age;
+      }
+    } else {
+      // Neither age nor DOB available, default to age
+      selectedAgeOrDob = AgeOrDob.age;
+      ageController.clear();
+      dobController.clear();
+      selectedDate = null;
+    }
+
+    // Prefill phone number and extract country code
+    if (patient.contactNumber.isNotEmpty) {
+      _extractCountryCodeAndPhoneNumber(patient.contactNumber);
+    }
+
+    // Set language if available (either from languageId or language entity)
+    if (patient.language != null) {
+      selectedLanguage = patient.language;
+    }
+    // Note: If no language is set, we'll set default in _setLocationEntitiesFromPatient
+
+    // Set location entities if available from related entities
+    if (patient.countryId != null) {
+      // We'll need to fetch the country data and set it
+      // This will be handled when the lookup data is loaded
+    }
+
+    if (patient.stateId != null) {
+      // We'll need to fetch the state data and set it
+      // This will be handled when the lookup data is loaded
+    }
+
+    if (patient.districtId != null) {
+      // We'll need to fetch the district data and set it
+      // This will be handled when the lookup data is loaded
+    }
+
+    if (patient.cityId != null) {
+      // We'll need to fetch the city data and set it
+      // This will be handled when the lookup data is loaded
+    }
+
+    // If we have the full entity objects, we can set them directly
+    // These will be overridden by the lookup data if available
+    if (patient.city != null) {
+      selectedCity = patient.city;
+    }
+
+    if (patient.district != null) {
+      selectedDistrict = patient.district;
+    }
+  }
+
+  void _extractCountryCodeAndPhoneNumber(String fullPhoneNumber) {
+    // Get country codes from global constants
+    final countryCodes = CountryCodes.getCodes();
+
+    String extractedCountryCode = '+91'; // Default
+    String phoneNumber = fullPhoneNumber;
+
+    // Try to find a matching country code
+    for (String code in countryCodes) {
+      if (fullPhoneNumber.startsWith(code)) {
+        extractedCountryCode = code;
+        phoneNumber = fullPhoneNumber.substring(code.length);
+        break;
+      }
+    }
+
+    setState(() {
+      selectedCountryCode = extractedCountryCode;
+      phoneController.text = phoneNumber;
+    });
+  }
+
+  int? _calculateAgeFromDob(DateTime dob) {
+    final now = DateTime.now();
+    int age = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      age--;
+    }
+    return age > 0 ? age : null;
+  }
+
+  void _setLocationEntitiesFromPatient(LookupState state) {
+    final patient = widget.patient;
+
+    // Set language with default fallback
+    if (selectedLanguage == null && state.languages.isNotEmpty) {
+      // Try to find the language by ID first
+      if (patient.languageId.isNotEmpty) {
+        try {
+          final language = state.languages.firstWhere(
+            (lang) => lang.id == patient.languageId,
+          );
+          setState(() {
+            selectedLanguage = language;
+          });
+        } catch (e) {
+          // Language not found by ID, try to find by code
+          try {
+            final language = state.languages.firstWhere(
+              (lang) => lang.code == 'EN',
+            );
+            setState(() {
+              selectedLanguage = language;
+            });
+          } catch (e) {
+            // Default to first language if EN not found
+            setState(() {
+              selectedLanguage = state.languages.first;
+            });
+          }
+        }
+      } else {
+        // No language ID, try to find by code EN
+        try {
+          final language = state.languages.firstWhere(
+            (lang) => lang.code == 'EN',
+          );
+          setState(() {
+            selectedLanguage = language;
+          });
+        } catch (e) {
+          // Default to first language if EN not found
+          setState(() {
+            selectedLanguage = state.languages.first;
+          });
+        }
+      }
+    }
+
+    // Set country with default fallback
+    if (selectedCountry == null && state.countries.isNotEmpty) {
+      // Try to find the country by ID first
+      if (patient.countryId != null && patient.countryId!.isNotEmpty) {
+        try {
+          final country = state.countries.firstWhere(
+            (country) => country.id == patient.countryId,
+          );
+          setState(() {
+            selectedCountry = country;
+          });
+          // Fetch states for this country
+          context.read<LookupCubit>().getStates(country.id ?? "");
+        } catch (e) {
+          // Country not found by ID, try to find by code IN
+          try {
+            final country = state.countries.firstWhere(
+              (country) => country.code == 'IN',
+            );
+            setState(() {
+              selectedCountry = country;
+            });
+            // Fetch states for this country
+            context.read<LookupCubit>().getStates(country.id ?? "");
+          } catch (e) {
+            // Default to first country if IN not found
+            setState(() {
+              selectedCountry = state.countries.first;
+            });
+            // Fetch states for default country
+            context.read<LookupCubit>().getStates(
+              state.countries.first.id ?? "",
+            );
+          }
+        }
+      } else {
+        // No country ID, try to find by code IN
+        try {
+          final country = state.countries.firstWhere(
+            (country) => country.code == 'IN',
+          );
+          setState(() {
+            selectedCountry = country;
+          });
+          // Fetch states for this country
+          context.read<LookupCubit>().getStates(country.id ?? "");
+        } catch (e) {
+          // Default to first country if IN not found
+          setState(() {
+            selectedCountry = state.countries.first;
+          });
+          // Fetch states for default country
+          context.read<LookupCubit>().getStates(state.countries.first.id ?? "");
+        }
+      }
+    }
+
+    // Set state if available
+    if (patient.stateId != null &&
+        selectedState == null &&
+        state.states.isNotEmpty) {
+      try {
+        final stateEntity = state.states.firstWhere(
+          (stateEntity) => stateEntity.id == patient.stateId,
+        );
+        setState(() {
+          selectedState = stateEntity;
+        });
+        // Fetch districts for this state
+        context.read<LookupCubit>().getDistricts(stateEntity.id ?? "");
+      } catch (e) {
+        // State not found, ignore
+      }
+    }
+
+    // Set district if available
+    if (patient.districtId != null &&
+        selectedDistrict == null &&
+        state.districts.isNotEmpty) {
+      try {
+        final district = state.districts.firstWhere(
+          (district) => district.id == patient.districtId,
+        );
+        setState(() {
+          selectedDistrict = district;
+        });
+        // Fetch cities for this district
+        context.read<LookupCubit>().getCities(district.id ?? "");
+      } catch (e) {
+        // District not found, ignore
+      }
+    }
+
+    // Set city if available
+    if (patient.cityId != null &&
+        selectedCity == null &&
+        state.cities.isNotEmpty) {
+      try {
+        final city = state.cities.firstWhere(
+          (city) => city.id == patient.cityId,
+        );
+        setState(() {
+          selectedCity = city;
+        });
+      } catch (e) {
+        // City not found, ignore
+      }
+    }
+
+    // Handle the case where we have district/city entities but need to fetch parent entities
+    if (selectedDistrict != null &&
+        selectedCountry == null &&
+        state.countries.isNotEmpty) {
+      // If we have a district but no country, try to find the country
+      // This is a fallback for when we have the district entity but not the country
+      if (patient.countryId != null) {
+        try {
+          final country = state.countries.firstWhere(
+            (country) => country.id == patient.countryId,
+          );
+          setState(() {
+            selectedCountry = country;
+          });
+        } catch (e) {
+          // Country not found, ignore
+        }
+      }
+    }
+
+    if (selectedCity != null &&
+        selectedState == null &&
+        state.states.isNotEmpty) {
+      // If we have a city but no state, try to find the state
+      // This is a fallback for when we have the city entity but not the state
+      if (patient.stateId != null) {
+        try {
+          final stateEntity = state.states.firstWhere(
+            (stateEntity) => stateEntity.id == patient.stateId,
+          );
+          setState(() {
+            selectedState = stateEntity;
+          });
+        } catch (e) {
+          // State not found, ignore
+        }
+      }
+    }
   }
 
   void submitPatient() {
-    int age =
-        ageController.text.trim().isEmpty
-            ? 0
-            : int.parse(ageController.text.trim());
-
+    int? age;
     String? dobString;
-    if (selectedDate != null) {
-      // Send complete ISO-8601 DateTime string as expected by backend
-      dobString = selectedDate!.toUtc().toIso8601String();
+
+    // Handle based on user selection
+    if (selectedAgeOrDob == AgeOrDob.age) {
+      // User chose to enter age
+      if (ageController.text.trim().isNotEmpty) {
+        age = int.tryParse(ageController.text.trim());
+      }
+      dobString = null; // Clear DOB when age is selected
+    } else {
+      // User chose to enter DOB
+      if (selectedDate != null) {
+        // Calculate age from DOB
+        age = _calculateAgeFromDob(selectedDate!);
+        // Send complete ISO-8601 DateTime string as expected by backend
+        dobString = selectedDate!.toUtc().toIso8601String();
+      }
     }
 
     final patient = PatientEntity(
+      id: widget.patient.id, // Include the ID if it exists (for updates)
       contactNumber:
           phoneController.text.trim().isEmpty
               ? ""
@@ -86,9 +413,14 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       email: emailController.text.trim(),
       status: Status.active,
       languageId: selectedLanguage?.id ?? "",
+      soldStatus: PatientSoldStatus.unknown,
     );
     di<ILogger>().info(patient.toJson().toString());
-    context.read<PatientCubit>().createPatient(patient);
+    if (widget.patient.id != null) {
+      context.read<PatientCubit>().updatePatient(patient);
+    } else {
+      context.read<PatientCubit>().createPatient(patient);
+    }
   }
 
   Widget _buildSection({
@@ -104,7 +436,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withAlpha(5),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -148,9 +480,9 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       backgroundColor: Colors.grey.shade50,
       extendBodyBehindAppBar: true,
       appBar: GlassmorphismAppBar(
-        title: const Text(
-          "New Patient",
-          style: TextStyle(
+        title: Text(
+          "Patient Details Form",
+          style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w700,
             color: Colors.black87,
@@ -205,23 +537,23 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Patient Registration",
-                              style: TextStyle(
+                              "Patient Details Form",
+                              style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.black87,
                                 letterSpacing: 0.2,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
-                              "Fill in the details to register a new patient",
-                              style: TextStyle(
+                              "Fill in the details of the patient",
+                              style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey,
                                 letterSpacing: 0.1,
@@ -261,41 +593,110 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: CustomTextField(
-                        hint: "Enter age",
-                        title: "Age (Optional)",
-                        controller: ageController,
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 20),
-                CustomTextField(
-                  hint: "Select date of birth",
-                  title: "Date of Birth (Optional)",
-                  controller: dobController,
-                  readOnly: true,
-                  onTap: () {
-                    showDatePicker(
-                      context: context,
-                      firstDate: DateTime(1900),
-                      initialEntryMode: DatePickerEntryMode.calendarOnly,
-                      lastDate: DateTime.now(),
-                    ).then((value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedDate = value;
-                          dobController.text = DateFormat(
-                            'dd/MM/yyyy',
-                          ).format(value);
-                        });
-                      }
-                    });
-                  },
+
+                // Age or DOB Selection
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Age Information",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<AgeOrDob>(
+                              title: const Text(
+                                "Enter Age",
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              value: AgeOrDob.age,
+                              groupValue: selectedAgeOrDob,
+                              onChanged: (AgeOrDob? value) {
+                                setState(() {
+                                  selectedAgeOrDob = value!;
+                                  // Clear DOB when switching to age
+                                  dobController.clear();
+                                  selectedDate = null;
+                                });
+                              },
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                          Expanded(
+                            child: RadioListTile<AgeOrDob>(
+                              title: const Text(
+                                "Enter Date of Birth",
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              value: AgeOrDob.dob,
+                              groupValue: selectedAgeOrDob,
+                              onChanged: (AgeOrDob? value) {
+                                setState(() {
+                                  selectedAgeOrDob = value!;
+                                  // Clear age when switching to DOB
+                                  ageController.clear();
+                                });
+                              },
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 20),
+
+                // Conditional Input Field
+                if (selectedAgeOrDob == AgeOrDob.age)
+                  CustomTextField(
+                    hint: "Enter age",
+                    title: "Age",
+                    controller: ageController,
+                    keyboardType: TextInputType.number,
+                  )
+                else
+                  CustomTextField(
+                    hint: "Select date of birth",
+                    title: "Date of Birth",
+                    controller: dobController,
+                    readOnly: true,
+                    onTap: () {
+                      showDatePicker(
+                        context: context,
+                        firstDate: DateTime(1900),
+                        initialEntryMode: DatePickerEntryMode.calendarOnly,
+                        lastDate: DateTime.now(),
+                      ).then((value) {
+                        if (value != null) {
+                          setState(() {
+                            selectedDate = value;
+                            dobController.text = DateFormat(
+                              'dd/MM/yyyy',
+                            ).format(value);
+                          });
+                        }
+                      });
+                    },
+                  ),
               ],
             ),
             const SizedBox(height: 24),
@@ -366,10 +767,12 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                 BlocBuilder<LookupCubit, LookupState>(
                   builder: (context, state) {
                     if (state.isLoading) {
-                      return const Center(
+                      return Center(
                         child: Padding(
-                          padding: EdgeInsets.all(20.0),
-                          child: CircularProgressIndicator(),
+                          padding: const EdgeInsets.all(20.0),
+                          child: AppLoadingScreen.simple(
+                            message: "Loading location data...",
+                          ),
                         ),
                       );
                     }
@@ -384,6 +787,12 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                         ),
                       );
                     }
+
+                    // Set location entities from patient data when lookup data is available
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _setLocationEntitiesFromPatient(state);
+                    });
+
                     return Column(
                       children: [
                         Row(
@@ -506,20 +915,12 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                 return GradientButton(
                   child:
                       state is PatientLoading
-                          ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
+                          ? AppLoadingScreen.whiteSpinner(
+                            size: 20,
+                            strokeWidth: 2,
                           )
                           : Text(
-                            state is PatientError
-                                ? "Retry Registration"
-                                : "Register Patient",
+                            state is PatientError ? "Retry " : "Continue ",
                           ),
                   onPressed: () {
                     submitPatient();

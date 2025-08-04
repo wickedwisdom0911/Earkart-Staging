@@ -2,7 +2,6 @@ package com.chenyeju
 
 import android.content.Context
 import android.util.Log
-import com.jiangdg.ausbc.callback.ICaptureCallBack
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.StandardMessageCodec
 import io.flutter.plugin.platform.PlatformView
@@ -45,54 +44,40 @@ class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private va
 
     fun takePicture(callback: UVCStringCallback){
         if (cameraView != null) {
-            // Convert UVCStringCallback to ICaptureCallBack
-            val captureCallback = object : ICaptureCallBack {
-                override fun onBegin() {
-                    callback.onSuccess("Started taking picture")
-                }
-                
-                override fun onComplete(path: String?) {
-                    if (path != null) {
-                        callback.onSuccess(path)
-                    } else {
-                        callback.onError("Failed to save picture")
-                    }
-                }
-                
-                override fun onError(error: String?) {
-                    callback.onError(error ?: "Unknown error")
-                }
-            }
-            cameraView!!.takePicture(captureCallback)
+            cameraView!!.takePicture(callback)
         } else {
             Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
             callback.onError("Camera view not initialized")
         }
     }
     
-    // Note: These methods are not implemented in the new UVCCameraView
-    // They can be added later if needed
     fun captureVideo() {
-        Log.w("UVCCameraViewFactory", "captureVideo not implemented in new UVCCameraView")
+        if (cameraView != null) {
+            cameraView!!.captureVideo()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
     fun captureStreamStart(){
-        Log.w("UVCCameraViewFactory", "captureStreamStart not implemented in new UVCCameraView")
+        if (cameraView != null) {
+            cameraView!!.captureStreamStart()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
     
     fun captureStreamStop(){
-        Log.w("UVCCameraViewFactory", "captureStreamStop not implemented in new UVCCameraView")
+        if (cameraView != null) {
+            cameraView!!.captureStreamStop()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
-    fun getAllPreviewSizes(): String? {
-        Log.w("UVCCameraViewFactory", "getAllPreviewSizes not implemented in new UVCCameraView")
-        return null
-    }
-    
-    fun getCurrentCameraRequestParameters(): String? {
-        Log.w("UVCCameraViewFactory", "getCurrentCameraRequestParameters not implemented in new UVCCameraView")
-        return null
-    }
+
+    fun getAllPreviewSizes() = cameraView?.getAllPreviewSizes();
+    fun getCurrentCameraRequestParameters() = cameraView?.getCurrentCameraRequestParameters();
 
     fun closeCamera() {
         if (cameraView != null) {
@@ -104,8 +89,7 @@ class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private va
 
     fun updateResolution(arguments: Any?) {
         if (cameraView != null) {
-            // This method is not implemented in the new UVCCameraView
-            Log.w("UVCCameraViewFactory", "updateResolution not implemented in new UVCCameraView")
+            cameraView!!.updateResolution(arguments)
         } else {
             Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
         }
@@ -113,9 +97,7 @@ class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private va
 
     fun captureFrameAsBase64(callback: UVCStringCallback) {
         if (cameraView != null) {
-            // This method is not implemented in the new UVCCameraView
-            Log.w("UVCCameraViewFactory", "captureFrameAsBase64 not implemented in new UVCCameraView")
-            callback.onError("Method not implemented")
+            cameraView!!.captureFrameAsBase64(callback)
         } else {
             Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
             callback.onError("Camera view not initialized")
@@ -123,16 +105,28 @@ class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private va
     }
 
     fun startFrameCapture() {
-        Log.w("UVCCameraViewFactory", "startFrameCapture not implemented in new UVCCameraView")
+        if (cameraView != null) {
+            cameraView!!.startFrameCapture()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
     fun stopFrameCapture() {
-        Log.w("UVCCameraViewFactory", "stopFrameCapture not implemented in new UVCCameraView")
+        if (cameraView != null) {
+            cameraView!!.stopFrameCapture()
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+        }
     }
 
     fun getLastCapturedFrame(callback: UVCStringCallback) {
-        Log.w("UVCCameraViewFactory", "getLastCapturedFrame not implemented in new UVCCameraView")
-        callback.onError("Method not implemented")
+        if (cameraView != null) {
+            cameraView!!.getLastCapturedFrame(callback)
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+            callback.onError("Camera view not initialized")
+        }
     }
 
 

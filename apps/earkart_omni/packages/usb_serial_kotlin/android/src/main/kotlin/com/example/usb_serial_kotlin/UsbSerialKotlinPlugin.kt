@@ -118,7 +118,7 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
                 try {
                     dev["serialNumber"] = device.serialNumber ?: "N/A"
                 } catch (e: SecurityException) {
-                    Log.e(TAG, "SecurityException while accessing serialNumber: ${e.message}")
+                    // Log.e(TAG, "SecurityException while accessing serialNumber: ${e.message}")
                 }
             }
         } else {
@@ -131,7 +131,7 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
     private fun acquirePermissions(device: UsbDevice, callback: (Boolean) -> Unit) {
         // Check if app is device owner - if so, skip permission request
         if (isDeviceOwner()) {
-            Log.d(TAG, "Device owner detected - skipping USB permission request for ${device.deviceName}")
+            // Log.d(TAG, "Device owner detected - skipping USB permission request for ${device.deviceName}")
             callback(true)
             return
         }
@@ -205,7 +205,7 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
         val isOwner = isDeviceOwner()
         
         if (isOwner) {
-            Log.d(TAG, "Device owner detected - auto-granting USB permissions for all devices")
+            // Log.d(TAG, "Device owner detected - auto-granting USB permissions for all devices")
             // For device owner, add all devices without permission requests
             transferDevices.addAll(devices.values.map { serializeDevice(it) })
         } else {

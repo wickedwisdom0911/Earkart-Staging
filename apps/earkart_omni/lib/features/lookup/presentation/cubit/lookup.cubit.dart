@@ -13,6 +13,10 @@ class LookupCubit extends Cubit<LookupState> {
   final GetCountriesUsecase getCountriesUsecase;
   final GetLanguagesUsecase getLanguagesUsecase;
 
+  // Cache flags to prevent unnecessary API calls
+  bool _languagesLoaded = false;
+  bool _countriesLoaded = false;
+
   LookupCubit({
     required this.getDistrictsUsecase,
     required this.getCitiesUsecase,
@@ -21,7 +25,16 @@ class LookupCubit extends Cubit<LookupState> {
     required this.getLanguagesUsecase,
   }) : super(const LookupState());
 
+  // Helper method to check if essential data is loaded
+  bool get isEssentialDataLoaded =>
+      state.languages.isNotEmpty && state.countries.isNotEmpty;
+
   Future<void> getLanguages() async {
+    // Return early if already loaded
+    if (_languagesLoaded && state.languages.isNotEmpty) {
+      return;
+    }
+
     if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
     final result = await getLanguagesUsecase.call();
     result.fold(
@@ -32,6 +45,7 @@ class LookupCubit extends Cubit<LookupState> {
       },
       (languages) {
         if (!isClosed) {
+          _languagesLoaded = true;
           emit(state.copyWith(isLoading: false, languages: languages));
         }
       },
@@ -39,6 +53,11 @@ class LookupCubit extends Cubit<LookupState> {
   }
 
   Future<void> getCountries() async {
+    // Return early if already loaded
+    if (_countriesLoaded && state.countries.isNotEmpty) {
+      return;
+    }
+
     if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
     final result = await getCountriesUsecase.call();
     result.fold(
@@ -49,6 +68,7 @@ class LookupCubit extends Cubit<LookupState> {
       },
       (countries) {
         if (!isClosed) {
+          _countriesLoaded = true;
           emit(state.copyWith(isLoading: false, countries: countries));
         }
       },

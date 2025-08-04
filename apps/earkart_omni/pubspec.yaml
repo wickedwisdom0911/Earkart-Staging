@@ -42,6 +42,7 @@ dependencies:
   connectivity_plus: ^6.0.5
   internet_connection_checker: ^3.0.1
   wakelock_plus: ^1.2.8
+  battery_plus: ^5.0.2
 
   #ui
   figma_squircle: ^0.6.3
