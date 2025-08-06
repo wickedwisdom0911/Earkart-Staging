@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:earkart_omni/config/utils/constants.dart';
@@ -28,11 +26,9 @@ class WebRTCService {
   // State management
   bool _isInitialized = false;
   bool _isStreaming = false;
-  bool _isAudioEnabled = true;
-  bool _isVideoEnabled = true;
-  String? _roomId;
-  String? _userId;
+  bool _roomJoined = false;
   String? _consultationId;
+  String? _userId;
 
   // Callbacks
   Function(bool)? onConnectionStateChanged;
@@ -161,19 +157,14 @@ class WebRTCService {
   void _setupSocketEventListeners() {
     if (_socket == null) return;
 
-    // Join WebRTC room
+    // Join WebRTC room confirmation
     _socket!.on('join_webrtc_room', (data) {
       _handleJoinRoom(data);
     });
 
-    // Audiologist joined - start streaming
+    // User joined WebRTC room
     _socket!.on('user_joined_webrtc', (data) {
-      _handleAudiologistJoined(data);
-    });
-
-    // Audiologist left - stop streaming
-    _socket!.on('user_left_webrtc', (data) {
-      _handleAudiologistLeft(data);
+      _handleUserJoined(data);
     });
 
     // Handle WebRTC offer
@@ -191,51 +182,86 @@ class WebRTCService {
       _handleIceCandidate(data);
     });
 
+    // Handle start video stream command
+    _socket!.on('start_video_stream', (data) {
+      _handleStartVideoStream(data);
+    });
+
+    // Handle stop video stream command
+    _socket!.on('stop_video_stream', (data) {
+      _handleStopVideoStream(data);
+    });
+
     // Handle connection state changes
     _socket!.on('connection_state', (data) {
       _handleConnectionState(data);
+    });
+
+    // Handle ping/pong for connection health
+    _socket!.on('ping', (data) {
+      _handlePing(data);
+    });
+
+    _socket!.on('pong', (data) {
+      _handlePong(data);
+    });
+
+    // Handle get connection stats request
+    _socket!.on('get_connection_stats', (data) {
+      _handleGetConnectionStats(data);
+    });
+
+    // Handle leave WebRTC room
+    _socket!.on('leave_webrtc_room', (data) {
+      _handleLeaveRoom(data);
     });
   }
 
   /// Handle joining WebRTC room
   void _handleJoinRoom(dynamic data) {
     try {
-      if (data is Map<String, dynamic>) {
-        _roomId = data['roomId']?.toString();
+      di<ILogger>().info('Joined WebRTC room: $data');
 
-        // Emit that we're ready to stream
-        _socket?.emit('webrtc_sender_ready', {
-          'roomId': _roomId,
-          'userId': _userId,
-          'consultationId': _consultationId,
-        });
+      if (data is Map<String, dynamic>) {
+        final roomId = data['roomId']?.toString();
+        final userId = data['userId']?.toString();
+
+        di<ILogger>().info('Room ID: $roomId, User ID: $userId');
       }
     } catch (e) {
       di<ILogger>().error('Error handling join room: $e');
     }
   }
 
-  /// Handle audiologist joined - start streaming
-  void _handleAudiologistJoined(dynamic data) {
+  /// Handle user joined WebRTC room
+  void _handleUserJoined(dynamic data) {
     try {
-      startStreaming();
-    } catch (e) {
-      di<ILogger>().error('Error handling audiologist joined: $e');
-    }
-  }
+      di<ILogger>().info('User joined WebRTC room: $data');
 
-  /// Handle audiologist left - stop streaming
-  void _handleAudiologistLeft(dynamic data) {
-    try {
-      stopStreaming();
+      if (data is Map<String, dynamic>) {
+        final userId = data['userId']?.toString();
+        final roomId = data['roomId']?.toString();
+
+        di<ILogger>().info('User $userId joined room $roomId');
+        if (userId == _userId) {
+          _roomJoined = true;
+        }
+        // If audiologist joined, we can start streaming
+        if (userId != _userId) {
+          // Audiologist joined, start streaming
+          startStreaming();
+        }
+      }
     } catch (e) {
-      di<ILogger>().error('Error handling audiologist left: $e');
+      di<ILogger>().error('Error handling user joined: $e');
     }
   }
 
   /// Handle WebRTC offer from audiologist
   void _handleOffer(dynamic data) async {
     try {
+      di<ILogger>().info('Received WebRTC offer: $data');
+
       if (data is Map<String, dynamic> && _peerConnection != null) {
         final offer = data['offer'] as String;
         final sdp = RTCSessionDescription(offer, 'offer');
@@ -248,10 +274,12 @@ class WebRTCService {
 
         // Send answer to audiologist
         _socket?.emit('webrtc_answer', {
-          'roomId': _roomId,
+          'roomId': _consultationId,
           'userId': _userId,
           'answer': answer.sdp,
         });
+
+        di<ILogger>().info('Sent WebRTC answer');
       }
     } catch (e) {
       di<ILogger>().error('Error handling WebRTC offer: $e');
@@ -261,6 +289,8 @@ class WebRTCService {
   /// Handle WebRTC answer from audiologist
   void _handleAnswer(dynamic data) async {
     try {
+      di<ILogger>().info('Received WebRTC answer: $data');
+
       if (data is Map<String, dynamic> && _peerConnection != null) {
         final answer = data['answer'] as String;
         final sdp = RTCSessionDescription(answer, 'answer');
@@ -274,6 +304,8 @@ class WebRTCService {
   /// Handle ICE candidates
   void _handleIceCandidate(dynamic data) async {
     try {
+      di<ILogger>().info('Received ICE candidate: $data');
+
       if (data is Map<String, dynamic> && _peerConnection != null) {
         final candidate = data['candidate'] as String;
         final sdpMLineIndex = data['sdpMLineIndex'] as int;
@@ -288,9 +320,31 @@ class WebRTCService {
     }
   }
 
+  /// Handle start video stream command
+  void _handleStartVideoStream(dynamic data) {
+    try {
+      di<ILogger>().info('Received start video stream command: $data');
+      startStreaming();
+    } catch (e) {
+      di<ILogger>().error('Error handling start video stream: $e');
+    }
+  }
+
+  /// Handle stop video stream command
+  void _handleStopVideoStream(dynamic data) {
+    try {
+      di<ILogger>().info('Received stop video stream command: $data');
+      stopStreaming();
+    } catch (e) {
+      di<ILogger>().error('Error handling stop video stream: $e');
+    }
+  }
+
   /// Handle connection state changes
   void _handleConnectionState(dynamic data) {
     try {
+      di<ILogger>().info('Connection state changed: $data');
+
       if (data is Map<String, dynamic>) {
         final state = data['state'] as String;
         final isConnected = state == 'connected';
@@ -301,15 +355,70 @@ class WebRTCService {
     }
   }
 
+  /// Handle ping for connection health
+  void _handlePing(dynamic data) {
+    try {
+      di<ILogger>().info('Received ping: $data');
+
+      // Respond with pong
+      _socket?.emit('pong', {
+        'roomId': _consultationId,
+        'userId': _userId,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+    } catch (e) {
+      di<ILogger>().error('Error handling ping: $e');
+    }
+  }
+
+  /// Handle pong response
+  void _handlePong(dynamic data) {
+    try {
+      di<ILogger>().info('Received pong: $data');
+    } catch (e) {
+      di<ILogger>().error('Error handling pong: $e');
+    }
+  }
+
+  /// Handle get connection stats request
+  void _handleGetConnectionStats(dynamic data) async {
+    try {
+      di<ILogger>().info('Received get connection stats request: $data');
+
+      final stats = await getConnectionStats();
+
+      _socket?.emit('connection_stats', {
+        'roomId': _consultationId,
+        'userId': _userId,
+        'stats': stats,
+      });
+    } catch (e) {
+      di<ILogger>().error('Error handling get connection stats: $e');
+    }
+  }
+
+  /// Handle leave WebRTC room
+  void _handleLeaveRoom(dynamic data) {
+    try {
+      di<ILogger>().info('Received leave room command: $data');
+      stopStreaming();
+    } catch (e) {
+      di<ILogger>().error('Error handling leave room: $e');
+    }
+  }
+
   /// Start video streaming to audiologist
   Future<void> startStreaming() async {
     try {
       if (_isStreaming) {
+        di<ILogger>().info('Already streaming, skipping start');
         return;
       }
 
+      di<ILogger>().info('Starting video streaming...');
+
       // Join WebRTC room if not already joined
-      if (_socket != null && _socket!.connected) {
+      if (_socket != null && _socket!.connected && _consultationId != null) {
         _socket!.emit('join_webrtc_room', {'consultationId': _consultationId});
         di<ILogger>().info('Joined WebRTC room: $_consultationId');
       }
@@ -335,6 +444,8 @@ class WebRTCService {
 
       _isStreaming = true;
       onStreamStarted?.call();
+
+      di<ILogger>().info('Video streaming started successfully');
     } catch (e) {
       di<ILogger>().error('Error starting video stream: $e');
       onError?.call('Failed to start streaming: $e');
@@ -345,8 +456,11 @@ class WebRTCService {
   Future<void> stopStreaming() async {
     try {
       if (!_isStreaming) {
+        di<ILogger>().info('Not streaming, skipping stop');
         return;
       }
+
+      di<ILogger>().info('Stopping video streaming...');
 
       // Stop local stream
       if (_localStream != null) {
@@ -364,6 +478,8 @@ class WebRTCService {
       _audioSender = null;
       _isStreaming = false;
       onStreamStopped?.call();
+
+      di<ILogger>().info('Video streaming stopped successfully');
     } catch (e) {
       di<ILogger>().error('Error stopping video stream: $e');
     }
@@ -381,8 +497,10 @@ class WebRTCService {
 
       // Setup event handlers
       _peerConnection!.onIceCandidate = (candidate) {
+        di<ILogger>().info('Sending ICE candidate: ${candidate.candidate}');
+
         _socket?.emit('webrtc_ice_candidate', {
-          'roomId': _roomId,
+          'roomId': _consultationId,
           'userId': _userId,
           'candidate': candidate.candidate,
           'sdpMLineIndex': candidate.sdpMLineIndex,
@@ -391,13 +509,23 @@ class WebRTCService {
       };
 
       _peerConnection!.onConnectionState = (state) {
+        di<ILogger>().info('Peer connection state: $state');
+
         final isConnected =
             state == RTCPeerConnectionState.RTCPeerConnectionStateConnected;
         onConnectionStateChanged?.call(isConnected);
       };
 
       _peerConnection!.onIceConnectionState = (state) {
-        // ICE connection state monitoring (kept for debugging if needed)
+        di<ILogger>().info('ICE connection state: $state');
+      };
+
+      _peerConnection!.onIceGatheringState = (state) {
+        di<ILogger>().info('ICE gathering state: $state');
+      };
+
+      _peerConnection!.onSignalingState = (state) {
+        di<ILogger>().info('Signaling state: $state');
       };
     } catch (e) {
       di<ILogger>().error('Error creating peer connection: $e');
@@ -408,45 +536,17 @@ class WebRTCService {
   /// Get user media (camera and microphone)
   Future<void> _getUserMedia() async {
     try {
+      di<ILogger>().info('Getting user media...');
+
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': _audioConstraints,
         'video': _videoConstraints,
       });
+
+      di<ILogger>().info('User media obtained successfully');
     } catch (e) {
       di<ILogger>().error('Error getting user media: $e');
       throw e;
-    }
-  }
-
-  /// Toggle audio mute/unmute
-  Future<void> toggleAudio() async {
-    try {
-      if (_localStream != null) {
-        final audioTracks = _localStream!.getAudioTracks();
-        if (audioTracks.isNotEmpty) {
-          final audioTrack = audioTracks.first;
-          audioTrack.enabled = !audioTrack.enabled;
-          _isAudioEnabled = audioTrack.enabled;
-        }
-      }
-    } catch (e) {
-      di<ILogger>().error('Error toggling audio: $e');
-    }
-  }
-
-  /// Toggle video enable/disable
-  Future<void> toggleVideo() async {
-    try {
-      if (_localStream != null) {
-        final videoTracks = _localStream!.getVideoTracks();
-        if (videoTracks.isNotEmpty) {
-          final videoTrack = videoTracks.first;
-          videoTrack.enabled = !videoTrack.enabled;
-          _isVideoEnabled = videoTrack.enabled;
-        }
-      }
-    } catch (e) {
-      di<ILogger>().error('Error toggling video: $e');
     }
   }
 
@@ -471,24 +571,29 @@ class WebRTCService {
 
   /// Get current streaming state
   bool get isStreaming => _isStreaming;
-  bool get isAudioEnabled => _isAudioEnabled;
-  bool get isVideoEnabled => _isVideoEnabled;
   bool get isInitialized => _isInitialized;
 
   /// Dispose WebRTC service
   Future<void> dispose() async {
     try {
+      di<ILogger>().info('Disposing WebRTC service...');
+
       await stopStreaming();
 
       // Remove socket event listeners
       if (_socket != null) {
         _socket!.off('join_webrtc_room');
         _socket!.off('user_joined_webrtc');
-        _socket!.off('user_left_webrtc');
         _socket!.off('webrtc_offer');
         _socket!.off('webrtc_answer');
         _socket!.off('webrtc_ice_candidate');
+        _socket!.off('start_video_stream');
+        _socket!.off('stop_video_stream');
         _socket!.off('connection_state');
+        _socket!.off('ping');
+        _socket!.off('pong');
+        _socket!.off('get_connection_stats');
+        _socket!.off('leave_webrtc_room');
 
         // Disconnect from WebRTC server
         _socket!.disconnect();
@@ -496,6 +601,8 @@ class WebRTCService {
 
       _socket = null;
       _isInitialized = false;
+
+      di<ILogger>().info('WebRTC service disposed successfully');
     } catch (e) {
       di<ILogger>().error('Error disposing WebRTC service: $e');
     }

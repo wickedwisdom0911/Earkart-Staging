@@ -11,46 +11,6 @@ import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
 import 'package:earkart_omni/features/consultation/services/webrtc_service.dart';
 
-/// UVC Camera Widget with WebRTC Video Streaming
-///
-/// This widget provides a UVC camera interface with WebRTC video streaming capabilities.
-/// It streams video to the NextJS dashboard where audiologists can view the patient's
-/// video feed in real-time during consultations.
-///
-/// WebRTC Events:
-/// - 'join_webrtc_room': Join consultation room
-/// - 'user_joined_webrtc': Audiologist joined (start streaming)
-/// - 'user_left_webrtc': Audiologist left (stop streaming)
-/// - 'webrtc_offer': Send video stream offer to audiologist
-/// - 'webrtc_answer': Handle audiologist's answer
-/// - 'webrtc_ice_candidate': Handle ICE candidates
-/// - 'connection_state': Monitor connection status
-///
-/// Features:
-/// - Automatic camera initialization and permission handling
-/// - High-performance frame capture at 30 FPS
-/// - WebRTC video streaming at HD quality (1280x720, 30fps)
-/// - Real-time frame rate monitoring
-/// - Error handling and recovery
-/// - Lifecycle management
-/// - Performance optimizations for smooth streaming
-/// - Audio/video controls for WebRTC
-/// - Connection status monitoring
-///
-/// Usage:
-/// ```dart
-/// UVCCameraWidget()
-/// ```
-///
-/// The widget automatically handles:
-/// - Camera permissions
-/// - USB device detection
-/// - Frame capture and encoding at 30 FPS
-/// - WebRTC peer connection management
-/// - Streaming lifecycle management
-/// - Performance monitoring and optimization
-/// - Audio/video track management
-
 class UVCCameraWidget extends StatefulWidget {
   final Function(bool)?
   onCameraStateChanged; // Callback for camera state changes
@@ -268,10 +228,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       _webrtcService = WebRTCService();
 
       final webrtcRoomId = _consultationId;
-
-      print('uvc_stream: 🎯 WebRTC setup - consultation ID: $_consultationId');
-      print('uvc_stream: 🎯 WebRTC setup - user ID: $webrtcUserId');
-      print('uvc_stream: 🎯 WebRTC setup - room ID: $webrtcRoomId');
 
       // Initialize WebRTC service
       _webrtcService!.initialize(
@@ -516,7 +472,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
     if (cameraController != null) {
       try {
-        // Wrap camera operations in try-catch to prevent unhandled exceptions
         try {
           cameraController?.captureStreamStop();
 
