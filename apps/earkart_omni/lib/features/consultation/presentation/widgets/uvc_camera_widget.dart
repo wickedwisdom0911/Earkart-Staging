@@ -9,7 +9,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
-import 'package:earkart_omni/features/consultation/services/webrtc_service.dart';
+import 'package:earkart_omni/features/consultation/services/agora_uvc_service.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/agora.state.dart';
 
 class UVCCameraWidget extends StatefulWidget {
   final Function(bool)?
@@ -63,10 +65,10 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     milliseconds: 200,
   ); // 200ms timeout for frames
 
-  // WebRTC streaming properties
-  WebRTCService? _webrtcService;
-  bool _isWebRTCStreaming = false;
-  bool _isWebRTCConnected = false;
+  // Agora streaming properties
+  AgoraUVCService? _agoraService;
+  bool _isAgoraStreaming = false;
+  bool _isAgoraConnected = false;
 
   @override
   void initState() {
@@ -160,7 +162,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           _checkPermissionsAndInitialize();
           _setupOtoscopyStreaming();
           _setupConsultationListener();
-          _setupWebRTCStreaming();
+          _setupAgoraListener();
+          _setupAgoraStreaming();
         }
       });
     } catch (e) {
@@ -183,89 +186,145 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     });
   }
 
-  void _setupWebRTCStreaming() {
+  void _setupAgoraListener() {
+    // Listen for Agora state changes to handle token updates
+    context.read<AgoraCubit>().stream.listen((state) {
+      if (mounted && !_isDisposed) {
+        state.maybeWhen(
+          success: (agora) async {
+            if (_agoraService != null && !_agoraService!.isInitialized) {
+              di<ILogger>().info(
+                'Agora token received, initializing UVC service',
+              );
+              _agoraService!.setCredentials(agora.appId, agora.token);
+
+              final authState = context.read<AuthCubit>().state;
+              String? userId;
+
+              authState.when(
+                initial: () => null,
+                loading: () => null,
+                success: (user) {
+                  userId = user?.id;
+                },
+                centreSuccess: (centre) => null,
+                centreError: (error) => null,
+                error: (error) => null,
+              );
+
+              if (userId != null && _consultationId != null) {
+                await _initializeAgoraService(userId!);
+              }
+            }
+          },
+          orElse: () {},
+        );
+      }
+    });
+  }
+
+  void _setupAgoraStreaming() {
     try {
-      di<ILogger>().info('Setting up WebRTC streaming...');
+      di<ILogger>().info('Setting up Agora streaming...');
 
       // Check if consultation ID is available
       if (_consultationId == null) {
         di<ILogger>().warning(
-          'Consultation ID not available for WebRTC initialization',
+          'Consultation ID not available for Agora initialization',
         );
         return;
       }
 
-      // Get user token and ID from auth state
+      // Get user ID from auth state
       final authState = context.read<AuthCubit>().state;
-      String? userToken;
-      String? webrtcUserId;
+      String? userId;
 
       authState.when(
         initial: () => null,
         loading: () => null,
         success: (user) {
-          userToken = user?.token;
-          webrtcUserId = user?.id;
+          userId = user?.id;
         },
         centreSuccess: (centre) => null,
         centreError: (error) => null,
         error: (error) => null,
       );
 
-      if (userToken == null) {
-        di<ILogger>().error(
-          'User token not available for WebRTC initialization',
-        );
+      if (userId == null) {
+        di<ILogger>().error('User ID not available for Agora initialization');
         return;
       }
 
-      if (webrtcUserId == null) {
-        di<ILogger>().error('User ID not available for WebRTC initialization');
-        return;
-      }
+      // Initialize Agora service
+      _agoraService = AgoraUVCService();
 
-      // Initialize WebRTC service
-      _webrtcService = WebRTCService();
+      di<ILogger>().info('🎯 Agora setup - consultation ID: $_consultationId');
+      di<ILogger>().info('🎯 Agora setup - user ID: $userId');
 
-      final webrtcRoomId = _consultationId;
+      // Get Agora credentials from AgoraCubit
+      final agoraState = context.read<AgoraCubit>().state;
+      agoraState.maybeWhen(
+        success: (agora) async {
+          di<ILogger>().info('Using existing Agora token for UVC streaming');
+          _agoraService!.setCredentials(agora.appId, agora.token);
+          await _initializeAgoraService(userId!);
+        },
+        orElse: () {
+          di<ILogger>().info('Requesting new Agora token for UVC streaming');
+          context.read<AgoraCubit>().getAgoraToken();
+        },
+      );
+    } catch (e) {
+      di<ILogger>().error('Error setting up Agora streaming: $e');
+    }
+  }
 
-      // Initialize WebRTC service
-      _webrtcService!.initialize(
-        userId: webrtcUserId!,
-        consultationId: webrtcRoomId,
-        token: userToken!,
+  Future<void> _initializeAgoraService(String userId) async {
+    try {
+      await _agoraService!.initialize(
+        userId: userId,
+        consultationId: _consultationId,
         onConnectionStateChanged: (isConnected) {
           if (mounted && !_isDisposed) {
             setState(() {
-              _isWebRTCConnected = isConnected;
+              _isAgoraConnected = isConnected;
             });
+            di<ILogger>().info('Agora connection state changed: $isConnected');
           }
         },
         onError: (error) {
-          di<ILogger>().error('WebRTC error: $error');
+          di<ILogger>().error('Agora error: $error');
           if (mounted && !_isDisposed) {
-            setState(() {
-              _isWebRTCStreaming = false;
-            });
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Agora error: $error')));
           }
         },
         onStreamStarted: () {
           if (mounted && !_isDisposed) {
             setState(() {
-              _isWebRTCStreaming = true;
+              _isAgoraStreaming = true;
             });
+            di<ILogger>().info('Agora streaming started');
           }
         },
         onStreamStopped: () {
           if (mounted && !_isDisposed) {
             setState(() {
-              _isWebRTCStreaming = false;
+              _isAgoraStreaming = false;
             });
+            di<ILogger>().info('Agora streaming stopped');
           }
+        },
+        onUserJoined: (remoteUid) {
+          di<ILogger>().info('Remote user joined Agora channel: $remoteUid');
+        },
+        onUserOffline: (remoteUid) {
+          di<ILogger>().info('Remote user left Agora channel: $remoteUid');
         },
       );
     } catch (e) {
-      di<ILogger>().error('Error setting up WebRTC streaming: $e');
+      di<ILogger>().error('Error initializing Agora service: $e');
     }
   }
 
@@ -286,10 +345,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             print(
               'uvc_stream: 🎥 Otoscopy streaming consultation ID updated: $_consultationId',
             );
-            // Re-initialize WebRTC if it was previously null
-            if (_webrtcService == null) {
-              _setupWebRTCStreaming();
-            }
           }
         },
         createConsultationSuccess: (consultation) {
@@ -303,10 +358,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             print(
               'uvc_stream: 🎥 Otoscopy streaming consultation ID updated (from creation): $_consultationId',
             );
-            // Re-initialize WebRTC if it was previously null
-            if (_webrtcService == null) {
-              _setupWebRTCStreaming();
-            }
           }
         },
         currentConsultationSuccess: (consultation) {
@@ -320,10 +371,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             print(
               'uvc_stream: 🎥 Otoscopy streaming consultation ID updated (from current): $_consultationId',
             );
-            // Re-initialize WebRTC if it was previously null
-            if (_webrtcService == null) {
-              _setupWebRTCStreaming();
-            }
           }
         },
         orElse: () {
@@ -335,95 +382,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       );
     } catch (e) {
       print('uvc_stream: ⚠️ Error getting consultation ID: $e');
-    }
-  }
-
-  // Capture frame as base64 image
-  Future<String?> _captureFrameAsBase64() async {
-    try {
-      // Use the camera controller to capture a frame
-      if (cameraController != null && isInitialized) {
-        // Try to capture a frame using the UVC camera plugin
-        return await _captureFrameFromCamera();
-      }
-      return null;
-    } catch (e) {
-      print('uvc_stream: ❌ Error capturing frame as base64: $e');
-      return null;
-    }
-  }
-
-  // Capture frame from UVC camera
-  Future<String?> _captureFrameFromCamera() async {
-    try {
-      // Use the camera controller's capture functionality
-      if (cameraController != null && isInitialized) {
-        // Try to capture frame as base64 directly
-        try {
-          final base64Frame = await cameraController!.captureFrameAsBase64();
-          if (base64Frame != null &&
-              base64Frame.isNotEmpty &&
-              base64Frame != 'data:image/jpeg;base64,') {
-            return base64Frame;
-          }
-        } catch (e) {
-          print('uvc_stream: ⚠️ Direct frame capture failed: $e');
-        }
-
-        // Fallback: try to get last captured frame
-        try {
-          final lastFrame = await cameraController!.getLastCapturedFrame();
-          if (lastFrame != null &&
-              lastFrame.isNotEmpty &&
-              lastFrame != 'data:image/jpeg;base64,') {
-            return lastFrame;
-          }
-        } catch (e) {
-          print('uvc_stream: ⚠️ Last frame capture failed: $e');
-        }
-
-        // Final fallback: simulate frame capture
-        return await _simulateFrameCapture();
-      }
-      return null;
-    } catch (e) {
-      print('uvc_stream: ❌ Error capturing frame from camera: $e');
-      return null;
-    }
-  }
-
-  // Simulate frame capture (replace with actual implementation)
-  Future<String?> _simulateFrameCapture() async {
-    // This is a placeholder - you'll need to implement actual frame capture
-    // in the UVC camera plugin
-    await Future.delayed(const Duration(milliseconds: 10));
-    return 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxAAPwCdABmX/9k=';
-  }
-
-  // WebRTC control methods
-  Future<void> _startWebRTCStreaming() async {
-    try {
-      if (_webrtcService != null && !_isWebRTCStreaming) {
-        await _webrtcService!.startStreaming();
-        di<ILogger>().info('WebRTC streaming started');
-      } else if (_webrtcService == null) {
-        di<ILogger>().warning('WebRTC service not initialized');
-      }
-    } catch (e) {
-      di<ILogger>().error('Error starting WebRTC streaming: $e');
-    }
-  }
-
-  Future<void> _stopWebRTCStreaming() async {
-    try {
-      if (_webrtcService != null && _isWebRTCStreaming) {
-        await _webrtcService!.stopStreaming();
-        di<ILogger>().info('WebRTC streaming stopped');
-      } else if (_webrtcService == null) {
-        di<ILogger>().warning('WebRTC service not initialized');
-      }
-    } catch (e) {
-      di<ILogger>().error('Error stopping WebRTC streaming: $e');
     }
   }
 
@@ -544,8 +502,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     // Clean up otoscopy streaming resources
     // _stopOtoscopyStreaming(); // Removed as per edit hint
 
-    // Clean up WebRTC streaming resources
-    _webrtcService?.dispose();
+    // Clean up Agora streaming resources
+    _agoraService?.dispose();
 
     // Notify parent about camera state change
     widget.onCameraStateChanged?.call(false);
@@ -1100,14 +1058,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             // if (_isOtoscopyStreaming) // Removed as per edit hint
             //   Positioned(top: 12, left: 12, child: _buildLiveStreamIndicator()), // Removed as per edit hint
 
-            // WebRTC streaming indicator
-            if (_isWebRTCStreaming)
-              Positioned(
-                top: 12,
-                left: 120,
-                child: _buildWebRTCStreamIndicator(),
-              ),
-
             // Minimal status indicator overlay
             if (!_permissionsGranted ||
                 _errorCount >= ReleaseConfig.maxCameraRetries ||
@@ -1117,14 +1067,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                 right: 12,
                 child: _buildMinimalStatusIndicator(),
               ),
-
-            // WebRTC controls overlay
-            Positioned(
-              bottom: 20,
-              left: 0,
-              right: 0,
-              child: _buildWebRTCControls(),
-            ),
           ],
         ),
       );
@@ -1431,99 +1373,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildWebRTCStreamIndicator() {
-    return Tooltip(
-      message: 'WebRTC Video Streaming Active',
-      child: AnimatedBuilder(
-        animation: _pulseAnimation,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _pulseAnimation.value,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.videocam,
-                    color: _isWebRTCConnected ? Colors.green : Colors.orange,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: _isWebRTCConnected ? Colors.green : Colors.orange,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildWebRTCControls() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Start/Stop WebRTC streaming button
-          FloatingActionButton(
-            onPressed:
-                _isWebRTCStreaming
-                    ? _stopWebRTCStreaming
-                    : _startWebRTCStreaming,
-            backgroundColor: _isWebRTCStreaming ? Colors.red : Colors.green,
-            mini: true,
-            child: Icon(
-              _isWebRTCStreaming ? Icons.stop : Icons.play_arrow,
-              color: Colors.white,
-            ),
-          ),
-
-          const SizedBox(width: 20),
-
-          // Connection status indicator
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _isWebRTCConnected ? Colors.green : Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _isWebRTCConnected ? 'Connected' : 'Disconnected',
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
