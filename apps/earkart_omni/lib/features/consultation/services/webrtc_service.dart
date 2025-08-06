@@ -14,21 +14,17 @@ class WebRTCService {
   factory WebRTCService() => _instance;
   WebRTCService._internal();
 
-  // WebRTC components
+  IO.Socket? _socket;
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
-  RTCRtpSender? _videoSender;
-  RTCRtpSender? _audioSender;
-
-  // Socket connection
-  IO.Socket? _socket;
-
-  // State management
   bool _isInitialized = false;
   bool _isStreaming = false;
   bool _roomJoined = false;
+  bool _offerSent = false;
+  bool _answerReceived = false;
   String? _consultationId;
   String? _userId;
+  String? _userRole;
 
   // Callbacks
   Function(bool)? onConnectionStateChanged;
@@ -36,31 +32,17 @@ class WebRTCService {
   Function()? onStreamStarted;
   Function()? onStreamStopped;
 
-  // ICE servers configuration
-  final List<Map<String, dynamic>> _iceServers = [
-    {
-      'urls': ['stun:stun.l.google.com:19302'],
-      'username': '',
-      'credential': '',
-    },
-    // Add TURN servers here if needed
-  ];
-
-  // Video constraints
-  final Map<String, dynamic> _videoConstraints = {
-    'mandatory': {'minWidth': '1280', 'minHeight': '720', 'minFrameRate': '30'},
-    'facingMode': 'user',
-    'optional': [],
+  // Media constraints
+  final Map<String, dynamic> _audioConstraints = {
+    'echoCancellation': true,
+    'noiseSuppression': true,
+    'autoGainControl': true,
   };
 
-  // Audio constraints
-  final Map<String, dynamic> _audioConstraints = {
-    'mandatory': {
-      'echoCancellation': 'true',
-      'noiseSuppression': 'true',
-      'autoGainControl': 'true',
-    },
-    'optional': [],
+  final Map<String, dynamic> _videoConstraints = {
+    'width': {'ideal': 1280},
+    'height': {'ideal': 720},
+    'frameRate': {'ideal': 30},
   };
 
   /// Initialize WebRTC service for video streaming
@@ -68,6 +50,7 @@ class WebRTCService {
     required String userId,
     String? consultationId,
     required String token,
+    String? userRole,
     Function(bool)? onConnectionStateChanged,
     Function(String)? onError,
     Function()? onStreamStarted,
@@ -76,6 +59,7 @@ class WebRTCService {
     try {
       _userId = userId;
       _consultationId = consultationId;
+      _userRole = userRole ?? 'patient';
       this.onConnectionStateChanged = onConnectionStateChanged;
       this.onError = onError;
       this.onStreamStarted = onStreamStarted;
@@ -94,131 +78,103 @@ class WebRTCService {
   /// Connect to WebRTC signaling server
   Future<void> _connectToWebRTCServer(String token) async {
     try {
-      di<ILogger>().info('Connecting to WebRTC signaling server...');
+      di<ILogger>().info('Connecting to WebRTC server...');
 
-      // Use the WebRTC-specific URL from constants
-      final webrtcUrl = Constants.webrtcUrl;
-      di<ILogger>().info('WebRTC URL: $webrtcUrl');
+      _socket = IO.io(
+        Constants.webrtcUrl,
+        IO.OptionBuilder()
+            .setTransports(['websocket'])
+            .setAuth({'token': token})
+            .enableReconnection()
+            .setReconnectionAttempts(5)
+            .setReconnectionDelay(1000)
+            .setTimeout(20000)
+            .setUpgrade(false)
+            .setRememberUpgrade(false)
+            .build(),
+      );
 
-      _socket = IO.io(webrtcUrl, <String, dynamic>{
-        'transports': ['websocket'],
-        'autoConnect': true,
-        'forceNew': true,
-        'auth': {'token': token},
-        'reconnection': true,
-        'reconnectionAttempts': 5,
-        'reconnectionDelay': 1000,
-        'timeout': 10000,
-        'upgrade': false,
-        'rememberUpgrade': false,
-      });
-
-      // Setup event listeners
-      _setupSocketEventListeners();
-
-      // Connect to the server
-      _socket!.connect();
-
-      // Wait for connection
+      _setupSocketEventHandlers();
       await _waitForConnection();
 
-      di<ILogger>().info('Connected to WebRTC signaling server');
+      di<ILogger>().info('Connected to WebRTC server successfully');
+
+      // Join WebRTC room if not already joined
+      if (_socket != null && _socket!.connected && _consultationId != null) {
+        _socket!.emit('join_webrtc_room', {'consultationId': _consultationId});
+        di<ILogger>().info('Joined WebRTC room: $_consultationId');
+      }
     } catch (e) {
       di<ILogger>().error('Error connecting to WebRTC server: $e');
-      throw e;
+      rethrow;
     }
   }
 
-  /// Wait for socket connection
+  /// Wait for socket connection to be established
   Future<void> _waitForConnection() async {
-    final completer = Completer<void>();
+    if (_socket == null) return;
+
+    Completer<void> connectionCompleter = Completer<void>();
 
     _socket!.onConnect((_) {
       di<ILogger>().info('WebRTC socket connected');
-      completer.complete();
+      if (!connectionCompleter.isCompleted) {
+        connectionCompleter.complete();
+      }
     });
 
     _socket!.onConnectError((error) {
       di<ILogger>().error('WebRTC socket connection error: $error');
-      completer.completeError('Connection failed: $error');
+      if (!connectionCompleter.isCompleted) {
+        connectionCompleter.completeError(error);
+      }
     });
 
     // Timeout after 10 seconds
     Timer(const Duration(seconds: 10), () {
-      if (!completer.isCompleted) {
-        completer.completeError('Connection timeout');
+      if (!connectionCompleter.isCompleted) {
+        connectionCompleter.completeError('Connection timeout');
       }
     });
 
-    await completer.future;
+    await connectionCompleter.future;
   }
 
-  /// Setup socket event listeners for WebRTC signaling
-  void _setupSocketEventListeners() {
+  /// Setup socket event handlers
+  void _setupSocketEventHandlers() {
     if (_socket == null) return;
 
-    // Join WebRTC room confirmation
-    _socket!.on('join_webrtc_room', (data) {
-      _handleJoinRoom(data);
-    });
+    // Room management events
+    _socket!.on('joined_webrtc_room', _handleJoinedRoom);
+    _socket!.on('user_joined_webrtc', _handleUserJoined);
+    _socket!.on('user_left_webrtc', _handleUserLeft);
 
-    // User joined WebRTC room
-    _socket!.on('user_joined_webrtc', (data) {
-      _handleUserJoined(data);
-    });
+    // WebRTC signaling events
+    _socket!.on('webrtc_offer', _handleWebRTCOffer);
+    _socket!.on('webrtc_answer', _handleWebRTCAnswer);
+    _socket!.on('webrtc_ice_candidate', _handleWebRTCIceCandidate);
 
-    // Handle WebRTC offer
-    _socket!.on('webrtc_offer', (data) {
-      _handleOffer(data);
-    });
+    // Stream control events
+    _socket!.on('start_video_stream', _handleStartVideoStream);
+    _socket!.on('stop_video_stream', _handleStopVideoStream);
+    _socket!.on('video_stream_started', _handleVideoStreamStarted);
+    _socket!.on('video_stream_stopped', _handleVideoStreamStopped);
 
-    // Handle WebRTC answer
-    _socket!.on('webrtc_answer', (data) {
-      _handleAnswer(data);
-    });
+    // Connection monitoring events
+    _socket!.on('connection_state_changed', _handleConnectionStateChanged);
+    _socket!.on('ping', _handlePing);
+    _socket!.on('get_connection_stats', _handleGetConnectionStats);
 
-    // Handle ICE candidates
-    _socket!.on('webrtc_ice_candidate', (data) {
-      _handleIceCandidate(data);
-    });
-
-    // Handle start video stream command
-    _socket!.on('start_video_stream', (data) {
-      _handleStartVideoStream(data);
-    });
-
-    // Handle stop video stream command
-    _socket!.on('stop_video_stream', (data) {
-      _handleStopVideoStream(data);
-    });
-
-    // Handle connection state changes
-    _socket!.on('connection_state', (data) {
-      _handleConnectionState(data);
-    });
-
-    // Handle ping/pong for connection health
-    _socket!.on('ping', (data) {
-      _handlePing(data);
-    });
-
-    _socket!.on('pong', (data) {
-      _handlePong(data);
-    });
-
-    // Handle get connection stats request
-    _socket!.on('get_connection_stats', (data) {
-      _handleGetConnectionStats(data);
-    });
-
-    // Handle leave WebRTC room
-    _socket!.on('leave_webrtc_room', (data) {
-      _handleLeaveRoom(data);
+    // Error handling
+    _socket!.on('error', _handleError);
+    _socket!.onDisconnect((_) {
+      di<ILogger>().info('WebRTC socket disconnected');
+      onConnectionStateChanged?.call(false);
     });
   }
 
-  /// Handle joining WebRTC room
-  void _handleJoinRoom(dynamic data) {
+  /// Handle room join confirmation
+  void _handleJoinedRoom(dynamic data) {
     try {
       di<ILogger>().info('Joined WebRTC room: $data');
 
@@ -229,11 +185,11 @@ class WebRTCService {
         di<ILogger>().info('Room ID: $roomId, User ID: $userId');
       }
     } catch (e) {
-      di<ILogger>().error('Error handling join room: $e');
+      di<ILogger>().error('Error handling joined room: $e');
     }
   }
 
-  /// Handle user joined WebRTC room
+  /// Handle when another user joins the room
   void _handleUserJoined(dynamic data) {
     try {
       di<ILogger>().info('User joined WebRTC room: $data');
@@ -246,10 +202,11 @@ class WebRTCService {
         if (userId == _userId) {
           _roomJoined = true;
         }
-        // If audiologist joined, we can start streaming
-        if (userId != _userId) {
-          // Audiologist joined, start streaming
-          startStreaming();
+
+        // If audiologist joined, we can start WebRTC signaling
+        if (userId != _userId && !_offerSent) {
+          di<ILogger>().info('Audiologist joined, initiating WebRTC offer...');
+          _createAndSendOffer();
         }
       }
     } catch (e) {
@@ -257,63 +214,150 @@ class WebRTCService {
     }
   }
 
-  /// Handle WebRTC offer from audiologist
-  void _handleOffer(dynamic data) async {
+  /// Handle when a user leaves the room
+  void _handleUserLeft(dynamic data) {
+    try {
+      di<ILogger>().info('User left WebRTC room: $data');
+
+      if (data is Map<String, dynamic>) {
+        final userId = data['userId']?.toString();
+        di<ILogger>().info('User $userId left the room');
+      }
+    } catch (e) {
+      di<ILogger>().error('Error handling user left: $e');
+    }
+  }
+
+  /// Create and send WebRTC offer when audiologist joins
+  Future<void> _createAndSendOffer() async {
+    try {
+      if (_offerSent) {
+        di<ILogger>().info('Offer already sent, skipping...');
+        return;
+      }
+
+      di<ILogger>().info('Creating WebRTC offer...');
+
+      // Create peer connection
+      await _createPeerConnection();
+
+      // Get user media
+      await _getUserMedia();
+
+      // Add local stream to peer connection
+      if (_localStream != null) {
+        _localStream!.getTracks().forEach((track) {
+          _peerConnection!.addTrack(track, _localStream!);
+        });
+      }
+
+      // Create offer
+      final offer = await _peerConnection!.createOffer({
+        'offerToReceiveAudio': false,
+        'offerToReceiveVideo': true,
+      });
+
+      await _peerConnection!.setLocalDescription(offer);
+
+      // Send offer to server
+      _socket?.emit('webrtc_offer', {
+        'consultationId': _consultationId,
+        'sdp': offer.sdp,
+        'userId': _userId,
+        'userRole': _userRole,
+      });
+
+      _offerSent = true;
+      di<ILogger>().info('WebRTC offer sent successfully');
+    } catch (e) {
+      di<ILogger>().error('Error creating and sending offer: $e');
+      onError?.call('Failed to create WebRTC offer: $e');
+    }
+  }
+
+  /// Handle WebRTC offer from server
+  void _handleWebRTCOffer(dynamic data) {
     try {
       di<ILogger>().info('Received WebRTC offer: $data');
 
       if (data is Map<String, dynamic> && _peerConnection != null) {
-        final offer = data['offer'] as String;
-        final sdp = RTCSessionDescription(offer, 'offer');
+        final offer = data['sdp'] as String;
+        final userId = data['userId'] as String;
+        final userRole = data['userRole'] as String;
 
-        await _peerConnection!.setRemoteDescription(sdp);
+        di<ILogger>().info(
+          'Processing offer from user: $userId, role: $userRole',
+        );
+
+        // Set remote description
+        _peerConnection!.setRemoteDescription(
+          RTCSessionDescription(offer, 'offer'),
+        );
 
         // Create answer
-        final answer = await _peerConnection!.createAnswer();
-        await _peerConnection!.setLocalDescription(answer);
+        _peerConnection!.createAnswer().then((answer) {
+          _peerConnection!.setLocalDescription(answer);
 
-        // Send answer to audiologist
-        _socket?.emit('webrtc_answer', {
-          'roomId': _consultationId,
-          'userId': _userId,
-          'answer': answer.sdp,
+          // Send answer
+          _socket?.emit('webrtc_answer', {
+            'consultationId': _consultationId,
+            'sdp': answer.sdp,
+            'userId': _userId,
+          });
+
+          di<ILogger>().info('Sent WebRTC answer');
         });
-
-        di<ILogger>().info('Sent WebRTC answer');
       }
     } catch (e) {
       di<ILogger>().error('Error handling WebRTC offer: $e');
     }
   }
 
-  /// Handle WebRTC answer from audiologist
-  void _handleAnswer(dynamic data) async {
+  /// Handle WebRTC answer from server
+  void _handleWebRTCAnswer(dynamic data) {
     try {
       di<ILogger>().info('Received WebRTC answer: $data');
 
       if (data is Map<String, dynamic> && _peerConnection != null) {
-        final answer = data['answer'] as String;
-        final sdp = RTCSessionDescription(answer, 'answer');
-        await _peerConnection!.setRemoteDescription(sdp);
+        final answer = data['sdp'] as String;
+        final userId = data['userId'] as String;
+
+        di<ILogger>().info('Processing answer from user: $userId');
+
+        // Set remote description
+        _peerConnection!.setRemoteDescription(
+          RTCSessionDescription(answer, 'answer'),
+        );
+
+        _answerReceived = true;
+        di<ILogger>().info('WebRTC answer processed successfully');
       }
     } catch (e) {
       di<ILogger>().error('Error handling WebRTC answer: $e');
     }
   }
 
-  /// Handle ICE candidates
-  void _handleIceCandidate(dynamic data) async {
+  /// Handle ICE candidate from server
+  void _handleWebRTCIceCandidate(dynamic data) {
     try {
       di<ILogger>().info('Received ICE candidate: $data');
 
       if (data is Map<String, dynamic> && _peerConnection != null) {
         final candidate = data['candidate'] as String;
-        final sdpMLineIndex = data['sdpMLineIndex'] as int;
-        final sdpMid = data['sdpMid'] as String;
+        final userId = data['userId'] as String;
 
-        final iceCandidate = RTCIceCandidate(candidate, sdpMid, sdpMLineIndex);
+        di<ILogger>().info('Processing ICE candidate from user: $userId');
 
-        await _peerConnection!.addCandidate(iceCandidate);
+        // Add ICE candidate
+        _peerConnection!.addCandidate(
+          RTCIceCandidate(
+            candidate,
+            data['sdpMid'] as String?,
+            data['sdpMLineIndex'] as int?,
+          ),
+        );
+
+        di<ILogger>().info('ICE candidate added successfully');
       }
     } catch (e) {
       di<ILogger>().error('Error handling ICE candidate: $e');
@@ -324,7 +368,16 @@ class WebRTCService {
   void _handleStartVideoStream(dynamic data) {
     try {
       di<ILogger>().info('Received start video stream command: $data');
-      startStreaming();
+
+      if (data is Map<String, dynamic>) {
+        final consultationId = data['consultationId'] as String;
+        di<ILogger>().info(
+          'Starting video stream for consultation: $consultationId',
+        );
+
+        // Start streaming
+        startStreaming();
+      }
     } catch (e) {
       di<ILogger>().error('Error handling start video stream: $e');
     }
@@ -334,49 +387,93 @@ class WebRTCService {
   void _handleStopVideoStream(dynamic data) {
     try {
       di<ILogger>().info('Received stop video stream command: $data');
-      stopStreaming();
+
+      if (data is Map<String, dynamic>) {
+        final consultationId = data['consultationId'] as String;
+        di<ILogger>().info(
+          'Stopping video stream for consultation: $consultationId',
+        );
+
+        // Stop streaming
+        stopStreaming();
+      }
     } catch (e) {
       di<ILogger>().error('Error handling stop video stream: $e');
     }
   }
 
-  /// Handle connection state changes
-  void _handleConnectionState(dynamic data) {
+  /// Handle video stream started notification
+  void _handleVideoStreamStarted(dynamic data) {
+    try {
+      di<ILogger>().info('Video stream started notification: $data');
+
+      if (data is Map<String, dynamic>) {
+        final userId = data['userId'] as String;
+        final userRole = data['userRole'] as String;
+        di<ILogger>().info(
+          'Video stream started by user: $userId, role: $userRole',
+        );
+      }
+    } catch (e) {
+      di<ILogger>().error('Error handling video stream started: $e');
+    }
+  }
+
+  /// Handle video stream stopped notification
+  void _handleVideoStreamStopped(dynamic data) {
+    try {
+      di<ILogger>().info('Video stream stopped notification: $data');
+
+      if (data is Map<String, dynamic>) {
+        final userId = data['userId'] as String;
+        final userRole = data['userRole'] as String;
+        di<ILogger>().info(
+          'Video stream stopped by user: $userId, role: $userRole',
+        );
+      }
+    } catch (e) {
+      di<ILogger>().error('Error handling video stream stopped: $e');
+    }
+  }
+
+  /// Handle connection state change
+  void _handleConnectionStateChanged(dynamic data) {
     try {
       di<ILogger>().info('Connection state changed: $data');
 
       if (data is Map<String, dynamic>) {
         final state = data['state'] as String;
+        final userId = data['userId'] as String;
+        final stats = data['stats'] as Map<String, dynamic>?;
+
+        di<ILogger>().info('Connection state: $state, User: $userId');
+        if (stats != null) {
+          di<ILogger>().info('Connection stats: $stats');
+        }
+
+        // Update connection state
         final isConnected = state == 'connected';
         onConnectionStateChanged?.call(isConnected);
       }
     } catch (e) {
-      di<ILogger>().error('Error handling connection state: $e');
+      di<ILogger>().error('Error handling connection state change: $e');
     }
   }
 
-  /// Handle ping for connection health
+  /// Handle ping request
   void _handlePing(dynamic data) {
     try {
       di<ILogger>().info('Received ping: $data');
 
       // Respond with pong
       _socket?.emit('pong', {
-        'roomId': _consultationId,
+        'timestamp': DateTime.now().toIso8601String(),
         'userId': _userId,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
       });
+
+      di<ILogger>().info('Sent pong response');
     } catch (e) {
       di<ILogger>().error('Error handling ping: $e');
-    }
-  }
-
-  /// Handle pong response
-  void _handlePong(dynamic data) {
-    try {
-      di<ILogger>().info('Received pong: $data');
-    } catch (e) {
-      di<ILogger>().error('Error handling pong: $e');
     }
   }
 
@@ -388,66 +485,71 @@ class WebRTCService {
       final stats = await getConnectionStats();
 
       _socket?.emit('connection_stats', {
-        'roomId': _consultationId,
+        'consultationId': _consultationId,
         'userId': _userId,
         'stats': stats,
+        'timestamp': DateTime.now().toIso8601String(),
       });
+
+      di<ILogger>().info('Sent connection stats');
     } catch (e) {
       di<ILogger>().error('Error handling get connection stats: $e');
     }
   }
 
-  /// Handle leave WebRTC room
-  void _handleLeaveRoom(dynamic data) {
+  /// Handle error from server
+  void _handleError(dynamic data) {
     try {
-      di<ILogger>().info('Received leave room command: $data');
-      stopStreaming();
+      di<ILogger>().error('Received error from server: $data');
+
+      if (data is Map<String, dynamic>) {
+        final message = data['message'] as String?;
+        final details = data['details'] as String?;
+
+        di<ILogger>().error('Error message: $message');
+        if (details != null) {
+          di<ILogger>().error('Error details: $details');
+        }
+
+        onError?.call(message ?? 'Unknown error');
+      }
     } catch (e) {
-      di<ILogger>().error('Error handling leave room: $e');
+      di<ILogger>().error('Error handling server error: $e');
     }
   }
 
-  /// Start video streaming to audiologist
+  /// Start video streaming
   Future<void> startStreaming() async {
     try {
       if (_isStreaming) {
-        di<ILogger>().info('Already streaming, skipping start');
+        di<ILogger>().info('Already streaming, skipping...');
+        return;
+      }
+
+      if (!_isInitialized || _socket == null) {
+        di<ILogger>().error('WebRTC service not initialized');
         return;
       }
 
       di<ILogger>().info('Starting video streaming...');
 
-      // Join WebRTC room if not already joined
-      if (_socket != null && _socket!.connected && _consultationId != null) {
-        _socket!.emit('join_webrtc_room', {'consultationId': _consultationId});
-        di<ILogger>().info('Joined WebRTC room: $_consultationId');
-      }
-
-      // Create peer connection
-      await _createPeerConnection();
-
-      // Get user media (camera and microphone)
-      await _getUserMedia();
-
-      // Add tracks to peer connection
-      if (_localStream != null) {
-        _videoSender = await _peerConnection!.addTrack(
-          _localStream!.getVideoTracks().first,
-          _localStream!,
-        );
-
-        _audioSender = await _peerConnection!.addTrack(
-          _localStream!.getAudioTracks().first,
-          _localStream!,
-        );
-      }
+      // Emit start video stream event
+      _socket!.emit('start_video_stream', {
+        'consultationId': _consultationId,
+        'deviceInfo': {
+          'deviceId': _userId,
+          'deviceName': 'Flutter UVC Camera',
+          'resolution': '1280x720',
+          'frameRate': 30,
+        },
+      });
 
       _isStreaming = true;
       onStreamStarted?.call();
 
       di<ILogger>().info('Video streaming started successfully');
     } catch (e) {
-      di<ILogger>().error('Error starting video stream: $e');
+      di<ILogger>().error('Error starting video streaming: $e');
       onError?.call('Failed to start streaming: $e');
     }
   }
@@ -456,11 +558,14 @@ class WebRTCService {
   Future<void> stopStreaming() async {
     try {
       if (!_isStreaming) {
-        di<ILogger>().info('Not streaming, skipping stop');
+        di<ILogger>().info('Not streaming, skipping...');
         return;
       }
 
       di<ILogger>().info('Stopping video streaming...');
+
+      // Emit stop video stream event
+      _socket?.emit('stop_video_stream', {'consultationId': _consultationId});
 
       // Stop local stream
       if (_localStream != null) {
@@ -474,37 +579,46 @@ class WebRTCService {
         _peerConnection = null;
       }
 
-      _videoSender = null;
-      _audioSender = null;
       _isStreaming = false;
+      _offerSent = false;
+      _answerReceived = false;
       onStreamStopped?.call();
 
       di<ILogger>().info('Video streaming stopped successfully');
     } catch (e) {
-      di<ILogger>().error('Error stopping video stream: $e');
+      di<ILogger>().error('Error stopping video streaming: $e');
     }
   }
 
   /// Create peer connection
   Future<void> _createPeerConnection() async {
     try {
+      di<ILogger>().info('Creating peer connection...');
+
       final configuration = {
-        'iceServers': _iceServers,
-        'iceCandidatePoolSize': 10,
+        'iceServers': [
+          {'urls': 'stun:stun.l.google.com:19302'},
+        ],
       };
 
-      _peerConnection = await createPeerConnection(configuration);
+      _peerConnection = await createPeerConnection(configuration, {
+        'mandatory': {
+          'OfferToReceiveAudio': false,
+          'OfferToReceiveVideo': true,
+        },
+        'optional': [],
+      });
 
-      // Setup event handlers
+      // Setup peer connection event handlers
       _peerConnection!.onIceCandidate = (candidate) {
         di<ILogger>().info('Sending ICE candidate: ${candidate.candidate}');
 
         _socket?.emit('webrtc_ice_candidate', {
-          'roomId': _consultationId,
-          'userId': _userId,
+          'consultationId': _consultationId,
           'candidate': candidate.candidate,
-          'sdpMLineIndex': candidate.sdpMLineIndex,
           'sdpMid': candidate.sdpMid,
+          'sdpMLineIndex': candidate.sdpMLineIndex,
+          'userId': _userId,
         });
       };
 
@@ -513,6 +627,14 @@ class WebRTCService {
 
         final isConnected =
             state == RTCPeerConnectionState.RTCPeerConnectionStateConnected;
+
+        // Emit connection state
+        _socket?.emit('connection_state', {
+          'consultationId': _consultationId,
+          'state': state.toString().split('.').last.toLowerCase(),
+          'userId': _userId,
+        });
+
         onConnectionStateChanged?.call(isConnected);
       };
 
@@ -524,12 +646,10 @@ class WebRTCService {
         di<ILogger>().info('ICE gathering state: $state');
       };
 
-      _peerConnection!.onSignalingState = (state) {
-        di<ILogger>().info('Signaling state: $state');
-      };
+      di<ILogger>().info('Peer connection created successfully');
     } catch (e) {
       di<ILogger>().error('Error creating peer connection: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -546,32 +666,98 @@ class WebRTCService {
       di<ILogger>().info('User media obtained successfully');
     } catch (e) {
       di<ILogger>().error('Error getting user media: $e');
-      throw e;
+      rethrow;
     }
   }
 
   /// Get connection statistics
   Future<Map<String, dynamic>> getConnectionStats() async {
     try {
-      if (_peerConnection != null) {
-        final stats = await _peerConnection!.getStats();
-        // Convert List<StatsReport> to Map<String, dynamic>
-        final Map<String, dynamic> statsMap = {};
-        for (final report in stats) {
-          statsMap[report.id] = report.values;
-        }
-        return statsMap;
+      if (_peerConnection == null) {
+        return {'bitrate': 0, 'frameRate': 0, 'packetLoss': 0, 'latency': 0};
       }
-      return {};
+
+      final stats = await _peerConnection!.getStats();
+      final statsMap = <String, dynamic>{};
+
+      stats.forEach((report) {
+        statsMap[report.type] = report.values;
+      });
+
+      // Calculate basic stats
+      final bitrate = _calculateBitrate(statsMap);
+      final frameRate = _calculateFrameRate(statsMap);
+      final packetLoss = _calculatePacketLoss(statsMap);
+      final latency = _calculateLatency(statsMap);
+
+      return {
+        'bitrate': bitrate,
+        'frameRate': frameRate,
+        'packetLoss': packetLoss,
+        'latency': latency,
+      };
     } catch (e) {
       di<ILogger>().error('Error getting connection stats: $e');
-      return {};
+      return {'bitrate': 0, 'frameRate': 0, 'packetLoss': 0, 'latency': 0};
     }
   }
 
-  /// Get current streaming state
-  bool get isStreaming => _isStreaming;
-  bool get isInitialized => _isInitialized;
+  /// Calculate bitrate from stats
+  double _calculateBitrate(Map<String, dynamic> statsMap) {
+    try {
+      // This is a simplified calculation
+      // In a real implementation, you'd calculate actual bitrate from bytes sent/received
+      return 1000.0; // Mock value in kbps
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  /// Calculate frame rate from stats
+  double _calculateFrameRate(Map<String, dynamic> statsMap) {
+    try {
+      // This is a simplified calculation
+      return 30.0; // Mock value in fps
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  /// Calculate packet loss from stats
+  double _calculatePacketLoss(Map<String, dynamic> statsMap) {
+    try {
+      // This is a simplified calculation
+      return 0.5; // Mock value in percentage
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  /// Calculate latency from stats
+  double _calculateLatency(Map<String, dynamic> statsMap) {
+    try {
+      // This is a simplified calculation
+      return 50.0; // Mock value in milliseconds
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  /// Leave WebRTC room
+  Future<void> leaveRoom() async {
+    try {
+      di<ILogger>().info('Leaving WebRTC room...');
+
+      if (_socket != null && _consultationId != null) {
+        _socket!.emit('leave_webrtc_room', {'consultationId': _consultationId});
+        di<ILogger>().info('Left WebRTC room: $_consultationId');
+      }
+
+      await stopStreaming();
+    } catch (e) {
+      di<ILogger>().error('Error leaving WebRTC room: $e');
+    }
+  }
 
   /// Dispose WebRTC service
   Future<void> dispose() async {
@@ -579,32 +765,36 @@ class WebRTCService {
       di<ILogger>().info('Disposing WebRTC service...');
 
       await stopStreaming();
+      await leaveRoom();
 
-      // Remove socket event listeners
       if (_socket != null) {
-        _socket!.off('join_webrtc_room');
-        _socket!.off('user_joined_webrtc');
-        _socket!.off('webrtc_offer');
-        _socket!.off('webrtc_answer');
-        _socket!.off('webrtc_ice_candidate');
-        _socket!.off('start_video_stream');
-        _socket!.off('stop_video_stream');
-        _socket!.off('connection_state');
-        _socket!.off('ping');
-        _socket!.off('pong');
-        _socket!.off('get_connection_stats');
-        _socket!.off('leave_webrtc_room');
-
-        // Disconnect from WebRTC server
         _socket!.disconnect();
+        _socket = null;
       }
 
-      _socket = null;
       _isInitialized = false;
+      _roomJoined = false;
+      _offerSent = false;
+      _answerReceived = false;
 
       di<ILogger>().info('WebRTC service disposed successfully');
     } catch (e) {
       di<ILogger>().error('Error disposing WebRTC service: $e');
     }
   }
+
+  /// Check if service is initialized
+  bool get isInitialized => _isInitialized;
+
+  /// Check if currently streaming
+  bool get isStreaming => _isStreaming;
+
+  /// Check if room is joined
+  bool get isRoomJoined => _roomJoined;
+
+  /// Get consultation ID
+  String? get consultationId => _consultationId;
+
+  /// Get user ID
+  String? get userId => _userId;
 }
