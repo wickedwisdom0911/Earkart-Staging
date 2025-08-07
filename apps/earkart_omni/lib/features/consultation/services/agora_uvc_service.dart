@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
-import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/di.dart';
-import 'package:earkart_omni/models/agora/agora.entity.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
 
 /// Simple Agora Service for UVC camera streaming
