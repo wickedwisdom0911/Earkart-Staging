@@ -8,7 +8,7 @@ class GetAgoraTokenUsecase {
 
   GetAgoraTokenUsecase(this.agoraRepository);
 
-  Future<Either<Failure, AgoraEntity>> call() async {
-    return await agoraRepository.getAgoraToken();
+  Future<Either<Failure, AgoraEntity>> call(bool isUVC, String userRole) async {
+    return await agoraRepository.getAgoraToken(isUVC, userRole);
   }
 }

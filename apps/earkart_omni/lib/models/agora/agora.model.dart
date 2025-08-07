@@ -20,6 +20,7 @@ class AgoraModelData extends AgoraEntity {
     required super.token,
     required super.appId,
     required super.userId,
+    required super.isUVC,
     super.expiresAt,
     super.createdAt,
   });
@@ -29,12 +30,15 @@ class AgoraModelData extends AgoraEntity {
       token: json['token'],
       appId: json['appId'],
       userId: json['userId'],
-      expiresAt: json['expiresAt'] != null 
-          ? DateTime.parse(json['expiresAt'] as String)
-          : null,
-      createdAt: json['createdAt'] != null 
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
+      isUVC: json['isUVC'],
+      expiresAt:
+          json['expiresAt'] != null
+              ? DateTime.parse(json['expiresAt'] as String)
+              : null,
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'] as String)
+              : DateTime.now(),
     );
   }
 }

@@ -22,12 +22,19 @@ class AgoraRemoteSourceImpl implements IAgoraRemoteSource {
     this.userEntityDataSource,
   );
   @override
-  Future<Either<Failure, AgoraEntity>> getAgoraToken() async {
+  Future<Either<Failure, AgoraEntity>> getAgoraToken(
+    bool isUVC,
+    String userRole,
+  ) async {
     try {
       final consultation = consultationEntityDataSource.getConsultationEntity();
       final response = await dio.post(
         Constants.getAgoraTokenUrl,
-        data: {"channelName": consultation?.id ?? ""},
+        data: {
+          "channelName": consultation?.id ?? "",
+          "isUVC": isUVC,
+          "userRole": userRole,
+        },
         options: Options(
           headers: {
             "Authorization":

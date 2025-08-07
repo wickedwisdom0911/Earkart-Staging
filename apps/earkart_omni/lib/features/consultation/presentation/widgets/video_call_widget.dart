@@ -13,6 +13,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/agora.stat
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:earkart_omni/models/agora/agora.entity.dart';
 
 class VideoCallWidget extends StatefulWidget {
   final String channelName;
@@ -40,32 +41,19 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   bool _isInitialized = false;
   bool _isDisposed = false;
   bool _isPreviewStarted = false;
+  bool _isTokenRenewalListenerSet = false;
+  StreamSubscription? _agoraStateSubscription;
+
+  // Video call specific token management
+  String? _currentVideoCallToken;
+  String? _currentVideoCallAppId;
+  int? _currentVideoCallUserId;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeAgora();
-
-    // Listen for token renewal
-    final agoraCubit = context.read<AgoraCubit>();
-    agoraCubit.stream.listen((state) {
-      state.maybeWhen(
-        success: (agora) async {
-          // If we're already in a call and token is renewed, update the engine
-          if (_isInitialized && _localUserJoined) {
-            di<ILogger>().info('Token renewed during call, updating engine');
-            try {
-              await _engine.renewToken(agora.token);
-              di<ILogger>().info('Token updated successfully');
-            } catch (e) {
-              di<ILogger>().error('Error updating token: $e');
-            }
-          }
-        },
-        orElse: () {},
-      );
-    });
   }
 
   @override
@@ -76,9 +64,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       di<ILogger>().info(
         'Channel name changed from ${oldWidget.channelName} to ${widget.channelName}',
       );
-      _localUserJoined = false;
-      _remoteUid = null;
-      // Reinitialize for new channel
+      _resetVideoCallState();
       _initializeAgora();
     }
   }
@@ -117,6 +103,14 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     }
   }
 
+  void _resetVideoCallState() {
+    _localUserJoined = false;
+    _remoteUid = null;
+    _currentVideoCallToken = null;
+    _currentVideoCallAppId = null;
+    _currentVideoCallUserId = null;
+  }
+
   Future<void> _initializeAgora() async {
     try {
       // Check if Agora video is enabled in release mode
@@ -128,24 +122,21 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       await _requestPermissions();
       if (!mounted) return;
 
-      // Check if we already have a valid token before requesting a new one
+      // Set up Agora state listener for video call tokens only
+      _setupAgoraStateListener();
+
+      // Check if we already have a valid video call token
       final agoraCubit = context.read<AgoraCubit>();
       final agoraState = agoraCubit.state;
       agoraState.maybeWhen(
         success: (agora) async {
-          di<ILogger>().info('Using existing Agora token');
-
-          // Start token renewal monitoring if not already monitoring
-          if (!agoraCubit.isRenewing) {
-            agoraCubit.startTokenRenewalMonitoring();
-          }
-
-          await _setupAgoraEngine(agora.appId);
-          await _joinChannel(agora.token, agora.userId);
+          di<ILogger>().info('Using existing video call token');
+          await _handleVideoCallToken(agora);
         },
         orElse: () {
-          di<ILogger>().info('Requesting new Agora token');
-          agoraCubit.getAgoraToken();
+          di<ILogger>().info('Requesting new video call token');
+          // Request video call token (isUVC = false)
+          agoraCubit.getAgoraToken(false, 'publisher');
         },
       );
     } catch (e) {
@@ -153,6 +144,77 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error initializing: ${e.toString()}')),
+      );
+    }
+  }
+
+  void _setupAgoraStateListener() {
+    if (_isTokenRenewalListenerSet) return;
+
+    final agoraCubit = context.read<AgoraCubit>();
+    _agoraStateSubscription = agoraCubit.stream.listen((state) {
+      if (!mounted || _isDisposed) return;
+
+      state.maybeWhen(
+        success: (agora) async {
+          // Only handle video call tokens (not UVC tokens)
+          // Video call tokens are requested with isUVC = false
+          if (!agora.isUVC) {
+            di<ILogger>().info('Received video call token update');
+            await _handleVideoCallToken(agora);
+          } else {
+            di<ILogger>().info(
+              'Received UVC token update - ignoring for video call',
+            );
+          }
+        },
+        error: (message) {
+          di<ILogger>().error('Agora state error: $message');
+          if (!mounted || _isDisposed) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        },
+        orElse: () {},
+      );
+    });
+
+    _isTokenRenewalListenerSet = true;
+  }
+
+  Future<void> _handleVideoCallToken(AgoraEntity agora) async {
+    try {
+      // Store video call specific credentials
+      _currentVideoCallToken = agora.token;
+      _currentVideoCallAppId = agora.appId;
+      _currentVideoCallUserId = agora.userId;
+
+      di<ILogger>().info(
+        'Video call token received - AppId: ${agora.appId.substring(0, 8)}...',
+      );
+      di<ILogger>().info('Video call token length: ${agora.token.length}');
+
+      // Start token renewal monitoring for video calls only
+      final agoraCubit = context.read<AgoraCubit>();
+      if (!agoraCubit.isRenewing) {
+        agoraCubit.startTokenRenewalMonitoring(false, 'publisher');
+      }
+
+      await _setupAgoraEngine(agora.appId);
+      await _joinChannel(agora.token, agora.userId);
+    } catch (e) {
+      di<ILogger>().error('Error handling video call token: $e');
+      if (!mounted || _isDisposed) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error setting up video call: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
       );
     }
   }
@@ -168,7 +230,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   Future<void> _setupAgoraEngine(String appId) async {
     if (_isInitialized || _isDisposed) return;
 
-    di<ILogger>().info('Setting up Agora engine with appId: $appId');
+    di<ILogger>().info(
+      'Setting up Agora engine for video call with appId: ${appId.substring(0, 8)}...',
+    );
 
     try {
       _engine = createAgoraRtcEngine();
@@ -209,12 +273,14 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       _engine.registerEventHandler(
         RtcEngineEventHandler(
           onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-            di<ILogger>().info("Local user ${connection.localUid} joined");
+            di<ILogger>().info(
+              "Local user ${connection.localUid} joined video call",
+            );
             if (!mounted || _isDisposed) return;
             setState(() => _localUserJoined = true);
           },
           onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-            di<ILogger>().info("Remote user $remoteUid joined");
+            di<ILogger>().info("Remote user $remoteUid joined video call");
             if (!mounted || _isDisposed) return;
             setState(() => _remoteUid = remoteUid);
           },
@@ -224,26 +290,35 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
             UserOfflineReasonType reason,
           ) {
             di<ILogger>().info(
-              "Remote user $remoteUid left with reason: $reason",
+              "Remote user $remoteUid left video call with reason: $reason",
             );
             if (!mounted || _isDisposed) return;
             setState(() => _remoteUid = null);
           },
           onError: (ErrorCodeType err, String msg) {
-            di<ILogger>().error("Agora error: $err - $msg");
+            di<ILogger>().error("Agora video call error: $err - $msg");
             if (!mounted || _isDisposed) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Agora error: $err - $msg'),
+                content: Text('Video call error: $err - $msg'),
                 backgroundColor: Colors.red,
                 duration: const Duration(seconds: 5),
               ),
             );
           },
           onTokenPrivilegeWillExpire: (RtcConnection connection, String token) {
-            di<ILogger>().info("Token will expire soon");
-            // Use the cubit's renewal functionality
-            context.read<AgoraCubit>().renewToken();
+            di<ILogger>().info("Video call token will expire soon");
+            // Renew video call token (isUVC = false)
+            context.read<AgoraCubit>().renewToken(false, 'publisher');
+          },
+          onConnectionStateChanged: (
+            RtcConnection connection,
+            ConnectionStateType state,
+            ConnectionChangedReasonType reason,
+          ) {
+            di<ILogger>().info(
+              "Video call connection state changed: $state, reason: $reason",
+            );
           },
         ),
       );
@@ -251,11 +326,11 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       await _startPreview();
       _isInitialized = true;
     } catch (e) {
-      di<ILogger>().error('Error setting up Agora engine: $e');
+      di<ILogger>().error('Error setting up Agora engine for video call: $e');
       if (!mounted || _isDisposed) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error setting up video: ${e.toString()}'),
+          content: Text('Error setting up video call: ${e.toString()}'),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 5),
         ),
@@ -268,24 +343,26 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     if (!_isInitialized || _isDisposed) return;
 
     if (_localUserJoined) {
-      di<ILogger>().info('Already joined channel, skipping join request');
+      di<ILogger>().info(
+        'Already joined video call channel, skipping join request',
+      );
       return;
     }
 
-    di<ILogger>().info('Joining channel: ${widget.channelName}');
+    di<ILogger>().info('Joining video call channel: ${widget.channelName}');
 
     try {
       if (token.isEmpty) {
-        throw Exception('Invalid token: Token cannot be empty');
+        throw Exception('Invalid video call token: Token cannot be empty');
       }
 
       // Ensure token is properly formatted
       final cleanToken = token.trim();
-      debugPrint(
-        'Attempting to join channel with token: ${cleanToken.substring(0, 10)}...',
+      di<ILogger>().info(
+        'Attempting to join video call channel with token: ${cleanToken.substring(0, 10)}...',
       );
-      debugPrint('Channel name: ${widget.channelName}');
-      debugPrint('Token length: ${cleanToken.length}');
+      di<ILogger>().info('Video call channel name: ${widget.channelName}');
+      di<ILogger>().info('Video call token length: ${cleanToken.length}');
 
       // Join with token
       await _engine.joinChannel(
@@ -300,13 +377,15 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
         uid: uid,
       );
-      di<ILogger>().info('Successfully joined channel: ${widget.channelName}');
+      di<ILogger>().info(
+        'Successfully joined video call channel: ${widget.channelName}',
+      );
     } catch (e) {
-      di<ILogger>().error('Error joining channel: $e');
+      di<ILogger>().error('Error joining video call channel: $e');
       if (!mounted || _isDisposed) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error joining call: ${e.toString()}'),
+          content: Text('Error joining video call: ${e.toString()}'),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 5),
         ),
@@ -338,11 +417,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     try {
       await _stopPreview();
       await _engine.leaveChannel();
-      di<ILogger>().info('Successfully left channel');
-      // Only clear sessions if this is not being called from dispose
-      // The sessions will be cleared by the consultation screen when the consultation is successfully completed
+      di<ILogger>().info('Successfully left video call channel');
     } catch (e) {
-      di<ILogger>().error('Error leaving channel: $e');
+      di<ILogger>().error('Error leaving video call channel: $e');
     }
   }
 
@@ -352,11 +429,11 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     try {
       await _stopPreview();
       await _engine.leaveChannel();
-      di<ILogger>().info('Successfully left Agora channel');
+      di<ILogger>().info('Successfully left video call channel');
       // Call the callback if provided
       widget.onLeaveChannel?.call();
     } catch (e) {
-      di<ILogger>().error('Error leaving Agora channel: $e');
+      di<ILogger>().error('Error leaving video call channel: $e');
     }
   }
 
@@ -366,12 +443,12 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     try {
       await _stopPreview();
       await _engine.leaveChannel();
-      di<ILogger>().info('Successfully ended consultation');
+      di<ILogger>().info('Successfully ended video call consultation');
       // Clear sessions when explicitly ending consultation
       context.read<PatientCubit>().deletePatientSession();
       context.read<ConsultationCubit>().deleteCurrentConsultationSession();
     } catch (e) {
-      di<ILogger>().error('Error ending consultation: $e');
+      di<ILogger>().error('Error ending video call consultation: $e');
     }
   }
 
@@ -380,13 +457,14 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     di<ILogger>().info('VideoCallWidget: dispose() called');
     _isDisposed = true;
     WidgetsBinding.instance.removeObserver(this);
+    _agoraStateSubscription?.cancel();
     _leaveChannel();
     if (_isInitialized) {
       try {
         _engine.release();
-        di<ILogger>().info('Agora engine released');
+        di<ILogger>().info('Agora video call engine released');
       } catch (e) {
-        di<ILogger>().error('Error releasing Agora engine: $e');
+        di<ILogger>().error('Error releasing Agora video call engine: $e');
       }
     }
     super.dispose();
@@ -396,45 +474,6 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   Widget build(BuildContext context) {
     return MultiBlocListener(
       listeners: [
-        BlocListener<AgoraCubit, AgoraState>(
-          listener: (context, state) {
-            state.maybeWhen(
-              success: (agora) async {
-                try {
-                  di<ILogger>().info(
-                    'Received Agora token: ${agora.token.substring(0, 10)}...',
-                  );
-                  di<ILogger>().info('Received Agora appId: ${agora.appId}');
-                  di<ILogger>().info('Token length: ${agora.token.length}');
-
-                  await _setupAgoraEngine(agora.appId);
-                  await _joinChannel(agora.token, agora.userId);
-                } catch (e) {
-                  di<ILogger>().error('Error in Agora setup: $e');
-                  if (!mounted || _isDisposed) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                      duration: const Duration(seconds: 5),
-                    ),
-                  );
-                }
-              },
-              error: (message) {
-                di<ILogger>().error('Agora state error: $message');
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 5),
-                  ),
-                );
-              },
-              orElse: () {},
-            );
-          },
-        ),
         BlocListener<ConsultationCubit, ConsultationState>(
           listener: (context, state) {
             di<ILogger>().debug(

@@ -7,40 +7,67 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class AgoraCubit extends Cubit<AgoraState> {
   final GetAgoraTokenUsecase getAgoraTokenUsecase;
   AgoraTokenRenewalService? _tokenRenewalService;
-  
+
   AgoraCubit(this.getAgoraTokenUsecase) : super(AgoraState.initial()) {
     _initializeTokenRenewalService();
   }
 
   void _initializeTokenRenewalService() {
     _tokenRenewalService = AgoraTokenRenewalService(getAgoraTokenUsecase);
-    
+
     // Set up callbacks
     _tokenRenewalService!.onTokenRenewed = (AgoraEntity newToken) {
       emit(AgoraSuccess(agora: newToken));
     };
-    
+
     _tokenRenewalService!.onRenewalError = (String error) {
       emit(AgoraError(message: error));
     };
   }
 
-  Future<void> getAgoraToken() async {
+  Future<void> getAgoraToken(bool isUVC, String userRole) async {
     emit(AgoraLoading());
-    final result = await getAgoraTokenUsecase();
-    result.fold(
-      (failure) => emit(AgoraError(message: failure.message)),
-      (agora) {
-        emit(AgoraSuccess(agora: agora));
-        // Set up token renewal monitoring
-        _tokenRenewalService?.setToken(agora);
-      },
-    );
+    final result = await getAgoraTokenUsecase(isUVC, userRole);
+    result.fold((failure) => emit(AgoraError(message: failure.message)), (
+      agora,
+    ) {
+      // Get current state to preserve existing tokens
+      final currentState = state;
+      String? existingToken;
+      String? existingTokenUVC;
+
+      if (currentState is AgoraSuccess) {
+        existingToken = currentState.agora.token;
+        existingTokenUVC = currentState.agora.tokenUVC;
+      }
+
+      // Create AgoraEntity with appropriate token storage
+      final agoraEntity = AgoraEntity(
+        token:
+            isUVC
+                ? (existingToken ?? agora.token)
+                : agora.token, // Keep existing token for video calls
+        appId: agora.appId,
+        userId: agora.userId,
+        expiresAt: agora.expiresAt,
+        createdAt: agora.createdAt,
+        isUVC: isUVC,
+        tokenUVC:
+            isUVC
+                ? agora.token
+                : (existingTokenUVC ??
+                    agora.token), // Store UVC token separately
+      );
+
+      emit(AgoraSuccess(agora: agoraEntity));
+      // Set up token renewal monitoring
+      _tokenRenewalService?.setToken(agoraEntity, isUVC, userRole);
+    });
   }
 
   /// Start monitoring token for automatic renewal
-  void startTokenRenewalMonitoring() {
-    _tokenRenewalService?.startMonitoring();
+  void startTokenRenewalMonitoring(bool isUVC, String userRole) {
+    _tokenRenewalService?.startMonitoring(isUVC, userRole);
   }
 
   /// Stop monitoring token renewal
@@ -49,8 +76,8 @@ class AgoraCubit extends Cubit<AgoraState> {
   }
 
   /// Manually renew token
-  Future<void> renewToken() async {
-    await _tokenRenewalService?.renewToken();
+  Future<void> renewToken(bool isUVC, String userRole) async {
+    await _tokenRenewalService?.renewToken(isUVC, userRole);
   }
 
   /// Get the token renewal service for use in other components

@@ -9,7 +9,9 @@ class AgoraTokenRenewalService {
   Timer? _renewalTimer;
   AgoraEntity? _currentToken;
   bool _isRenewing = false;
-  
+  bool _isUVC = false;
+  String _userRole = 'publisher';
+
   // Callbacks
   Function(AgoraEntity)? onTokenRenewed;
   Function(String)? onRenewalError;
@@ -19,8 +21,10 @@ class AgoraTokenRenewalService {
   AgoraTokenRenewalService(this._getAgoraTokenUsecase);
 
   /// Set the current token and start monitoring for renewal
-  void setToken(AgoraEntity token) {
+  void setToken(AgoraEntity token, bool isUVC, String userRole) {
     _currentToken = token;
+    _isUVC = isUVC;
+    _userRole = userRole;
     _scheduleRenewal();
   }
 
@@ -31,11 +35,13 @@ class AgoraTokenRenewalService {
   bool get isRenewing => _isRenewing;
 
   /// Start monitoring token for renewal
-  void startMonitoring() {
+  void startMonitoring(bool isUVC, String userRole) {
     if (_currentToken == null) {
       di<ILogger>().warning('No token available for monitoring');
       return;
     }
+    _isUVC = isUVC;
+    _userRole = userRole;
     _scheduleRenewal();
   }
 
@@ -48,7 +54,7 @@ class AgoraTokenRenewalService {
   }
 
   /// Manually renew token
-  Future<void> renewToken() async {
+  Future<void> renewToken(bool isUVC, String userRole) async {
     if (_isRenewing) {
       di<ILogger>().info('Token renewal already in progress');
       return;
@@ -57,19 +63,34 @@ class AgoraTokenRenewalService {
     try {
       _isRenewing = true;
       onRenewalStarted?.call();
-      
-      di<ILogger>().info('Starting manual token renewal');
-      
-      final result = await _getAgoraTokenUsecase();
+
+      di<ILogger>().info(
+        'Starting manual token renewal for ${isUVC ? "UVC" : "video call"}',
+      );
+
+      final result = await _getAgoraTokenUsecase(isUVC, userRole);
       result.fold(
         (failure) {
           di<ILogger>().error('Token renewal failed: ${failure.message}');
           onRenewalError?.call(failure.message);
         },
         (newToken) {
-          di<ILogger>().info('Token renewed successfully');
-          _currentToken = newToken;
-          onTokenRenewed?.call(newToken);
+          di<ILogger>().info(
+            'Token renewed successfully for ${isUVC ? "UVC" : "video call"}',
+          );
+
+          // Create AgoraEntity with isUVC flag
+          final agoraEntity = AgoraEntity(
+            token: newToken.token,
+            appId: newToken.appId,
+            userId: newToken.userId,
+            expiresAt: newToken.expiresAt,
+            createdAt: newToken.createdAt,
+            isUVC: isUVC,
+          );
+
+          _currentToken = agoraEntity;
+          onTokenRenewed?.call(agoraEntity);
           _scheduleRenewal(); // Schedule next renewal
         },
       );
@@ -85,7 +106,7 @@ class AgoraTokenRenewalService {
   /// Schedule token renewal based on expiration time
   void _scheduleRenewal() {
     _renewalTimer?.cancel();
-    
+
     if (_currentToken == null) {
       di<ILogger>().warning('No token to schedule renewal for');
       return;
@@ -94,14 +115,14 @@ class AgoraTokenRenewalService {
     // If token is already expired, renew immediately
     if (_currentToken!.isExpired) {
       di<ILogger>().warning('Token is expired, renewing immediately');
-      renewToken();
+      renewToken(_isUVC, _userRole);
       return;
     }
 
     // If token should be renewed (expires within 5 minutes), renew immediately
     if (_currentToken!.shouldRenew) {
       di<ILogger>().info('Token expires soon, renewing immediately');
-      renewToken();
+      renewToken(_isUVC, _userRole);
       return;
     }
 
@@ -114,17 +135,23 @@ class AgoraTokenRenewalService {
 
     // Renew 5 minutes before expiration
     final renewalTime = timeUntilRenewal - const Duration(minutes: 5);
-    
+
     if (renewalTime.isNegative) {
       // Token expires in less than 5 minutes, renew immediately
-      di<ILogger>().info('Token expires in less than 5 minutes, renewing immediately');
-      renewToken();
+      di<ILogger>().info(
+        'Token expires in less than 5 minutes, renewing immediately',
+      );
+      renewToken(_isUVC, _userRole);
     } else {
       // Schedule renewal
-      di<ILogger>().info('Scheduling token renewal in ${renewalTime.inMinutes} minutes');
+      di<ILogger>().info(
+        'Scheduling token renewal in ${renewalTime.inMinutes} minutes for ${_isUVC ? "UVC" : "video call"}',
+      );
       _renewalTimer = Timer(renewalTime, () {
-        di<ILogger>().info('Scheduled token renewal triggered');
-        renewToken();
+        di<ILogger>().info(
+          'Scheduled token renewal triggered for ${_isUVC ? "UVC" : "video call"}',
+        );
+        renewToken(_isUVC, _userRole);
       });
     }
   }
@@ -144,4 +171,4 @@ class AgoraTokenRenewalService {
   void dispose() {
     stopMonitoring();
   }
-} 
+}

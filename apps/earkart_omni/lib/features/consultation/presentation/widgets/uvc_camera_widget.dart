@@ -49,6 +49,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
   // Consultation properties
   String? _consultationId;
+  String? _userId; // Store user ID for Agora service
 
   // Frame rate monitoring and adaptation
   int _frameCount = 0;
@@ -194,8 +195,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         state.maybeWhen(
           success: (agora) async {
             if (_agoraService != null && !_agoraService!.isInitialized) {
-              di<ILogger>().info('Agora token received, setting credentials');
-              _agoraService!.setCredentials(agora.appId, agora.token);
+              di<ILogger>().info('Agora token received, ready to initialize');
 
               // If camera is already opened, start Agora service immediately
               if (isInitialized && _isViewReady) {
@@ -248,11 +248,14 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         return;
       }
 
+      // Store user ID for later use
+      _userId = userId;
+
       // Initialize Agora service but don't start it yet
       _agoraService = AgoraUVCService();
 
       di<ILogger>().info('🎯 Agora setup - consultation ID: $_consultationId');
-      di<ILogger>().info('🎯 Agora setup - user ID: $userId');
+      di<ILogger>().info('🎯 Agora setup - user ID: $_userId');
 
       // Get Agora credentials from AgoraCubit
       final agoraCubit = context.read<AgoraCubit>();
@@ -263,24 +266,17 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
           // Start token renewal monitoring if not already monitoring
           if (!agoraCubit.isRenewing) {
-            agoraCubit.startTokenRenewalMonitoring();
-          }
-
-          _agoraService!.setCredentials(agora.appId, agora.token);
-
-          // Set up token renewal service for UVC streaming
-          if (agoraCubit.tokenRenewalService != null) {
-            _agoraService!.setupTokenRenewal(agoraCubit.tokenRenewalService!);
+            agoraCubit.startTokenRenewalMonitoring(true, 'publisher');
           }
 
           // Don't initialize Agora service here - wait for camera to be opened
           di<ILogger>().info(
-            'Agora credentials set, waiting for camera to be opened...',
+            'Agora credentials available, waiting for camera to be opened...',
           );
         },
         orElse: () {
           di<ILogger>().info('Requesting new Agora token for UVC streaming');
-          agoraCubit.getAgoraToken();
+          agoraCubit.getAgoraToken(true, 'publisher');
         },
       );
     } catch (e) {
@@ -288,90 +284,64 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     }
   }
 
-  Future<void> _initializeAgoraService(String userId) async {
+  /// Initialize Agora service for UVC streaming
+  Future<void> _initializeAgoraService() async {
     try {
-      // Prevent multiple simultaneous initializations
-      if (_isAgoraInitializing) {
-        di<ILogger>().info('Agora service already initializing, skipping...');
-        return;
+      di<ILogger>().info('💡 Setting up Agora streaming preparation...');
+      di<ILogger>().info(
+        '💡 🎯 Agora setup - consultation ID: $_consultationId',
+      );
+      di<ILogger>().info('💡 🎯 Agora setup - user ID: $_userId');
+
+      // Reset existing service if any
+      if (_agoraService != null) {
+        di<ILogger>().info('💡 Resetting existing Agora service...');
+        _agoraService!.reset();
       }
 
-      _isAgoraInitializing = true;
-
-      // Wait for camera to be fully initialized before starting Agora
-      if (!isInitialized || !_isViewReady) {
-        di<ILogger>().info(
-          'Waiting for camera to be ready before initializing Agora...',
-        );
-        // Wait up to 10 seconds for camera to be ready
-        int waitCount = 0;
-        while (!isInitialized || !_isViewReady) {
-          await Future.delayed(const Duration(milliseconds: 500));
-          waitCount++;
-          if (waitCount > 20) {
-            // 10 seconds timeout
-            di<ILogger>().warning(
-              'Camera not ready after 10 seconds, proceeding with Agora anyway',
-            );
-            break;
-          }
-        }
-      }
-
+      // Initialize Agora service with fresh tokens
       await _agoraService!.initialize(
-        userId: userId,
+        userId: _userId!,
         consultationId: _consultationId,
-        onConnectionStateChanged: (isConnected) {
-          if (mounted && !_isDisposed) {
-            setState(() {
-              _isAgoraConnected = isConnected;
-            });
-            di<ILogger>().info('Agora connection state changed: $isConnected');
-          }
+        onConnectionStateChanged: (connected) {
+          di<ILogger>().info('💡 Agora connection state: $connected');
+          _isAgoraConnected = connected;
         },
         onError: (error) {
-          di<ILogger>().error('Agora error: $error');
-          if (mounted && !_isDisposed) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('Agora error: $error')));
-          }
+          di<ILogger>().error('💡 Agora error: $error');
+          _showError('Agora streaming error: $error');
         },
         onStreamStarted: () {
-          if (mounted && !_isDisposed) {
-            setState(() {
-              _isAgoraStreaming = true;
-            });
-            di<ILogger>().info('Agora streaming started');
-          }
+          di<ILogger>().info('💡 Agora streaming started');
+          _isAgoraStreaming = true;
         },
         onStreamStopped: () {
-          if (mounted && !_isDisposed) {
-            setState(() {
-              _isAgoraStreaming = false;
-            });
-            di<ILogger>().info('Agora streaming stopped');
-          }
+          di<ILogger>().info('💡 Agora streaming stopped');
+          _isAgoraStreaming = false;
         },
-        onUserJoined: (remoteUid) {
-          di<ILogger>().info('Remote user joined Agora channel: $remoteUid');
+        onUserJoined: (uid) {
+          di<ILogger>().info('💡 Remote user joined: $uid');
         },
-        onUserOffline: (remoteUid) {
-          di<ILogger>().info('Remote user left Agora channel: $remoteUid');
+        onUserOffline: (uid) {
+          di<ILogger>().info('💡 Remote user offline: $uid');
         },
       );
 
-      di<ILogger>().info('Agora service initialization completed successfully');
-
-      // Start streaming after successful initialization
-      if (_agoraService != null && _agoraService!.isInitialized) {
-        di<ILogger>().info('Starting Agora streaming...');
-        await _agoraService!.startStreaming();
-      }
+      di<ILogger>().info(
+        '💡 Agora service initialization completed successfully',
+      );
     } catch (e) {
-      di<ILogger>().error('Error initializing Agora service: $e');
-    } finally {
-      _isAgoraInitializing = false;
+      di<ILogger>().error('💡 Error initializing Agora service: $e');
+      _showError('Failed to initialize Agora service: $e');
+    }
+  }
+
+  /// Show error message
+  void _showError(String message) {
+    if (mounted && !_isDisposed) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -428,14 +398,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       final agoraState = agoraCubit.state;
       agoraState.maybeWhen(
         success: (agora) {
-          _agoraService!.setCredentials(agora.appId, agora.token);
-
-          // Set up token renewal service for UVC streaming
-          if (agoraCubit.tokenRenewalService != null) {
-            _agoraService!.setupTokenRenewal(agoraCubit.tokenRenewalService!);
-          }
-
-          di<ILogger>().info('Agora service configured with credentials');
+          di<ILogger>().info('Agora credentials available for configuration');
         },
         orElse: () {
           di<ILogger>().warning(
@@ -450,13 +413,13 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           di<ILogger>().info(
             'Agora credentials available, initializing service...',
           );
-          await _initializeAgoraService(userId!);
+          await _initializeAgoraService();
         },
         orElse: () {
           di<ILogger>().info(
             'Agora credentials not available, requesting token...',
           );
-          agoraCubit.getAgoraToken();
+          agoraCubit.getAgoraToken(true, 'publisher');
         },
       );
     } catch (e) {
