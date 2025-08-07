@@ -1,13 +1,9 @@
-import 'package:earkart_omni/features/consultation/presentation/cubit/agora_uvc.state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'dart:io';
-import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
-import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
-import 'package:earkart_omni/features/consultation/presentation/cubit/agora_uvc.cubit.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
@@ -49,9 +45,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   bool _initializationTriggered = false;
   Timer? _initializationTimer;
   Timer? _platformViewTimer;
-
-  // Consultation properties
-  String? _userId;
 
   @override
   void initState() {
@@ -148,70 +141,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     } catch (e) {
       di<ILogger>().error('Error during UVC camera initialization: $e');
       setState(() => _status = 'Camera initialization failed');
-    }
-  }
-
-  void _startAgoraServiceWhenCameraOpened() {
-    try {
-      di<ILogger>().info(
-        'Camera opened, scheduling Agora service initialization...',
-      );
-
-      // Check if consultation ID is available
-
-      // Get user ID from auth state
-      final authState = context.read<AuthCubit>().state;
-      String? userId;
-
-      authState.when(
-        initial: () => null,
-        loading: () => null,
-        success: (user) {
-          userId = user?.id;
-        },
-        centreSuccess: (centre) => null,
-        centreError: (error) => null,
-        error: (error) => null,
-      );
-
-      if (userId == null) {
-        di<ILogger>().error('User ID not available for Agora initialization');
-        return;
-      }
-
-      // Store user ID for later use
-      _userId = userId;
-
-      di<ILogger>().info(
-        '🎯 Agora setup - consultation ID: ${widget.consultationId}',
-      );
-      di<ILogger>().info('🎯 Agora setup - user ID: $userId');
-
-      // Schedule Agora initialization with 2-second delay using the new cubit
-      final agoraUVCCubit = context.read<AgoraUVCCubit>();
-      agoraUVCCubit.scheduleAgoraInitialization(
-        consultationId: widget.consultationId,
-      );
-    } catch (e) {
-      di<ILogger>().error(
-        'Error starting Agora service when camera opened: $e',
-      );
-    }
-  }
-
-  Future<void> _stopAgoraServiceWhenCameraClosed() async {
-    try {
-      di<ILogger>().info('Camera closed, stopping Agora service...');
-
-      // Stop Agora service using the new cubit
-      final agoraUVCCubit = context.read<AgoraUVCCubit>();
-      await agoraUVCCubit.stopAgoraService();
-
-      di<ILogger>().info('Agora service stopped and disposed');
-    } catch (e) {
-      di<ILogger>().error(
-        'Error stopping Agora service when camera closed: $e',
-      );
     }
   }
 
@@ -584,7 +513,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             widget.onCameraStateChanged?.call(true);
 
             // Initialize Agora service only when camera is opened
-            _startAgoraServiceWhenCameraOpened();
             break;
           case UVCCameraState.closed:
             print('Camera closed');
@@ -594,8 +522,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               _isViewReady = false;
             });
 
-            // Stop Agora service when camera is closed
-            await _stopAgoraServiceWhenCameraClosed();
             break;
           case UVCCameraState.error:
             print('Camera error occurred');
@@ -605,10 +531,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               _isViewReady = false;
             });
 
-            // Stop Agora service on error
-            await _stopAgoraServiceWhenCameraClosed();
-
-            // Stop video streaming on error
             _handleCameraError();
             break;
         }
@@ -923,21 +845,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                 right: 12,
                 child: _buildMinimalStatusIndicator(),
               ),
-
-            // Agora streaming indicator
-            BlocBuilder<AgoraUVCCubit, AgoraUVCState>(
-              builder: (context, state) {
-                return state.maybeWhen(
-                  streaming:
-                      () => Positioned(
-                        top: 12,
-                        left: 12,
-                        child: _buildLiveStreamIndicator(),
-                      ),
-                  orElse: () => const SizedBox.shrink(),
-                );
-              },
-            ),
           ],
         ),
       );

@@ -44,11 +44,6 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   bool _isTokenRenewalListenerSet = false;
   StreamSubscription? _agoraStateSubscription;
 
-  // Video call specific token management
-  String? _currentVideoCallToken;
-  String? _currentVideoCallAppId;
-  int? _currentVideoCallUserId;
-
   @override
   void initState() {
     super.initState();
@@ -106,9 +101,6 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   void _resetVideoCallState() {
     _localUserJoined = false;
     _remoteUid = null;
-    _currentVideoCallToken = null;
-    _currentVideoCallAppId = null;
-    _currentVideoCallUserId = null;
   }
 
   Future<void> _initializeAgora() async {
@@ -188,11 +180,6 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
   Future<void> _handleVideoCallToken(AgoraEntity agora) async {
     try {
-      // Store video call specific credentials
-      _currentVideoCallToken = agora.token;
-      _currentVideoCallAppId = agora.appId;
-      _currentVideoCallUserId = agora.userId;
-
       di<ILogger>().info(
         'Video call token received - AppId: ${agora.appId.substring(0, 8)}...',
       );
