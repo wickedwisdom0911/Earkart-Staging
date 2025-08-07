@@ -46,6 +46,26 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeAgora();
+
+    // Listen for token renewal
+    final agoraCubit = context.read<AgoraCubit>();
+    agoraCubit.stream.listen((state) {
+      state.maybeWhen(
+        success: (agora) async {
+          // If we're already in a call and token is renewed, update the engine
+          if (_isInitialized && _localUserJoined) {
+            di<ILogger>().info('Token renewed during call, updating engine');
+            try {
+              await _engine?.renewToken(agora.token);
+              di<ILogger>().info('Token updated successfully');
+            } catch (e) {
+              di<ILogger>().error('Error updating token: $e');
+            }
+          }
+        },
+        orElse: () {},
+      );
+    });
   }
 
   @override
@@ -109,16 +129,23 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       if (!mounted) return;
 
       // Check if we already have a valid token before requesting a new one
-      final agoraState = context.read<AgoraCubit>().state;
+      final agoraCubit = context.read<AgoraCubit>();
+      final agoraState = agoraCubit.state;
       agoraState.maybeWhen(
         success: (agora) async {
           di<ILogger>().info('Using existing Agora token');
+
+          // Start token renewal monitoring if not already monitoring
+          if (!agoraCubit.isRenewing) {
+            agoraCubit.startTokenRenewalMonitoring();
+          }
+
           await _setupAgoraEngine(agora.appId);
           await _joinChannel(agora.token, agora.userId);
         },
         orElse: () {
           di<ILogger>().info('Requesting new Agora token');
-          context.read<AgoraCubit>().getAgoraToken();
+          agoraCubit.getAgoraToken();
         },
       );
     } catch (e) {
@@ -215,8 +242,8 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
           },
           onTokenPrivilegeWillExpire: (RtcConnection connection, String token) {
             di<ILogger>().info("Token will expire soon");
-            // Refresh token here
-            context.read<AgoraCubit>().getAgoraToken();
+            // Use the cubit's renewal functionality
+            context.read<AgoraCubit>().renewToken();
           },
         ),
       );
