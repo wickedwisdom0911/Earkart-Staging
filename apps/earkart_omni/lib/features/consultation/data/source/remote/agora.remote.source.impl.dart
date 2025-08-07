@@ -31,7 +31,8 @@ class AgoraRemoteSourceImpl implements IAgoraRemoteSource {
       final response = await dio.post(
         Constants.getAgoraTokenUrl,
         data: {
-          "channelName": consultation?.id ?? "",
+          "channelName":
+              isUVC ? "${consultation?.id ?? ""}_uvc" : consultation?.id ?? "",
           "isUVC": isUVC,
           "userRole": userRole,
         },

@@ -32,31 +32,15 @@ class AgoraCubit extends Cubit<AgoraState> {
       agora,
     ) {
       // Get current state to preserve existing tokens
-      final currentState = state;
-      String? existingToken;
-      String? existingTokenUVC;
-
-      if (currentState is AgoraSuccess) {
-        existingToken = currentState.agora.token;
-        existingTokenUVC = currentState.agora.tokenUVC;
-      }
 
       // Create AgoraEntity with appropriate token storage
       final agoraEntity = AgoraEntity(
-        token:
-            isUVC
-                ? (existingToken ?? agora.token)
-                : agora.token, // Keep existing token for video calls
+        token: agora.token, // Keep existing token for video calls
         appId: agora.appId,
         userId: agora.userId,
         expiresAt: agora.expiresAt,
         createdAt: agora.createdAt,
         isUVC: isUVC,
-        tokenUVC:
-            isUVC
-                ? agora.token
-                : (existingTokenUVC ??
-                    agora.token), // Store UVC token separately
       );
 
       emit(AgoraSuccess(agora: agoraEntity));

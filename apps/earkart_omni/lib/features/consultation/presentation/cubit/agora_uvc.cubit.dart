@@ -1,3 +1,4 @@
+import 'package:earkart_omni/models/agora/agora.entity.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora_uvc.state.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
@@ -39,7 +40,16 @@ class AgoraUVCCubit extends Cubit<AgoraUVCState> {
     result.fold(
       (failure) => emit(AgoraUVCState.error(message: failure.message)),
       (agora) {
-        emit(AgoraUVCState.success(agora: agora));
+        final agoraEntity = AgoraEntity(
+          token: agora.token,
+          tokenUVC: agora.token,
+          appId: agora.appId,
+          userId: agora.userId,
+          expiresAt: agora.expiresAt,
+          createdAt: agora.createdAt,
+          isUVC: isUVC,
+        );
+        emit(AgoraUVCState.success(agora: agoraEntity));
       },
     );
   }
@@ -66,6 +76,7 @@ class AgoraUVCCubit extends Cubit<AgoraUVCState> {
       di<ILogger>().info('[AGORA_UVC_CUBIT] Channel: $_channelName');
 
       // Get fresh Agora credentials using the use case
+      // Pass the actual channel name that will be used for joining
       await getAgoraToken(true, 'publisher');
 
       final currentState = state;
