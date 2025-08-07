@@ -56,7 +56,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
           if (_isInitialized && _localUserJoined) {
             di<ILogger>().info('Token renewed during call, updating engine');
             try {
-              await _engine?.renewToken(agora.token);
+              await _engine.renewToken(agora.token);
               di<ILogger>().info('Token updated successfully');
             } catch (e) {
               di<ILogger>().error('Error updating token: $e');

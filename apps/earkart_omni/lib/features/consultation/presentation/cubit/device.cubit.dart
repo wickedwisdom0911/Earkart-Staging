@@ -165,9 +165,6 @@ class DeviceCubit extends Cubit<DeviceState> {
   }
 
   void _updateDeviceReferences(List<UsbDevice> devices) {
-    final previousR15C = _r15cDevice;
-    final previousRevo2 = _revo2Device;
-
     try {
       _r15cDevice = devices.firstWhere(
         (device) => device.pid == 206 && device.vid == 1118,
