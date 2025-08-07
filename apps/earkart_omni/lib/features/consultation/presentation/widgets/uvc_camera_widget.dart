@@ -1,3 +1,4 @@
+import 'package:earkart_omni/features/consultation/presentation/cubit/agora_uvc.state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -5,18 +6,20 @@ import 'dart:async';
 import 'dart:io';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/agora_uvc.cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
-import 'package:earkart_omni/features/consultation/services/agora_uvc_service.dart';
-import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
-import 'package:earkart_omni/features/consultation/presentation/cubit/agora.state.dart';
 
 class UVCCameraWidget extends StatefulWidget {
-  final Function(bool)?
-  onCameraStateChanged; // Callback for camera state changes
-  const UVCCameraWidget({super.key, this.onCameraStateChanged});
+  final Function(bool)? onCameraStateChanged;
+  final String consultationId;
+  const UVCCameraWidget({
+    super.key,
+    this.onCameraStateChanged,
+    required this.consultationId,
+  });
 
   @override
   State<UVCCameraWidget> createState() => _UVCCameraWidgetState();
@@ -48,29 +51,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   Timer? _platformViewTimer;
 
   // Consultation properties
-  String? _consultationId;
-  String? _userId; // Store user ID for Agora service
-
-  // Frame rate monitoring and adaptation
-  int _frameCount = 0;
-  DateTime? _lastFrameRateCheck;
-  double _currentFps = 0.0;
-  int _totalFramesSent = 0;
-  int _consecutiveEmptyFrames = 0;
-  static const int _maxConsecutiveEmptyFrames = 5;
-
-  // Frame buffering to prevent black frames
-  String? _lastValidFrame;
-  DateTime? _lastFrameTime;
-  static const Duration _frameTimeout = Duration(
-    milliseconds: 200,
-  ); // 200ms timeout for frames
-
-  // Agora streaming properties
-  AgoraUVCService? _agoraService;
-  bool _isAgoraStreaming = false;
-  bool _isAgoraConnected = false;
-  bool _isAgoraInitializing = false;
+  String? _userId;
 
   @override
   void initState() {
@@ -162,10 +143,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         if (mounted && !_isDisposed) {
           di<ILogger>().info('Widget fully built, starting initialization...');
           _checkPermissionsAndInitialize();
-          _setupOtoscopyStreaming();
-          _setupConsultationListener();
-          _setupAgoraListener();
-          _setupAgoraStreaming();
         }
       });
     } catch (e) {
@@ -174,59 +151,13 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     }
   }
 
-  void _setupOtoscopyStreaming() {
-    // Get consultation ID from context
-    _updateConsultationId();
-  }
-
-  void _setupConsultationListener() {
-    // Listen for consultation state changes to update consultation ID
-    context.read<ConsultationCubit>().stream.listen((state) {
-      if (mounted && !_isDisposed) {
-        _updateConsultationId();
-      }
-    });
-  }
-
-  void _setupAgoraListener() {
-    // Listen for Agora state changes to handle token updates
-    context.read<AgoraCubit>().stream.listen((state) {
-      if (mounted && !_isDisposed) {
-        state.maybeWhen(
-          success: (agora) async {
-            if (_agoraService != null && !_agoraService!.isInitialized) {
-              di<ILogger>().info('Agora token received, ready to initialize');
-
-              // If camera is already opened, start Agora service immediately
-              if (isInitialized && _isViewReady) {
-                di<ILogger>().info(
-                  'Camera already opened, starting Agora service with new token',
-                );
-                _startAgoraServiceWhenCameraOpened();
-              } else {
-                di<ILogger>().info(
-                  'Camera not yet opened, Agora service will start when camera opens',
-                );
-              }
-            }
-          },
-          orElse: () {},
-        );
-      }
-    });
-  }
-
-  void _setupAgoraStreaming() {
+  void _startAgoraServiceWhenCameraOpened() {
     try {
-      di<ILogger>().info('Setting up Agora streaming preparation...');
+      di<ILogger>().info(
+        'Camera opened, scheduling Agora service initialization...',
+      );
 
       // Check if consultation ID is available
-      if (_consultationId == null) {
-        di<ILogger>().warning(
-          'Consultation ID not available for Agora initialization',
-        );
-        return;
-      }
 
       // Get user ID from auth state
       final authState = context.read<AuthCubit>().state;
@@ -251,176 +182,15 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       // Store user ID for later use
       _userId = userId;
 
-      // Initialize Agora service but don't start it yet
-      _agoraService = AgoraUVCService();
-
-      di<ILogger>().info('🎯 Agora setup - consultation ID: $_consultationId');
-      di<ILogger>().info('🎯 Agora setup - user ID: $_userId');
-
-      // Get Agora credentials from AgoraCubit
-      final agoraCubit = context.read<AgoraCubit>();
-      final agoraState = agoraCubit.state;
-      agoraState.maybeWhen(
-        success: (agora) async {
-          di<ILogger>().info('Using existing Agora token for UVC streaming');
-
-          // Start token renewal monitoring if not already monitoring
-          if (!agoraCubit.isRenewing) {
-            agoraCubit.startTokenRenewalMonitoring(true, 'publisher');
-          }
-
-          // Don't initialize Agora service here - wait for camera to be opened
-          di<ILogger>().info(
-            'Agora credentials available, waiting for camera to be opened...',
-          );
-        },
-        orElse: () {
-          di<ILogger>().info('Requesting new Agora token for UVC streaming');
-          agoraCubit.getAgoraToken(true, 'publisher');
-        },
-      );
-    } catch (e) {
-      di<ILogger>().error('Error setting up Agora streaming: $e');
-    }
-  }
-
-  /// Initialize Agora service for UVC streaming
-  Future<void> _initializeAgoraService() async {
-    try {
-      di<ILogger>().info('💡 Setting up Agora streaming preparation...');
       di<ILogger>().info(
-        '💡 🎯 Agora setup - consultation ID: $_consultationId',
+        '🎯 Agora setup - consultation ID: ${widget.consultationId}',
       );
-      di<ILogger>().info('💡 🎯 Agora setup - user ID: $_userId');
+      di<ILogger>().info('🎯 Agora setup - user ID: $userId');
 
-      // Reset existing service if any
-      if (_agoraService != null) {
-        di<ILogger>().info('💡 Resetting existing Agora service...');
-        _agoraService!.reset();
-      }
-
-      // Initialize Agora service with fresh tokens
-      await _agoraService!.initialize(
-        userId: _userId!,
-        consultationId: _consultationId,
-        onConnectionStateChanged: (connected) {
-          di<ILogger>().info('💡 Agora connection state: $connected');
-          _isAgoraConnected = connected;
-        },
-        onError: (error) {
-          di<ILogger>().error('💡 Agora error: $error');
-          _showError('Agora streaming error: $error');
-        },
-        onStreamStarted: () {
-          di<ILogger>().info('💡 Agora streaming started');
-          _isAgoraStreaming = true;
-        },
-        onStreamStopped: () {
-          di<ILogger>().info('💡 Agora streaming stopped');
-          _isAgoraStreaming = false;
-        },
-        onUserJoined: (uid) {
-          di<ILogger>().info('💡 Remote user joined: $uid');
-        },
-        onUserOffline: (uid) {
-          di<ILogger>().info('💡 Remote user offline: $uid');
-        },
-      );
-
-      di<ILogger>().info(
-        '💡 Agora service initialization completed successfully',
-      );
-    } catch (e) {
-      di<ILogger>().error('💡 Error initializing Agora service: $e');
-      _showError('Failed to initialize Agora service: $e');
-    }
-  }
-
-  /// Show error message
-  void _showError(String message) {
-    if (mounted && !_isDisposed) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    }
-  }
-
-  void _startAgoraServiceWhenCameraOpened() {
-    try {
-      di<ILogger>().info('Camera opened, starting Agora service...');
-
-      // Check if already initializing
-      if (_isAgoraInitializing) {
-        di<ILogger>().info('Agora service already initializing, skipping...');
-        return;
-      }
-
-      // Check if consultation ID is available
-      if (_consultationId == null) {
-        di<ILogger>().warning(
-          'Consultation ID not available for Agora initialization',
-        );
-        return;
-      }
-
-      // Get user ID from auth state
-      final authState = context.read<AuthCubit>().state;
-      String? userId;
-
-      authState.when(
-        initial: () => null,
-        loading: () => null,
-        success: (user) {
-          userId = user?.id;
-        },
-        centreSuccess: (centre) => null,
-        centreError: (error) => null,
-        error: (error) => null,
-      );
-
-      if (userId == null) {
-        di<ILogger>().error('User ID not available for Agora initialization');
-        return;
-      }
-
-      // Get or create Agora service
-      if (_agoraService == null) {
-        di<ILogger>().info('Creating Agora service...');
-        _agoraService = AgoraUVCService();
-      } else {
-        // Reset the existing service for reinitialization
-        di<ILogger>().info('Resetting existing Agora service...');
-        _agoraService!.reset();
-      }
-
-      // Set up credentials and token renewal if available
-      final agoraCubit = context.read<AgoraCubit>();
-      final agoraState = agoraCubit.state;
-      agoraState.maybeWhen(
-        success: (agora) {
-          di<ILogger>().info('Agora credentials available for configuration');
-        },
-        orElse: () {
-          di<ILogger>().warning(
-            'No Agora credentials available for configuration',
-          );
-        },
-      );
-
-      // Check if Agora credentials are set and initialize service
-      agoraState.maybeWhen(
-        success: (agora) async {
-          di<ILogger>().info(
-            'Agora credentials available, initializing service...',
-          );
-          await _initializeAgoraService();
-        },
-        orElse: () {
-          di<ILogger>().info(
-            'Agora credentials not available, requesting token...',
-          );
-          agoraCubit.getAgoraToken(true, 'publisher');
-        },
+      // Schedule Agora initialization with 2-second delay using the new cubit
+      final agoraUVCCubit = context.read<AgoraUVCCubit>();
+      agoraUVCCubit.scheduleAgoraInitialization(
+        consultationId: widget.consultationId,
       );
     } catch (e) {
       di<ILogger>().error(
@@ -433,95 +203,15 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     try {
       di<ILogger>().info('Camera closed, stopping Agora service...');
 
-      if (_agoraService != null) {
-        // Don't dispose if service is still initializing
-        if (_isAgoraInitializing) {
-          di<ILogger>().info(
-            'Agora service is initializing, skipping disposal',
-          );
-          return;
-        }
+      // Stop Agora service using the new cubit
+      final agoraUVCCubit = context.read<AgoraUVCCubit>();
+      await agoraUVCCubit.stopAgoraService();
 
-        // Stop streaming before disposing
-        if (_agoraService!.isStreaming) {
-          di<ILogger>().info('Stopping Agora streaming before disposal...');
-          await _agoraService!.stopStreaming();
-        }
-
-        // Use dispose for complete cleanup, but keep the service instance
-        _agoraService!.dispose();
-        // Don't set to null since it's a singleton - just let it be reset later
-      }
-
-      if (mounted && !_isDisposed) {
-        setState(() {
-          _isAgoraStreaming = false;
-          _isAgoraConnected = false;
-        });
-      }
-
-      di<ILogger>().info('Agora service stopped');
+      di<ILogger>().info('Agora service stopped and disposed');
     } catch (e) {
       di<ILogger>().error(
         'Error stopping Agora service when camera closed: $e',
       );
-    }
-  }
-
-  void _updateConsultationId() {
-    try {
-      final consultationState = context.read<ConsultationCubit>().state;
-      print('uvc_stream: 🔍 Current consultation state: $consultationState');
-
-      consultationState.maybeWhen(
-        success: (consultation) {
-          final newConsultationId = consultation.id;
-          print(
-            'uvc_stream: 📋 Success state - consultation ID: $newConsultationId',
-          );
-          if (newConsultationId != null &&
-              newConsultationId != _consultationId) {
-            _consultationId = newConsultationId;
-            print(
-              'uvc_stream: 🎥 Otoscopy streaming consultation ID updated: $_consultationId',
-            );
-          }
-        },
-        createConsultationSuccess: (consultation) {
-          final newConsultationId = consultation.id;
-          print(
-            'uvc_stream: 📋 CreateConsultationSuccess state - consultation ID: $newConsultationId',
-          );
-          if (newConsultationId != null &&
-              newConsultationId != _consultationId) {
-            _consultationId = newConsultationId;
-            print(
-              'uvc_stream: 🎥 Otoscopy streaming consultation ID updated (from creation): $_consultationId',
-            );
-          }
-        },
-        currentConsultationSuccess: (consultation) {
-          final newConsultationId = consultation.id;
-          print(
-            'uvc_stream: 📋 CurrentConsultationSuccess state - consultation ID: $newConsultationId',
-          );
-          if (newConsultationId != null &&
-              newConsultationId != _consultationId) {
-            _consultationId = newConsultationId;
-            print(
-              'uvc_stream: 🎥 Otoscopy streaming consultation ID updated (from current): $_consultationId',
-            );
-          }
-        },
-        orElse: () {
-          // Consultation ID will be provided in start-otoscopy event
-          print(
-            'uvc_stream: 🔄 Waiting for consultation ID from start-otoscopy event...',
-          );
-        },
-      );
-    } catch (e) {
-      print('uvc_stream: ⚠️ Error getting consultation ID: $e');
     }
   }
 
@@ -572,8 +262,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       try {
         try {
           cameraController?.captureStreamStop();
-
-          // cameraController?.updateResolution(previewSize)
         } catch (e) {
           print('Error stopping capture stream: $e');
           // Ignore platform channel errors during cleanup
@@ -638,12 +326,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
     // Clean up animation controller
     _pulseAnimationController.dispose();
-
-    // Clean up otoscopy streaming resources
-    // _stopOtoscopyStreaming(); // Removed as per edit hint
-
-    // Clean up Agora streaming resources
-    _agoraService?.dispose();
 
     // Notify parent about camera state change
     widget.onCameraStateChanged?.call(false);
@@ -895,13 +577,13 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             });
 
             di<ILogger>().info(
-              'Camera state: opened - camera is ready and streaming',
+              'Camera state: opened - camera is ready and working',
             );
 
             // Notify parent about camera state change
             widget.onCameraStateChanged?.call(true);
 
-            // Start Agora service when camera is opened
+            // Initialize Agora service only when camera is opened
             _startAgoraServiceWhenCameraOpened();
             break;
           case UVCCameraState.closed:
@@ -1221,8 +903,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
   @override
   Widget build(BuildContext context) {
-    // Mark that the widget has been built
-
     // Safety wrapper to prevent crashes in release mode
     try {
       return Container(
@@ -1234,10 +914,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             // Main camera view
             _buildCameraContent(),
 
-            // Live stream indicator - always show when streaming
-            // if (_isOtoscopyStreaming) // Removed as per edit hint
-            //   Positioned(top: 12, left: 12, child: _buildLiveStreamIndicator()), // Removed as per edit hint
-
             // Minimal status indicator overlay
             if (!_permissionsGranted ||
                 _errorCount >= ReleaseConfig.maxCameraRetries ||
@@ -1247,6 +923,21 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                 right: 12,
                 child: _buildMinimalStatusIndicator(),
               ),
+
+            // Agora streaming indicator
+            BlocBuilder<AgoraUVCCubit, AgoraUVCState>(
+              builder: (context, state) {
+                return state.maybeWhen(
+                  streaming:
+                      () => Positioned(
+                        top: 12,
+                        left: 12,
+                        child: _buildLiveStreamIndicator(),
+                      ),
+                  orElse: () => const SizedBox.shrink(),
+                );
+              },
+            ),
           ],
         ),
       );
@@ -1523,7 +1214,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
   Widget _buildLiveStreamIndicator() {
     return Tooltip(
-      message: 'Live Otoscopy Streaming Active',
+      message: 'Live UVC Streaming Active',
       child: AnimatedBuilder(
         animation: _pulseAnimation,
         builder: (context, child) {

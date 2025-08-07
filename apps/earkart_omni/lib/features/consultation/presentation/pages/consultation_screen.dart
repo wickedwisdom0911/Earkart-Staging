@@ -970,6 +970,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                       child:
                           ReleaseConfig.enableUVCCamera
                               ? UVCCameraWidget(
+                                consultationId: consultation?.id ?? "",
                                 onCameraStateChanged: _updateCameraState,
                               )
                               : Container(
