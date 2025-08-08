@@ -66,7 +66,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   static const Duration _maxFrameInterval = const Duration(
     milliseconds: 15000,
   ); // Min 0.067 FPS for emergency throttling - INCREASED
-  static const int _maxConsecutiveFailures = 2; // Further reduced to prevent crashes
+  static const int _maxConsecutiveFailures =
+      2; // Further reduced to prevent crashes
 
   // Circuit breaker for error recovery
   bool _circuitBreakerOpen = false;
@@ -1208,7 +1209,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       // MUCH MORE CONSERVATIVE frame rate increases to prevent memory pressure
       if (_currentFrameInterval > _minFrameInterval) {
         _currentFrameInterval = Duration(
-          milliseconds: (_currentFrameInterval.inMilliseconds * 0.95).round(), // Slower increase
+          milliseconds:
+              (_currentFrameInterval.inMilliseconds * 0.95)
+                  .round(), // Slower increase
         );
         if (_currentFrameInterval < _minFrameInterval) {
           _currentFrameInterval = _minFrameInterval;
@@ -1219,7 +1222,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
       // AGGRESSIVE throttling on any failure to prevent system crash
       _currentFrameInterval = Duration(
-        milliseconds: (_currentFrameInterval.inMilliseconds * 2.5).round(), // Much more aggressive
+        milliseconds:
+            (_currentFrameInterval.inMilliseconds * 2.5)
+                .round(), // Much more aggressive
       );
       if (_currentFrameInterval > _maxFrameInterval) {
         _currentFrameInterval = _maxFrameInterval;
@@ -1237,7 +1242,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
     // MUCH MORE AGGRESSIVE circuit breaker to prevent system crash
     if (_consecutiveFailures >= _maxConsecutiveFailures ||
-        _totalFrameErrors > 10) { // Reduced from 50 to 10
+        _totalFrameErrors > 10) {
+      // Reduced from 50 to 10
       _openCircuitBreaker();
       return;
     }
@@ -1384,7 +1390,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           _cameraTimeouts++;
           // AGGRESSIVE circuit breaker on timeouts - reduced from 5 to 3
           if (_cameraTimeouts > 3) {
-            di<ILogger>().error('[UVC_CAMERA] Too many camera timeouts, opening circuit breaker');
+            di<ILogger>().error(
+              '[UVC_CAMERA] Too many camera timeouts, opening circuit breaker',
+            );
             _openCircuitBreaker();
           }
           return null;
@@ -1405,7 +1413,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
         // If we consistently get no frame data, it might indicate the camera preview isn't working
         _consecutiveFailures++;
-        if (_consecutiveFailures >= 5) { // Reduced from 10 to 5
+        if (_consecutiveFailures >= 5) {
+          // Reduced from 10 to 5
           di<ILogger>().warning(
             '[UVC_CAMERA] Too many consecutive frame capture failures, camera preview may not be working',
           );
@@ -1415,7 +1424,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       }
 
       // AGGRESSIVE FRAME DROPPING - drop large frames to prevent memory pressure
-      if (binaryData.length > 150000) { // 150KB threshold
+      if (binaryData.length > 150000) {
+        // 150KB threshold
         di<ILogger>().warning(
           '[UVC_CAMERA] DROPPING large frame to prevent memory pressure: ${binaryData.length} bytes',
         );
@@ -1442,7 +1452,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       // Try to push frame with optimized settings for JPEG data
       try {
         // CRITICAL: Force garbage collection before heavy operations to prevent memory pressure
-        if (_framesPushed % 3 == 0) { // Every 3 frames
+        if (_framesPushed % 3 == 0) {
+          // Every 3 frames
           // Request garbage collection to prevent memory buildup
           await Future.delayed(const Duration(milliseconds: 10));
         }
@@ -1500,7 +1511,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         final processingTime = DateTime.now().difference(frameStartTime);
 
         // MORE STRICT success criteria to prevent memory pressure
-        final isSuccess = processingTime.inMilliseconds < 500 && // Stricter timing
+        final isSuccess =
+            processingTime.inMilliseconds < 500 && // Stricter timing
             binaryData.length < 100000; // Smaller frame size threshold
         _adaptFrameRate(isSuccess);
 
