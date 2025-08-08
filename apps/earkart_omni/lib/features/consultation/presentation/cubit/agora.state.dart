@@ -6,6 +6,12 @@ part 'agora.state.freezed.dart';
 class AgoraState with _$AgoraState {
   const factory AgoraState.initial() = AgoraInitial;
   const factory AgoraState.loading() = AgoraLoading;
-  const factory AgoraState.success({required AgoraEntity agora}) = AgoraSuccess;
+  const factory AgoraState.success({
+    required AgoraEntity agora,
+    @Default(false) bool localUserJoined,
+    int? remoteUid,
+    @Default(true) bool isMicOn,
+    @Default(true) bool isCameraOn,
+  }) = AgoraSuccess;
   const factory AgoraState.error({required String message}) = AgoraError;
 }

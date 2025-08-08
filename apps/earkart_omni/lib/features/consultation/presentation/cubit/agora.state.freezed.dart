@@ -20,7 +20,9 @@ mixin _$AgoraState {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(AgoraEntity agora) success,
+    required TResult Function(AgoraEntity agora, bool localUserJoined,
+            int? remoteUid, bool isMicOn, bool isCameraOn)
+        success,
     required TResult Function(String message) error,
   }) =>
       throw _privateConstructorUsedError;
@@ -28,7 +30,9 @@ mixin _$AgoraState {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(AgoraEntity agora)? success,
+    TResult? Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
+            bool isMicOn, bool isCameraOn)?
+        success,
     TResult? Function(String message)? error,
   }) =>
       throw _privateConstructorUsedError;
@@ -36,7 +40,9 @@ mixin _$AgoraState {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(AgoraEntity agora)? success,
+    TResult Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
+            bool isMicOn, bool isCameraOn)?
+        success,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) =>
@@ -132,7 +138,9 @@ class _$AgoraInitialImpl implements AgoraInitial {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(AgoraEntity agora) success,
+    required TResult Function(AgoraEntity agora, bool localUserJoined,
+            int? remoteUid, bool isMicOn, bool isCameraOn)
+        success,
     required TResult Function(String message) error,
   }) {
     return initial();
@@ -143,7 +151,9 @@ class _$AgoraInitialImpl implements AgoraInitial {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(AgoraEntity agora)? success,
+    TResult? Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
+            bool isMicOn, bool isCameraOn)?
+        success,
     TResult? Function(String message)? error,
   }) {
     return initial?.call();
@@ -154,7 +164,9 @@ class _$AgoraInitialImpl implements AgoraInitial {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(AgoraEntity agora)? success,
+    TResult Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
+            bool isMicOn, bool isCameraOn)?
+        success,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -249,7 +261,9 @@ class _$AgoraLoadingImpl implements AgoraLoading {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(AgoraEntity agora) success,
+    required TResult Function(AgoraEntity agora, bool localUserJoined,
+            int? remoteUid, bool isMicOn, bool isCameraOn)
+        success,
     required TResult Function(String message) error,
   }) {
     return loading();
@@ -260,7 +274,9 @@ class _$AgoraLoadingImpl implements AgoraLoading {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(AgoraEntity agora)? success,
+    TResult? Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
+            bool isMicOn, bool isCameraOn)?
+        success,
     TResult? Function(String message)? error,
   }) {
     return loading?.call();
@@ -271,7 +287,9 @@ class _$AgoraLoadingImpl implements AgoraLoading {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(AgoraEntity agora)? success,
+    TResult Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
+            bool isMicOn, bool isCameraOn)?
+        success,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -329,7 +347,12 @@ abstract class _$$AgoraSuccessImplCopyWith<$Res> {
           _$AgoraSuccessImpl value, $Res Function(_$AgoraSuccessImpl) then) =
       __$$AgoraSuccessImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({AgoraEntity agora});
+  $Res call(
+      {AgoraEntity agora,
+      bool localUserJoined,
+      int? remoteUid,
+      bool isMicOn,
+      bool isCameraOn});
 }
 
 /// @nodoc
@@ -346,12 +369,32 @@ class __$$AgoraSuccessImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? agora = null,
+    Object? localUserJoined = null,
+    Object? remoteUid = freezed,
+    Object? isMicOn = null,
+    Object? isCameraOn = null,
   }) {
     return _then(_$AgoraSuccessImpl(
       agora: null == agora
           ? _value.agora
           : agora // ignore: cast_nullable_to_non_nullable
               as AgoraEntity,
+      localUserJoined: null == localUserJoined
+          ? _value.localUserJoined
+          : localUserJoined // ignore: cast_nullable_to_non_nullable
+              as bool,
+      remoteUid: freezed == remoteUid
+          ? _value.remoteUid
+          : remoteUid // ignore: cast_nullable_to_non_nullable
+              as int?,
+      isMicOn: null == isMicOn
+          ? _value.isMicOn
+          : isMicOn // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isCameraOn: null == isCameraOn
+          ? _value.isCameraOn
+          : isCameraOn // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -359,14 +402,30 @@ class __$$AgoraSuccessImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$AgoraSuccessImpl implements AgoraSuccess {
-  const _$AgoraSuccessImpl({required this.agora});
+  const _$AgoraSuccessImpl(
+      {required this.agora,
+      this.localUserJoined = false,
+      this.remoteUid,
+      this.isMicOn = true,
+      this.isCameraOn = true});
 
   @override
   final AgoraEntity agora;
+  @override
+  @JsonKey()
+  final bool localUserJoined;
+  @override
+  final int? remoteUid;
+  @override
+  @JsonKey()
+  final bool isMicOn;
+  @override
+  @JsonKey()
+  final bool isCameraOn;
 
   @override
   String toString() {
-    return 'AgoraState.success(agora: $agora)';
+    return 'AgoraState.success(agora: $agora, localUserJoined: $localUserJoined, remoteUid: $remoteUid, isMicOn: $isMicOn, isCameraOn: $isCameraOn)';
   }
 
   @override
@@ -374,11 +433,19 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$AgoraSuccessImpl &&
-            (identical(other.agora, agora) || other.agora == agora));
+            (identical(other.agora, agora) || other.agora == agora) &&
+            (identical(other.localUserJoined, localUserJoined) ||
+                other.localUserJoined == localUserJoined) &&
+            (identical(other.remoteUid, remoteUid) ||
+                other.remoteUid == remoteUid) &&
+            (identical(other.isMicOn, isMicOn) || other.isMicOn == isMicOn) &&
+            (identical(other.isCameraOn, isCameraOn) ||
+                other.isCameraOn == isCameraOn));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, agora);
+  int get hashCode => Object.hash(
+      runtimeType, agora, localUserJoined, remoteUid, isMicOn, isCameraOn);
 
   /// Create a copy of AgoraState
   /// with the given fields replaced by the non-null parameter values.
@@ -393,10 +460,12 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(AgoraEntity agora) success,
+    required TResult Function(AgoraEntity agora, bool localUserJoined,
+            int? remoteUid, bool isMicOn, bool isCameraOn)
+        success,
     required TResult Function(String message) error,
   }) {
-    return success(agora);
+    return success(agora, localUserJoined, remoteUid, isMicOn, isCameraOn);
   }
 
   @override
@@ -404,10 +473,13 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(AgoraEntity agora)? success,
+    TResult? Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
+            bool isMicOn, bool isCameraOn)?
+        success,
     TResult? Function(String message)? error,
   }) {
-    return success?.call(agora);
+    return success?.call(
+        agora, localUserJoined, remoteUid, isMicOn, isCameraOn);
   }
 
   @override
@@ -415,12 +487,14 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(AgoraEntity agora)? success,
+    TResult Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
+            bool isMicOn, bool isCameraOn)?
+        success,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
     if (success != null) {
-      return success(agora);
+      return success(agora, localUserJoined, remoteUid, isMicOn, isCameraOn);
     }
     return orElse();
   }
@@ -464,10 +538,18 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
 }
 
 abstract class AgoraSuccess implements AgoraState {
-  const factory AgoraSuccess({required final AgoraEntity agora}) =
-      _$AgoraSuccessImpl;
+  const factory AgoraSuccess(
+      {required final AgoraEntity agora,
+      final bool localUserJoined,
+      final int? remoteUid,
+      final bool isMicOn,
+      final bool isCameraOn}) = _$AgoraSuccessImpl;
 
   AgoraEntity get agora;
+  bool get localUserJoined;
+  int? get remoteUid;
+  bool get isMicOn;
+  bool get isCameraOn;
 
   /// Create a copy of AgoraState
   /// with the given fields replaced by the non-null parameter values.
@@ -546,7 +628,9 @@ class _$AgoraErrorImpl implements AgoraError {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(AgoraEntity agora) success,
+    required TResult Function(AgoraEntity agora, bool localUserJoined,
+            int? remoteUid, bool isMicOn, bool isCameraOn)
+        success,
     required TResult Function(String message) error,
   }) {
     return error(message);
@@ -557,7 +641,9 @@ class _$AgoraErrorImpl implements AgoraError {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(AgoraEntity agora)? success,
+    TResult? Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
+            bool isMicOn, bool isCameraOn)?
+        success,
     TResult? Function(String message)? error,
   }) {
     return error?.call(message);
@@ -568,7 +654,9 @@ class _$AgoraErrorImpl implements AgoraError {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(AgoraEntity agora)? success,
+    TResult Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
+            bool isMicOn, bool isCameraOn)?
+        success,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
