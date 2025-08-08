@@ -180,11 +180,19 @@ internal class UVCCameraView(
     }
 
     override fun dispose() {
+        // Stop frame capture first to prevent further processing
+        stopFrameCapture()
+        
         if (isRecording) {
             stopVideoRecording()
         }
+        
+        // Clean up camera resources
         unRegisterMultiCamera()
         mViewBinding.fragmentContainer.removeAllViews()
+        
+        // Force garbage collection to clean up native resources
+        System.gc()
     }
 
     override fun onCameraState(
@@ -789,36 +797,14 @@ internal class UVCCameraView(
     private val frameCaptureRunnable = object : Runnable {
         override fun run() {
             if (isFrameCaptureActive && isCameraOpened()) {
-                captureFrameAsBase64Internal()
+                // Frame capture is now handled by direct binary capture calls
+                // This runnable maintains the active state but doesn't do base64 processing
                 frameCaptureHandler.postDelayed(this, 50) // 20 FPS (50ms)
             }
         }
     }
 
-    fun captureFrameAsBase64(callback: UVCStringCallback) {
-        if (!isCameraOpened()) {
-            callback.onError("Camera not opened")
-            return
-        }
-        
-        if (!isFrameCaptureActive) {
-            callback.onSuccess("")
-            return
-        }
-        
-        try {
-            val currentCamera = getCurrentCamera()
-            if (currentCamera is CameraUVC) {
-                currentCamera.captureFrameAsBase64 { base64Data ->
-                    callback.onSuccess(base64Data)
-                }
-            } else {
-                callback.onError("Camera not available")
-            }
-        } catch (e: Exception) {
-            callback.onError("Frame capture error: ${e.message}")
-        }
-    }
+
 
     fun startFrameCapture() {
         if (!isCameraOpened()) {
@@ -845,23 +831,43 @@ internal class UVCCameraView(
         callFlutter("Stopped frame capture")
     }
 
-    fun getLastCapturedFrame(callback: UVCStringCallback) {
-        // Always capture a fresh frame instead of returning cached one
-        captureFrameAsBase64(callback)
-    }
 
-    private fun captureFrameAsBase64Internal() {
+
+
+
+    fun captureFrameAsBinary(callback: UVCBinaryCallback) {
+        if (!isCameraOpened()) {
+            callback.onError("Camera not opened")
+            return
+        }
+        
+        if (!isFrameCaptureActive) {
+            callback.onError("Frame capture not active")
+            return
+        }
+        
         try {
             val currentCamera = getCurrentCamera()
             if (currentCamera is CameraUVC) {
-                currentCamera.captureFrameAsBase64 { base64Data ->
-                    // Frame captured successfully, but we don't store it
-                    // This ensures we always get fresh frames
+                // Use direct binary capture (no base64 conversion)
+                currentCamera.captureFrameAsBinary { binaryData ->
+                    if (binaryData != null && binaryData.isNotEmpty()) {
+                        callback.onSuccess(binaryData)
+                    } else {
+                        callback.onError("No binary frame data available")
+                    }
                 }
+            } else {
+                callback.onError("Camera not available")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error in frame capture: ${e.message}")
+            callback.onError("Binary frame capture error: ${e.message}")
         }
+    }
+
+    fun getLastCapturedFrameBinary(callback: UVCBinaryCallback) {
+        // Always capture a fresh frame instead of returning cached one
+        captureFrameAsBinary(callback)
     }
 
 }

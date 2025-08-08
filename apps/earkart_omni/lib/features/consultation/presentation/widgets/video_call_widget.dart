@@ -36,6 +36,10 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    di<ILogger>().info(
+      '[VIDEO_CALL] Initializing video call widget for consultation: ${widget.consultationId}',
+    );
+    di<ILogger>().info('[VIDEO_CALL] Channel name: ${widget.channelName}');
     _initializeVideoCall();
   }
 
@@ -45,7 +49,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     // Reset state if channel name changed
     if (oldWidget.channelName != widget.channelName) {
       di<ILogger>().info(
-        'Channel name changed from ${oldWidget.channelName} to ${widget.channelName}',
+        '[VIDEO_CALL] Channel name changed from ${oldWidget.channelName} to ${widget.channelName}',
       );
       _initializeVideoCall();
     }
@@ -53,14 +57,17 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    di<ILogger>().debug('App lifecycle state changed to: $state');
+    di<ILogger>().info('[VIDEO_CALL] App lifecycle state changed to: $state');
     final agoraCubit = context.read<AgoraCubit>();
     agoraCubit.handleAppLifecycleState(state);
   }
 
   void _initializeVideoCall() {
     di<ILogger>().info(
-      'VideoCallWidget: Initializing video call for channel: ${widget.channelName}',
+      '[VIDEO_CALL] Initializing video call for channel: ${widget.channelName}',
+    );
+    di<ILogger>().info(
+      '[VIDEO_CALL] Consultation ID: ${widget.consultationId}',
     );
     final agoraCubit = context.read<AgoraCubit>();
     agoraCubit.initializeVideoCall(widget.channelName);
@@ -68,6 +75,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
   // Public method to leave channel (without clearing data)
   Future<void> leaveChannelOnly() async {
+    di<ILogger>().info(
+      '[VIDEO_CALL] Leaving channel only (without clearing data)',
+    );
     final agoraCubit = context.read<AgoraCubit>();
     await agoraCubit.leaveChannel();
     // Call the callback if provided
@@ -76,9 +86,14 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
   // Method to explicitly end consultation and clear sessions
   Future<void> endConsultation() async {
+    di<ILogger>().info(
+      '[VIDEO_CALL] Ending consultation and clearing sessions',
+    );
     final agoraCubit = context.read<AgoraCubit>();
     await agoraCubit.leaveChannel();
-    di<ILogger>().info('Successfully ended video call consultation');
+    di<ILogger>().info(
+      '[VIDEO_CALL] Successfully ended video call consultation',
+    );
     // Clear sessions when explicitly ending consultation
     context.read<PatientCubit>().deletePatientSession();
     context.read<ConsultationCubit>().deleteCurrentConsultationSession();
@@ -86,7 +101,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
   @override
   void dispose() {
-    di<ILogger>().info('VideoCallWidget: dispose() called');
+    di<ILogger>().info('[VIDEO_CALL] VideoCallWidget dispose() called');
     _isDisposed = true;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -99,17 +114,17 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         BlocListener<ConsultationCubit, ConsultationState>(
           listener: (context, state) {
             di<ILogger>().debug(
-              'VideoCallWidget: Consultation state changed: $state',
+              '[VIDEO_CALL] Consultation state changed: $state',
             );
 
             // Handle consultation update success
             if (state is ConsultationSuccess) {
               di<ILogger>().info(
-                'VideoCallWidget: Consultation success - status: ${state.consultation.status}',
+                '[VIDEO_CALL] Consultation success - status: ${state.consultation.status}',
               );
               if (state.consultation.status == SessionStatus.completed) {
                 di<ILogger>().info(
-                  'VideoCallWidget: Consultation completed successfully',
+                  '[VIDEO_CALL] Consultation completed successfully',
                 );
                 // Show success message
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -125,7 +140,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
             // Handle consultation update error
             if (state is ConsultationError) {
               di<ILogger>().error(
-                'VideoCallWidget: Consultation error - ${state.message}',
+                '[VIDEO_CALL] Consultation error - ${state.message}',
               );
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -139,9 +154,30 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
         BlocListener<AgoraCubit, AgoraState>(
           listener: (context, state) {
+            di<ILogger>().debug('[VIDEO_CALL] Agora state changed: $state');
+
             state.maybeWhen(
+              loading: () {
+                di<ILogger>().info('[VIDEO_CALL] Agora loading state');
+              },
+              success: (
+                agora,
+                localUserJoined,
+                remoteUid,
+                isMicOn,
+                isCameraOn,
+              ) {
+                di<ILogger>().info('[VIDEO_CALL] Agora success state');
+                di<ILogger>().info(
+                  '[VIDEO_CALL] Local user joined: $localUserJoined',
+                );
+                di<ILogger>().info('[VIDEO_CALL] Remote UID: $remoteUid');
+                di<ILogger>().info(
+                  '[VIDEO_CALL] Mic on: $isMicOn, Camera on: $isCameraOn',
+                );
+              },
               error: (message) {
-                di<ILogger>().error('Agora state error: $message');
+                di<ILogger>().error('[VIDEO_CALL] Agora state error: $message');
                 if (!mounted || _isDisposed) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -159,7 +195,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       child: BlocBuilder<AgoraCubit, AgoraState>(
         builder: (context, state) {
           final agoraCubit = context.read<AgoraCubit>();
-          di<ILogger>().debug('VideoCallWidget: Agora state changed: $state');
+          di<ILogger>().debug('[VIDEO_CALL] Agora state changed: $state');
 
           return Scaffold(
             body: Stack(
@@ -189,7 +225,12 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         RawMaterialButton(
-                          onPressed: () => agoraCubit.toggleMic(),
+                          onPressed: () {
+                            di<ILogger>().info(
+                              '[VIDEO_CALL] Toggling microphone',
+                            );
+                            agoraCubit.toggleMic();
+                          },
                           shape: const CircleBorder(),
                           padding: const EdgeInsets.all(12.0),
                           fillColor:
@@ -205,6 +246,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                         ),
                         RawMaterialButton(
                           onPressed: () async {
+                            di<ILogger>().info(
+                              '[VIDEO_CALL] End consultation button pressed',
+                            );
                             // Show confirmation dialog
                             final shouldEndCall = await showDialog<bool>(
                               context: context,
@@ -239,9 +283,14 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
                             // If user confirmed, proceed with ending the call
                             if (shouldEndCall == true) {
+                              di<ILogger>().info(
+                                '[VIDEO_CALL] User confirmed ending consultation',
+                              );
                               // Validate consultation ID before proceeding
                               if (widget.consultationId.isEmpty) {
-                                debugPrint('Error: Consultation ID is empty');
+                                di<ILogger>().error(
+                                  '[VIDEO_CALL] Error: Consultation ID is empty',
+                                );
                                 if (!mounted || _isDisposed) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
@@ -256,8 +305,8 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                               }
 
                               try {
-                                debugPrint(
-                                  'Updating consultation with ID: ${widget.consultationId}',
+                                di<ILogger>().info(
+                                  '[VIDEO_CALL] Updating consultation with ID: ${widget.consultationId}',
                                 );
                                 // Update consultation status to completed
                                 context
@@ -273,7 +322,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                                 // by the BlocListener in the consultation screen when the update succeeds
                                 // If the update fails, the user will stay in the call and see an error message
                               } catch (e) {
-                                debugPrint('Error ending consultation: $e');
+                                di<ILogger>().error(
+                                  '[VIDEO_CALL] Error ending consultation: $e',
+                                );
                                 if (!mounted || _isDisposed) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
@@ -297,7 +348,10 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                           ),
                         ),
                         RawMaterialButton(
-                          onPressed: () => agoraCubit.toggleCamera(),
+                          onPressed: () {
+                            di<ILogger>().info('[VIDEO_CALL] Toggling camera');
+                            agoraCubit.toggleCamera();
+                          },
                           shape: const CircleBorder(),
                           padding: const EdgeInsets.all(12.0),
                           fillColor:
@@ -327,10 +381,11 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
   Widget _localVideo(AgoraCubit agoraCubit) {
     di<ILogger>().debug(
-      'VideoCallWidget: Local video - joined: ${agoraCubit.localUserJoined}, engine: ${agoraCubit.engine != null}',
+      '[VIDEO_CALL] Local video - joined: ${agoraCubit.localUserJoined}, engine: ${agoraCubit.engine != null}',
     );
 
     if (agoraCubit.localUserJoined && agoraCubit.engine != null) {
+      di<ILogger>().debug('[VIDEO_CALL] Rendering local video view');
       return AgoraVideoView(
         controller: VideoViewController(
           rtcEngine: agoraCubit.engine!,
@@ -341,6 +396,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
       );
     } else {
+      di<ILogger>().debug(
+        '[VIDEO_CALL] Local video not ready, showing placeholder',
+      );
       return Container(
         color: Colors.black54,
         child: Center(
@@ -359,10 +417,13 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
   Widget _remoteVideo(AgoraCubit agoraCubit) {
     di<ILogger>().debug(
-      'VideoCallWidget: Remote video - remoteUid: ${agoraCubit.remoteUid}, engine: ${agoraCubit.engine != null}',
+      '[VIDEO_CALL] Remote video - remoteUid: ${agoraCubit.remoteUid}, engine: ${agoraCubit.engine != null}',
     );
 
     if (agoraCubit.remoteUid != null && agoraCubit.engine != null) {
+      di<ILogger>().debug(
+        '[VIDEO_CALL] Rendering remote video view for UID: ${agoraCubit.remoteUid}',
+      );
       return AgoraVideoView(
         controller: VideoViewController.remote(
           rtcEngine: agoraCubit.engine!,
@@ -371,6 +432,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
       );
     } else {
+      di<ILogger>().debug(
+        '[VIDEO_CALL] Remote video not ready, showing waiting screen',
+      );
       return Container(
         color: Colors.black87,
         child: Center(

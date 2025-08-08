@@ -87,6 +87,12 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         private const val TAG = "CameraUVC"
         private var methodChannel: MethodChannel? = null
         private val mainHandler = Handler(Looper.getMainLooper())
+        
+        // Optimized constants for better stability
+        private const val MAX_FRAME_SIZE = 2000000 // 2MB max frame size
+        private const val MIN_FRAME_INTERVAL_MS = 100 // Minimum 100ms between frames (10 FPS max)
+        private const val MAX_QUEUE_SIZE = 2 // Reduce queue size to prevent memory buildup
+        private const val FRAME_TIMEOUT_MS = 500L // Shorter timeout for frame operations
 
         fun setMethodChannel(channel: MethodChannel) {
             methodChannel = channel
@@ -177,12 +183,19 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     private val frameCallBack = IFrameCallback { frame ->
         frame?.apply {
             try {
+                // Check frame size to prevent memory issues
+                if (capacity() > MAX_FRAME_SIZE) {
+                    Log.w(TAG, "Frame too large (${capacity()} bytes), skipping to prevent memory issues")
+                    return@apply
+                }
+                
                 frame.position(0)
                 val data = ByteArray(capacity())
                 get(data)
+                Log.d(TAG, "Frame callback received: ${data.size} bytes, queue size before: ${mNV21DataQueue.size}")
+                
                 mCameraRequest?.apply {
-                    // Skip size check as it might be different for MJPEG
-                    // for preview callback - ensure continuous delivery
+                    // for preview callback - ensure continuous delivery with error handling
                     mPreviewDataCbList.forEach { cb ->
                         try {
                             cb?.onPreviewData(data, previewWidth, previewHeight, IPreviewDataCallBack.DataFormat.NV21)
@@ -190,17 +203,41 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                             Log.e(TAG, "Error in preview callback", e)
                         }
                     }
-                    // for video frame queue
-                    if (mNV21DataQueue.size >= MAX_NV21_DATA) {
-                        mNV21DataQueue.clear() // Clear old frames to prevent lag
+                    
+                    // Optimized queue management - use smaller queue size and more aggressive cleanup
+                    synchronized(mNV21DataQueue) {
+                        if (mNV21DataQueue.size >= MAX_QUEUE_SIZE) {
+                            Log.d(TAG, "Clearing frame queue, size was: ${mNV21DataQueue.size}")
+                            mNV21DataQueue.clear() // Clear all frames to prevent memory buildup
+                        }
+                        mNV21DataQueue.offerFirst(data)
+                        Log.d(TAG, "Added frame to queue, new queue size: ${mNV21DataQueue.size}")
                     }
-                    mNV21DataQueue.offerFirst(data)
-                    // Update frame immediately
-                    putVideoData(data)
+                    
+                    // Update frame with memory management
+                    try {
+                        putVideoData(data)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error updating video data", e)
+                        // Clear queue on error to prevent memory accumulation
+                        synchronized(mNV21DataQueue) {
+                            mNV21DataQueue.clear()
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing frame", e)
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "Out of memory processing frame", oom)
+                // Force garbage collection
+                System.gc()
+                // Clear queue to free memory
+                synchronized(mNV21DataQueue) {
+                    mNV21DataQueue.clear()
+                }
             }
+        } ?: run {
+            Log.w(TAG, "Frame callback received null frame")
         }
     }
 
@@ -247,8 +284,105 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error capturing frame", e)
+            // Clear queue on critical error to prevent memory issues
+            if (e is OutOfMemoryError || e.message?.contains("memory", ignoreCase = true) == true) {
+                synchronized(mNV21DataQueue) {
+                    mNV21DataQueue.clear()
+                }
+                System.gc()
+            }
             // Return last valid frame on error
             callback?.invoke(lastValidFrame ?: "")
+        }
+    }
+
+    // Direct binary frame capture for otoscopy streaming (no base64 conversion)
+    private var lastValidBinaryFrame: ByteArray? = null
+    private var frameProcessingInProgress = false
+    private val maxBinaryFrameSize = 300 * 1024 // 300KB max frame size - balanced for quality and stability
+    
+    fun captureFrameAsBinary(callback: ((ByteArray) -> Unit)?) {
+        if (!isFrameCaptureActive) {
+            Log.w(TAG, "Frame capture not active, returning empty array")
+            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
+            return
+        }
+
+        // Prevent overlapping frame processing to avoid memory pressure
+        if (frameProcessingInProgress) {
+            Log.d(TAG, "Frame processing already in progress, returning cached frame")
+            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
+            return
+        }
+
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastFrameCaptureTime < MIN_FRAME_INTERVAL_MS) {
+            // Return last valid binary frame if too soon
+            Log.d(TAG, "Frame interval too short (${currentTime - lastFrameCaptureTime}ms), returning cached frame")
+            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
+            return
+        }
+
+        frameProcessingInProgress = true
+        try {
+            // Log queue status for debugging
+            Log.d(TAG, "Frame queue status: size=${mNV21DataQueue.size}, capture_active=$isFrameCaptureActive")
+            
+            // Get current frame data from the queue with thread safety
+            val frameData = synchronized(mNV21DataQueue) {
+                mNV21DataQueue.pollFirst()
+            }
+            
+            if (frameData != null && frameData.isNotEmpty()) {
+                Log.d(TAG, "Retrieved frame data from queue: ${frameData.size} bytes")
+                // Convert NV21/YUV to JPEG binary directly (no base64)
+                convertFrameToJpegBinary(frameData) { jpegBinaryData ->
+                    frameProcessingInProgress = false
+                    if (jpegBinaryData != null && jpegBinaryData.isNotEmpty() && jpegBinaryData.size <= maxBinaryFrameSize) {
+                        // Clear old frame to prevent memory accumulation
+                        lastValidBinaryFrame?.let { 
+                            // Help GC by nullifying reference
+                            lastValidBinaryFrame = null
+                        }
+                        lastValidBinaryFrame = jpegBinaryData
+                        lastFrameCaptureTime = currentTime
+                        Log.d(TAG, "Direct binary frame captured: ${jpegBinaryData.size} bytes")
+                        callback?.invoke(jpegBinaryData)
+                    } else {
+                        // Return last valid binary frame if current frame is invalid or too large
+                        if (jpegBinaryData != null && jpegBinaryData.size > maxBinaryFrameSize) {
+                            Log.w(TAG, "Frame too large (${jpegBinaryData.size} bytes), skipping to prevent memory issues")
+                        }
+                        callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
+                    }
+                }
+            } else {
+                Log.w(TAG, "No frame data available in queue (queue size: ${mNV21DataQueue.size})")
+                // Return last valid binary frame if no new frame available
+                callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
+            }
+        } catch (e: Exception) {
+            frameProcessingInProgress = false
+            Log.e(TAG, "Error capturing binary frame", e)
+            
+            // Handle memory-related errors more aggressively
+            if (e is OutOfMemoryError || e.message?.contains("memory", ignoreCase = true) == true) {
+                Log.e(TAG, "Memory error detected, clearing all cached data", e)
+                // Clear all cached data and force garbage collection
+                lastValidBinaryFrame = null
+                lastValidFrame = null
+                synchronized(mNV21DataQueue) {
+                    mNV21DataQueue.clear()
+                }
+                System.gc()
+                
+                // Return empty array to indicate error state
+                callback?.invoke(ByteArray(0))
+                return
+            }
+            
+            // Return last valid binary frame on error
+            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
         }
     }
 
@@ -348,16 +482,97 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         }
     }
 
+    // Direct JPEG binary conversion (no base64 encoding)
+    private fun convertFrameToJpegBinary(frameData: ByteArray, callback: ((ByteArray?) -> Unit)?) {
+        try {
+            frameCounter++
+            
+            // Validate frame data
+            if (frameData.isEmpty()) {
+                Log.w(TAG, "uvc_stream_binary: Empty frame data received")
+                callback?.invoke(null)
+                return
+            }
+            
+            // Convert NV21 to JPEG binary directly
+            val width = mCameraRequest?.previewWidth ?: 640
+            val height = mCameraRequest?.previewHeight ?: 480
+            
+            // Validate dimensions
+            if (width <= 0 || height <= 0) {
+                Log.w(TAG, "uvc_stream_binary: Invalid dimensions: ${width}x${height}")
+                callback?.invoke(null)
+                return
+            }
+            
+            // Create a YuvImage from the frame data
+            val yuvImage = android.graphics.YuvImage(
+                frameData,
+                android.graphics.ImageFormat.NV21,
+                width,
+                height,
+                null
+            )
+            
+            // Convert to JPEG with lower quality to reduce memory usage
+            val outputStream = java.io.ByteArrayOutputStream()
+            val success = yuvImage.compressToJpeg(
+                android.graphics.Rect(0, 0, width, height),
+                60, // Reduced quality to prevent memory issues (was 80)
+                outputStream
+            )
+            
+            if (!success) {
+                Log.w(TAG, "uvc_stream_binary: Failed to compress frame to JPEG")
+                callback?.invoke(null)
+                return
+            }
+            
+            // Get the raw JPEG binary data (no base64 conversion)
+            val jpegBinaryData = outputStream.toByteArray()
+            outputStream.close()
+            
+            // Validate JPEG binary data
+            if (jpegBinaryData.isEmpty() || jpegBinaryData.size < 100) {
+                Log.w(TAG, "uvc_stream_binary: Invalid JPEG binary data size: ${jpegBinaryData.size}")
+                callback?.invoke(null)
+                return
+            }
+            
+            Log.d(TAG, "uvc_stream_binary: Frame #$frameCounter converted to JPEG binary (${jpegBinaryData.size} bytes)")
+            callback?.invoke(jpegBinaryData)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error converting frame to JPEG binary", e)
+            callback?.invoke(null)
+        }
+    }
+
     // Add methods to control frame capture
     fun startFrameCapture() {
         isFrameCaptureActive = true
+        frameProcessingInProgress = false // Reset processing flag
         lastFrameCaptureTime = 0 // Reset timer
         Log.d(TAG, "uvc_stream: Frame capture started")
     }
 
     fun stopFrameCapture() {
         isFrameCaptureActive = false
-        Log.d(TAG, "uvc_stream: Frame capture stopped")
+        frameProcessingInProgress = false // Reset processing flag
+        
+        // Clear cached frames and force memory cleanup
+        lastValidFrame = null
+        lastValidBinaryFrame = null
+        
+        // Clear frame queue with synchronization
+        synchronized(mNV21DataQueue) {
+            mNV21DataQueue.clear()
+        }
+        
+        // Force garbage collection to free memory immediately
+        System.gc()
+        
+        Log.d(TAG, "uvc_stream: Frame capture stopped and memory cleared")
     }
 
     override fun getAllPreviewSizes(aspectRatio: Double?): MutableList<PreviewSize> {
@@ -495,6 +710,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         }
 
         // Set frame callback for preview
+        Log.d(TAG, "Setting frame callback for preview")
         mUvcCamera?.setFrameCallback(frameCallBack, UVCCamera.PIXEL_FORMAT_YUV420SP)
 
         // 3. start preview

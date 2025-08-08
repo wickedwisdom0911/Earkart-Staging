@@ -6,6 +6,7 @@ class AgoraEntity {
   final DateTime createdAt;
   final bool isUVC;
   final String? tokenUVC; // Separate token for UVC camera streaming
+  final int? userIdUVC; // Separate user ID for UVC camera streaming
 
   AgoraEntity({
     required this.token,
@@ -15,6 +16,7 @@ class AgoraEntity {
     DateTime? createdAt,
     required this.isUVC,
     this.tokenUVC,
+    this.userIdUVC,
   }) : createdAt = createdAt ?? DateTime.now();
 
   factory AgoraEntity.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,7 @@ class AgoraEntity {
               : DateTime.now(),
       isUVC: json['isUVC'] as bool? ?? false,
       tokenUVC: json['tokenUVC'] as String?,
+      userIdUVC: json['userIdUVC'] as int?,
     );
   }
 
@@ -44,6 +47,7 @@ class AgoraEntity {
       'createdAt': createdAt.toIso8601String(),
       'isUVC': isUVC,
       'tokenUVC': tokenUVC,
+      'userIdUVC': userIdUVC,
     };
   }
 
@@ -78,6 +82,14 @@ class AgoraEntity {
     return token;
   }
 
+  /// Get the appropriate user ID based on UVC flag
+  int get appropriateUserId {
+    if (isUVC && userIdUVC != null) {
+      return userIdUVC!;
+    }
+    return userId;
+  }
+
   /// Create a copy with updated properties
   AgoraEntity copyWith({
     String? token,
@@ -87,6 +99,7 @@ class AgoraEntity {
     DateTime? createdAt,
     bool? isUVC,
     String? tokenUVC,
+    int? userIdUVC,
   }) {
     return AgoraEntity(
       token: token ?? this.token,
@@ -96,6 +109,7 @@ class AgoraEntity {
       createdAt: createdAt ?? this.createdAt,
       isUVC: isUVC ?? this.isUVC,
       tokenUVC: tokenUVC ?? this.tokenUVC,
+      userIdUVC: userIdUVC ?? this.userIdUVC,
     );
   }
 }

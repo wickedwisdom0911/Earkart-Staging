@@ -23,6 +23,8 @@ class AgoraModelData extends AgoraEntity {
     required super.isUVC,
     super.expiresAt,
     super.createdAt,
+    super.tokenUVC,
+    super.userIdUVC,
   });
 
   factory AgoraModelData.fromJson(Map<String, dynamic> json) {
@@ -39,6 +41,8 @@ class AgoraModelData extends AgoraEntity {
           json['createdAt'] != null
               ? DateTime.parse(json['createdAt'] as String)
               : DateTime.now(),
+      tokenUVC: json['tokenUVC'],
+      userIdUVC: json['userIdUVC'],
     );
   }
 }
