@@ -620,8 +620,33 @@ class AgoraCubit extends Cubit<AgoraState> {
     }
   }
 
+  // Circuit breaker for Agora operations to prevent cascading failures
+  bool _agoraCircuitBreakerOpen = false;
+  int _agoraConsecutiveFailures = 0;
+  DateTime? _lastAgoraFailure;
+  static const int _maxAgoraFailures = 2; // Very conservative
+  static const Duration _agoraCircuitBreakerTimeout = Duration(seconds: 15);
+
   /// Push video frame from UVC camera to Agora stream with enhanced error handling
   Future<void> pushUvcVideoFrame(ExternalVideoFrame frame) async {
+    // Check circuit breaker first
+    if (_agoraCircuitBreakerOpen) {
+      if (_lastAgoraFailure != null &&
+          DateTime.now().difference(_lastAgoraFailure!) >
+              _agoraCircuitBreakerTimeout) {
+        _agoraCircuitBreakerOpen = false;
+        _agoraConsecutiveFailures = 0;
+        di<ILogger>().info(
+          '[UVC_AGORA] Circuit breaker reset, attempting frame push',
+        );
+      } else {
+        di<ILogger>().debug(
+          '[UVC_AGORA] Circuit breaker open, skipping frame to prevent crash',
+        );
+        return;
+      }
+    }
+
     if (!_isInitialized || !_isUvcStreamingEnabled || _engine == null) {
       di<ILogger>().debug(
         '[UVC_AGORA] Cannot push frame - engine not ready or UVC disabled',
@@ -630,29 +655,58 @@ class AgoraCubit extends Cubit<AgoraState> {
     }
 
     try {
-      // Validate frame data before pushing
+      // COMPREHENSIVE frame validation
       if (frame.buffer == null || frame.buffer!.isEmpty) {
         di<ILogger>().warning('[UVC_AGORA] Empty frame buffer, skipping push');
+        _handleAgoraFailure();
         return;
       }
 
-      // MUCH MORE AGGRESSIVE frame size checking to prevent crashes
-      if (frame.buffer!.length > 100000) {
-        // 100KB max - REDUCED from 500KB
+      // ULTRA CONSERVATIVE frame size checking
+      if (frame.buffer!.length > 30000) {
+        // 30KB max - DRASTICALLY REDUCED
         di<ILogger>().warning(
-          '[UVC_AGORA] Frame too large (${frame.buffer!.length} bytes), skipping to prevent memory issues',
+          '[UVC_AGORA] Frame too large (${frame.buffer!.length} bytes), skipping to prevent crash',
         );
         return;
       }
 
-      // CRITICAL: Add small delay between frame pushes to prevent system overload
-      await Future.delayed(const Duration(milliseconds: 5));
+      // Additional frame validation - check for reasonable buffer size patterns
+      final bufferSize = frame.buffer!.length;
+      if (bufferSize < 1000 || bufferSize > 30000) {
+        // Reasonable size range
+        di<ILogger>().warning(
+          '[UVC_AGORA] Suspicious frame buffer size: $bufferSize bytes',
+        );
+        _handleAgoraFailure();
+        return;
+      }
 
-      await _engine!.getMediaEngine().pushVideoFrame(frame: frame);
+      // CRITICAL: Longer delay between frame pushes to prevent system overload
+      await Future.delayed(const Duration(milliseconds: 15)); // Increased delay
 
-      // Update UVC frame statistics
+      // Wrap the critical operation with timeout
+      await _engine!
+          .getMediaEngine()
+          .pushVideoFrame(frame: frame)
+          .timeout(
+            const Duration(seconds: 2),
+            onTimeout: () {
+              di<ILogger>().error(
+                '[UVC_AGORA] Frame push timeout - preventing hang',
+              );
+              _handleAgoraFailure();
+              throw TimeoutException(
+                'Frame push timeout',
+                const Duration(seconds: 2),
+              );
+            },
+          );
+
+      // Update UVC frame statistics and reset failure counter on success
       _uvcFramesPushed++;
       _lastUvcFrameTime = DateTime.now();
+      _agoraConsecutiveFailures = 0; // Reset on success
 
       // Reduced logging frequency to prevent spam (every 100 frames instead of 60)
       if (_uvcFramesPushed % 100 == 0) {
@@ -663,34 +717,54 @@ class AgoraCubit extends Cubit<AgoraState> {
 
       // Add success logging to verify frames are being pushed
       di<ILogger>().debug(
-        '[UVC_AGORA] Successfully pushed UVC frame to Agora engine',
+        '[UVC_AGORA] Successfully pushed UVC frame to Agora engine (${frame.buffer!.length} bytes)',
       );
     } catch (e) {
       di<ILogger>().error('[UVC_AGORA] Error pushing UVC frame: $e');
+      _handleAgoraFailure();
 
       // Check for critical errors that might indicate system issues
       if (e.toString().contains('OutOfMemory') ||
           e.toString().contains('memory') ||
-          e.toString().contains('allocation')) {
+          e.toString().contains('allocation') ||
+          e.toString().contains('timeout') ||
+          e.toString().contains('crash')) {
         di<ILogger>().error(
-          '[UVC_AGORA] Memory-related error detected, disabling UVC streaming temporarily',
+          '[UVC_AGORA] Critical error detected, disabling UVC streaming to prevent crash',
         );
 
-        // Temporarily disable UVC streaming to prevent system crash
+        // Immediately disable UVC streaming to prevent system crash
         _isUvcStreamingEnabled = false;
+        _agoraCircuitBreakerOpen = true; // Open circuit breaker immediately
 
-        // Schedule re-enable after a delay
-        Future.delayed(const Duration(seconds: 10), () {
+        // Schedule re-enable after a longer delay for critical errors
+        Future.delayed(const Duration(seconds: 30), () {
           if (!_isDisposed && _isInitialized) {
             di<ILogger>().info(
-              '[UVC_AGORA] Re-enabling UVC streaming after memory error recovery',
+              '[UVC_AGORA] Re-enabling UVC streaming after critical error recovery',
             );
+            _agoraCircuitBreakerOpen = false;
+            _agoraConsecutiveFailures = 0;
             enableUvcStreaming();
           }
         });
 
-        rethrow; // Re-throw memory errors so they can be handled upstream
+        // Don't rethrow - let the circuit breaker handle it
+        return;
       }
+    }
+  }
+
+  /// Handle Agora operation failures and manage circuit breaker
+  void _handleAgoraFailure() {
+    _agoraConsecutiveFailures++;
+    _lastAgoraFailure = DateTime.now();
+
+    if (_agoraConsecutiveFailures >= _maxAgoraFailures) {
+      _agoraCircuitBreakerOpen = true;
+      di<ILogger>().warning(
+        '[UVC_AGORA] Circuit breaker opened after $_agoraConsecutiveFailures consecutive failures',
+      );
     }
   }
 

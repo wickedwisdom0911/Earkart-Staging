@@ -58,14 +58,14 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   int _consecutiveFailures = 0;
   DateTime? _lastSuccessfulFrame;
   Duration _currentFrameInterval = const Duration(
-    milliseconds: 3000,
-  ); // Start at 0.33 FPS for maximum stability - REDUCED
+    milliseconds: 10000,
+  ); // Start at 0.1 FPS for ULTRA stability - FURTHER REDUCED
   static const Duration _minFrameInterval = const Duration(
-    milliseconds: 2000,
-  ); // Max 0.5 FPS to prevent system overload - REDUCED
+    milliseconds: 5000,
+  ); // Max 0.2 FPS to prevent system overload - FURTHER REDUCED
   static const Duration _maxFrameInterval = const Duration(
-    milliseconds: 15000,
-  ); // Min 0.067 FPS for emergency throttling - INCREASED
+    milliseconds: 30000,
+  ); // Min 0.033 FPS for emergency throttling - FURTHER INCREASED
   static const int _maxConsecutiveFailures =
       2; // Further reduced to prevent crashes
 
@@ -1451,11 +1451,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
       // Try to push frame with optimized settings for JPEG data
       try {
-        // CRITICAL: Force garbage collection before heavy operations to prevent memory pressure
-        if (_framesPushed % 3 == 0) {
-          // Every 3 frames
-          // Request garbage collection to prevent memory buildup
-          await Future.delayed(const Duration(milliseconds: 10));
+        // CRITICAL: Force garbage collection and memory management for stability
+        if (_framesPushed % 2 == 0) {
+          // Every 2 frames - more frequent memory management
+          // Add longer delay to allow system recovery and prevent overload
+          await Future.delayed(const Duration(milliseconds: 100));
         }
 
         await agoraCubit
