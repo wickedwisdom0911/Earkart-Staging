@@ -12,6 +12,7 @@ class AgoraState with _$AgoraState {
     int? remoteUid,
     @Default(true) bool isMicOn,
     @Default(true) bool isCameraOn,
+    @Default(false) bool isScreenSharing,
   }) = AgoraSuccess;
   const factory AgoraState.error({required String message}) = AgoraError;
 }

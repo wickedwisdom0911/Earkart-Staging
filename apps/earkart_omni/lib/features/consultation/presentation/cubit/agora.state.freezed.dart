@@ -21,7 +21,7 @@ mixin _$AgoraState {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(AgoraEntity agora, bool localUserJoined,
-            int? remoteUid, bool isMicOn, bool isCameraOn)
+            int? remoteUid, bool isMicOn, bool isCameraOn, bool isScreenSharing)
         success,
     required TResult Function(String message) error,
   }) =>
@@ -31,7 +31,7 @@ mixin _$AgoraState {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
-            bool isMicOn, bool isCameraOn)?
+            bool isMicOn, bool isCameraOn, bool isScreenSharing)?
         success,
     TResult? Function(String message)? error,
   }) =>
@@ -41,7 +41,7 @@ mixin _$AgoraState {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
-            bool isMicOn, bool isCameraOn)?
+            bool isMicOn, bool isCameraOn, bool isScreenSharing)?
         success,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -139,7 +139,7 @@ class _$AgoraInitialImpl implements AgoraInitial {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(AgoraEntity agora, bool localUserJoined,
-            int? remoteUid, bool isMicOn, bool isCameraOn)
+            int? remoteUid, bool isMicOn, bool isCameraOn, bool isScreenSharing)
         success,
     required TResult Function(String message) error,
   }) {
@@ -152,7 +152,7 @@ class _$AgoraInitialImpl implements AgoraInitial {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
-            bool isMicOn, bool isCameraOn)?
+            bool isMicOn, bool isCameraOn, bool isScreenSharing)?
         success,
     TResult? Function(String message)? error,
   }) {
@@ -165,7 +165,7 @@ class _$AgoraInitialImpl implements AgoraInitial {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
-            bool isMicOn, bool isCameraOn)?
+            bool isMicOn, bool isCameraOn, bool isScreenSharing)?
         success,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -262,7 +262,7 @@ class _$AgoraLoadingImpl implements AgoraLoading {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(AgoraEntity agora, bool localUserJoined,
-            int? remoteUid, bool isMicOn, bool isCameraOn)
+            int? remoteUid, bool isMicOn, bool isCameraOn, bool isScreenSharing)
         success,
     required TResult Function(String message) error,
   }) {
@@ -275,7 +275,7 @@ class _$AgoraLoadingImpl implements AgoraLoading {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
-            bool isMicOn, bool isCameraOn)?
+            bool isMicOn, bool isCameraOn, bool isScreenSharing)?
         success,
     TResult? Function(String message)? error,
   }) {
@@ -288,7 +288,7 @@ class _$AgoraLoadingImpl implements AgoraLoading {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
-            bool isMicOn, bool isCameraOn)?
+            bool isMicOn, bool isCameraOn, bool isScreenSharing)?
         success,
     TResult Function(String message)? error,
     required TResult orElse(),
@@ -352,7 +352,8 @@ abstract class _$$AgoraSuccessImplCopyWith<$Res> {
       bool localUserJoined,
       int? remoteUid,
       bool isMicOn,
-      bool isCameraOn});
+      bool isCameraOn,
+      bool isScreenSharing});
 }
 
 /// @nodoc
@@ -373,6 +374,7 @@ class __$$AgoraSuccessImplCopyWithImpl<$Res>
     Object? remoteUid = freezed,
     Object? isMicOn = null,
     Object? isCameraOn = null,
+    Object? isScreenSharing = null,
   }) {
     return _then(_$AgoraSuccessImpl(
       agora: null == agora
@@ -395,6 +397,10 @@ class __$$AgoraSuccessImplCopyWithImpl<$Res>
           ? _value.isCameraOn
           : isCameraOn // ignore: cast_nullable_to_non_nullable
               as bool,
+      isScreenSharing: null == isScreenSharing
+          ? _value.isScreenSharing
+          : isScreenSharing // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -407,7 +413,8 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
       this.localUserJoined = false,
       this.remoteUid,
       this.isMicOn = true,
-      this.isCameraOn = true});
+      this.isCameraOn = true,
+      this.isScreenSharing = false});
 
   @override
   final AgoraEntity agora;
@@ -422,10 +429,13 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
   @override
   @JsonKey()
   final bool isCameraOn;
+  @override
+  @JsonKey()
+  final bool isScreenSharing;
 
   @override
   String toString() {
-    return 'AgoraState.success(agora: $agora, localUserJoined: $localUserJoined, remoteUid: $remoteUid, isMicOn: $isMicOn, isCameraOn: $isCameraOn)';
+    return 'AgoraState.success(agora: $agora, localUserJoined: $localUserJoined, remoteUid: $remoteUid, isMicOn: $isMicOn, isCameraOn: $isCameraOn, isScreenSharing: $isScreenSharing)';
   }
 
   @override
@@ -440,12 +450,14 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
                 other.remoteUid == remoteUid) &&
             (identical(other.isMicOn, isMicOn) || other.isMicOn == isMicOn) &&
             (identical(other.isCameraOn, isCameraOn) ||
-                other.isCameraOn == isCameraOn));
+                other.isCameraOn == isCameraOn) &&
+            (identical(other.isScreenSharing, isScreenSharing) ||
+                other.isScreenSharing == isScreenSharing));
   }
 
   @override
-  int get hashCode => Object.hash(
-      runtimeType, agora, localUserJoined, remoteUid, isMicOn, isCameraOn);
+  int get hashCode => Object.hash(runtimeType, agora, localUserJoined,
+      remoteUid, isMicOn, isCameraOn, isScreenSharing);
 
   /// Create a copy of AgoraState
   /// with the given fields replaced by the non-null parameter values.
@@ -461,11 +473,12 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(AgoraEntity agora, bool localUserJoined,
-            int? remoteUid, bool isMicOn, bool isCameraOn)
+            int? remoteUid, bool isMicOn, bool isCameraOn, bool isScreenSharing)
         success,
     required TResult Function(String message) error,
   }) {
-    return success(agora, localUserJoined, remoteUid, isMicOn, isCameraOn);
+    return success(agora, localUserJoined, remoteUid, isMicOn, isCameraOn,
+        isScreenSharing);
   }
 
   @override
@@ -474,12 +487,12 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
-            bool isMicOn, bool isCameraOn)?
+            bool isMicOn, bool isCameraOn, bool isScreenSharing)?
         success,
     TResult? Function(String message)? error,
   }) {
-    return success?.call(
-        agora, localUserJoined, remoteUid, isMicOn, isCameraOn);
+    return success?.call(agora, localUserJoined, remoteUid, isMicOn, isCameraOn,
+        isScreenSharing);
   }
 
   @override
@@ -488,13 +501,14 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
-            bool isMicOn, bool isCameraOn)?
+            bool isMicOn, bool isCameraOn, bool isScreenSharing)?
         success,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
     if (success != null) {
-      return success(agora, localUserJoined, remoteUid, isMicOn, isCameraOn);
+      return success(agora, localUserJoined, remoteUid, isMicOn, isCameraOn,
+          isScreenSharing);
     }
     return orElse();
   }
@@ -543,13 +557,15 @@ abstract class AgoraSuccess implements AgoraState {
       final bool localUserJoined,
       final int? remoteUid,
       final bool isMicOn,
-      final bool isCameraOn}) = _$AgoraSuccessImpl;
+      final bool isCameraOn,
+      final bool isScreenSharing}) = _$AgoraSuccessImpl;
 
   AgoraEntity get agora;
   bool get localUserJoined;
   int? get remoteUid;
   bool get isMicOn;
   bool get isCameraOn;
+  bool get isScreenSharing;
 
   /// Create a copy of AgoraState
   /// with the given fields replaced by the non-null parameter values.
@@ -629,7 +645,7 @@ class _$AgoraErrorImpl implements AgoraError {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(AgoraEntity agora, bool localUserJoined,
-            int? remoteUid, bool isMicOn, bool isCameraOn)
+            int? remoteUid, bool isMicOn, bool isCameraOn, bool isScreenSharing)
         success,
     required TResult Function(String message) error,
   }) {
@@ -642,7 +658,7 @@ class _$AgoraErrorImpl implements AgoraError {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
-            bool isMicOn, bool isCameraOn)?
+            bool isMicOn, bool isCameraOn, bool isScreenSharing)?
         success,
     TResult? Function(String message)? error,
   }) {
@@ -655,7 +671,7 @@ class _$AgoraErrorImpl implements AgoraError {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(AgoraEntity agora, bool localUserJoined, int? remoteUid,
-            bool isMicOn, bool isCameraOn)?
+            bool isMicOn, bool isCameraOn, bool isScreenSharing)?
         success,
     TResult Function(String message)? error,
     required TResult orElse(),

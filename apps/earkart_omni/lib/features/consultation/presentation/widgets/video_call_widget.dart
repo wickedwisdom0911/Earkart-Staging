@@ -166,6 +166,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                 remoteUid,
                 isMicOn,
                 isCameraOn,
+                isScreenSharing,
               ) {
                 di<ILogger>().info('[VIDEO_CALL] Agora success state');
                 di<ILogger>().info(
@@ -364,6 +365,30 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                                 agoraCubit.isCameraOn
                                     ? Colors.black
                                     : Colors.white,
+                            size: 20.0,
+                          ),
+                        ),
+                        RawMaterialButton(
+                          onPressed: () {
+                            di<ILogger>().info(
+                              '[VIDEO_CALL] Toggling screen sharing',
+                            );
+                            agoraCubit.toggleScreenSharing();
+                          },
+                          shape: const CircleBorder(),
+                          padding: const EdgeInsets.all(12.0),
+                          fillColor:
+                              agoraCubit.isScreenSharing
+                                  ? Colors.green
+                                  : Colors.white,
+                          child: Icon(
+                            agoraCubit.isScreenSharing
+                                ? Icons.screen_share
+                                : Icons.screen_share_outlined,
+                            color:
+                                agoraCubit.isScreenSharing
+                                    ? Colors.white
+                                    : Colors.black,
                             size: 20.0,
                           ),
                         ),
