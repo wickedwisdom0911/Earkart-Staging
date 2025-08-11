@@ -5,6 +5,7 @@ import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
@@ -44,25 +45,19 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   UsbDevice? r15cDevice;
   UsbDevice? revo2Device;
   TestType? testType;
-  // Only track status, not data
   dynamic _lastImpedanceStatus;
-  // Track if report should be shown (for split screen)
   bool _showReport = false;
-  // Track if camera should be shown (for split screen)
   bool _showCamera = false;
-  // Track if socket reconnection has failed
   bool _socketReconnectFailed = false;
-  // Global key to maintain video widget state
   final GlobalKey _videoWidgetKey = GlobalKey();
-  // Keep video widget instance to prevent rebuilding
   VideoCallWidget? _videoWidget;
 
-  // Device event debouncing
   Timer? _deviceEventDebounceTimer;
   CommunicationState? _lastEmittedDeviceState;
   bool _isCameraOpen = false;
+  bool _lastEmittedR15cConnected = false;
+  bool _lastEmittedRevo2Connected = false;
 
-  // Debounce duration for device events
   static const Duration _deviceEventDebounceDuration = Duration(
     milliseconds: 500,
   );
@@ -74,6 +69,27 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
   void _initializeScreen() {
     context.read<ConsultationCubit>().getCurrentConsultation();
+    // Force device state check to ensure proper device detection
+    try {
+      di<DeviceCubit>().forceDeviceCheck();
+      di<ILogger>().debug(
+        'Force device check triggered on consultation screen init',
+      );
+
+      // Add a delayed check as well to handle timing issues
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          try {
+            di<DeviceCubit>().forceDeviceCheck();
+            di<ILogger>().debug('Delayed force device check triggered');
+          } catch (e) {
+            di<ILogger>().error('Error in delayed force device check: $e');
+          }
+        }
+      });
+    } catch (e) {
+      di<ILogger>().error('Error forcing device check: $e');
+    }
   }
 
   Future<void> _initializeDeviceWithRetry(UsbDevice device) async {
@@ -133,6 +149,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     super.didChangeDependencies();
     if (!_isInitialized) {
       context.read<AuthCubit>().getCurrentUser();
+      // Also trigger a device state refresh to ensure proper sync
+      try {
+        di<DeviceCubit>().forceDeviceCheck();
+        di<ILogger>().debug(
+          'Force device check triggered in didChangeDependencies',
+        );
+      } catch (e) {
+        di<ILogger>().error(
+          'Error forcing device check in didChangeDependencies: $e',
+        );
+      }
       _isInitialized = true;
     }
   }
@@ -428,6 +455,28 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         di<ILogger>().error('Error handling generate-report:stop event: $e');
       }
     });
+
+    socket.on("otoscopy-started", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('Otoscopy started: $data');
+      if (revo2Device != null) {
+        setState(() {
+          _showCamera = true;
+        });
+        _updateCameraState(true);
+      } else {
+        _showErrorSnackBar('Please Connect Video Otoscope');
+      }
+    });
+
+    socket.on("otoscopy-stopped", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('Otoscopy stopped: $data');
+      setState(() {
+        _showCamera = false;
+      });
+      _updateCameraState(false);
+    });
   }
 
   void _tryJoinConsultation() {
@@ -539,52 +588,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 );
               },
             ),
-
-          // Camera toggle button
-          BlocBuilder<DeviceCubit, DeviceState>(
-            builder: (context, deviceState) {
-              final hasRevo2Device = deviceState.maybeWhen(
-                success:
-                    (devices, r15cDevice, revo2Device) => revo2Device != null,
-                orElse: () => false,
-              );
-
-              di<ILogger>().debug(
-                'Camera toggle button: hasRevo2Device = $hasRevo2Device, _showCamera = $_showCamera',
-              );
-
-              if (hasRevo2Device) {
-                return IconButton(
-                  icon: Icon(
-                    _showCamera ? Icons.videocam : Icons.videocam_off,
-                    color: _showCamera ? Colors.blue : Colors.grey,
-                  ),
-                  tooltip: _showCamera ? 'Hide Camera' : 'Show Camera',
-                  onPressed: () {
-                    di<ILogger>().debug(
-                      'Camera toggle button pressed - toggling _showCamera from $_showCamera',
-                    );
-
-                    // Add delay before toggling to prevent rapid state changes
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      if (mounted) {
-                        setState(() {
-                          _showCamera = !_showCamera;
-                          // Hide report if showing camera
-                          if (_showCamera) {
-                            _showReport = false;
-                          }
-                          // Update camera state when toggling
-                          _updateCameraState(_showCamera);
-                        });
-                      }
-                    });
-                  },
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
 
           // Report toggle button
           IconButton(
@@ -701,6 +704,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   final wasRevo2Connected = this.revo2Device != null;
                   final isNowRevo2Connected = revo2Device != null;
 
+                  di<ILogger>().debug(
+                    '🔍 Device state update - R15C: $wasConnected -> $isNowConnected, Revo2: $wasRevo2Connected -> $isNowRevo2Connected',
+                  );
+                  di<ILogger>().debug(
+                    '📋 Total devices: ${devices.length}, R15C device: ${r15cDevice?.toString() ?? 'null'}, Revo2 device: ${revo2Device?.toString() ?? 'null'}',
+                  );
+
                   // Update device references
                   this.r15cDevice = r15cDevice;
                   this.revo2Device = revo2Device;
@@ -728,12 +738,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     );
 
                     // Auto-show camera when Revo2 is connected with delay
-                    if (isNowRevo2Connected && !_showCamera) {
+                    if (isNowRevo2Connected && _showCamera) {
                       // Add delay before showing camera to ensure device is stable
-                      Future.delayed(const Duration(seconds: 2), () {
+                      Future.delayed(const Duration(seconds: 1), () {
                         if (mounted) {
                           setState(() {
-                            _showCamera = true;
                             _showReport =
                                 false; // Hide report when showing camera
                           });
@@ -743,6 +752,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                       });
                     } else if (!isNowRevo2Connected && _showCamera) {
                       // Hide camera immediately when device is disconnected
+                      di<ILogger>().info(
+                        '📷 Revo2 device disconnected, hiding camera and reverting to full screen',
+                      );
                       setState(() {
                         _showCamera = false;
                       });
@@ -1030,19 +1042,65 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       );
       setState(() {
         _isCameraOpen = isOpen;
+        // If camera is closed, also hide the camera view to revert to full screen
+        if (!isOpen) {
+          _showCamera = false;
+          di<ILogger>().info(
+            '📷 Camera closed, hiding camera view and reverting to full screen',
+          );
+        }
       });
+
+      // Handle automatic screen sharing based on camera state
+      _handleAutomaticScreenSharing(isOpen);
+
       // Trigger device event emission with camera state change
       _scheduleDeviceEventEmission(context.read<CommunicationCubit>().state);
     }
   }
 
+  // Handle automatic screen sharing based on UVC camera state
+  void _handleAutomaticScreenSharing(bool cameraIsOpen) {
+    if (!mounted) return;
+
+    try {
+      final agoraCubit = context.read<AgoraCubit>();
+
+      if (cameraIsOpen) {
+        // Start screen sharing when UVC camera opens
+        if (!agoraCubit.isScreenSharing) {
+          di<ILogger>().info(
+            '📷🖥️ UVC camera opened - starting automatic screen sharing',
+          );
+          agoraCubit.toggleScreenSharing();
+        }
+      } else {
+        // Stop screen sharing when UVC camera closes
+        if (agoraCubit.isScreenSharing) {
+          di<ILogger>().info(
+            '📷🖥️ UVC camera closed - stopping automatic screen sharing',
+          );
+          agoraCubit.toggleScreenSharing();
+        }
+      }
+    } catch (e) {
+      di<ILogger>().error('❌ Error handling automatic screen sharing: $e');
+    }
+  }
+
   // Check if device state has meaningful changes
   bool _hasDeviceStateChanged(CommunicationState newState) {
-    if (_lastEmittedDeviceState == null) return true;
+    if (_lastEmittedDeviceState == null) {
+      di<ILogger>().debug('First device state check - emitting');
+      return true;
+    }
 
     final last = _lastEmittedDeviceState!;
+    final currentR15cConnected = r15cDevice != null;
+    final currentRevo2Connected = revo2Device != null;
 
-    return last.isConnected != newState.isConnected ||
+    final hasChanges =
+        last.isConnected != newState.isConnected ||
         last.isSynced != newState.isSynced ||
         last.isReleased != newState.isReleased ||
         last.isInBeginMode != newState.isInBeginMode ||
@@ -1051,7 +1109,21 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         last.connectionStatus != newState.connectionStatus ||
         last.transducerResponse != newState.transducerResponse ||
         last.error != newState.error ||
-        _isCameraOpen != newState.isCameraOpen;
+        _isCameraOpen != newState.isCameraOpen ||
+        _lastEmittedR15cConnected != currentR15cConnected ||
+        _lastEmittedRevo2Connected != currentRevo2Connected;
+
+    if (!hasChanges) {
+      di<ILogger>().debug(
+        'Device state check - no changes detected (R15C: ${_lastEmittedR15cConnected} -> $currentR15cConnected, Revo2: ${_lastEmittedRevo2Connected} -> $currentRevo2Connected, Camera: ${_isCameraOpen})',
+      );
+    } else {
+      di<ILogger>().debug(
+        'Device state check - changes detected (R15C: ${_lastEmittedR15cConnected} -> $currentR15cConnected, Revo2: ${_lastEmittedRevo2Connected} -> $currentRevo2Connected, Camera: ${_isCameraOpen})',
+      );
+    }
+
+    return hasChanges;
   }
 
   // Force device event emission for any USB device-related event
@@ -1113,7 +1185,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       '⏰ Scheduling device event emission (debounced for ${_deviceEventDebounceDuration.inMilliseconds}ms)',
     );
     di<ILogger>().debug(
-      '📋 State changes detected - Connected: ${state.isConnected}, Synced: ${state.isSynced}, Camera: $_isCameraOpen',
+      '📋 State changes detected - Connected: ${state.isConnected}, Synced: ${state.isSynced}, Camera: $_isCameraOpen, R15C: ${r15cDevice != null}, Revo2: ${revo2Device != null}',
     );
 
     // Schedule new emission with debounce
@@ -1127,7 +1199,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void _emitDeviceEvent(CommunicationState state) {
     if (_isSocketInitialized) {
       String connectionStatus = "Disconnected";
-      di<ILogger>().debug('Emitting device event: ${state}');
       if (state.isInBeginMode) {
         connectionStatus = "begin";
       } else if (state.transducerResponse != null) {
@@ -1144,6 +1215,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "connectionStatus": connectionStatus,
         "transducerResponse": state.transducerResponse,
         "isCameraOpen": _isCameraOpen,
+        "showingCamera": _showCamera,
+        "showingReport": _showReport,
         "deviceState": {
           "isConnected": state.isConnected,
           "isSynced": state.isSynced,
@@ -1154,6 +1227,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           "connectionStatus": state.connectionStatus,
           "error": state.error,
         },
+        "tabletState": {
+          "batterylevel": state.tabletBatteryLevel.toString(),
+          "isCharging": state.isTabletBatteryCharging,
+        },
         "timestamp": DateTime.now().toIso8601String(),
       };
 
@@ -1161,6 +1238,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
       // Update last emitted state
       _lastEmittedDeviceState = state.copyWith(isCameraOpen: _isCameraOpen);
+      _lastEmittedR15cConnected = r15cDevice != null;
+      _lastEmittedRevo2Connected = revo2Device != null;
 
       di<ILogger>().info('🚀 DEVICE EVENT EMITTED: $deviceEventData');
       di<ILogger>().info(

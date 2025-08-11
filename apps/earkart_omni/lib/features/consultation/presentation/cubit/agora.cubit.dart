@@ -270,8 +270,8 @@ class AgoraCubit extends Cubit<AgoraState> {
       di<ILogger>().info('[VIDEO_CALL] Setting video encoder configuration');
       await _engine!.setVideoEncoderConfiguration(
         const VideoEncoderConfiguration(
-          dimensions: VideoDimensions(width: 640, height: 480),
-          frameRate: 15,
+          dimensions: VideoDimensions(width: 1280, height: 720),
+          frameRate: 40,
           bitrate: 0,
         ),
       );
@@ -562,7 +562,7 @@ class AgoraCubit extends Cubit<AgoraState> {
         di<ILogger>().info('[SCREEN_SHARE] Starting screen sharing');
         await _engine!.startScreenCapture(
           const ScreenCaptureParameters2(
-            captureAudio: true,
+            captureAudio: false,
             captureVideo: true,
           ),
         );
@@ -574,7 +574,7 @@ class AgoraCubit extends Cubit<AgoraState> {
         await _engine!.updateChannelMediaOptions(
           const ChannelMediaOptions(
             publishScreenTrack: true,
-            publishScreenCaptureAudio: true,
+            publishScreenCaptureAudio: false,
             publishScreenCaptureVideo: true,
             publishCameraTrack: false, // Disable camera when screen sharing
             publishMicrophoneTrack: true,

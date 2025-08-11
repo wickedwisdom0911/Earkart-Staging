@@ -119,12 +119,20 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     private fun safeReleaseMediaCodecBuffers() {
         mediaCodec?.let { codec ->
             try {
+                // Use a timeout to prevent infinite loops
+                val startTime = System.currentTimeMillis()
+                val timeout = 1000L // 1 second timeout
+                
                 // Release any remaining input buffers
                 var inputBufferIndex = codec.dequeueInputBuffer(0)
-                while (inputBufferIndex >= 0) {
+                var inputBufferCount = 0
+                while (inputBufferIndex >= 0 && 
+                       (System.currentTimeMillis() - startTime) < timeout && 
+                       inputBufferCount < 10) { // Limit to 10 buffers max
                     try {
                         // For input buffers, we just skip them by not queuing data
                         // No need to "release" them explicitly
+                        inputBufferCount++
                     } catch (e: Exception) {
                         Log.w(TAG, "Error processing input buffer $inputBufferIndex", e)
                     }
@@ -134,14 +142,20 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                 // Release any remaining output buffers
                 val bufferInfo = MediaCodec.BufferInfo()
                 var outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0)
-                while (outputBufferIndex >= 0) {
+                var outputBufferCount = 0
+                while (outputBufferIndex >= 0 && 
+                       (System.currentTimeMillis() - startTime) < timeout && 
+                       outputBufferCount < 10) { // Limit to 10 buffers max
                     try {
                         codec.releaseOutputBuffer(outputBufferIndex, false)
+                        outputBufferCount++
                     } catch (e: Exception) {
                         Log.w(TAG, "Error releasing output buffer $outputBufferIndex", e)
                     }
                     outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0)
                 }
+                
+                Log.i(TAG, "Buffer cleanup completed: input=$inputBufferCount, output=$outputBufferCount")
             } catch (e: Exception) {
                 Log.e(TAG, "Error in safeReleaseMediaCodecBuffers", e)
             }
@@ -185,14 +199,12 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
             try {
                 // Check frame size to prevent memory issues
                 if (capacity() > MAX_FRAME_SIZE) {
-                    Log.w(TAG, "Frame too large (${capacity()} bytes), skipping to prevent memory issues")
                     return@apply
                 }
                 
                 frame.position(0)
                 val data = ByteArray(capacity())
                 get(data)
-                Log.d(TAG, "Frame callback received: ${data.size} bytes, queue size before: ${mNV21DataQueue.size}")
                 
                 mCameraRequest?.apply {
                     // for preview callback - ensure continuous delivery with error handling
@@ -207,11 +219,9 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                     // Optimized queue management - use smaller queue size and more aggressive cleanup
                     synchronized(mNV21DataQueue) {
                         if (mNV21DataQueue.size >= MAX_QUEUE_SIZE) {
-                            Log.d(TAG, "Clearing frame queue, size was: ${mNV21DataQueue.size}")
                             mNV21DataQueue.clear() // Clear all frames to prevent memory buildup
                         }
                         mNV21DataQueue.offerFirst(data)
-                        Log.d(TAG, "Added frame to queue, new queue size: ${mNV21DataQueue.size}")
                     }
                     
                     // Update frame with memory management
@@ -756,10 +766,25 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         try {
             Log.i(TAG, "Closing UVC camera...")
             
+            // First, stop preview to prevent new frames
+            try {
+                mUvcCamera?.stopPreview()
+                Log.i(TAG, "Preview stopped successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping preview", e)
+            }
+            
             // Stop recording if active
             if (isRecording) {
                 Log.i(TAG, "Stopping active recording before closing camera...")
                 stopVideoRecording()
+            }
+            
+            // Wait a bit to allow pending operations to complete
+            try {
+                Thread.sleep(100) // 100ms delay to allow cleanup
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
             }
             
             // Ensure MediaCodec is properly cleaned up
@@ -790,15 +815,36 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
             }
             mediaMuxer = null
             
-            postStateEvent(ICameraStateCallBack.State.CLOSED)
+            // Clear frame callback to prevent further processing
+            try {
+                mUvcCamera?.setFrameCallback(null, UVCCamera.PIXEL_FORMAT_YUV420SP)
+                Log.i(TAG, "Frame callback cleared")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error clearing frame callback", e)
+            }
+            
+            // Destroy UVC camera on main thread to ensure proper cleanup
+            mainHandler.post {
+                try {
+                    mUvcCamera?.destroy()
+                    mUvcCamera = null
+                    Log.i(TAG, "UVC camera destroyed on main thread")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error destroying UVC camera on main thread", e)
+                }
+            }
+            
+            // Post state change on main thread
+            mainHandler.post {
+                postStateEvent(ICameraStateCallBack.State.CLOSED)
+            }
+            
             isPreviewed = false
             isRecording = false
             currentVideoPath = null
             videoTrackIndex = -1
             presentationTimeUs = 0
             releaseEncodeProcessor()
-            mUvcCamera?.destroy()
-            mUvcCamera = null
             
             if (Utils.debugCamera) {
                 Log.i(TAG, " stop preview, name = ${device.deviceName}")
@@ -806,7 +852,9 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         } catch (e: Exception) {
             Log.e(TAG, "Error during camera close", e)
             // Ensure we still post the closed state even if there's an error
-            postStateEvent(ICameraStateCallBack.State.CLOSED)
+            mainHandler.post {
+                postStateEvent(ICameraStateCallBack.State.CLOSED)
+            }
         }
     }
 

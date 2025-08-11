@@ -318,10 +318,6 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                                         status: SessionStatus.completed,
                                       ),
                                     );
-
-                                // Note: The actual channel leaving and navigation will be handled
-                                // by the BlocListener in the consultation screen when the update succeeds
-                                // If the update fails, the user will stay in the call and see an error message
                               } catch (e) {
                                 di<ILogger>().error(
                                   '[VIDEO_CALL] Error ending consultation: $e',
@@ -346,50 +342,6 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                             Icons.call_end,
                             color: Colors.white,
                             size: 35.0,
-                          ),
-                        ),
-                        RawMaterialButton(
-                          onPressed: () {
-                            di<ILogger>().info('[VIDEO_CALL] Toggling camera');
-                            agoraCubit.toggleCamera();
-                          },
-                          shape: const CircleBorder(),
-                          padding: const EdgeInsets.all(12.0),
-                          fillColor:
-                              agoraCubit.isCameraOn ? Colors.white : Colors.red,
-                          child: Icon(
-                            agoraCubit.isCameraOn
-                                ? Icons.videocam
-                                : Icons.videocam_off,
-                            color:
-                                agoraCubit.isCameraOn
-                                    ? Colors.black
-                                    : Colors.white,
-                            size: 20.0,
-                          ),
-                        ),
-                        RawMaterialButton(
-                          onPressed: () {
-                            di<ILogger>().info(
-                              '[VIDEO_CALL] Toggling screen sharing',
-                            );
-                            agoraCubit.toggleScreenSharing();
-                          },
-                          shape: const CircleBorder(),
-                          padding: const EdgeInsets.all(12.0),
-                          fillColor:
-                              agoraCubit.isScreenSharing
-                                  ? Colors.green
-                                  : Colors.white,
-                          child: Icon(
-                            agoraCubit.isScreenSharing
-                                ? Icons.screen_share
-                                : Icons.screen_share_outlined,
-                            color:
-                                agoraCubit.isScreenSharing
-                                    ? Colors.white
-                                    : Colors.black,
-                            size: 20.0,
                           ),
                         ),
                       ],

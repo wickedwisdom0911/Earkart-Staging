@@ -218,9 +218,17 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             _initializationTriggered = false;
             _status = 'Camera closed';
           });
+        }
 
-          // Notify parent about camera state change
+        // Always notify parent about camera state change, even if widget is disposed
+        // This ensures the parent layout reverts to full screen
+        try {
           widget.onCameraStateChanged?.call(false);
+          di<ILogger>().info('📷 Notified parent that camera is closed');
+        } catch (e) {
+          di<ILogger>().error(
+            'Error notifying parent about camera state change: $e',
+          );
         }
       }
     }
@@ -284,9 +292,14 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
     if (cameraController != null) {
       try {
+        // Add a small delay to allow any pending operations to complete
+        await Future.delayed(const Duration(milliseconds: 50));
+
         // Wrap camera operations in try-catch to prevent unhandled exceptions
         try {
           cameraController?.captureStreamStop();
+          // Allow time for stream to stop completely
+          await Future.delayed(const Duration(milliseconds: 100));
         } catch (e) {
           di<ILogger>().error('Error stopping capture stream: $e');
           // Ignore platform channel errors during cleanup
@@ -299,6 +312,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
         try {
           cameraController?.closeCamera();
+          // Allow time for camera to close completely
+          await Future.delayed(const Duration(milliseconds: 100));
         } catch (e) {
           print('Error closing camera: $e');
           // Ignore platform channel errors during cleanup
@@ -325,6 +340,17 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       } finally {
         cameraController = null;
         // Don't call setState here since we're disposing
+
+        // Always notify parent about camera state change during disposal
+        // This ensures the parent layout reverts to full screen
+        try {
+          widget.onCameraStateChanged?.call(false);
+          di<ILogger>().info(
+            '📷 Notified parent during disposal that camera is closed',
+          );
+        } catch (e) {
+          di<ILogger>().error('Error notifying parent during disposal: $e');
+        }
       }
     }
   }
@@ -528,6 +554,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               _isViewReady = false;
             });
 
+            // Notify parent about camera state change
+            widget.onCameraStateChanged?.call(false);
+            di<ILogger>().info('📷 Camera state closed - notified parent');
             break;
           case UVCCameraState.error:
             print('Camera error occurred');
@@ -536,6 +565,12 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               isInitialized = false;
               _isViewReady = false;
             });
+
+            // Notify parent about camera state change on error
+            widget.onCameraStateChanged?.call(false);
+            di<ILogger>().info(
+              '📷 Camera error occurred - notified parent to revert to full screen',
+            );
 
             _handleCameraError();
             break;
