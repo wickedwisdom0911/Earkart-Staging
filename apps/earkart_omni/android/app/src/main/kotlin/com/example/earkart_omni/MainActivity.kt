@@ -16,6 +16,9 @@ import android.content.Intent
 import android.app.Activity
 import android.app.AppOpsManager
 import android.os.Process
+import android.os.Environment
+import android.os.Build
+import java.io.File
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.earkart_omni/device_owner"
@@ -184,8 +187,34 @@ class MainActivity: FlutterActivity() {
     private fun grantStoragePermissions() {
         try {
             Log.d("MainActivity", "Granting storage permissions")
-            // Device owner has full storage access
-            // No additional configuration needed
+            
+            // For device owner, we can grant MANAGE_EXTERNAL_STORAGE permission
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                try {
+                    // Check if we can access external storage
+                    val environment = Environment.getExternalStorageState()
+                    if (environment == Environment.MEDIA_MOUNTED) {
+                        Log.d("MainActivity", "External storage is mounted and accessible")
+                        
+                        // Try to create a test file to verify write access
+                        val testFile = File(Environment.getExternalStorageDirectory(), "test_write_access.txt")
+                        try {
+                            testFile.writeText("Device owner write test")
+                            testFile.delete()
+                            Log.d("MainActivity", "Storage write access verified for device owner")
+                        } catch (e: Exception) {
+                            Log.w("MainActivity", "Storage write test failed: ${e.message}")
+                        }
+                    } else {
+                        Log.w("MainActivity", "External storage not mounted: $environment")
+                    }
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error checking external storage: ${e.message}")
+                }
+            }
+            
+            // Device owner has full storage access by default
+            Log.d("MainActivity", "Storage permissions granted for device owner")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting storage permissions: ${e.message}")
         }

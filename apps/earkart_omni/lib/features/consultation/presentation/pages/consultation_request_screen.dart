@@ -13,6 +13,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'dart:async'; // Added for Timer
 
 class ConsultationRequestScreen extends StatefulWidget {
   static const routeName = '/consultation-request';
@@ -32,6 +33,10 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
   final TextEditingController discountReasonController =
       TextEditingController();
 
+  // Add debouncing to prevent multiple submissions
+  bool _isSubmitting = false;
+  Timer? _debounceTimer;
+
   @override
   void initState() {
     super.initState();
@@ -43,11 +48,35 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
   void dispose() {
     discountAmountController.dispose();
     discountReasonController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
   void startConsultation() {
-    print('Starting consultation...');
+    // Prevent multiple submissions
+    if (_isSubmitting) {
+      print('Consultation submission already in progress, ignoring request');
+      return;
+    }
+
+    // Cancel any existing debounce timer
+    _debounceTimer?.cancel();
+
+    // Set debounce timer to prevent rapid successive calls
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _performConsultationCreation();
+    });
+  }
+
+  void _performConsultationCreation() {
+    if (_isSubmitting) {
+      print('Consultation submission already in progress, ignoring request');
+      return;
+    }
+
+    print('Starting consultation creation...');
+    _isSubmitting = true;
+
     // Get the selected pricing data from the auth state
     final authState = context.read<AuthCubit>().state;
     if (authState is AuthCentreSuccess &&
@@ -65,6 +94,7 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
               backgroundColor: Colors.red,
             ),
           );
+          _isSubmitting = false;
           return;
         }
       }
@@ -683,6 +713,8 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                     print(
                                       'Consultation pricing count: ${consultation.consultationPricing?.length ?? 0}',
                                     );
+                                    // Reset submission state
+                                    _isSubmitting = false;
                                     // Only navigate on successful creation
                                     Navigator.pushNamedAndRemoveUntil(
                                       context,
@@ -692,12 +724,18 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                   },
                                   error: (message) {
                                     print('Consultation error: $message');
+                                    // Reset submission state on error
+                                    _isSubmitting = false;
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text('Error: $message'),
                                         backgroundColor: Colors.red,
                                       ),
                                     );
+                                  },
+                                  loading: () {
+                                    // Keep submission state true while loading
+                                    _isSubmitting = true;
                                   },
                                 );
                               },
@@ -706,6 +744,10 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                   orElse: () => false,
                                   loading: () => true,
                                 );
+
+                                // Use both state loading and submission state
+                                final isButtonDisabled =
+                                    isLoading || _isSubmitting;
 
                                 return Container(
                                   height: 56,
@@ -731,7 +773,9 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                   ),
                                   child: ElevatedButton(
                                     onPressed:
-                                        isLoading ? null : startConsultation,
+                                        isButtonDisabled
+                                            ? null
+                                            : startConsultation,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.transparent,
                                       elevation: 0,
@@ -745,7 +789,7 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                       ),
                                     ),
                                     child:
-                                        isLoading
+                                        isButtonDisabled
                                             ? const SizedBox(
                                               width: 20,
                                               height: 20,
