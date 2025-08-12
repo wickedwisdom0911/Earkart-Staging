@@ -7,6 +7,7 @@ import { useSocket } from "@/providers/socket-provider";
 import { useEffect } from "react";
 import { useDevice } from "@/providers/device-provider";
 import { OtoscopyProvider } from "@/providers/otoscopy-provider";
+import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
 import { ConsultationContent } from "./_components/consultation-content";
 export default function ConsultationLayout({
   children,
@@ -58,7 +59,8 @@ export default function ConsultationLayout({
 
   return (
     <OtoscopyProvider consultationId={resolvedParams.consultationId}>
-    <DashboardBodyWrapper
+      <AgoraOtoscopyProvider>
+        <DashboardBodyWrapper
       pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
       className="border-none "
       button={
@@ -99,7 +101,8 @@ export default function ConsultationLayout({
       >
         {children}
       </ConsultationContent>
-    </DashboardBodyWrapper>
+        </DashboardBodyWrapper>
+      </AgoraOtoscopyProvider>
     </OtoscopyProvider>
   );
 }

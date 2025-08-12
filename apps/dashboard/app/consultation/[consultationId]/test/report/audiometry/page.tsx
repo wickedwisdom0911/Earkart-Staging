@@ -17,6 +17,7 @@ import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 import Image from "next/image";
 import { ArrowDownLeft, ArrowDownRight } from "lucide-react";
+import useReportScreenShare from "@/hooks/agora/use-report-screen-share";
 
 interface TestResult {
   ear: string;
@@ -381,6 +382,14 @@ export default function ReportPage() {
   const updateConsultationMutation = useUpdateConsultation();
   const reportRef = useRef<HTMLDivElement>(null);
   
+  // Screen sharing functionality
+  const { 
+    isSharing: isScreenSharing, 
+    isConnecting: isScreenConnecting, 
+    toggleScreenShare, 
+    error: screenShareError 
+  } = useReportScreenShare();
+  
   // State for show report functionality
   const [isShowingReport, setIsShowingReport] = useState(false);
   
@@ -495,6 +504,13 @@ export default function ReportPage() {
       };
     }
   }, [socket, router]);
+
+  // Show screen share error if any
+  useEffect(() => {
+    if (screenShareError) {
+      toast.error(`Screen sharing error: ${screenShareError}`);
+    }
+  }, [screenShareError]);
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
@@ -715,17 +731,47 @@ export default function ReportPage() {
     router.push(ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string));
   };
 
-  const handleShowReport = () => {
+  const handleShowReport = async () => {
     if (!socket) {
       toast.error("Socket connection not available");
       return;
     }
 
-    const eventName = isShowingReport ? "generate-report:end" : "generate-report:start";
-    socket.emit(eventName, { consultationId });
+    const isCurrentlyShowing = isShowingReport || isScreenSharing;
     
-    setIsShowingReport(!isShowingReport);
-    toast.success(`Report ${isShowingReport ? "hidden" : "shown"} to patient`);
+    try {
+      if (isCurrentlyShowing) {
+        // Stop showing report
+        const eventName = "generate-report:end";
+        socket.emit(eventName, { consultationId });
+        setIsShowingReport(false);
+        
+        // Stop screen sharing if active
+        if (isScreenSharing) {
+          await toggleScreenShare();
+        }
+        
+        toast.success("Report hidden from patient");
+      } else {
+        // Start showing report
+        const eventName = "generate-report:start";
+        socket.emit(eventName, { consultationId });
+        setIsShowingReport(true);
+        
+        // Start screen sharing with the report element
+        if (reportRef.current) {
+          await toggleScreenShare(reportRef.current);
+        } else {
+          // Fallback to general screen share if report ref is not available
+          await toggleScreenShare();
+        }
+        
+        toast.success("Report shown to patient via screen share");
+      }
+    } catch (error) {
+      console.error("Error handling report display:", error);
+      toast.error("Failed to show/hide report");
+    }
   };
 
   return (
@@ -1209,18 +1255,32 @@ export default function ReportPage() {
         </div>
       </div>
 
+      {/* Screen Share Status Notification */}
+      {isScreenSharing && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2">
+          <span>🖥️</span>
+          <span>Screen sharing active - Patient can see the report</span>
+        </div>
+      )}
+
       {/* Floating Action Buttons */}
       <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-10">
         <Button
           onClick={handleShowReport}
+          disabled={isScreenConnecting}
           className={`${
-            isShowingReport 
+            (isShowingReport || isScreenSharing)
               ? "bg-orange-600 hover:bg-orange-700" 
               : "bg-blue-600 hover:bg-blue-700"
-          } text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2`}
+          } text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 disabled:opacity-50`}
         >
-          <span>📊</span>
-          {isShowingReport ? "Hide Report" : "Show Report"}
+          <span>{isScreenConnecting ? "🔄" : isScreenSharing ? "🖥️" : "📊"}</span>
+          {isScreenConnecting 
+            ? "Connecting..." 
+            : (isShowingReport || isScreenSharing) 
+              ? "Hide Report" 
+              : "Show Report"
+          }
         </Button>
         <Button
           onClick={handleDoAnotherTest}
