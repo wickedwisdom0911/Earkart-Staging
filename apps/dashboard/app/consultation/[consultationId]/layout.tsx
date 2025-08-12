@@ -1,14 +1,13 @@
 "use client";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
-import { VideoCall } from "./_components/video-call";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { use } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useEffect } from "react";
 import { useDevice } from "@/providers/device-provider";
-import { usePathname } from "next/navigation";
-
+import { OtoscopyProvider } from "@/providers/otoscopy-provider";
+import { ConsultationContent } from "./_components/consultation-content";
 export default function ConsultationLayout({
   children,
   params,
@@ -26,13 +25,6 @@ export default function ConsultationLayout({
   } = useGetConsultation(resolvedParams.consultationId);
   const { deviceState } = useDevice();
   const { r15c, revo2 } = deviceState;
-  const pathname = usePathname();
-  
-  // Check if we're on the video otoscopy page
-  const isOtoscopyPage = pathname?.includes('/test/video-otoscopy');
-
-
-
 
   // Add socket connection handling
   useEffect(() => {
@@ -65,6 +57,7 @@ export default function ConsultationLayout({
   const consultationData = consultation.data as ConsultationModelData;
 
   return (
+    <OtoscopyProvider consultationId={resolvedParams.consultationId}>
     <DashboardBodyWrapper
       pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
       className="border-none "
@@ -100,13 +93,13 @@ export default function ConsultationLayout({
         </div>
       }
     >
-      <div className="flex gap-2  overflow-hidden h-full w-full">
-        <VideoCall
-          channel={resolvedParams.consultationId}
-          patientName={consultationData.patient?.name || "Patient"}
-        />
-        <main className="flex-1 w-full overflow-y-scroll">{children}</main>
-      </div>
+      <ConsultationContent
+        consultationId={resolvedParams.consultationId}
+        patientName={consultationData.patient?.name || "Patient"}
+      >
+        {children}
+      </ConsultationContent>
     </DashboardBodyWrapper>
+    </OtoscopyProvider>
   );
 }

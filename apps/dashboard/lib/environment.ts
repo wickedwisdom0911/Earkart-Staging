@@ -34,20 +34,21 @@ export async function getBaseUrl() {
 }
 
 export async function getSocketUrl() {
+  try {
   const isProd = await isProduction();
 
   if (isProd) {
-    // Convert HTTP URL to WebSocket URL
-    const httpUrl =
-      process.env.BASE_SOCKET_URL_PROD || "http://65.2.163.137:3000/";
-    const wsUrl = httpUrl.replace(/^http/, "ws");
-    console.log("🔵 Using production WebSocket URL:", wsUrl);
-    return wsUrl;
+      const socketUrl = process.env.BASE_SOCKET_URL_PROD || "http://65.2.163.137:3000/";
+      console.log("🔵 Using production Socket URL:", socketUrl);
+      return socketUrl;
   } else {
-    // Convert HTTP URL to WebSocket URL
-    const httpUrl = process.env.BASE_SOCKET_URL_DEV || "http://localhost:3000/";
-    const wsUrl = httpUrl.replace(/^http/, "ws");
-    console.log("🔵 Using development WebSocket URL:", wsUrl);
-    return wsUrl;
+      const socketUrl = process.env.BASE_SOCKET_URL_DEV || "http://192.168.1.172:3000/";
+      console.log("🔵 Using development Socket URL:", socketUrl);
+      return socketUrl;
+    }
+  } catch (error) {
+    console.error("Failed to get socket URL:", error);
+    // Return a default URL if something goes wrong
+    return "http://192.168.1.172:3000/";
   }
 }

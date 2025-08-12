@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
 
-  // Add security headers to allow mixed content (NOT RECOMMENDED)
+  // Security headers (permissive for development)
   async headers() {
     return [
       {
@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: "upgrade-insecure-requests;",
+            value: "default-src 'self'; connect-src * 'self' http://192.168.1.172:3000 ws://192.168.1.172:3000 https://*.agora.io https://*.agoraio.cn https://webrtc2-ap-web-1.agora.io https://webrtc2-2.ap.sd-rtn.com; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline';",
           },
         ],
       },
