@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface VideoCallProps {
   channel: string;
   patientName: string;
+  isFullscreen?: boolean;
 }
 
 const VideoCallSkeleton = () => {
@@ -93,6 +94,7 @@ const VideoPlaceholder = ({
 const VideoCallContent: React.FC<VideoCallProps> = ({
   channel,
   patientName,
+  isFullscreen = false,
 }) => {
   const localRef = useRef<HTMLDivElement>(null);
   const remoteRef = useRef<HTMLDivElement>(null);
@@ -232,7 +234,11 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         setIsInitializing(true);
         setError(null);
         console.log("Initializing call with channel:", channel);
-        const { data } = await fetchToken(channel);
+        const { data } = await fetchToken({
+          channelName: channel,
+          userRole: 'publisher',
+          isUVC: false
+        });
         console.log("Received token data:", {
           hasToken: !!data.token,
           tokenLength: data.token?.length,
@@ -417,7 +423,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   }
 
   return (
-    <div className="flex flex-col items-center h-full min-w-1/3 w-fit relative">
+    <div className={`flex flex-col items-center h-full relative ${
+      isFullscreen ? 'w-full' : 'min-w-1/3 w-fit'
+    }`}>
       <Dialog />
       {error && (
         <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
@@ -440,7 +448,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         {/* Remote user (patient) - full screen */}
         <div
           ref={remoteRef}
-          className="w-full h-full rounded-2xl border bg-gray-900 overflow-hidden"
+          className={`w-full h-full bg-gray-900 overflow-hidden ${
+            isFullscreen ? 'rounded-none border-none' : 'rounded-2xl border'
+          }`}
         >
           {remoteUsers.length > 0 ? (
             remoteUsers.map((user) => (

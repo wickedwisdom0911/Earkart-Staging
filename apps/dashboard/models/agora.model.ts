@@ -4,6 +4,7 @@ export const AgoraModelDataSchema = z.object({
   token: z.string(),
   appId: z.string(),
   userId: z.number(),
+  isUVC: z.boolean(),
 });
 export const AgoraModelSchema = z.object({
   success: z.boolean(),
