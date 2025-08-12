@@ -31,16 +31,12 @@ class AgoraRemoteSourceImpl implements IAgoraRemoteSource {
       final response = await dio.post(
         Constants.getAgoraTokenUrl,
         data: {
-          "channelName": consultation?.id ?? "", // Use same channel for both UVC and video call
+          "channelName":
+              consultation?.id ??
+              "", // Use same channel for both UVC and video call
           "isUVC": isUVC,
           "userRole": userRole,
         },
-        options: Options(
-          headers: {
-            "Authorization":
-                "Bearer ${userEntityDataSource.getUserEntity()?.token}",
-          },
-        ),
       );
       final result = AgoraModel.fromJson(response.data);
       if (result.success) {

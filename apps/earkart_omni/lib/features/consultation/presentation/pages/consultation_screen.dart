@@ -25,6 +25,7 @@ import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:earkart_omni/config/utils/error_handler.dart';
 import 'dart:async';
 
 class ConsultationScreen extends StatefulWidget {
@@ -63,6 +64,41 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Set up global error handler for camera-related crashes
+    FlutterError.onError = (FlutterErrorDetails details) {
+      final exceptionString = details.exception.toString();
+
+      // Handle UVC camera related errors gracefully
+      if (exceptionString.contains('UVCCamera') ||
+          exceptionString.contains('flutter_uvc_camera') ||
+          exceptionString.contains('cameraView has not been initialized') ||
+          exceptionString.contains('SIGSEGV') ||
+          exceptionString.contains('native method')) {
+        di<ILogger>().error(
+          '🚨 Caught camera-related error, handling gracefully: ${details.exception}',
+        );
+
+        // Try to safely reset camera state
+        if (mounted) {
+          try {
+            setState(() {
+              _showCamera = false;
+              _isCameraOpen = false;
+            });
+            _updateCameraState(false);
+          } catch (e) {
+            di<ILogger>().error('Error resetting camera state: $e');
+          }
+        }
+        return; // Don't crash the app
+      }
+
+      // For other errors, use default handling
+      di<ILogger>().error('Flutter error: ${details.exception}');
+      FlutterError.presentError(details);
+    };
+
     _initializeScreen();
   }
 
@@ -262,6 +298,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
         );
       }
+    });
+
+    // Handle consultation join errors
+    socket.on("error", (data) {
+      ErrorHandler.handleSocketErrorData(context, data);
     });
 
     socket.onConnectError((error) {
@@ -479,14 +520,25 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
       // Add a safety delay and then switch back to built-in camera
       // This handles the transition from UVC camera to built-in camera properly
-      Future.delayed(const Duration(milliseconds: 3000), () {
+      Future.delayed(const Duration(milliseconds: 5000), () {
         if (mounted) {
           try {
-            final agoraCubit = context.read<AgoraCubit>();
-            di<ILogger>().info(
-              '📷 Switching from UVC to built-in camera after otoscopy stop',
+            // Wrap in a zone to catch any unhandled exceptions
+            runZonedGuarded(
+              () {
+                final agoraCubit = context.read<AgoraCubit>();
+                di<ILogger>().info(
+                  '📷 Switching from UVC to built-in camera after otoscopy stop',
+                );
+                agoraCubit.switchToBuiltInCamera();
+              },
+              (error, stackTrace) {
+                di<ILogger>().error(
+                  '❌ Unhandled exception during camera switch: $error',
+                );
+                di<ILogger>().error('Stack trace: $stackTrace');
+              },
             );
-            agoraCubit.switchToBuiltInCamera();
           } catch (e) {
             di<ILogger>().error('❌ Error switching to built-in camera: $e');
           }
@@ -635,10 +687,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   di<ILogger>().debug('Auth state: centre success');
                 },
                 centreError: (error) {
-                  di<ILogger>().error('Auth state: centre error - $error');
+                  ErrorHandler.handleCentreError(context, error);
                 },
                 error: (error) {
-                  di<ILogger>().error('Auth state: error - $error');
+                  ErrorHandler.handleAuthError(context, error);
                 },
                 loggedOut: () {
                   di<ILogger>().debug('Auth state: logged out');
@@ -691,9 +743,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               }
               // Handle consultation update error
               if (state is ConsultationError) {
-                di<ILogger>().debug(
-                  'ConsultationScreen: Consultation error - ${state.message}',
-                );
+                ErrorHandler.handleConsultationError(context, state.message);
               }
             },
           ),

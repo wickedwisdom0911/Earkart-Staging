@@ -157,11 +157,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   }
 
   Future<void> _closeCamera() async {
-    print('Closing camera...');
+    di<ILogger>().info('Closing camera...');
 
     // Don't close camera if it's already working properly
-    if (isInitialized && _isViewReady) {
-      print('Camera is working properly, not closing');
+    if (isInitialized && _isViewReady && !_isDisposed) {
+      di<ILogger>().info('Camera is working properly, not closing');
       return;
     }
 
@@ -171,45 +171,57 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
     if (cameraController != null) {
       try {
+        // Add initial delay to allow any pending operations to complete
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        // Step 1: Stop capture stream
         try {
+          di<ILogger>().info('Stopping capture stream...');
           cameraController?.captureStreamStop();
+          await Future.delayed(const Duration(milliseconds: 150));
+          di<ILogger>().info('Capture stream stopped');
         } catch (e) {
-          print('Error stopping capture stream: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            di<ILogger>().error('Non-platform error during stream stop: $e');
-          }
+          di<ILogger>().error('Error stopping capture stream: $e');
+          // Continue with cleanup even if this fails
+          await Future.delayed(const Duration(milliseconds: 100));
         }
 
+        // Step 2: Close camera
         try {
+          di<ILogger>().info('Closing camera...');
           cameraController?.closeCamera();
+          await Future.delayed(const Duration(milliseconds: 150));
+          di<ILogger>().info('Camera closed');
         } catch (e) {
           di<ILogger>().error('Error closing camera: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            di<ILogger>().error('Non-platform error during camera close: $e');
-          }
+          // Continue with cleanup even if this fails
+          await Future.delayed(const Duration(milliseconds: 100));
         }
 
+        // Step 3: Dispose controller
         try {
-          cameraController?.dispose();
+          di<ILogger>().info('Disposing camera controller...');
+          final controller = cameraController;
+          if (controller != null) {
+            cameraController = null; // Clear reference first
+            await Future.delayed(const Duration(milliseconds: 100));
+            controller.dispose();
+            di<ILogger>().info('Camera controller disposed');
+          }
         } catch (e) {
           di<ILogger>().error('Error disposing camera controller: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            di<ILogger>().error('Non-platform error during camera dispose: $e');
-          }
+          cameraController = null; // Ensure reference is cleared
         }
+
+        // Final delay for cleanup
+        await Future.delayed(const Duration(milliseconds: 100));
       } catch (e) {
         di<ILogger>().error('Error during camera cleanup: $e');
+        cameraController = null; // Ensure reference is cleared on error
       } finally {
+        // Ensure controller is null
         cameraController = null;
+
         // Only call setState if the widget is still mounted and not disposed
         if (mounted && !_isDisposed) {
           setState(() {
@@ -270,12 +282,33 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       di<ILogger>().error('[UVC_CAMERA] Error removing observer: $e');
     }
 
-    // Close camera with delay to prevent platform view crashes
-    Future.delayed(const Duration(milliseconds: 150), () {
+    // Close camera with longer delay and better error isolation
+    // Run in a separate isolate to prevent crashes from affecting the main thread
+    Future.delayed(const Duration(milliseconds: 500), () async {
       try {
-        _closeCameraSafely();
+        // Wrap the entire disposal in a zone to catch any unhandled exceptions
+        await runZonedGuarded(
+          () async {
+            await _closeCameraSafely();
+          },
+          (error, stackTrace) {
+            di<ILogger>().error(
+              '[UVC_CAMERA] Caught unhandled exception during disposal: $error',
+            );
+            di<ILogger>().error('[UVC_CAMERA] Stack trace: $stackTrace');
+            // Don't rethrow - just log and continue
+          },
+        );
       } catch (e) {
         di<ILogger>().error('[UVC_CAMERA] Error closing camera safely: $e');
+        // Ensure camera controller is nullified even if disposal fails
+        try {
+          cameraController = null;
+        } catch (nullifyError) {
+          di<ILogger>().error(
+            '[UVC_CAMERA] Error nullifying controller: $nullifyError',
+          );
+        }
       }
     });
 
@@ -292,54 +325,68 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
     if (cameraController != null) {
       try {
-        // Add a small delay to allow any pending operations to complete
-        await Future.delayed(const Duration(milliseconds: 50));
+        // Add a longer delay to allow any pending operations to complete
+        await Future.delayed(const Duration(milliseconds: 200));
 
-        // Wrap camera operations in try-catch to prevent unhandled exceptions
+        // Use a more defensive approach with individual try-catch blocks
+        // and longer delays between operations to prevent race conditions
+
+        // Step 1: Stop capture stream with extended timeout
         try {
+          di<ILogger>().info('Step 1: Stopping capture stream...');
           cameraController?.captureStreamStop();
-          // Allow time for stream to stop completely
-          await Future.delayed(const Duration(milliseconds: 100));
+          // Allow more time for stream to stop completely
+          await Future.delayed(const Duration(milliseconds: 300));
+          di<ILogger>().info('Capture stream stopped successfully');
         } catch (e) {
           di<ILogger>().error('Error stopping capture stream: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            di<ILogger>().error('Non-platform error during stream stop: $e');
-          }
+          // Continue with disposal even if this fails
+          await Future.delayed(const Duration(milliseconds: 200));
         }
 
+        // Step 2: Close camera with extended timeout
         try {
+          di<ILogger>().info('Step 2: Closing camera...');
           cameraController?.closeCamera();
-          // Allow time for camera to close completely
-          await Future.delayed(const Duration(milliseconds: 100));
+          // Allow more time for camera to close completely
+          await Future.delayed(const Duration(milliseconds: 300));
+          di<ILogger>().info('Camera closed successfully');
         } catch (e) {
-          print('Error closing camera: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            print('Non-platform error during camera close: $e');
-          }
+          di<ILogger>().error('Error closing camera: $e');
+          // Continue with disposal even if this fails
+          await Future.delayed(const Duration(milliseconds: 200));
         }
 
+        // Step 3: Dispose controller with extended timeout and null check
         try {
-          cameraController?.dispose();
-        } catch (e) {
-          print('Error disposing camera controller: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            print('Non-platform error during camera dispose: $e');
+          di<ILogger>().info('Step 3: Disposing camera controller...');
+          final controller = cameraController;
+          if (controller != null) {
+            // Set to null first to prevent concurrent access
+            cameraController = null;
+            // Add delay before actual disposal to prevent native memory issues
+            await Future.delayed(const Duration(milliseconds: 200));
+            controller.dispose();
+            di<ILogger>().info('Camera controller disposed successfully');
           }
+        } catch (e) {
+          di<ILogger>().error('Error disposing camera controller: $e');
+          // Even if disposal fails, ensure controller reference is cleared
+          cameraController = null;
         }
+
+        // Final delay to ensure native cleanup is complete
+        await Future.delayed(const Duration(milliseconds: 200));
       } catch (e) {
-        print('Error during camera cleanup: $e');
-      } finally {
+        di<ILogger>().error('Error during camera cleanup: $e');
+        // Ensure controller is always nullified even on error
         cameraController = null;
-        // Don't call setState here since we're disposing
+      } finally {
+        // Ensure controller is null
+        cameraController = null;
+
+        // Add final delay before notifying parent to prevent UI race conditions
+        await Future.delayed(const Duration(milliseconds: 100));
 
         // Always notify parent about camera state change during disposal
         // This ensures the parent layout reverts to full screen

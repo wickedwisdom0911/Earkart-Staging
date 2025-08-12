@@ -24,6 +24,7 @@ import 'package:earkart_omni/utils/device_owner_helper.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/release_config.dart';
 import 'package:earkart_omni/config/widgets/app_loading_screen.dart';
+import 'package:earkart_omni/config/utils/error_handler.dart';
 
 class RootScreen extends StatefulWidget {
   static const routeName = '/';
@@ -312,17 +313,20 @@ class _RootScreenState extends State<RootScreen> {
                 print('📞 Calling getCentre() for user: ${state.user!.email}');
                 context.read<AuthCubit>().getCentre();
               } else {
-                print('⚠️ User is null, marking centre as checked with null');
-                // If no user, mark centre as checked with null value
+                print(
+                  '⚠️ User is null, but there might be stale data - forcing logout',
+                );
+                // If no user but there's other data, force a logout to clear everything
                 setState(() {
+                  checkedUser = true;
                   checkedCentre = true;
+                  user = null;
                   centre = null;
                 });
-                // Also call getCurrentConsultation to complete the loading cycle
-                print(
-                  '📞 Calling getCurrentConsultation() even with null user to complete loading',
-                );
-                context.read<ConsultationCubit>().getCurrentConsultation();
+
+                // Force logout to clear all data
+                print('🔐 Forcing logout due to null user with stale data');
+                context.read<AuthCubit>().logout();
               }
             }
             if (state is AuthCentreSuccess) {
@@ -348,6 +352,7 @@ class _RootScreenState extends State<RootScreen> {
                 state is AuthLoggedOut) {
               if (state is AuthError) {
                 print('❌ Auth Error: ${state.message}');
+                ErrorHandler.handleAuthError(context, state.message);
                 // If user auth fails, mark all as checked with null
                 setState(() {
                   checkedUser = true;
@@ -362,6 +367,7 @@ class _RootScreenState extends State<RootScreen> {
                 context.read<ConsultationCubit>().getCurrentConsultation();
               } else if (state is AuthCentreError) {
                 print('❌ Centre Error: ${state.message}');
+                ErrorHandler.handleCentreError(context, state.message);
                 setState(() {
                   checkedCentre = true;
                   centre = null;
@@ -372,18 +378,20 @@ class _RootScreenState extends State<RootScreen> {
                 );
                 context.read<ConsultationCubit>().getCurrentConsultation();
               } else if (state is AuthLoggedOut) {
-                print('🚪 User logged out - clearing all data');
+                print('🚪 User logged out - navigating to login screen');
                 setState(() {
                   checkedUser = true;
                   checkedCentre = true;
                   user = null;
                   centre = null;
                 });
-                // Also call getCurrentConsultation to complete the loading cycle
-                print(
-                  '📞 Calling getCurrentConsultation() after logout to complete loading',
+                // Navigate to login screen when user is logged out
+                print('🔐 Navigating to login screen due to logout');
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
                 );
-                context.read<ConsultationCubit>().getCurrentConsultation();
               } else if (state is AuthInitial) {
                 print('🔄 AuthInitial state - this might indicate a problem');
                 setState(() {
@@ -453,6 +461,7 @@ class _RootScreenState extends State<RootScreen> {
                 state is ConsultationInitial) {
               if (state is ConsultationError) {
                 print('❌ Consultation Error: ${state.message}');
+                ErrorHandler.handleConsultationError(context, state.message);
               } else {
                 print('🔄 ConsultationInitial state');
               }

@@ -5,6 +5,13 @@ import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/remote/auth.remote.source.dart';
+import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
+import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/countries.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/state.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/language.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/city.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/district.entty.source.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/centre/centre.model.dart';
 import 'package:earkart_omni/models/enums.dart';
@@ -16,10 +23,25 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
   final Dio dio;
   final UserEntityDataSource userEntityDataSource;
   final CentreEntityDataSource centreEntityDataSource;
+  final PatientEntityDataSource patientEntityDataSource;
+  final ConsultationEntityDataSource consultationEntityDataSource;
+  final CountryEntityDataSource countryEntityDataSource;
+  final StateEntityDataSource stateEntityDataSource;
+  final LanguageEntityDataSource languageEntityDataSource;
+  final CityEntityDataSource cityEntityDataSource;
+  final DistrictEntityDataSource districtEntityDataSource;
+
   AuthRemoteSourceImpl({
     required this.dio,
     required this.userEntityDataSource,
     required this.centreEntityDataSource,
+    required this.patientEntityDataSource,
+    required this.consultationEntityDataSource,
+    required this.countryEntityDataSource,
+    required this.stateEntityDataSource,
+    required this.languageEntityDataSource,
+    required this.cityEntityDataSource,
+    required this.districtEntityDataSource,
   });
   @override
   Future<Either<Failure, UserEntity>> login(
@@ -64,10 +86,7 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
     try {
       final user = userEntityDataSource.getUserEntity();
       if (user != null) {
-        final response = await dio.get(
-          '${Constants.getCentreUrl}/${user.id}',
-          options: Options(headers: {"Authorization": "Bearer ${user.token}"}),
-        );
+        final response = await dio.get('${Constants.getCentreUrl}/${user.id}');
         final result = CentreModel.fromJson(response.data);
 
         if (result.success) {
@@ -106,12 +125,23 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
   @override
   Future<Either<Failure, void>> logout() async {
     try {
-      // Clear both user and centre data
+      // Clear all Hive boxes to ensure complete logout
       await userEntityDataSource.clearBox();
       await centreEntityDataSource.clearBox();
-      print("Logout: Cleared user and centre data");
+      await patientEntityDataSource.clearBox();
+      await consultationEntityDataSource.clearBox();
+      await countryEntityDataSource.clearBox();
+      await stateEntityDataSource.clearBox();
+      await languageEntityDataSource.clearBox();
+      await cityEntityDataSource.clearBox();
+      await districtEntityDataSource.clearBox();
+
+      print(
+        "Logout: Cleared all Hive boxes - user, centre, patient, consultation, and lookup data",
+      );
       return right(null);
     } catch (e) {
+      print("Logout error: $e");
       return left(UnKnownFailure(error: e.toString()));
     }
   }

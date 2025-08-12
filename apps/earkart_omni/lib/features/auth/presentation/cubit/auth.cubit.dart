@@ -80,7 +80,13 @@ class AuthCubit extends Cubit<AuthState> {
         emit(AuthError(message: failure.message));
       },
       (currentUser) {
-        emit(AuthSuccess(user: currentUser));
+        if (currentUser != null) {
+          emit(AuthSuccess(user: currentUser));
+        } else {
+          // If no user is found, emit logged out state
+          print('No user found in storage - emitting logged out state');
+          emit(AuthLoggedOut());
+        }
       },
     );
   }

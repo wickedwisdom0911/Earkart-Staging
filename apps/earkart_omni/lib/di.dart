@@ -116,6 +116,13 @@ Future<void> setupDI() async {
       dio: di.call(),
       userEntityDataSource: di.call(),
       centreEntityDataSource: di.call(),
+      patientEntityDataSource: di.call(),
+      consultationEntityDataSource: di.call(),
+      countryEntityDataSource: di.call(),
+      stateEntityDataSource: di.call(),
+      languageEntityDataSource: di.call(),
+      cityEntityDataSource: di.call(),
+      districtEntityDataSource: di.call(),
     ),
   );
   di.registerLazySingleton<AuthRepository>(

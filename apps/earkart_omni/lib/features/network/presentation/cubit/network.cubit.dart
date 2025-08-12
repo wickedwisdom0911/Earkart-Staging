@@ -106,12 +106,6 @@ class NetworkCubit extends Cubit<NetworkState> {
       final connectivityResults = await _connectivity.checkConnectivity();
       final hasInternet = await _internetChecker.hasConnection;
 
-      print('📡 Connectivity results: $connectivityResults');
-      print('🌍 Has internet: $hasInternet');
-      print(
-        '🔍 Primary connectivity result: ${_selectBestConnectivityResult(connectivityResults)}',
-      );
-
       final primaryResult = _selectBestConnectivityResult(connectivityResults);
 
       // Fallback: if we have WiFi/mobile connectivity but internet checker says no,
@@ -129,10 +123,6 @@ class NetworkCubit extends Cubit<NetworkState> {
         effectiveHasInternet,
       );
 
-      print(
-        '📊 Network status: ${networkStatus.isConnected}, ${networkStatus.hasInternet}, ${networkStatus.connectionType}',
-      );
-
       // Only emit if state actually changed
       if (!_isStatusEqual(networkStatus, _lastKnownStatus)) {
         _lastKnownStatus = networkStatus;
@@ -143,12 +133,10 @@ class NetworkCubit extends Cubit<NetworkState> {
         if (networkStatus.isConnected) {
           if (!isClosed) {
             emit(NetworkConnected(status: networkStatus));
-            print('✅ Emitted NetworkConnected state (connectivity detected)');
           }
         } else {
           if (!isClosed) {
             emit(NetworkDisconnected());
-            print('❌ Emitted NetworkDisconnected state (no connectivity)');
           }
         }
       } else {
