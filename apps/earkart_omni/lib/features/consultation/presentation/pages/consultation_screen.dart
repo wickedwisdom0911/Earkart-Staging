@@ -1104,6 +1104,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         last.isInBeginMode != newState.isInBeginMode ||
         last.batteryLevel != newState.batteryLevel ||
         last.isCharging != newState.isCharging ||
+        last.tabletBatteryLevel != newState.tabletBatteryLevel ||
+        last.isTabletBatteryCharging != newState.isTabletBatteryCharging ||
         last.connectionStatus != newState.connectionStatus ||
         last.transducerResponse != newState.transducerResponse ||
         last.error != newState.error ||
