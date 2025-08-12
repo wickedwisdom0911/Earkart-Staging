@@ -25,7 +25,7 @@ export default function ConsultationLayout({
     error,
   } = useGetConsultation(consultationId);
   const { deviceState } = useDevice();
-  const { r15c, revo2 } = deviceState;
+  const { r15c, revo2, tablet } = deviceState;
 
   // Add socket connection handling
   useEffect(() => {
@@ -80,6 +80,12 @@ export default function ConsultationLayout({
                     R15C: {" "}
                     {r15c.connectionStatus.charAt(0).toUpperCase() +
                       r15c.connectionStatus.slice(1)}
+                    {typeof r15c.batteryLevel === 'number' && (
+                      <span className="ml-2 text-xs text-gray-600">R15C 🔋 {r15c.batteryLevel}%</span>
+                    )}
+                    {typeof r15c.isCharging === 'boolean' && (
+                      <span className="ml-1 text-xs text-gray-600">{r15c.isCharging ? "(R15C Charging)" : "(R15C On Battery)"}</span>
+                    )}
                   </span>
                 </div>
 
@@ -96,6 +102,17 @@ export default function ConsultationLayout({
                       revo2.connectionStatus.slice(1)}
                   </span>
                 </div>
+
+                {/* Tablet State */}
+                {tablet && (
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${tablet.isCharging ? 'bg-green-500' : 'bg-gray-400'}`} />
+                    <span className="text-sm font-medium">
+                      Tablet: {typeof tablet.batteryLevel === 'number' ? `${tablet.batteryLevel}%` : '—'} {" "}
+                      {typeof tablet.isCharging === 'boolean' ? (tablet.isCharging ? '(Charging)' : '(On Battery)') : ''}
+                    </span>
+                  </div>
+                )}
               </div>
             }
           >

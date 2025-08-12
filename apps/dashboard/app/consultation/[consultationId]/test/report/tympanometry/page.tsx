@@ -8,8 +8,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { useRef, useEffect, useState } from "react";
 import Image from "next/image";
-import html2canvas from "html2canvas-pro";
-import { jsPDF } from "jspdf";
+// PDF export utility is loaded dynamically to avoid bundling issues
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
@@ -59,7 +58,7 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
   if (!data || data.length === 0) {
     return (
       <div className="border rounded p-4">
-        <div className="h-[400px] relative">
+        <div className="h-[400px] relative overflow-hidden">
           <div className="w-full h-full flex items-center justify-center text-gray-500">
             <div className="text-center">
               <div className="text-6xl mb-4">📊</div>
@@ -74,7 +73,7 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
 
   return (
     <div className="border rounded p-4">
-      <div className="h-[400px] relative">
+      <div className="h-[400px] relative overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
@@ -201,60 +200,57 @@ export default function TympanometryReportPage() {
     if (!reportRef.current) return;
     try {
       toast.success("Generating PDF...");
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 3,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        foreignObjectRendering: true,
-        onclone: (clonedDoc) => {
-          const element = clonedDoc.querySelector('[data-report-capture="true"]') as HTMLElement | null;
-          if (!element) return;
-          // Show print sections and rasterize SVGs in the clone only
-          const formHidden = element.querySelectorAll('.print\\:hidden');
-          const printBlocks = element.querySelectorAll('.hidden.print\\:block');
-          formHidden.forEach((el) => ((el as HTMLElement).style.display = 'none'));
-          printBlocks.forEach((el) => ((el as HTMLElement).style.display = 'block'));
-          rasterizeSVGsSync(element, clonedDoc);
-        },
-      });
+      const { exportElementToPdf } = await import("@/lib/pdf");
 
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "px",
-        format: "a4",
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-
-      const ratio = pdfWidth / imgWidth;
-      const scaledWidth = pdfWidth;
-      const scaledHeight = imgHeight * ratio;
-      const pageCount = Math.ceil(scaledHeight / pdfHeight);
-
-      for (let i = 0; i < pageCount; i++) {
-        if (i > 0) {
-          pdf.addPage();
+      // Pre-rasterize Recharts SVGs to PNG <img> to avoid any CSP plugin/image loader issues
+      const svgs = Array.from(reportRef.current.querySelectorAll("svg.recharts-surface")) as SVGSVGElement[];
+      const cleanup: Array<() => void> = [];
+      for (const svg of svgs) {
+        try {
+          const rect = svg.getBoundingClientRect();
+          const width = Math.max(1, Math.floor(rect.width));
+          const height = Math.max(1, Math.floor(rect.height));
+          // Serialize SVG and draw onto a canvas, then swap with <img src=png>
+          const xml = new XMLSerializer().serializeToString(svg);
+          const svgBlob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
+          const svgUrl = URL.createObjectURL(svgBlob);
+          const img = document.createElement("img");
+          img.width = width;
+          img.height = height;
+          img.style.width = `${width}px`;
+          img.style.height = `${height}px`;
+          await new Promise<void>((res) => { img.onload = () => res(); img.onerror = () => res(); img.src = svgUrl; });
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) ctx.drawImage(img, 0, 0, width, height);
+          const pngUrl = canvas.toDataURL("image/png");
+          const pngImg = document.createElement("img");
+          pngImg.src = pngUrl;
+          pngImg.width = width;
+          pngImg.height = height;
+          pngImg.style.width = `${width}px`;
+          pngImg.style.height = `${height}px`;
+          svg.style.display = "none";
+          svg.parentNode?.insertBefore(pngImg, svg);
+          cleanup.push(() => {
+            if (pngImg.parentNode) pngImg.parentNode.removeChild(pngImg);
+            svg.style.display = "";
+            URL.revokeObjectURL(svgUrl);
+          });
+        } catch {
+          // ignore this one and proceed
         }
-
-        pdf.addImage(
-          imgData,
-          "PNG",
-          0,
-          -i * pdfHeight,
-          scaledWidth,
-          scaledHeight
-        );
       }
 
-      pdf.save(
-        `tympanometry-report-${consultationData?.patient?.code || "unknown"}.pdf`
+      await exportElementToPdf(
+        reportRef.current,
+        `tympanometry-report-${consultationData?.patient?.code || "unknown"}.pdf`,
+        { singlePage: true }
       );
       toast.success("PDF downloaded successfully!");
+      cleanup.forEach(fn => fn());
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast.error("Failed to generate PDF");
@@ -348,34 +344,34 @@ export default function TympanometryReportPage() {
             <h2 className="text-xl font-bold text-gray-800">Impedance Audiometry</h2>
           </div>
 
-          {/* Patient Information */}
+            {/* Patient Information */}
           <div className="px-8 py-4 bg-white border-b">
             <div className="grid grid-cols-12 gap-4 text-sm">
               <div className="col-span-3 flex items-center">
                 <span className="font-medium mr-2">ID :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.code || ""}</span>
-              </div>
+                </div>
               <div className="col-span-6 flex items-center">
                 <span className="font-medium mr-2">Name :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.name || ""}</span>
-              </div>
+                </div>
               <div className="col-span-3 flex items-center">
                 <span className="font-medium mr-2">Date :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{format(new Date(consultationData.createdAt), "dd/MM/yyyy")}</span>
-              </div>
-            </div>
+                </div>
+                </div>
 
             <div className="grid grid-cols-12 gap-4 text-sm mt-3">
               <div className="col-span-7 flex items-center">
                 <span className="font-medium mr-2">Address :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.address || ""}</span>
-              </div>
+                </div>
               <div className="col-span-2 flex items-center">
                 <span className="font-medium mr-2">Age :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
                   {consultationData.patient?.dob ? Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : ""}
                 </span>
-              </div>
+                </div>
               <div className="col-span-2 flex items-center">
                 <span className="font-medium mr-2">Sex :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.gender || ""}</span>
@@ -386,7 +382,7 @@ export default function TympanometryReportPage() {
               <div className="flex items-center">
                 <span className="font-medium mr-2">Contact No. :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.contactNumber || ""}</span>
-              </div>
+                </div>
               <div className="flex items-center">
                 <span className="font-medium mr-2">Referred by :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1"></span>
@@ -395,7 +391,7 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Tympanogram Charts */}
-          <div className="px-8 py-6 bg-gray-50">
+          <div className="px-8 py-6 bg-gray-50 relative z-0">
             <div className="flex justify-between items-start gap-8">
               {(() => {
                 const leftReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
@@ -403,51 +399,51 @@ export default function TympanometryReportPage() {
 
                 const buildData = (r: TympanometryReadingModelData | undefined, ear: 'L' | 'R'): TympanogramPoint[] => {
                   if (!r) return [];
-                  const data: TympanogramPoint[] = [];
-                  for (let pressure = 200; pressure >= -400; pressure -= 25) {
+                    const data: TympanogramPoint[] = [];
+                    for (let pressure = 200; pressure >= -400; pressure -= 25) {
                     const distance = Math.abs(pressure - r.peakPressure);
                     const sigma = 100;
                     const normalized = distance / sigma;
                     const compliance = Math.max(r.staticCompliance * Math.exp(-(normalized * normalized) / 2), 0.05);
                     data.push({ pressure, compliance: compliance * 1.1, compensatedCompliance: compliance, ear });
                   }
-                  return data;
-                };
+                    return data;
+                  };
 
-                return (
+                  return (
                   <>
                     <div className="flex-1">
-                      <TympanogramGraph
-                        realTimeData={[]}
+                        <TympanogramGraph
+                          realTimeData={[]}
                         finalData={buildData(rightReading, 'R')}
-                        isTestCompleted={true}
+                          isTestCompleted={true}
                         selectedEar={'R'}
-                        pressureMax={200}
-                        pressureMin={-400}
-                        complianceMax={2.0}
-                        complianceMin={0}
-                      />
-                    </div>
+                          pressureMax={200}
+                          pressureMin={-400}
+                          complianceMax={2.0}
+                          complianceMin={0}
+                        />
+                      </div>
                     <div className="flex-1">
-                      <TympanogramGraph
-                        realTimeData={[]}
+                  <TympanogramGraph
+                    realTimeData={[]}
                         finalData={buildData(leftReading, 'L')}
-                        isTestCompleted={true}
+                    isTestCompleted={true}
                         selectedEar={'L'}
-                        pressureMax={200}
-                        pressureMin={-400}
-                        complianceMax={2.0}
-                        complianceMin={0}
-                      />
-                    </div>
+                    pressureMax={200}
+                    pressureMin={-400}
+                    complianceMax={2.0}
+                    complianceMin={0}
+                  />
+                </div>
                   </>
                 );
               })()}
-            </div>
+              </div>
           </div>
 
           {/* Investigation: Impedance */}
-          <div className="mx-8 mb-6">
+          <div className="mx-8 mb-6 relative z-10">
             <div className="bg-white border border-gray-300">
               <div className="bg-blue-900 text-white p-3 text-center">
                 <h3 className="text-sm font-bold">Investigation : Impedance</h3>
