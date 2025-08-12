@@ -13,7 +13,6 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/consultati
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/video_call_widget.dart';
-import 'package:earkart_omni/features/consultation/presentation/widgets/report_pta.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/uvc_camera_widget.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
@@ -476,6 +475,22 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         _showCamera = false;
       });
       _updateCameraState(false);
+
+      // Add a safety delay and then switch back to built-in camera
+      // This handles the transition from UVC camera to built-in camera properly
+      Future.delayed(const Duration(milliseconds: 3000), () {
+        if (mounted) {
+          try {
+            final agoraCubit = context.read<AgoraCubit>();
+            di<ILogger>().info(
+              '📷 Switching from UVC to built-in camera after otoscopy stop',
+            );
+            agoraCubit.switchToBuiltInCamera();
+          } catch (e) {
+            di<ILogger>().error('❌ Error switching to built-in camera: $e');
+          }
+        }
+      });
     });
   }
 
@@ -588,26 +603,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 );
               },
             ),
-
-          // Report toggle button
-          IconButton(
-            icon: Icon(
-              _showReport ? Icons.assessment : Icons.assessment_outlined,
-              color: _showReport ? Colors.blue : Colors.grey,
-            ),
-            tooltip: _showReport ? 'Hide Report' : 'Show Report',
-            onPressed: () {
-              setState(() {
-                _showReport = !_showReport;
-                // Hide camera if showing report
-                if (_showReport) {
-                  _showCamera = false;
-                  // Update camera state when hiding camera
-                  _updateCameraState(false);
-                }
-              });
-            },
-          ),
 
           // Device status is now shown globally in the main app overlay
           const SizedBox.shrink(),
@@ -876,89 +871,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               );
               final videoWidget = _getVideoWidget(state.consultation.id ?? "");
 
-              if (_showReport) {
-                // Split screen: video call on left, report on right
-                return Row(
-                  children: [
-                    // Left half - Video call
-                    Expanded(
-                      flex: 1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            right: BorderSide(
-                              color: Colors.grey[300]!,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        child: videoWidget,
-                      ),
-                    ),
-                    // Right half - PTA Report
-                    Expanded(
-                      flex: 1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          border: Border(
-                            left: BorderSide(
-                              color: Colors.grey[300]!,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            // Report header with close button
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[900],
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: Colors.grey[300]!,
-                                    width: 1,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'Pure Tone Audiometry Report',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.close,
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _showReport = false;
-                                      });
-                                    },
-                                    tooltip: 'Close Report',
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Report content
-                            const Expanded(child: ReportPTAWidget()),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              } else if (_showCamera) {
+              if (_showCamera) {
                 // Split screen: video call on left, camera on right
                 return Row(
                   children: [

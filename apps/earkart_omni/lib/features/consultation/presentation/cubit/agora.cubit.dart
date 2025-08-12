@@ -272,7 +272,7 @@ class AgoraCubit extends Cubit<AgoraState> {
       await _engine!.setVideoEncoderConfiguration(
         const VideoEncoderConfiguration(
           dimensions: VideoDimensions(width: 1280, height: 720),
-          frameRate: 40,
+          frameRate: 60,
           bitrate: 0,
         ),
       );
@@ -281,8 +281,7 @@ class AgoraCubit extends Cubit<AgoraState> {
       );
 
       di<ILogger>().info('[VIDEO_CALL] Configuring video parameters');
-      await _engine!.setParameters('{"che.video.publishBitRate":2500}');
-      await _engine!.setParameters('{"che.video.publishFrameRate":30}');
+      await _engine!.setParameters('{"che.video.publishFrameRate":60}');
       di<ILogger>().info(
         '[VIDEO_CALL] Video parameters configured successfully',
       );
@@ -519,11 +518,32 @@ class AgoraCubit extends Cubit<AgoraState> {
   }
 
   /// Toggle camera
-  void toggleCamera() {
+  Future<void> toggleCamera() async {
     if (!_isInitialized || _isDisposed) return;
     _isCameraOn = !_isCameraOn;
-    _engine!.muteLocalVideoStream(!_isCameraOn);
-    di<ILogger>().info('Camera ${_isCameraOn ? 'enabled' : 'disabled'}');
+
+    try {
+      await _engine!.muteLocalVideoStream(!_isCameraOn);
+
+      // If enabling camera and not screen sharing, ensure preview is active
+      if (_isCameraOn && !_isScreenSharing) {
+        try {
+          await _engine!.startPreview();
+          di<ILogger>().info('Camera preview started with camera toggle');
+        } catch (e) {
+          di<ILogger>().warning(
+            'Preview start failed in toggle (may be expected): $e',
+          );
+        }
+      }
+
+      di<ILogger>().info('Camera ${_isCameraOn ? 'enabled' : 'disabled'}');
+    } catch (e) {
+      di<ILogger>().error('Error toggling camera: $e');
+      // Revert state on error
+      _isCameraOn = !_isCameraOn;
+    }
+
     _emitCurrentState();
   }
 
@@ -552,9 +572,15 @@ class AgoraCubit extends Cubit<AgoraState> {
           ),
         );
 
+        // Update internal state first
         _isScreenSharing = false;
+
+        // Use the utility method to properly restore camera stream
+        // This will handle the timing and ensure built-in camera is activated
+        await _forceCameraStreamRestoration();
+
         di<ILogger>().info(
-          '[SCREEN_SHARE] Screen sharing stopped successfully',
+          '[SCREEN_SHARE] Screen sharing stopped and camera restored successfully',
         );
       } else {
         // Start screen sharing with bypass for device owner
@@ -575,6 +601,10 @@ class AgoraCubit extends Cubit<AgoraState> {
             const ScreenCaptureParameters2(
               captureAudio: false,
               captureVideo: true,
+              videoParams: ScreenVideoParameters(
+                dimensions: VideoDimensions(width: 1920, height: 1080),
+                frameRate: 60,
+              ),
             ),
           );
 
@@ -612,6 +642,124 @@ class AgoraCubit extends Cubit<AgoraState> {
       emit(
         AgoraError(message: 'Error toggling screen sharing: ${e.toString()}'),
       );
+    }
+  }
+
+  /// Restore camera video stream (public method for external use)
+  Future<void> restoreCameraStream() async {
+    await _forceCameraStreamRestoration();
+  }
+
+  /// Switch from UVC camera back to built-in camera after otoscopy
+  Future<void> switchToBuiltInCamera() async {
+    if (!_isInitialized || _isDisposed) return;
+
+    try {
+      di<ILogger>().info('[VIDEO_CALL] Switching from UVC to built-in camera');
+
+      // Ensure we're not in screen sharing mode
+      if (_isScreenSharing) {
+        di<ILogger>().info('[VIDEO_CALL] Stopping screen sharing first');
+        await toggleScreenSharing();
+      }
+
+      // Give extra time for UVC camera to fully dispose
+      await Future.delayed(const Duration(milliseconds: 1000));
+
+      // Force camera restoration with built-in camera
+      await _forceCameraStreamRestoration();
+
+      di<ILogger>().info(
+        '[VIDEO_CALL] Successfully switched to built-in camera',
+      );
+    } catch (e) {
+      di<ILogger>().error(
+        '[VIDEO_CALL] Error switching to built-in camera: $e',
+      );
+    }
+  }
+
+  /// Force camera stream restoration (utility method)
+  Future<void> _forceCameraStreamRestoration() async {
+    if (!_isInitialized || _isDisposed || !_isCameraOn) return;
+
+    try {
+      di<ILogger>().info('[VIDEO_CALL] Forcing camera stream restoration');
+
+      // First, ensure we're not in screen sharing mode
+      if (_isScreenSharing) {
+        di<ILogger>().warning(
+          '[VIDEO_CALL] Skipping camera restoration - still in screen sharing mode',
+        );
+        return;
+      }
+
+      // Add a longer delay to ensure UVC camera disposal is complete
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Ensure camera is not muted
+      await _engine!.muteLocalVideoStream(false);
+      di<ILogger>().info('[VIDEO_CALL] Camera unmuted');
+
+      // Stop any existing preview first
+      try {
+        await _engine!.stopPreview();
+        di<ILogger>().info('[VIDEO_CALL] Previous preview stopped');
+      } catch (e) {
+        di<ILogger>().info('[VIDEO_CALL] No previous preview to stop: $e');
+      }
+
+      // Wait a bit more to ensure clean state
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      // Start fresh preview with built-in camera
+      await _engine!.startPreview();
+      di<ILogger>().info('[VIDEO_CALL] New camera preview started');
+
+      // Update channel media options to ensure camera track is published
+      await _engine!.updateChannelMediaOptions(
+        const ChannelMediaOptions(
+          publishCameraTrack: true,
+          publishMicrophoneTrack: true,
+          publishScreenTrack: false,
+          publishScreenCaptureVideo: false,
+          publishScreenCaptureAudio: false,
+          clientRoleType: ClientRoleType.clientRoleBroadcaster,
+        ),
+      );
+      di<ILogger>().info(
+        '[VIDEO_CALL] Channel media options updated for camera',
+      );
+
+      // Force a state emission to update UI
+      _emitCurrentState();
+
+      di<ILogger>().info(
+        '[VIDEO_CALL] Camera stream restoration completed successfully',
+      );
+    } catch (e) {
+      di<ILogger>().error(
+        '[VIDEO_CALL] Error in camera stream restoration: $e',
+      );
+
+      // If restoration fails, try a simpler approach
+      try {
+        await _engine!.muteLocalVideoStream(false);
+        await _engine!.updateChannelMediaOptions(
+          const ChannelMediaOptions(
+            publishCameraTrack: true,
+            publishMicrophoneTrack: true,
+            clientRoleType: ClientRoleType.clientRoleBroadcaster,
+          ),
+        );
+        di<ILogger>().info(
+          '[VIDEO_CALL] Fallback camera restoration attempted',
+        );
+      } catch (fallbackError) {
+        di<ILogger>().error(
+          '[VIDEO_CALL] Fallback restoration also failed: $fallbackError',
+        );
+      }
     }
   }
 
