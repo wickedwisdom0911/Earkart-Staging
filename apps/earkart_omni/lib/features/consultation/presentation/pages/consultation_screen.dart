@@ -801,14 +801,28 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
               // Enhanced device event emission for all communication state changes
               if (r15cDevice != null || revo2Device != null) {
-                // Handle connection state
+                // Handle connection state - only try to initialize if device is actually connected
                 if (!state.isConnected) {
                   di<ILogger>().debug(
-                    'Device not connected, initializing port...',
+                    'Device not connected, checking if device is still physically present...',
                   );
-                  if (r15cDevice != null) {
+                  // Only attempt to reinitialize if the R15C device is actually still connected
+                  // This prevents infinite loops when device is physically disconnected
+                  if (r15cDevice != null &&
+                      di<DeviceCubit>().state.maybeWhen(
+                        success:
+                            (devices, r15cDev, revo2Dev) => r15cDev != null,
+                        orElse: () => false,
+                      )) {
+                    di<ILogger>().debug(
+                      'R15C device still physically connected, initializing port...',
+                    );
                     context.read<CommunicationCubit>().initializePort(
                       r15cDevice!,
+                    );
+                  } else {
+                    di<ILogger>().debug(
+                      'R15C device no longer physically connected, skipping port initialization',
                     );
                   }
                   _scheduleDeviceEventEmission(state);
@@ -840,6 +854,16 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               // Handle error states
               if (state.error != null) {
                 di<ILogger>().error('Device error: ${state.error}');
+
+                // If error indicates device not found, clear the device reference to prevent loops
+                if (state.error!.contains('No such device') &&
+                    r15cDevice != null) {
+                  di<ILogger>().info(
+                    'Clearing R15C device reference due to device not found error',
+                  );
+                  r15cDevice = null;
+                }
+
                 _scheduleDeviceEventEmission(state);
               }
 
