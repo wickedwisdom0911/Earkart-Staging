@@ -26,6 +26,7 @@ import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/config/release_config.dart';
 import 'package:earkart_omni/config/utils/error_handler.dart';
+import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
 import 'dart:async';
 
 class ConsultationScreen extends StatefulWidget {
@@ -374,6 +375,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
             setState(() {
               consultation = consultationData;
             });
+
+            _storeConsultationDataInHive(consultationData);
           } else {
             di<ILogger>().error('Failed to parse consultation data');
           }
@@ -1339,6 +1342,50 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
         );
       }
+    }
+  }
+
+  /// Stores the updated consultation data in the local Hive box for persistence
+  void _storeConsultationDataInHive(
+    ConsultationModelData consultationData,
+  ) async {
+    try {
+      final consultationEntityDataSource = di<ConsultationEntityDataSource>();
+
+      // Convert ConsultationModelData to ConsultationEntity for storage
+      final consultationEntity = ConsultationEntity(
+        id: consultationData.id,
+        patientId: consultationData.patientId,
+        audiologistId: consultationData.audiologistId,
+        centreId: consultationData.centreId,
+        patientStatus: consultationData.patientStatus,
+        audiologistStatus: consultationData.audiologistStatus,
+        audiometry: consultationData.audiometry,
+        tympanometry: consultationData.tympanometry,
+        oae: consultationData.oae,
+        otoscopy: consultationData.otoscopy,
+        notes: consultationData.notes,
+        status: consultationData.status,
+        createdAt: consultationData.createdAt,
+        updatedAt: consultationData.updatedAt,
+        patient: consultationData.patient,
+        audiologist: consultationData.audiologist,
+        centre: consultationData.centre,
+        recordings: consultationData.recordings,
+        consultationPricing: consultationData.consultationPricing,
+      );
+
+      // Store in Hive box
+      await consultationEntityDataSource.addConsultationEntity(
+        consultationEntity,
+      );
+
+      di<ILogger>().info(
+        '💾 Consultation data stored in Hive box successfully',
+      );
+      di<ILogger>().debug('Stored consultation ID: ${consultationData.id}');
+    } catch (e) {
+      di<ILogger>().error('❌ Error storing consultation data in Hive: $e');
     }
   }
 }
