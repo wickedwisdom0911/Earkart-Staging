@@ -71,24 +71,32 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
             val action = intent.action ?: return
             if (action == ACTION_USB_ATTACHED) {
                 Log.d(TAG, "ACTION_USB_ATTACHED")
-                eventSink?.let {
+                if (eventSink == null) {
+                    Log.w(TAG, "ACTION_USB_ATTACHED but eventSink is null - no Flutter listeners")
+                } else {
+                    Log.d(TAG, "ACTION_USB_ATTACHED sending event to Flutter")
                     val device = getUsbDeviceFromIntent(intent)
                     if (device != null) {
                         val msg = serializeDevice(device)
                         msg["event"] = ACTION_USB_ATTACHED
-                        it.success(msg)
+                        eventSink!!.success(msg)
+                        Log.d(TAG, "ACTION_USB_ATTACHED event sent successfully")
                     } else {
                         Log.e(TAG, "ACTION_USB_ATTACHED but no EXTRA_DEVICE")
                     }
                 }
             } else if (action == ACTION_USB_DETACHED) {
                 Log.d(TAG, "ACTION_USB_DETACHED")
-                eventSink?.let {
+                if (eventSink == null) {
+                    Log.w(TAG, "ACTION_USB_DETACHED but eventSink is null - no Flutter listeners")
+                } else {
+                    Log.d(TAG, "ACTION_USB_DETACHED sending event to Flutter")
                     val device = getUsbDeviceFromIntent(intent)
                     if (device != null) {
                         val msg = serializeDevice(device)
                         msg["event"] = ACTION_USB_DETACHED
-                        it.success(msg)
+                        eventSink!!.success(msg)
+                        Log.d(TAG, "ACTION_USB_DETACHED event sent successfully")
                     } else {
                         Log.e(TAG, "ACTION_USB_DETACHED but no EXTRA_DEVICE")
                     }
@@ -274,12 +282,12 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
     }
 
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-        // Log.d(TAG, "onListen called")
+        Log.d(TAG, "onListen called - Flutter is now listening to USB events")
         eventSink = events
     }
 
     override fun onCancel(arguments: Any?) {
-        // Log.d(TAG, "onCancel called")
+        Log.d(TAG, "onCancel called - Flutter stopped listening to USB events")
         eventSink = null
     }
 

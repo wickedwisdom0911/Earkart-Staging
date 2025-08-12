@@ -8,12 +8,11 @@ import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 
 class DeviceCubit extends Cubit<DeviceState> {
   Timer? _usbTimer;
+  StreamSubscription<UsbEvent>? _usbEventSubscription;
   List<UsbDevice> _devices = [];
   UsbDevice? _r15cDevice;
   UsbDevice? _revo2Device;
   CommunicationCubit? _communicationCubit;
-
-  static const _usbPollInterval = Duration(milliseconds: 500);
 
   DeviceCubit() : super(const DeviceState.initial());
 
@@ -37,6 +36,7 @@ class DeviceCubit extends Cubit<DeviceState> {
   void startDeviceMonitoring() {
     di<ILogger>().info('Starting device monitoring...');
     _usbTimer?.cancel();
+    _usbEventSubscription?.cancel();
 
     // Initial device fetch to handle already connected devices
     _fetchDevices().then((_) {
@@ -54,9 +54,83 @@ class DeviceCubit extends Cubit<DeviceState> {
       }
     });
 
-    _usbTimer = Timer.periodic(_usbPollInterval, (timer) async {
+    // Listen to USB events instead of polling
+    _startUsbEventListening();
+
+    // Keep a fallback timer for periodic checks (less frequent)
+    _usbTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       await _fetchDevices();
     });
+  }
+
+  void _startUsbEventListening() {
+    di<ILogger>().info('Starting USB event stream listening...');
+
+    final usbStream = UsbSerial.usbEventStream;
+    if (usbStream != null) {
+      _usbEventSubscription = usbStream.listen(
+        (UsbEvent event) {
+          di<ILogger>().info(
+            'USB Event received: ${event.event} for device: ${event.device}',
+          );
+
+          if (event.event == UsbEvent.ACTION_USB_ATTACHED) {
+            di<ILogger>().info('USB device attached: ${event.device}');
+            _handleUsbDeviceAttached(event.device);
+          } else if (event.event == UsbEvent.ACTION_USB_DETACHED) {
+            di<ILogger>().info('USB device detached: ${event.device}');
+            _handleUsbDeviceDetached(event.device);
+          }
+
+          // Refresh device list after any USB event
+          _fetchDevices();
+        },
+        onError: (error) {
+          di<ILogger>().error('USB event stream error: $error');
+        },
+      );
+    } else {
+      di<ILogger>().warning(
+        'USB event stream is null, falling back to polling only',
+      );
+    }
+  }
+
+  void _handleUsbDeviceAttached(UsbDevice? device) {
+    if (device == null) return;
+
+    final deviceType = _getDeviceType(device);
+    if (deviceType != null) {
+      di<ILogger>().info('Device attached via USB event: $deviceType');
+
+      // Auto-initialize communication for R15C device
+      if (deviceType == 'r15c' && _communicationCubit != null) {
+        di<ILogger>().info('Auto-initializing communication for R15C device');
+        // Add a small delay to ensure proper initialization
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (_communicationCubit != null) {
+            _communicationCubit!.initializePort(device);
+          }
+        });
+      }
+    }
+  }
+
+  void _handleUsbDeviceDetached(UsbDevice? device) {
+    if (device == null) return;
+
+    final deviceType = _getDeviceType(device);
+    if (deviceType != null) {
+      di<ILogger>().info('Device detached via USB event: $deviceType');
+
+      // Reset communication state when R15C device is detached
+      if (deviceType == 'r15c' && _communicationCubit != null) {
+        di<ILogger>().info(
+          'Resetting communication state for detached R15C device',
+        );
+        _communicationCubit!.resetState();
+      }
+    }
   }
 
   Future<void> _fetchDevices() async {
@@ -187,6 +261,8 @@ class DeviceCubit extends Cubit<DeviceState> {
   void stopDeviceMonitoring() {
     _usbTimer?.cancel();
     _usbTimer = null;
+    _usbEventSubscription?.cancel();
+    _usbEventSubscription = null;
   }
 
   // Manual method to force device status check

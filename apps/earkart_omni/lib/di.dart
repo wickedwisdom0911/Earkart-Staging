@@ -10,6 +10,8 @@ import 'package:earkart_omni/features/auth/domain/usecases/get.centre.data.useca
 import 'package:earkart_omni/features/auth/domain/usecases/get.centre.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/get.current.user.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/login.usecase.dart';
+import 'package:earkart_omni/features/auth/domain/usecases/clear.centre.data.usecase.dart';
+import 'package:earkart_omni/features/auth/domain/usecases/logout.usecase.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/repositories/agora.repository.impl.dart';
 import 'package:earkart_omni/features/consultation/data/repositories/consulation.repository.impl.dart';
@@ -129,12 +131,20 @@ Future<void> setupDI() async {
   di.registerLazySingleton<GetCurrentUserUsecase>(
     () => GetCurrentUserUsecase(authRepository: di.call()),
   );
+  di.registerLazySingleton<ClearCentreDataUsecase>(
+    () => ClearCentreDataUsecase(authRepository: di.call()),
+  );
+  di.registerLazySingleton<LogoutUsecase>(
+    () => LogoutUsecase(authRepository: di.call()),
+  );
   di.registerLazySingleton<AuthCubit>(
     () => AuthCubit(
       loginUseCase: di.call(),
       getCentreUsecase: di.call(),
       getCentreDataUsecase: di.call(),
       getCurrentUserUsecase: di.call(),
+      clearCentreDataUsecase: di.call(),
+      logoutUsecase: di.call(),
     ),
   );
   //patient

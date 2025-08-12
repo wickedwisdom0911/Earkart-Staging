@@ -92,4 +92,27 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
     final centre = centreEntityDataSource.getCentreEntity();
     return right(centre);
   }
+
+  @override
+  Future<Either<Failure, void>> clearCentreData() async {
+    try {
+      await centreEntityDataSource.clearBox();
+      return right(null);
+    } catch (e) {
+      return left(UnKnownFailure(error: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> logout() async {
+    try {
+      // Clear both user and centre data
+      await userEntityDataSource.clearBox();
+      await centreEntityDataSource.clearBox();
+      print("Logout: Cleared user and centre data");
+      return right(null);
+    } catch (e) {
+      return left(UnKnownFailure(error: e.toString()));
+    }
+  }
 }

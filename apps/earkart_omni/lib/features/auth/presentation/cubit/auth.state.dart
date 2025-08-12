@@ -14,4 +14,5 @@ class AuthState with _$AuthState {
   const factory AuthState.centreError({required String message}) =
       AuthCentreError;
   const factory AuthState.error({required String message}) = AuthError;
+  const factory AuthState.loggedOut() = AuthLoggedOut;
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
@@ -42,19 +43,68 @@ class _RootScreenState extends State<RootScreen> {
   PatientEntity? patient;
   ConsultationEntity? consultation;
 
+  Timer? _loadingTimeoutTimer;
+
   @override
   void initState() {
     super.initState();
 
-    context.read<AuthCubit>().getCurrentUser();
+    print('🚀 RootScreen initState - Starting initialization');
 
-    context.read<AuthCubit>().getCentreData();
+    context.read<AuthCubit>().getCurrentUser();
+    print('📞 Called getCurrentUser()');
 
     context.read<PatientCubit>().getCurrentPatient();
+    print('📞 Called getCurrentPatient()');
 
-    context.read<ConsultationCubit>().getCurrentConsultation();
+    // Don't call getCurrentConsultation here - it will be called after centre data is available
 
     _checkAndRequestPermissions();
+
+    // Set up a timeout to prevent indefinite loading
+    _setupLoadingTimeout();
+  }
+
+  void _setupLoadingTimeout() {
+    _loadingTimeoutTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted &&
+          (!checkedUser ||
+              !checkedCentre ||
+              !checkedPatient ||
+              !checkedConsultation)) {
+        print(
+          '⏰ Loading timeout reached! Force completing incomplete operations',
+        );
+        print('   checkedUser: $checkedUser');
+        print('   checkedCentre: $checkedCentre');
+        print('   checkedPatient: $checkedPatient');
+        print('   checkedConsultation: $checkedConsultation');
+
+        setState(() {
+          // Force complete any incomplete operations
+          if (!checkedUser) {
+            checkedUser = true;
+            user = null;
+            print('   ⚠️ Forced checkedUser to true');
+          }
+          if (!checkedCentre) {
+            checkedCentre = true;
+            centre = null;
+            print('   ⚠️ Forced checkedCentre to true');
+          }
+          if (!checkedPatient) {
+            checkedPatient = true;
+            patient = null;
+            print('   ⚠️ Forced checkedPatient to true');
+          }
+          if (!checkedConsultation) {
+            checkedConsultation = true;
+            consultation = null;
+            print('   ⚠️ Forced checkedConsultation to true');
+          }
+        });
+      }
+    });
   }
 
   Future<void> _checkAndRequestPermissions() async {
@@ -201,6 +251,10 @@ class _RootScreenState extends State<RootScreen> {
 
   @override
   void dispose() {
+    // Cancel loading timeout timer
+    _loadingTimeoutTimer?.cancel();
+    _loadingTimeoutTimer = null;
+
     // Stop global device monitoring when root screen is disposed
     try {
       final deviceCubit = di<DeviceCubit>();
@@ -245,35 +299,137 @@ class _RootScreenState extends State<RootScreen> {
       listeners: [
         BlocListener<AuthCubit, AuthState>(
           listener: (context, state) {
+            print('🔐 AuthCubit state changed: ${state.runtimeType}');
+
             if (state is AuthSuccess) {
+              print('✅ AuthSuccess - User: ${state.user?.email ?? 'null'}');
               setState(() {
                 checkedUser = true;
                 user = state.user;
               });
+              // Only call getCentre after we have user data
+              if (state.user != null) {
+                print('📞 Calling getCentre() for user: ${state.user!.email}');
+                context.read<AuthCubit>().getCentre();
+              } else {
+                print('⚠️ User is null, marking centre as checked with null');
+                // If no user, mark centre as checked with null value
+                setState(() {
+                  checkedCentre = true;
+                  centre = null;
+                });
+                // Also call getCurrentConsultation to complete the loading cycle
+                print(
+                  '📞 Calling getCurrentConsultation() even with null user to complete loading',
+                );
+                context.read<ConsultationCubit>().getCurrentConsultation();
+              }
             }
             if (state is AuthCentreSuccess) {
+              print(
+                '✅ AuthCentreSuccess - Centre: ${state.centre?.entName ?? 'null'}',
+              );
               setState(() {
                 checkedCentre = true;
                 centre = state.centre;
               });
-            } else if (state is AuthError || state is AuthInitial) {
+              // Now that we have centre data, we can safely call getCurrentConsultation
+              if (state.centre != null) {
+                print(
+                  '📞 Calling getCurrentConsultation() for centre: ${state.centre!.entName}',
+                );
+                context.read<ConsultationCubit>().getCurrentConsultation();
+              } else {
+                print('⚠️ Centre is null, not calling getCurrentConsultation');
+              }
+            } else if (state is AuthError ||
+                state is AuthInitial ||
+                state is AuthCentreError ||
+                state is AuthLoggedOut) {
               if (state is AuthError) {
-              } else {}
-              setState(() {
-                checkedCentre = true;
-                centre = null;
-              });
+                print('❌ Auth Error: ${state.message}');
+                // If user auth fails, mark all as checked with null
+                setState(() {
+                  checkedUser = true;
+                  checkedCentre = true;
+                  user = null;
+                  centre = null;
+                });
+                // Also call getCurrentConsultation to complete the loading cycle
+                print(
+                  '📞 Calling getCurrentConsultation() after auth error to complete loading',
+                );
+                context.read<ConsultationCubit>().getCurrentConsultation();
+              } else if (state is AuthCentreError) {
+                print('❌ Centre Error: ${state.message}');
+                setState(() {
+                  checkedCentre = true;
+                  centre = null;
+                });
+                // Also call getCurrentConsultation to complete the loading cycle
+                print(
+                  '📞 Calling getCurrentConsultation() after centre error to complete loading',
+                );
+                context.read<ConsultationCubit>().getCurrentConsultation();
+              } else if (state is AuthLoggedOut) {
+                print('🚪 User logged out - clearing all data');
+                setState(() {
+                  checkedUser = true;
+                  checkedCentre = true;
+                  user = null;
+                  centre = null;
+                });
+                // Also call getCurrentConsultation to complete the loading cycle
+                print(
+                  '📞 Calling getCurrentConsultation() after logout to complete loading',
+                );
+                context.read<ConsultationCubit>().getCurrentConsultation();
+              } else if (state is AuthInitial) {
+                print('🔄 AuthInitial state - this might indicate a problem');
+                setState(() {
+                  checkedCentre = true;
+                  centre = null;
+                });
+                // Also call getCurrentConsultation to complete the loading cycle
+                print(
+                  '📞 Calling getCurrentConsultation() after AuthInitial to complete loading',
+                );
+                context.read<ConsultationCubit>().getCurrentConsultation();
+              } else {
+                print(
+                  '⚠️ Unknown auth state, marking centre as checked with null',
+                );
+                setState(() {
+                  checkedCentre = true;
+                  centre = null;
+                });
+                // Also call getCurrentConsultation to complete the loading cycle
+                print(
+                  '📞 Calling getCurrentConsultation() after unknown auth state to complete loading',
+                );
+                context.read<ConsultationCubit>().getCurrentConsultation();
+              }
             }
           },
         ),
         BlocListener<PatientCubit, PatientState>(
           listener: (context, state) {
+            print('🏥 PatientCubit state changed: ${state.runtimeType}');
+
             if (state is CurrentPatientSuccess) {
+              print(
+                '✅ CurrentPatientSuccess - Patient: ${state.patient != null ? state.patient!.name : 'null'}',
+              );
               setState(() {
                 checkedPatient = true;
                 patient = state.patient;
               });
             } else if (state is PatientError || state is PatientInitial) {
+              if (state is PatientError) {
+                print('❌ Patient Error: ${state.message}');
+              } else {
+                print('🔄 PatientInitial state');
+              }
               setState(() {
                 checkedPatient = true;
                 patient = null;
@@ -283,13 +439,23 @@ class _RootScreenState extends State<RootScreen> {
         ),
         BlocListener<ConsultationCubit, ConsultationState>(
           listener: (context, state) {
+            print('💬 ConsultationCubit state changed: ${state.runtimeType}');
+
             if (state is CurrentConsultationSuccess) {
+              print(
+                '✅ CurrentConsultationSuccess - Consultation: ${state.consultation != null ? state.consultation!.id : 'null'}',
+              );
               setState(() {
                 checkedConsultation = true;
                 consultation = state.consultation;
               });
             } else if (state is ConsultationError ||
                 state is ConsultationInitial) {
+              if (state is ConsultationError) {
+                print('❌ Consultation Error: ${state.message}');
+              } else {
+                print('🔄 ConsultationInitial state');
+              }
               setState(() {
                 checkedConsultation = true;
                 consultation = null;
@@ -300,12 +466,33 @@ class _RootScreenState extends State<RootScreen> {
       ],
       child: Builder(
         builder: (context) {
+          // Debug logging to identify which operation is not completing
+          print('🔍 RootScreen build check:');
+          print(
+            '   checkedUser: $checkedUser (user: ${user?.email ?? 'null'})',
+          );
+          print(
+            '   checkedCentre: $checkedCentre (centre: ${centre?.entName ?? 'null'})',
+          );
+          print(
+            '   checkedPatient: $checkedPatient (patient: ${patient != null ? patient!.name : 'null'})',
+          );
+          print(
+            '   checkedConsultation: $checkedConsultation (consultation: ${consultation?.id ?? 'null'})',
+          );
+
           if (!checkedCentre ||
               !checkedPatient ||
               !checkedConsultation ||
               !checkedUser) {
+            print('⏳ Still loading - showing AppLoadingScreen.compact()');
             return const AppLoadingScreen.compact();
           }
+
+          // All operations completed - cancel timeout timer
+          _loadingTimeoutTimer?.cancel();
+          _loadingTimeoutTimer = null;
+          print('✅ All operations completed - proceeding with navigation');
 
           // Navigation logic with detailed logging
           // Priority 1: If consultation exists, go to consultation screen

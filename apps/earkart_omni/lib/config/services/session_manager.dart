@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:earkart_omni/config/widgets/session_expired_dialog.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -19,25 +20,27 @@ class SessionManager {
 
   static void handleSessionExpired() {
     if (_isShowingDialog || _currentContext == null) return;
-    
+
     _isShowingDialog = true;
-    
+
     // Show the session expired dialog
-    SessionExpiredDialog.show(
-      _currentContext!,
-      () {
-        _performLogout();
-      },
-    );
+    SessionExpiredDialog.show(_currentContext!, () {
+      _performLogout();
+    });
   }
 
   static void _performLogout() {
     if (_currentContext == null) return;
 
     try {
-      // Clear all data
+      // Use AuthCubit to logout which will clear all auth data
+      _currentContext!.read<AuthCubit>().logout();
+
+      // Clear patient and consultation data
       _currentContext!.read<PatientCubit>().deletePatientSession();
-      _currentContext!.read<ConsultationCubit>().deleteCurrentConsultationSession();
+      _currentContext!
+          .read<ConsultationCubit>()
+          .deleteCurrentConsultationSession();
 
       // Navigate to login screen and clear all routes
       Navigator.pushNamedAndRemoveUntil(
@@ -56,4 +59,4 @@ class SessionManager {
   static void resetDialogState() {
     _isShowingDialog = false;
   }
-} 
+}

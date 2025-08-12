@@ -640,6 +640,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 error: (error) {
                   di<ILogger>().error('Auth state: error - $error');
                 },
+                loggedOut: () {
+                  di<ILogger>().debug('Auth state: logged out');
+                  // User has been logged out, should navigate away from consultation
+                  if (mounted) {
+                    Navigator.pushReplacementNamed(context, '/');
+                  }
+                },
               );
             },
           ),
