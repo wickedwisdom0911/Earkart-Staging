@@ -71,6 +71,9 @@ export default function SplashCursor({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    // Ensure we're running in the browser
+    if (typeof window === "undefined") return;
+    
     const canvas = canvasRef.current;
     if (!canvas) return; // Guard canvas early
 
@@ -994,7 +997,7 @@ export default function SplashCursor({
     }
 
     function scaleByPixelRatio(input: number) {
-      const pixelRatio = window.devicePixelRatio || 1;
+      const pixelRatio = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1;
       return Math.floor(input * pixelRatio);
     }
 
