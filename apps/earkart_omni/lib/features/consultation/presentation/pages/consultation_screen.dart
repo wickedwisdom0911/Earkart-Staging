@@ -318,7 +318,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       if (!mounted) return;
 
       di<ILogger>().info('👥 User joined consultation, sending device status');
-      _scheduleDeviceEventEmission(context.read<CommunicationCubit>().state);
+      // Force emit device event immediately when user joins, regardless of state changes
+      _forceEmitDeviceEvent(context.read<CommunicationCubit>().state);
       _handleBeginPacket(testType);
 
       if (data == null) {
@@ -1070,6 +1071,20 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         '🔧 Force triggering device event emission for USB event',
       );
       _scheduleDeviceEventEmission(context.read<CommunicationCubit>().state);
+    }
+  }
+
+  // Force emit device event immediately without state change checks
+  void _forceEmitDeviceEvent(CommunicationState state) {
+    if (_isSocketInitialized) {
+      di<ILogger>().info(
+        '🚀 Force emitting device event immediately (bypassing state change checks)',
+      );
+      _emitDeviceEvent(state);
+    } else {
+      di<ILogger>().error(
+        '❌ Cannot force emit device event - socket not initialized',
+      );
     }
   }
 
