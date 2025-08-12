@@ -220,12 +220,16 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
+    if (typeof window !== "undefined") {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('focus', handleFocus);
+    }
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
+      if (typeof window !== "undefined") {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleFocus);
+      }
     };
   }, [alerts, isAudiologist, isOnConsultationRoute]);
 
@@ -345,14 +349,18 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       stopContinuousSound();
     };
 
-    window.addEventListener('consultationNeedsAttention', handleConsultationNeedsAttention as EventListener);
-    window.addEventListener('stopContinuousSound', handleStopContinuousSound);
-    window.addEventListener('clearNotificationCache', handleClearNotificationCache);
+    if (typeof window !== "undefined") {
+      window.addEventListener('consultationNeedsAttention', handleConsultationNeedsAttention as EventListener);
+      window.addEventListener('stopContinuousSound', handleStopContinuousSound);
+      window.addEventListener('clearNotificationCache', handleClearNotificationCache);
+    }
 
     return () => {
-      window.removeEventListener('consultationNeedsAttention', handleConsultationNeedsAttention as EventListener);
-      window.removeEventListener('stopContinuousSound', handleStopContinuousSound);
-      window.removeEventListener('clearNotificationCache', handleClearNotificationCache);
+      if (typeof window !== "undefined") {
+        window.removeEventListener('consultationNeedsAttention', handleConsultationNeedsAttention as EventListener);
+        window.removeEventListener('stopContinuousSound', handleStopContinuousSound);
+        window.removeEventListener('clearNotificationCache', handleClearNotificationCache);
+      }
     };
   }, [isAudiologist, notifiedConsultations]);
 

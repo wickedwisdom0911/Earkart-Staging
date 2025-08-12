@@ -1,6 +1,6 @@
 "use client";
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import AgoraRTC, {
+import type {
   IAgoraRTCClient,
   IAgoraRTCRemoteUser,
   ICameraVideoTrack,
@@ -58,21 +58,24 @@ export const AgoraOtoscopyProvider: React.FC<AgoraOtoscopyProviderProps> = ({ ch
       try {
         console.log("🔄 Initializing Agora client for otoscopy...");
         
+        // Dynamically import AgoraRTC to avoid SSR issues
+        const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
+        
         // Create Agora client with RTC mode (consistent with video call)
         const agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         
         // Set up event handlers
-        agoraClient.on("user-joined", (user) => {
+        agoraClient.on("user-joined", (user: any) => {
           console.log("👤 Remote user joined otoscopy:", user.uid);
           setRemoteUsers(prev => [...prev, user]);
         });
 
-        agoraClient.on("user-left", (user, reason) => {
+        agoraClient.on("user-left", (user: any, reason: any) => {
           console.log("👋 Remote user left otoscopy:", user.uid, "reason:", reason);
           setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
         });
 
-        agoraClient.on("user-published", async (user, mediaType) => {
+        agoraClient.on("user-published", async (user: any, mediaType: any) => {
           console.log("📺 Remote user published:", user.uid, "mediaType:", mediaType);
           
           // Subscribe to the remote user
@@ -89,12 +92,12 @@ export const AgoraOtoscopyProvider: React.FC<AgoraOtoscopyProviderProps> = ({ ch
             });
         });
 
-        agoraClient.on("user-unpublished", (user, mediaType) => {
+        agoraClient.on("user-unpublished", (user: any, mediaType: any) => {
           console.log("📺 Remote user unpublished:", user.uid, "mediaType:", mediaType);
           setRemoteUsers(prev => prev.map(u => u.uid === user.uid ? user : u));
         });
 
-        agoraClient.on("connection-state-change", (curState, revState) => {
+        agoraClient.on("connection-state-change", (curState: any, revState: any) => {
           console.log("🔗 Otoscopy connection state changed:", { curState, revState });
           setIsConnected(curState === "CONNECTED");
           

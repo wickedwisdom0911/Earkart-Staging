@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -158,6 +158,11 @@ interface AudiologistAnalyticsProps {
 export default function AudiologistAnalytics({ userRole, currentUser }: AudiologistAnalyticsProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   // Role-based logic for audiologist filtering
   const isAdmin = userRole === "ADMIN" || userRole === "SUPER_ADMIN";
@@ -555,41 +560,47 @@ export default function AudiologistAnalytics({ userRole, currentUser }: Audiolog
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <ResponsiveContainer width="100%" height={400}>
-                <AreaChart data={data.data}>
-                  <defs>
-                    <linearGradient id="colorUvAudio" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e4e7" />
-                  <XAxis 
-                    dataKey="label" 
-                    tick={{ fontSize: 12 }}
-                    stroke="#6b7280"
-                  />
-                  <YAxis 
-                    tick={{ fontSize: 12 }}
-                    stroke="#6b7280"
-                  />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: 'none',
-                      borderRadius: '8px',
-                      color: '#ffffff'
-                    }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="#8b5cf6" 
-                    strokeWidth={3}
-                    fill="url(#colorUvAudio)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {isClient ? (
+                <ResponsiveContainer width="100%" height={400}>
+                  <AreaChart data={data.data}>
+                    <defs>
+                      <linearGradient id="colorUvAudio" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e4e7" />
+                    <XAxis 
+                      dataKey="label" 
+                      tick={{ fontSize: 12 }}
+                      stroke="#6b7280"
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 12 }}
+                      stroke="#6b7280"
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: '#1f2937',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: '#ffffff'
+                      }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#8b5cf6" 
+                      strokeWidth={3}
+                      fill="url(#colorUvAudio)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="w-full h-[400px] flex items-center justify-center bg-gray-50 rounded-md">
+                  <div className="text-gray-500">Loading chart...</div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
