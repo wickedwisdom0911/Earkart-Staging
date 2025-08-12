@@ -40,6 +40,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   bool _isInitializing = false;
   bool _isViewReady = false;
   bool _initializationTriggered = false;
+  // Track if camera has ever reached OPENED state to avoid premature hide
+  bool _hasEverOpened = false;
   Timer? _initializationTimer;
   Timer? _platformViewTimer;
 
@@ -233,11 +235,16 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           });
         }
 
-        // Always notify parent about camera state change, even if widget is disposed
-        // This ensures the parent layout reverts to full screen
+        // Notify parent only if the camera had opened at least once, to avoid premature hide
         try {
-          widget.onCameraStateChanged?.call(false);
-          di<ILogger>().info('📷 Notified parent that camera is closed');
+          if (_hasEverOpened) {
+            widget.onCameraStateChanged?.call(false);
+            di<ILogger>().info('📷 Notified parent that camera is closed');
+          } else {
+            di<ILogger>().info(
+              '📷 Skipping parent notification since camera never opened',
+            );
+          }
         } catch (e) {
           di<ILogger>().error(
             'Error notifying parent about camera state change: $e',
@@ -615,6 +622,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               _errorCount = 0; // Reset error count on success
               _initializationTriggered =
                   false; // Reset for future reinitializations
+              _hasEverOpened =
+                  true; // Mark that camera has successfully opened at least once
             });
 
             di<ILogger>().info(
@@ -632,9 +641,15 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               _isViewReady = false;
             });
 
-            // Notify parent about camera state change
-            widget.onCameraStateChanged?.call(false);
-            di<ILogger>().info('📷 Camera state closed - notified parent');
+            // Notify parent only if camera was opened before to avoid flicker during init
+            if (_hasEverOpened) {
+              widget.onCameraStateChanged?.call(false);
+              di<ILogger>().info('📷 Camera state closed - notified parent');
+            } else {
+              di<ILogger>().info(
+                '📷 Camera state closed before initial open - skipping parent notification',
+              );
+            }
             break;
           case UVCCameraState.error:
             print('Camera error occurred');
@@ -644,11 +659,17 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               _isViewReady = false;
             });
 
-            // Notify parent about camera state change on error
-            widget.onCameraStateChanged?.call(false);
-            di<ILogger>().info(
-              '📷 Camera error occurred - notified parent to revert to full screen',
-            );
+            // Notify parent about camera state change on error only if opened once
+            if (_hasEverOpened) {
+              widget.onCameraStateChanged?.call(false);
+              di<ILogger>().info(
+                '📷 Camera error occurred - notified parent to revert to full screen',
+              );
+            } else {
+              di<ILogger>().info(
+                '📷 Camera error before initial open - skipping parent notification',
+              );
+            }
 
             _handleCameraError();
             break;

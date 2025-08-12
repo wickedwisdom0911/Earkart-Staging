@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
 import android.hardware.usb.UsbDevice
 import android.media.MediaScannerConnection
+import android.os.Build
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
