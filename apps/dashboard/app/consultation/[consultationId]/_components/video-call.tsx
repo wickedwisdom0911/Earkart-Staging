@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import AgoraRTC, {
+import {
   LocalUser,
   RemoteUser,
   useLocalMicrophoneTrack,
@@ -10,7 +10,6 @@ import AgoraRTC, {
   useRemoteUsers,
   useJoin,
   useIsConnected,
-  AgoraRTCProvider,
   useRTCClient,
   ILocalTrack,
 } from "agora-rtc-react";
@@ -221,7 +220,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   );
 
   // Publish tracks
-  usePublish([localMicrophoneTrack, localCameraTrack]);
+  usePublish([localMicrophoneTrack, localCameraTrack] as any);
 
   // Handle token fetching
   useEffect(() => {
@@ -332,20 +331,20 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
 
           // Cleanup local tracks
           if (localMicrophoneTrack) {
-            await cleanupTrack(localMicrophoneTrack);
+            await cleanupTrack(localMicrophoneTrack as any);
           }
           if (localCameraTrack) {
-            await cleanupTrack(localCameraTrack);
+            await cleanupTrack(localCameraTrack as any);
           }
 
           // Unpublish and leave if connected
           if (isConnected) {
             try {
               if (localMicrophoneTrack) {
-                await client.unpublish(localMicrophoneTrack);
+                await client.unpublish(localMicrophoneTrack as any);
               }
               if (localCameraTrack) {
-                await client.unpublish(localCameraTrack);
+                await client.unpublish(localCameraTrack as any);
               }
               await client.leave();
             } catch (err) {
@@ -362,9 +361,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           setShowRefreshHint(false);
 
           // Force cleanup of any remaining tracks
-          if (client.localTracks) {
-            for (const track of client.localTracks) {
-              await cleanupTrack(track);
+          if ((client as any).localTracks) {
+            for (const track of (client as any).localTracks as any[]) {
+              await cleanupTrack(track as any);
             }
           }
 
@@ -379,7 +378,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                 try {
                   const stream = await navigator.mediaDevices.getUserMedia({
                     [device.kind]: { deviceId: device.deviceId },
-                  });
+                  } as any);
                   stream.getTracks().forEach((track) => {
                     track.stop();
                     track.enabled = false;
@@ -481,11 +480,11 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           >
             {localCameraTrack ? (
               <LocalUser
-                audioTrack={localMicrophoneTrack}
+                audioTrack={localMicrophoneTrack as any}
                 cameraOn={true}
                 micOn={micOn}
                 playAudio={false}
-                videoTrack={localCameraTrack}
+                videoTrack={localCameraTrack as any}
                 style={{ width: "100%", height: "100%" }}
               >
                 <div className="absolute bottom-1 left-1 text-white text-xs">
@@ -528,10 +527,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
 };
 
 export const VideoCall: React.FC<VideoCallProps> = (props) => {
-  const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
   return (
-    <AgoraRTCProvider client={client}>
       <VideoCallContent {...props} />
-    </AgoraRTCProvider>
   );
 };

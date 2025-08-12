@@ -17,7 +17,7 @@ import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 import Image from "next/image";
 import { ArrowDownLeft, ArrowDownRight } from "lucide-react";
-import useReportScreenShare from "@/hooks/agora/use-report-screen-share";
+import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
 
 interface TestResult {
   ear: string;
@@ -382,14 +382,14 @@ export default function ReportPage() {
   const updateConsultationMutation = useUpdateConsultation();
   const reportRef = useRef<HTMLDivElement>(null);
   
-  // Screen sharing functionality
+  // Screen sharing functionality (shared with video call client)
   const { 
     isSharing: isScreenSharing, 
     isConnecting: isScreenConnecting, 
     toggleScreenShare, 
     error: screenShareError 
-  } = useReportScreenShare();
-  
+  } = useSharedScreenShare();
+
   // State for show report functionality
   const [isShowingReport, setIsShowingReport] = useState(false);
   

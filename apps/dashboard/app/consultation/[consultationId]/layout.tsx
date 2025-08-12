@@ -2,13 +2,14 @@
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { use } from "react";
+import { use, useMemo } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useEffect } from "react";
 import { useDevice } from "@/providers/device-provider";
 import { OtoscopyProvider } from "@/providers/otoscopy-provider";
 import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
 import { ConsultationContent } from "./_components/consultation-content";
+import AgoraRTC, { AgoraRTCProvider } from "agora-rtc-react";
 export default function ConsultationLayout({
   children,
   params,
@@ -57,10 +58,14 @@ export default function ConsultationLayout({
 
   const consultationData = consultation.data as ConsultationModelData;
 
+  // Create a single Agora client instance shared across this layout
+  const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
+
   return (
     <OtoscopyProvider consultationId={resolvedParams.consultationId}>
       <AgoraOtoscopyProvider>
-        <DashboardBodyWrapper
+        <AgoraRTCProvider client={agoraClient}>
+          <DashboardBodyWrapper
       pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
       className="border-none "
       button={
@@ -102,7 +107,8 @@ export default function ConsultationLayout({
         {children}
       </ConsultationContent>
         </DashboardBodyWrapper>
-      </AgoraOtoscopyProvider>
-    </OtoscopyProvider>
-  );
+      </AgoraRTCProvider>
+    </AgoraOtoscopyProvider>
+  </OtoscopyProvider>
+);
 }

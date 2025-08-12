@@ -53,8 +53,8 @@ export default function useReportScreenShare() {
       // Get token for the main consultation channel
       const tokenData = await fetchToken({
         channelName: consultationId as string,
-        userRole: 'publisher', // Dashboard publishes screen share
-        isUVC: false
+        userRole: 'publisher', // Use a separate UID for screen share
+        isUVC: true
       });
 
       if (!tokenData.data?.token || !tokenData.data?.appId) {
@@ -109,19 +109,34 @@ export default function useReportScreenShare() {
       // Dynamically import AgoraRTC to avoid SSR issues
       const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
       
-      // Create screen share track
-      const screenTrack = await AgoraRTC.createScreenVideoTrack({
-        // Configure screen share settings
-        encoderConfig: {
-          width: 1920,
-          height: 1080,
-          frameRate: 15,
-          bitrateMin: 1000,
-          bitrateMax: 3000,
-        },
-        // Allow user to choose what to share (entire screen, window, or tab)
-        screenSourceType: "screen"
-      });
+      // Prefer tab capture when a specific element is given by limiting to the current tab
+      // Note: createScreenVideoTrack does not take a DOM element directly, but we can hint the browser
+      // to share the current tab by setting screenSourceType to "screen" and letting user choose the tab.
+      const screenTrack = await AgoraRTC.createScreenVideoTrack(
+        reportElement
+          ? {
+              encoderConfig: {
+                width: 1920,
+                height: 1080,
+                frameRate: 15,
+                bitrateMin: 1000,
+                bitrateMax: 3000,
+              },
+              screenSourceType: "screen",
+              // Chrome shows a checkbox "Share tab audio"; we keep defaults here
+              // withAudio is not used because we only need video for the report
+            }
+          : {
+              encoderConfig: {
+                width: 1920,
+                height: 1080,
+                frameRate: 15,
+                bitrateMin: 1000,
+                bitrateMax: 3000,
+              },
+              screenSourceType: "screen",
+            }
+      );
 
       console.log("✅ [REPORT-SCREEN-SHARE] Screen track created successfully");
 
@@ -162,10 +177,8 @@ export default function useReportScreenShare() {
       }));
       
       if (error instanceof Error) {
-        if (error.message.includes("Permission denied")) {
-          toast.error("Screen sharing permission denied. Please allow screen sharing and try again.");
-        } else if (error.message.includes("NotAllowedError")) {
-          toast.error("Screen sharing not allowed. Please check your browser settings.");
+        if (error.message.includes("Permission denied") || error.message.includes("NotAllowedError")) {
+          toast.error("Screen share was blocked. Please select the tab/window and allow sharing.");
         } else {
           toast.error(`Failed to start screen sharing: ${error.message}`);
         }
@@ -218,12 +231,8 @@ export default function useReportScreenShare() {
     }
   }, [state.isSharing, startScreenShare, stopScreenShare]);
 
-  // Auto-connect when component mounts and client is ready
-  useEffect(() => {
-    if (isClientInitialized && !hasAttemptedJoinRef.current) {
-      connectToChannel();
-    }
-  }, [isClientInitialized, connectToChannel]);
+  // Removed auto-connect on mount to avoid prompting on first page load.
+  // Connection will be established when user clicks "Show Report" via startScreenShare.
 
   // Cleanup on unmount
   useEffect(() => {
