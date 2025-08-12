@@ -103,4 +103,62 @@ class DeviceOwnerHelper {
 
     print('=' * 50);
   }
+
+  /// Request screen sharing permission (standard method)
+  static Future<Map<String, dynamic>?> requestScreenShare() async {
+    try {
+      final result = await platform.invokeMethod('requestScreenShare');
+      print('Screen share request result: $result');
+      return Map<String, dynamic>.from(result);
+    } on PlatformException catch (e) {
+      print('Error requesting screen share: ${e.message}');
+      return null;
+    }
+  }
+
+  /// Bypass screen sharing dialog for device owner apps
+  static Future<Map<String, dynamic>?> bypassScreenShareDialog() async {
+    try {
+      final result = await platform.invokeMethod('bypassScreenShareDialog');
+      print('Screen share bypass result: $result');
+      return Map<String, dynamic>.from(result);
+    } on PlatformException catch (e) {
+      print('Error bypassing screen share dialog: ${e.message}');
+      return null;
+    }
+  }
+
+  /// Grant PROJECT_MEDIA AppOps permission for screen capture without dialog
+  static Future<bool> grantProjectMediaPermission() async {
+    try {
+      await platform.invokeMethod('grantProjectMediaPermission');
+      print('✅ PROJECT_MEDIA permission granted successfully');
+      return true;
+    } on PlatformException catch (e) {
+      print('Error granting PROJECT_MEDIA permission: ${e.message}');
+      return false;
+    }
+  }
+
+  /// Smart screen sharing method that bypasses dialog if device owner
+  static Future<Map<String, dynamic>?> smartScreenShare() async {
+    try {
+      final bool isOwner = await isDeviceOwner();
+
+      if (isOwner) {
+        print('🎯 Device owner detected - bypassing screen share dialog');
+
+        // First, grant PROJECT_MEDIA permission
+        await grantProjectMediaPermission();
+
+        return await bypassScreenShareDialog();
+      } else {
+        print('📱 Not device owner - using standard screen share request');
+        return await requestScreenShare();
+      }
+    } catch (e) {
+      print('Error in smart screen share: $e');
+      return null;
+    }
+  }
 }

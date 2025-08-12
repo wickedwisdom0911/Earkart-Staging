@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:earkart_omni/utils/device_owner_helper.dart';
 
 class AgoraCubit extends Cubit<AgoraState> {
   final GetAgoraTokenUsecase getAgoraTokenUsecase;
@@ -383,8 +384,6 @@ class AgoraCubit extends Cubit<AgoraState> {
                   _isScreenSharing = false;
                   _emitCurrentState();
                   break;
-                default:
-                  break;
               }
             }
           },
@@ -558,34 +557,54 @@ class AgoraCubit extends Cubit<AgoraState> {
           '[SCREEN_SHARE] Screen sharing stopped successfully',
         );
       } else {
-        // Start screen sharing
-        di<ILogger>().info('[SCREEN_SHARE] Starting screen sharing');
-        await _engine!.startScreenCapture(
-          const ScreenCaptureParameters2(
-            captureAudio: false,
-            captureVideo: true,
-          ),
+        // Start screen sharing with bypass for device owner
+        di<ILogger>().info(
+          '[SCREEN_SHARE] Starting screen sharing with device owner bypass',
         );
 
-        // Update channel media options to enable screen sharing
-        di<ILogger>().info(
-          '[SCREEN_SHARE] Updating channel media options to enable screen sharing',
-        );
-        await _engine!.updateChannelMediaOptions(
-          const ChannelMediaOptions(
-            publishScreenTrack: true,
-            publishScreenCaptureAudio: false,
-            publishScreenCaptureVideo: true,
-            publishCameraTrack: false, // Disable camera when screen sharing
-            publishMicrophoneTrack: true,
-            clientRoleType: ClientRoleType.clientRoleBroadcaster,
-          ),
-        );
+        // Check if we're device owner and bypass the dialog
+        final screenShareResult = await DeviceOwnerHelper.smartScreenShare();
 
-        _isScreenSharing = true;
-        di<ILogger>().info(
-          '[SCREEN_SHARE] Screen sharing started successfully',
-        );
+        if (screenShareResult != null && screenShareResult['success'] == true) {
+          di<ILogger>().info(
+            '[SCREEN_SHARE] Screen sharing permission granted via device owner bypass',
+          );
+
+          // Now start the actual screen capture
+          await _engine!.startScreenCapture(
+            const ScreenCaptureParameters2(
+              captureAudio: false,
+              captureVideo: true,
+            ),
+          );
+
+          // Update channel media options to enable screen sharing
+          di<ILogger>().info(
+            '[SCREEN_SHARE] Updating channel media options to enable screen sharing',
+          );
+          await _engine!.updateChannelMediaOptions(
+            const ChannelMediaOptions(
+              publishScreenTrack: true,
+              publishScreenCaptureAudio: false,
+              publishScreenCaptureVideo: true,
+              publishCameraTrack: false, // Disable camera when screen sharing
+              publishMicrophoneTrack: true,
+              clientRoleType: ClientRoleType.clientRoleBroadcaster,
+            ),
+          );
+
+          _isScreenSharing = true;
+          di<ILogger>().info(
+            '[SCREEN_SHARE] Screen sharing started successfully with device owner bypass',
+          );
+        } else {
+          di<ILogger>().error(
+            '[SCREEN_SHARE] Failed to get screen sharing permission',
+          );
+          throw Exception(
+            'Failed to get screen sharing permission. Device owner bypass failed.',
+          );
+        }
       }
       _emitCurrentState();
     } catch (e) {

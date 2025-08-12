@@ -11,9 +11,16 @@ import android.os.UserManager
 import android.content.pm.PackageManager
 import android.Manifest
 import androidx.core.content.ContextCompat
+import android.media.projection.MediaProjectionManager
+import android.content.Intent
+import android.app.Activity
+import android.app.AppOpsManager
+import android.os.Process
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.earkart_omni/device_owner"
+    private val SCREEN_CAPTURE_REQUEST_CODE = 1001
+    private var screenShareResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -37,6 +44,16 @@ class MainActivity: FlutterActivity() {
                     val permission = call.argument<String>("permission") ?: ""
                     val status = checkPermissionStatus(permission)
                     result.success(status)
+                }
+                "requestScreenShare" -> {
+                    requestScreenShare(result)
+                }
+                "bypassScreenShareDialog" -> {
+                    bypassScreenShareDialog(result)
+                }
+                "grantProjectMediaPermission" -> {
+                    grantProjectMediaPermission()
+                    result.success(true)
                 }
                 else -> result.notImplemented()
             }
@@ -230,9 +247,74 @@ class MainActivity: FlutterActivity() {
             // Enable screen capture
             devicePolicyManager.setScreenCaptureDisabled(componentName, false)
             
+            // Grant PROJECT_MEDIA AppOps permission for screen capture without dialog
+            grantProjectMediaPermission()
+            
             Log.d("MainActivity", "System permissions granted")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting system permissions: ${e.message}")
+        }
+    }
+
+    private fun grantProjectMediaPermission() {
+        try {
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            
+            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                Log.d("MainActivity", "Granting PROJECT_MEDIA AppOps permission for screen capture")
+                
+                // Get AppOpsManager
+                val appOpsManager = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                
+                // Grant PROJECT_MEDIA permission (this is the key to bypassing MediaProjection dialog)
+                try {
+                    // Use reflection to call setMode on AppOpsManager
+                    val setModeMethod = AppOpsManager::class.java.getMethod(
+                        "setMode",
+                        Int::class.java,
+                        Int::class.java,
+                        String::class.java,
+                        Int::class.java
+                    )
+                    
+                    // PROJECT_MEDIA op code is 46
+                    val PROJECT_MEDIA = 46
+                    val MODE_ALLOWED = 0
+                    
+                    setModeMethod.invoke(
+                        appOpsManager,
+                        PROJECT_MEDIA,
+                        Process.myUid(),
+                        packageName,
+                        MODE_ALLOWED
+                    )
+                    
+                    Log.d("MainActivity", "✅ PROJECT_MEDIA permission granted successfully")
+                    
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error setting PROJECT_MEDIA permission via reflection: ${e.message}")
+                    
+                    // Fallback: Try using shell command approach
+                    try {
+                        val runtime = Runtime.getRuntime()
+                        val process = runtime.exec(arrayOf("su", "-c", "cmd appops set $packageName PROJECT_MEDIA allow"))
+                        val exitCode = process.waitFor()
+                        
+                        if (exitCode == 0) {
+                            Log.d("MainActivity", "✅ PROJECT_MEDIA permission granted via shell command")
+                        } else {
+                            Log.e("MainActivity", "Shell command failed with exit code: $exitCode")
+                        }
+                    } catch (shellException: Exception) {
+                        Log.e("MainActivity", "Shell command fallback failed: ${shellException.message}")
+                    }
+                }
+                
+            } else {
+                Log.d("MainActivity", "Not device owner - cannot grant PROJECT_MEDIA permission")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error granting PROJECT_MEDIA permission: ${e.message}")
         }
     }
 
@@ -337,6 +419,81 @@ class MainActivity: FlutterActivity() {
             }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error in onResume: ${e.message}")
+        }
+    }
+
+    private fun requestScreenShare(result: MethodChannel.Result) {
+        try {
+            val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            val intent = mediaProjectionManager.createScreenCaptureIntent()
+            screenShareResult = result
+            startActivityForResult(intent, SCREEN_CAPTURE_REQUEST_CODE)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error requesting screen share: ${e.message}")
+            result.error("SCREEN_SHARE_ERROR", "Failed to request screen share: ${e.message}", null)
+        }
+    }
+
+    private fun bypassScreenShareDialog(result: MethodChannel.Result) {
+        try {
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            
+            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                Log.d("MainActivity", "Device owner detected - bypassing screen share dialog")
+                
+                // As device owner, we can directly grant screen capture permission
+                val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+                
+                // Enable screen capture for device owner
+                devicePolicyManager.setScreenCaptureDisabled(componentName, false)
+                
+                // Grant PROJECT_MEDIA AppOps permission to bypass dialog
+                grantProjectMediaPermission()
+                
+                // Create a mock MediaProjection result for Agora
+                val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                val intent = mediaProjectionManager.createScreenCaptureIntent()
+                
+                // Return success with result code and intent data
+                val resultMap = hashMapOf<String, Any>(
+                    "resultCode" to Activity.RESULT_OK,
+                    "success" to true,
+                    "message" to "Screen sharing enabled for device owner"
+                )
+                
+                result.success(resultMap)
+                Log.d("MainActivity", "Screen sharing bypassed successfully for device owner")
+                
+            } else {
+                Log.d("MainActivity", "Not device owner - falling back to normal screen share request")
+                requestScreenShare(result)
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error bypassing screen share dialog: ${e.message}")
+            result.error("BYPASS_ERROR", "Failed to bypass screen share dialog: ${e.message}", null)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        
+        if (requestCode == SCREEN_CAPTURE_REQUEST_CODE) {
+            val result = screenShareResult
+            if (result != null) {
+                if (resultCode == Activity.RESULT_OK) {
+                    val resultMap = hashMapOf<String, Any>(
+                        "resultCode" to resultCode,
+                        "success" to true,
+                        "message" to "Screen sharing permission granted"
+                    )
+                    result.success(resultMap)
+                    Log.d("MainActivity", "Screen sharing permission granted")
+                } else {
+                    result.error("SCREEN_SHARE_DENIED", "Screen sharing permission denied", null)
+                    Log.d("MainActivity", "Screen sharing permission denied")
+                }
+                screenShareResult = null
+            }
         }
     }
 }
