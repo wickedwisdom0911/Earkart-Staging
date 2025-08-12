@@ -2,41 +2,40 @@
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { use, useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useSocket } from "@/providers/socket-provider";
-import { useEffect } from "react";
 import { useDevice } from "@/providers/device-provider";
 import { OtoscopyProvider } from "@/providers/otoscopy-provider";
 import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
 import { ConsultationContent } from "./_components/consultation-content";
 import AgoraRTC, { AgoraRTCProvider } from "agora-rtc-react";
+import { useParams } from "next/navigation";
+
 export default function ConsultationLayout({
   children,
-  params,
 }: {
   children: React.ReactNode;
-  params: Promise<{ consultationId: string }>;
 }) {
-  const resolvedParams = use(params);
+  const { consultationId } = useParams() as { consultationId: string };
   const socket = useSocket();
 
   const {
     data: consultation,
     isLoading,
     error,
-  } = useGetConsultation(resolvedParams.consultationId);
+  } = useGetConsultation(consultationId);
   const { deviceState } = useDevice();
   const { r15c, revo2 } = deviceState;
 
   // Add socket connection handling
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !consultationId) return;
 
     const handleConnect = () => {
       console.log("Socket connected, joining consultation...");
       // Emit join_consultation event when socket connects
       socket.emit("join_consultation", {
-        consultationId: resolvedParams.consultationId,
+        consultationId,
       });
     };
 
@@ -50,7 +49,10 @@ export default function ConsultationLayout({
     return () => {
       socket.off("connect", handleConnect);
     };
-  }, [socket, resolvedParams.consultationId]);
+  }, [socket, consultationId]);
+
+  // Create a single Agora client instance shared across this layout (must be called every render before conditional returns)
+  const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
@@ -58,57 +60,54 @@ export default function ConsultationLayout({
 
   const consultationData = consultation.data as ConsultationModelData;
 
-  // Create a single Agora client instance shared across this layout
-  const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
-
   return (
-    <OtoscopyProvider consultationId={resolvedParams.consultationId}>
+    <OtoscopyProvider consultationId={consultationId}>
       <AgoraOtoscopyProvider>
         <AgoraRTCProvider client={agoraClient}>
           <DashboardBodyWrapper
-      pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
-      className="border-none "
-      button={
-        <div className="flex items-center gap-4">
-          {/* R15C Device Status */}
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                r15c.isConnected ? "bg-green-500" : "bg-red-500"
-              }`}
-            />
-            <span className="text-sm font-medium">
-              R15C:{" "}
-              {r15c.connectionStatus.charAt(0).toUpperCase() +
-                r15c.connectionStatus.slice(1)}
-            </span>
-          </div>
+            pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
+            className="border-none "
+            button={
+              <div className="flex items-center gap-4">
+                {/* R15C Device Status */}
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      r15c.isConnected ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
+                  <span className="text-sm font-medium">
+                    R15C: {" "}
+                    {r15c.connectionStatus.charAt(0).toUpperCase() +
+                      r15c.connectionStatus.slice(1)}
+                  </span>
+                </div>
 
-          {/* Revo2 Device Status */}
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                revo2.isConnected ? "bg-green-500" : "bg-red-500"
-              }`}
-            />
-            <span className="text-sm font-medium">
-              Revo2:{" "}
-              {revo2.connectionStatus.charAt(0).toUpperCase() +
-                revo2.connectionStatus.slice(1)}
-            </span>
-          </div>
-        </div>
-      }
-    >
-      <ConsultationContent
-        consultationId={resolvedParams.consultationId}
-        patientName={consultationData.patient?.name || "Patient"}
-      >
-        {children}
-      </ConsultationContent>
-        </DashboardBodyWrapper>
-      </AgoraRTCProvider>
-    </AgoraOtoscopyProvider>
-  </OtoscopyProvider>
-);
+                {/* Revo2 Device Status */}
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      revo2.isConnected ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
+                  <span className="text-sm font-medium">
+                    Revo2: {" "}
+                    {revo2.connectionStatus.charAt(0).toUpperCase() +
+                      revo2.connectionStatus.slice(1)}
+                  </span>
+                </div>
+              </div>
+            }
+          >
+            <ConsultationContent
+              consultationId={consultationId}
+              patientName={consultationData.patient?.name || "Patient"}
+            >
+              {children}
+            </ConsultationContent>
+          </DashboardBodyWrapper>
+        </AgoraRTCProvider>
+      </AgoraOtoscopyProvider>
+    </OtoscopyProvider>
+  );
 }
