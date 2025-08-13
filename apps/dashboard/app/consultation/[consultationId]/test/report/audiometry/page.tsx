@@ -13,10 +13,43 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ROUTES } from "@/lib/routes";
 import { toast } from "sonner";
 import { useSocket } from "@/providers/socket-provider";
-import html2canvas from "html2canvas-pro";
-import { jsPDF } from "jspdf";
+// PDF export utility is dynamically imported to avoid any SSR bundling issues
 import Image from "next/image";
 import { ArrowDownLeft, ArrowDownRight } from "lucide-react";
+import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
+
+// Helper: Synchronous rasterization for use inside html2canvas onclone (no async/await allowed)
+function rasterizeSVGsSync(container: HTMLElement, ownerDocument: Document) {
+  const svgNodes = Array.from(container.querySelectorAll("svg")) as SVGSVGElement[];
+  for (const svg of svgNodes) {
+    try {
+      const clone = svg.cloneNode(true) as SVGSVGElement;
+      if (!clone.getAttribute("xmlns")) clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      const rect = svg.getBoundingClientRect();
+      const width = rect.width || Number(clone.getAttribute("width")) || svg.clientWidth;
+      const height = rect.height || Number(clone.getAttribute("height")) || svg.clientHeight;
+      if (width && height) {
+        clone.setAttribute("width", String(width));
+        clone.setAttribute("height", String(height));
+      }
+      const xml = new XMLSerializer().serializeToString(clone);
+      const dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+      const img = ownerDocument.createElement("img");
+      (img as any).decoding = "sync";
+      if ("loading" in img) (img as any).loading = "eager";
+      img.setAttribute("width", String(width));
+      img.setAttribute("height", String(height));
+      img.style.width = `${width}px`;
+      img.style.height = `${height}px`;
+      img.style.display = getComputedStyle(svg).display === "inline" ? "inline-block" : "block";
+      img.src = dataUrl;
+      svg.style.display = "none";
+      svg.parentNode?.insertBefore(img, svg);
+    } catch {
+      // ignore and continue
+    }
+  }
+}
 
 interface TestResult {
   ear: string;
@@ -40,22 +73,20 @@ const AudiogramChart: React.FC<{
   results: TestResult[];
   ear: "L" | "R";
 }> = ({ title, results, ear }) => {
-  const frequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
-  const mainFrequencies = [125, 250, 500, 1000, 2000, 4000, 8000];
-  const midFrequencies = [750, 1500, 3000, 6000];
+  const frequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000, 12000];
+  const mainFrequencies = [125, 250, 500, 1000, 2000, 4000, 8000, 12000];
+  const midFrequencies = [750, 1500, 3000, 6000, 10000];
   const dbLevels = Array.from({ length: 27 }, (_, i) => (i - 2) * 5); // -10 to 120 dB
   
   const gridSize = 25;
-  const chartWidth = 275; // Fixed width for the chart (11 frequencies * 25px)
+  const chartWidth = gridSize * (frequencies.length - 1); // fixed by square cell width
   const height = 14 * gridSize; // Adjust height to start from -10
   const margin = { top: 30, right: 20, bottom: 40, left: 50 };
   
-  // Calculate logarithmic positions for frequencies
+  // Uniform positions for frequencies to ensure square cells (match printed audiogram)
   const getFrequencyPosition = (freq: number) => {
-    const minFreq = Math.log10(125);
-    const maxFreq = Math.log10(8000);
-    const freqLog = Math.log10(freq);
-    return ((freqLog - minFreq) / (maxFreq - minFreq)) * chartWidth;
+    const idx = frequencies.indexOf(freq);
+    return idx >= 0 ? idx * gridSize : 0;
   };
   
   const COLORS = {
@@ -241,7 +272,7 @@ const AudiogramChart: React.FC<{
             />
           ))}
           
-          {/* Vertical grid lines for main frequencies */}
+                     {/* Vertical grid lines for main frequencies (octaves) */}
           {mainFrequencies.map((freq) => {
             const xPos = margin.left + getFrequencyPosition(freq);
             return (
@@ -274,7 +305,7 @@ const AudiogramChart: React.FC<{
             );
           })}
           
-          {/* Mid-intensity lines (5 dB intervals) */}
+                     {/* Mid-intensity lines (5 dB intervals, dashed) */}
           {Array.from({ length: 14 }, (_, i) => (
             <line
               key={`mid-intensity-${i}`}
@@ -288,20 +319,38 @@ const AudiogramChart: React.FC<{
             />
           ))}
           
-          {/* Frequency labels */}
-          {frequencies.map((freq) => {
-            const isMidFreq = midFrequencies.includes(freq);
+          {/* Frequency labels: top (octaves) */}
+          {mainFrequencies.map((freq) => {
             const label = freq >= 1000 ? `${freq/1000}K` : freq;
             const xPos = margin.left + getFrequencyPosition(freq);
             return (
               <text
-                key={`freq-${freq}`}
+                key={`freq-top-${freq}`}
                 x={xPos}
-                y={height + margin.top + 15}
+                y={margin.top - 10}
                 textAnchor="middle"
-                fontSize={isMidFreq ? "9" : "10"}
-                fill={isMidFreq ? "#666666" : COLORS.text}
-                fontWeight={isMidFreq ? "normal" : "bold"}
+                fontSize="10"
+                fill={COLORS.text}
+                fontWeight="bold"
+              >
+                {label}
+              </text>
+            );
+          })}
+
+          {/* Frequency labels: bottom (mid-octaves) */}
+          {midFrequencies.map((freq) => {
+            const label = freq >= 1000 ? `${freq/1000}K` : freq;
+            const xPos = margin.left + getFrequencyPosition(freq);
+            return (
+              <text
+                key={`freq-bottom-${freq}`}
+                x={xPos}
+                y={height + margin.top + 35}
+                textAnchor="middle"
+                fontSize="10"
+                fill="#666666"
+                fontWeight="normal"
               >
                 {label}
               </text>
@@ -381,6 +430,14 @@ export default function ReportPage() {
   const updateConsultationMutation = useUpdateConsultation();
   const reportRef = useRef<HTMLDivElement>(null);
   
+  // Screen sharing functionality (shared with video call client)
+  const { 
+    isSharing: isScreenSharing, 
+    isConnecting: isScreenConnecting, 
+    toggleScreenShare, 
+    error: screenShareError 
+  } = useSharedScreenShare();
+
   // State for show report functionality
   const [isShowingReport, setIsShowingReport] = useState(false);
   
@@ -496,6 +553,13 @@ export default function ReportPage() {
     }
   }, [socket, router]);
 
+  // Show screen share error if any
+  useEffect(() => {
+    if (screenShareError) {
+      toast.error(`Screen sharing error: ${screenShareError}`);
+    }
+  }, [screenShareError]);
+
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
   if (!consultationData) return <div>No data</div>;
@@ -600,87 +664,17 @@ export default function ReportPage() {
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
     
-    // Find and temporarily hide form sections
-    const formSections = reportRef.current.querySelectorAll('.print\\:hidden');
-    const printSections = reportRef.current.querySelectorAll('.hidden.print\\:block');
-    
-    // Hide form sections and show print sections
-    formSections.forEach(section => {
-      (section as HTMLElement).style.display = 'none';
-    });
-    printSections.forEach(section => {
-      (section as HTMLElement).style.display = 'block';
-    });
-    
     try {
-      // Force a re-render to ensure all content is properly sized
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      const canvas = await html2canvas(reportRef.current, { 
-        scale: 2, 
-        useCORS: true, 
-        backgroundColor: "#fff",
-        height: reportRef.current.scrollHeight + 50, // Add extra padding to prevent cutoff
-        windowWidth: reportRef.current.scrollWidth,
-        windowHeight: reportRef.current.scrollHeight + 50,
-        allowTaint: true,
-        scrollX: 0,
-        scrollY: 0
-      });
-      
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
-      const pdfW = pdf.internal.pageSize.getWidth();
-      const pdfH = pdf.internal.pageSize.getHeight();
-      
-      // Calculate if we need multiple pages
-      const widthRatio = pdfW / canvas.width;
-      const heightRatio = pdfH / canvas.height;
-      const ratio = Math.min(widthRatio, heightRatio);
-      
-      const scaledWidth = canvas.width * ratio;
-      const scaledHeight = canvas.height * ratio;
-      
-      if (scaledHeight <= pdfH) {
-        // Single page
-        const xOffset = (pdfW - scaledWidth) / 2;
-        const yOffset = (pdfH - scaledHeight) / 2;
-        pdf.addImage(imgData, "PNG", xOffset, yOffset, scaledWidth, scaledHeight);
-      } else {
-        // Multiple pages
-        const pageHeight = pdfH / ratio;
-        let position = 0;
-        
-        while (position < canvas.height) {
-          const pageCanvas = document.createElement('canvas');
-          const pageCtx = pageCanvas.getContext('2d');
-          pageCanvas.width = canvas.width;
-          pageCanvas.height = Math.min(pageHeight, canvas.height - position);
-          
-          if (pageCtx) {
-            pageCtx.drawImage(canvas, 0, -position);
-            const pageImgData = pageCanvas.toDataURL("image/png");
-            
-            if (position > 0) {
-              pdf.addPage();
-            }
-            
-            pdf.addImage(pageImgData, "PNG", 0, 0, pdfW, (pageCanvas.height * pdfW) / canvas.width);
-          }
-          
-          position += pageHeight;
-        }
-      }
-      
-      pdf.save(`audiometry-report-${consultationData.patient?.code || "unknown"}.pdf`);
-    } finally {
-      // Restore original visibility
-      formSections.forEach(section => {
-        (section as HTMLElement).style.display = '';
-      });
-      printSections.forEach(section => {
-        (section as HTMLElement).style.display = '';
-      });
+      const { exportElementToPdf } = await import("@/lib/pdf");
+
+      await exportElementToPdf(
+        reportRef.current,
+        `audiometry-report-${consultationData.patient?.code || "unknown"}.pdf`,
+        { singlePage: true }
+      );
+    } catch (error) {
+      console.error("Failed to export PDF:", error);
+      toast.error("Failed to generate PDF report.");
     }
   };
 
@@ -715,17 +709,47 @@ export default function ReportPage() {
     router.push(ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string));
   };
 
-  const handleShowReport = () => {
+  const handleShowReport = async () => {
     if (!socket) {
       toast.error("Socket connection not available");
       return;
     }
 
-    const eventName = isShowingReport ? "generate-report:end" : "generate-report:start";
-    socket.emit(eventName, { consultationId });
+    const isCurrentlyShowing = isShowingReport || isScreenSharing;
     
-    setIsShowingReport(!isShowingReport);
-    toast.success(`Report ${isShowingReport ? "hidden" : "shown"} to patient`);
+    try {
+      if (isCurrentlyShowing) {
+        // Stop showing report
+        const eventName = "generate-report:end";
+        socket.emit(eventName, { consultationId });
+        setIsShowingReport(false);
+        
+        // Stop screen sharing if active
+        if (isScreenSharing) {
+          await toggleScreenShare();
+        }
+        
+        toast.success("Report hidden from patient");
+      } else {
+        // Start showing report
+        const eventName = "generate-report:start";
+        socket.emit(eventName, { consultationId });
+        setIsShowingReport(true);
+        
+        // Start screen sharing with the report element
+        if (reportRef.current) {
+          await toggleScreenShare(reportRef.current);
+        } else {
+          // Fallback to general screen share if report ref is not available
+          await toggleScreenShare();
+        }
+        
+        toast.success("Report shown to patient via screen share");
+      }
+    } catch (error) {
+      console.error("Error handling report display:", error);
+      toast.error("Failed to show/hide report");
+    }
   };
 
   return (
@@ -738,7 +762,7 @@ export default function ReportPage() {
     
         </div>
         
-        <div ref={reportRef} className="bg-white" style={{ fontFamily: 'Arial, sans-serif', height: 'auto', minHeight: 'auto' }}>
+        <div ref={reportRef} data-report-capture="true" className="bg-white" style={{ fontFamily: 'Arial, sans-serif', height: 'auto', minHeight: 'auto' }}>
           {/* Header */}
           <div className="relative text-white overflow-hidden" >
             <div className="relative flex items-center justify-between p-6 z-10">
@@ -783,7 +807,7 @@ export default function ReportPage() {
           </div>
 
           {/* Patient Information */}
-          <div className="px-8 py-4 bg-white border-b">
+          <div className="px-8 py-4 bg-white border-b relative z-10">
             <div className="grid grid-cols-12 gap-4 text-sm">
               <div className="col-span-3 flex items-center">
                 <span className="font-medium mr-2">ID :</span>
@@ -828,7 +852,7 @@ export default function ReportPage() {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 text-sm mt-3">
+            <div className="grid grid-cols-2 gap-4 text-sm mt-3 bg-white">
               <div className="flex items-center">
                 <span className="font-medium mr-2">Contact No. :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
@@ -843,16 +867,16 @@ export default function ReportPage() {
           </div>
 
           {/* Audiogram Charts */}
-          <div className="px-8 py-6 bg-gray-50">
-            <div className="flex justify-between items-start gap-8">
-              <div className="flex-1">
+          <div className="px-8 py-6 bg-gray-50 relative z-0 overflow-hidden" data-section="audiogram-charts">
+            <div className="flex justify-between items-start gap-8 pointer-events-none">
+              <div className="flex-1 overflow-hidden">
                 <AudiogramChart
                   title="Right Ear"
                   results={rightResults}
                   ear="R"
                 />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 overflow-hidden">
                 <AudiogramChart
                   title="Left Ear"
                   results={leftResults}
@@ -863,8 +887,8 @@ export default function ReportPage() {
           </div>
 
           {/* PTA and Symbols Section */}
-          <div className="mx-8 mb-6">
-            <div className="flex gap-6">
+          <div className="mx-8 mb-6 relative z-10">
+            <div className="flex gap-6 bg-white">
               {/* PTA Section */}
               <div className="flex-1">
                 <div className="bg-blue-900 text-white p-3 text-center">
@@ -1209,18 +1233,32 @@ export default function ReportPage() {
         </div>
       </div>
 
+      {/* Screen Share Status Notification */}
+      {isScreenSharing && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2">
+          <span>🖥️</span>
+          <span>Screen sharing active - Patient can see the report</span>
+        </div>
+      )}
+
       {/* Floating Action Buttons */}
       <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-10">
         <Button
           onClick={handleShowReport}
+          disabled={isScreenConnecting}
           className={`${
-            isShowingReport 
+            (isShowingReport || isScreenSharing)
               ? "bg-orange-600 hover:bg-orange-700" 
               : "bg-blue-600 hover:bg-blue-700"
-          } text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2`}
+          } text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 disabled:opacity-50`}
         >
-          <span>📊</span>
-          {isShowingReport ? "Hide Report" : "Show Report"}
+          <span>{isScreenConnecting ? "🔄" : isScreenSharing ? "🖥️" : "📊"}</span>
+          {isScreenConnecting 
+            ? "Connecting..." 
+            : (isShowingReport || isScreenSharing) 
+              ? "Hide Report" 
+              : "Show Report"
+          }
         </Button>
         <Button
           onClick={handleDoAnotherTest}

@@ -43,23 +43,28 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
    axisFontSize = 12
 }) => {
   const margin = { top: 40, right: 40, bottom: 40, left: 60 };
-  const graphW = width - margin.left - margin.right;
   const graphH = height - margin.top - margin.bottom;
+  // Make cells square: vertical 10 dB step height defines the horizontal step
+  const numYCells10dB = 14; // -10 to 120 inclusive (10 dB grid)
+  const xExtended = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
+  const xIntervals = xExtended.length - 1; // 10 intervals
+  const cellSize = graphH / numYCells10dB; // pixels per 10 dB
+  const graphW = cellSize * xIntervals;
+  const svgW = graphW + margin.left + margin.right;
 
   const xScale = useCallback((f: number) => {
     // Create extended frequency array including mid-octaves for positioning
-    const extendedFrequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
+    const extendedFrequencies = xExtended;
     const freqIndex = extendedFrequencies.indexOf(f);
     
     if (freqIndex !== -1) {
-      // Use uniform spacing for known frequencies
-      const cellWidth = graphW * 0.08; // Make each frequency interval smaller
-      return margin.left + freqIndex * cellWidth;
+      // Uniform spacing equal to vertical 10 dB step height
+      return margin.left + freqIndex * cellSize;
     }
     
     // Fallback for unknown frequencies (shouldn't happen in normal use)
     return margin.left;
-  }, [graphW]);
+  }, [cellSize]);
 
   const yScale = useCallback((db: number) => {
     // flip so high dB plot lower
@@ -178,7 +183,7 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
           key={`main-level-line-${level}`}
           x1={margin.left}
           y1={y}
-          x2={width - margin.right}
+          x2={svgW - margin.right}
           y2={y}
           stroke={COLORS.grid}
           strokeWidth={1}
@@ -187,7 +192,7 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
     });
     
     return gridElements;
-  }, [xScale, yScale, height, width]);
+  }, [xScale, yScale, height, svgW]);
 
   // Mid-intensity lines (5 dB intervals)
   const midIntensityLines = useMemo(() => {
@@ -200,7 +205,7 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
           key={`mid-intensity-${level}`}
           x1={margin.left}
           y1={y}
-          x2={width - margin.right}
+          x2={svgW - margin.right}
           y2={y}
           stroke={COLORS.midOctave}
           strokeWidth={1.2}
@@ -208,11 +213,11 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
         />
       );
     });
-  }, [yScale, width]);
+  }, [yScale, svgW]);
   
   const axes = useMemo(() => {
     const axisElements: React.ReactNode[] = [];
-    const extendedFrequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
+    const extendedFrequencies = xExtended;
     const midFrequencies = [750, 1500, 3000, 6000];
     
     // Frequency labels (x-axis)
@@ -268,13 +273,13 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
     const fy = yScale(HEARING_LEVELS[selectedLabelIndexes.y]);
     return [
       <line key="chH" x1={margin.left} y1={fy}
-        x2={width - margin.right} y2={fy}
+        x2={svgW - margin.right} y2={fy}
         stroke={COLORS.crosshair} strokeDasharray="4,4" />,
       <line key="chV" x1={fx} y1={margin.top}
         x2={fx} y2={height - margin.bottom}
         stroke={COLORS.crosshair} strokeDasharray="4,4" />,
     ];
-  }, [selectedLabelIndexes, xScale, yScale]);
+  }, [selectedLabelIndexes, xScale, yScale, svgW]);
 
   // Connecting lines for audiogram symbols
   const connectingLines = useMemo(() => {
@@ -351,7 +356,7 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
   }, [onIndexChange, xScale, yScale]);
 
   return (
-    <svg width={width} height={height}
+    <svg width={svgW} height={height}
       style={{ backgroundColor: COLORS.background }}
       onClick={handleClick}
     >

@@ -7,10 +7,22 @@ interface DeviceState {
   r15c: {
     isConnected: boolean;
     connectionStatus: "disconnected" | "connected" | "ready" | "begin";
+    // Extra fields
+    isSynced?: boolean;
+    isReleased?: boolean;
+    isInBeginMode?: boolean;
+    batteryLevel?: number | null;
+    isCharging?: boolean | null;
+    error?: string;
   };
   revo2: {
     isConnected: boolean;
     connectionStatus: "disconnected" | "connected" | "ready" | "begin";
+  };
+  // Tablet state
+  tablet?: {
+    batteryLevel: number | null;
+    isCharging: boolean | null;
   };
   transducerResponse: TransducersResponse | null;
 }
@@ -39,6 +51,10 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
       isConnected: false,
       connectionStatus: "disconnected",
     },
+    tablet: {
+      batteryLevel: null,
+      isCharging: null,
+    },
     transducerResponse: null,
   });
 
@@ -55,6 +71,18 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
         revo2Connected: boolean;
         connectionStatus: string;
         transducerResponse: TransducersResponse;
+        // Optional extended payloads
+        deviceState?: {
+          isConnected?: boolean;
+          isSynced?: boolean;
+          isReleased?: boolean;
+          isInBeginMode?: boolean;
+          batteryLevel?: number;
+          isCharging?: boolean;
+          connectionStatus?: string;
+          error?: string;
+        };
+        tabletState?: { batterylevel?: number; batteryLevel?: number; ischarging?: boolean; isCharging?: boolean };
       }) => {
         setDeviceState((prev) => ({
           ...prev,
@@ -62,14 +90,32 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
             ...prev.r15c,
             isConnected: data.r15cConnected,
             connectionStatus: data.r15cConnected ? "connected" : "disconnected",
+            // Map extended deviceState if present
+            isSynced: data.deviceState?.isSynced ?? prev.r15c.isSynced,
+            isReleased: data.deviceState?.isReleased ?? prev.r15c.isReleased,
+            isInBeginMode: data.deviceState?.isInBeginMode ?? prev.r15c.isInBeginMode,
+            batteryLevel:
+              (data.deviceState?.batteryLevel as number | undefined) ?? prev.r15c.batteryLevel ?? null,
+            isCharging:
+              (data.deviceState?.isCharging as boolean | undefined) ?? prev.r15c.isCharging ?? null,
+            error: data.deviceState?.error ?? prev.r15c.error,
           },
           revo2: {
             ...prev.revo2,
             isConnected: data.revo2Connected,
             connectionStatus: data.revo2Connected ? "connected" : "disconnected",
           },
+          tablet: {
+            batteryLevel:
+              (data.tabletState?.batteryLevel as number | undefined) ??
+              (data.tabletState?.batterylevel as number | undefined) ??
+              prev.tablet?.batteryLevel ?? null,
+            isCharging:
+              (data.tabletState?.isCharging as boolean | undefined) ??
+              (data.tabletState?.ischarging as boolean | undefined) ??
+              prev.tablet?.isCharging ?? null,
+          },
         }));
-        console.log(data);
         if (data.transducerResponse) {
           setDeviceState((prev) => ({
             ...prev,

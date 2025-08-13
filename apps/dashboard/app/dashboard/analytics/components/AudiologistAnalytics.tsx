@@ -215,7 +215,7 @@ export default function AudiologistAnalytics({ userRole, currentUser }: Audiolog
       cityIds: watchedValues.cityIds || [],
       stateIds: watchedValues.stateIds || [],
       consultationStatuses: watchedValues.consultationStatuses || [],
-      testStatuses: watchedValues.testStatuses || [],
+      testStatuses: (watchedValues.testStatuses || []).filter((s) => s !== TestStatus.PENDING) as any,
       patientSoldStatuses: watchedValues.patientSoldStatuses || [],
       genders: watchedValues.genders || [],
       ...(watchedValues.minAge && { minAge: watchedValues.minAge }),
@@ -227,11 +227,68 @@ export default function AudiologistAnalytics({ userRole, currentUser }: Audiolog
 
   const { data, isLoading, isError, refetch } = useGetAudiologistMetrics(requestBody);
 
+  // CSV export helpers
+  const downloadCsv = (csvText: string, fileName: string) => {
+    const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.setAttribute("download", fileName);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const escapeCsv = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    const str = String(value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  };
+
+  const buildCsv = (): string => {
+    if (!data) return "";
+    const out: string[] = [];
+
+    // Header metadata
+    out.push(["Metric Type", escapeCsv(data.metricType)].join(","));
+    const tr: any = data.timeRange || {};
+    out.push(["Time Range", escapeCsv(tr.preset ?? `${tr.start ?? ''} ${tr.end ? ' - ' + tr.end : ''}`)].join(","));
+
+    // Summary
+    out.push("");
+    out.push(["Summary"].join(","));
+    out.push(["total","average","min","max","growthRate","trend"].join(","));
+    out.push([
+      escapeCsv(data.summary.total),
+      escapeCsv(data.summary.average),
+      escapeCsv(data.summary.min),
+      escapeCsv(data.summary.max),
+      escapeCsv(data.summary.growthRate),
+      escapeCsv(data.summary.trend),
+    ].join(","));
+
+    // Data points
+    out.push("");
+    out.push(["label","value","percentageChange","date"].join(","));
+    (data.data || []).forEach((dp: any) => {
+      out.push([
+        escapeCsv(dp.label),
+        escapeCsv(dp.value),
+        escapeCsv(dp.percentageChange ?? ""),
+        escapeCsv(dp.date ?? ""),
+      ].join(","));
+    });
+
+    return out.join("\n");
+  };
+
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      console.log("Exporting audiologist data...", data);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const csv = buildCsv();
+      const file = `audiologist_analytics_${watchedValues.groupBy}_${watchedValues.timeRange}.csv`;
+      downloadCsv(csv, file);
     } finally {
       setIsExporting(false);
     }

@@ -141,6 +141,8 @@ export default function TympanometryPage() {
   const [realTimeData, setRealTimeData] = useState<TympanogramPoint[]>([]);
   const [finalData, setFinalData] = useState<TympanogramPoint[]>([]);
   const [isTestCompleted, setIsTestCompleted] = useState(false);
+  // Cache for readings saved during this session to avoid losing the first ear before refetch
+  const [localReadings, setLocalReadings] = useState<TympanometryReadingModelData[]>([]);
 
   // Add state for all tympanometry values
   const [peakPressure, setPeakPressure] = useState<number | null>(null);
@@ -179,23 +181,16 @@ export default function TympanometryPage() {
       tympType: manualTympType,
     };
 
-    // Get existing readings or create new array
+    // Merge with any existing readings from consultation and our local cache,
+    // then overwrite with the current ear's reading to avoid duplicates.
     const existingReadings = consultationData.tympanometry?.readings || [];
-
-    // Check if a reading for this ear already exists
-    const existingReadingIndex = existingReadings.findIndex(
-      (reading) => reading.ear === tympanometryReading.ear
-    );
-
-    let updatedReadings: TympanometryReadingModelData[];
-    if (existingReadingIndex >= 0) {
-      // Update existing reading for this ear
-      updatedReadings = [...existingReadings];
-      updatedReadings[existingReadingIndex] = tympanometryReading;
-    } else {
-      // Add new reading for this ear
-      updatedReadings = [...existingReadings, tympanometryReading];
-    }
+    const mergedByEar = new Map<Ear, TympanometryReadingModelData>();
+    for (const r of existingReadings) mergedByEar.set(r.ear, r);
+    for (const r of localReadings) mergedByEar.set(r.ear, r);
+    mergedByEar.set(tympanometryReading.ear, tympanometryReading);
+    const updatedReadings: TympanometryReadingModelData[] = Array.from(mergedByEar.values());
+    // Update local cache immediately so the next save includes prior ear even if query hasn't refetched
+    setLocalReadings(updatedReadings);
 
     // Create tympanometry test data
     const tympanometryTest: TympanometryTestModelData = {
@@ -267,6 +262,7 @@ export default function TympanometryPage() {
     router,
     params.consultationId,
     completedEars,
+    localReadings,
   ]);
 
   // Update real-time data when receiving impedance status
@@ -811,6 +807,7 @@ export default function TympanometryPage() {
               className="px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
               onClick={() => {
                 setCompletedEars(new Set());
+                setLocalReadings([]);
                 resetTest();
                 toast.info("All test progress cleared. You can start over.");
               }}
