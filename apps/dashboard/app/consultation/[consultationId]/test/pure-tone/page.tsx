@@ -265,9 +265,16 @@ export default function PureTonePage() {
   // Auto-hide patient response indicator after 3 seconds
   useEffect(() => {
     if (isPatientResponse) {
+      // Blink the screen background briefly and float the heading
+      const root = document.documentElement;
+      root.classList.add("blink-bg");
+      const heading = document.querySelector("h1");
+      if (heading) (heading as HTMLElement).classList.add("float-heading");
       const timer = setTimeout(() => {
         setIsPatientResponse(false);
-      }, 3000);
+        root.classList.remove("blink-bg");
+        if (heading) (heading as HTMLElement).classList.remove("float-heading");
+      }, 1000);
 
       return () => clearTimeout(timer);
     }
@@ -653,7 +660,22 @@ export default function PureTonePage() {
   };
 
   // Helper functions for button clicks
-  const addResponse = () => addTestResult(false);  // false = normal response, no arrow
+  const addResponse = () => {
+    addTestResult(false);  // false = normal response, no arrow
+    // Scroll to the audiogram and flash background
+    const audiogramElement = document.querySelector(".audiogram-graph");
+    if (audiogramElement) {
+      audiogramElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      const root = document.documentElement;
+      root.classList.add("blink-bg");
+      const heading = document.querySelector("h1");
+      if (heading) (heading as HTMLElement).classList.add("float-heading");
+      setTimeout(() => {
+        root.classList.remove("blink-bg");
+        if (heading) (heading as HTMLElement).classList.remove("float-heading");
+      }, 1000); // Blink for 1 second
+    }
+  }; 
   const addNoResponse = () => addTestResult(true); // true = no response, show arrow
 
   // Helper function to persist cleared results to backend
@@ -854,6 +876,12 @@ export default function PureTonePage() {
 
   return (
     <div className="p-6 w-full">
+      <style>{`
+        @keyframes screen-blink { from { background-color: rgba(0,255,0,0.15);} to { background-color: transparent; } }
+        .blink-bg { animation: screen-blink 0.4s ease-in-out 0s 2 alternate; }
+        @keyframes float-y { 0%{ transform: translateY(0);} 50%{ transform: translateY(-6px);} 100%{ transform: translateY(0);} }
+        .float-heading { animation: float-y 1s ease-in-out 0s 1; }
+      `}</style>
       {/* Patient Response Indicator */}
       {isPatientResponse && (
         <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded-md">
@@ -879,15 +907,32 @@ export default function PureTonePage() {
           </div>
         </div>
 
-        {/* Test Controls */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium mb-2">Ear</label>
-            <div className="flex gap-4">
+        {/* Test Controls removed from top in favor of right floating panel */}
+      </div>
+
+
+
+      {/* Audiogram Display */}
+      <div className="border flex items-center justify-center rounded p-4">
+        <div className="w-full audiogram-graph">
+        <PureToneGraph
+          selectedLabelIndexes={selectedLabelIndexes}
+          resultMarkings={testResults}
+          onIndexChange={handleAudiogramClick}
+        />
+      </div>
+      </div>
+
+      {/* Full Controls (Right-side floating) */}
+      <div className="fixed right-4 top-1/2 -translate-y-1/2 z-40 w-72">
+        <div className="bg-white shadow-lg rounded-lg p-3 w-64 border">
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Ear</label>
+            <div className="flex gap-2">
               {availableEarSides.map((ear: "L" | "R") => (
                 <button
                   key={ear}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-3 py-1 rounded text-xs ${
                     selectedEar === ear
                       ? ear === "L"
                         ? "bg-blue-500 text-white"
@@ -901,25 +946,20 @@ export default function PureTonePage() {
               ))}
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Mode</label>
-            <div className="flex gap-4">
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Mode</label>
+            <div className="flex gap-2">
               <button
-                className={`px-4 py-2 rounded ${
-                  selectedMode === "AC"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200"
+                className={`px-3 py-1 rounded text-xs ${
+                  selectedMode === "AC" ? "bg-blue-500 text-white" : "bg-gray-200"
                 }`}
                 onClick={() => setSelectedMode("AC")}
               >
                 Air
               </button>
               <button
-                className={`px-4 py-2 rounded ${
-                  selectedMode === "BC"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200"
+                className={`px-3 py-1 rounded text-xs ${
+                  selectedMode === "BC" ? "bg-blue-500 text-white" : "bg-gray-200"
                 }`}
                 onClick={() => setSelectedMode("BC")}
               >
@@ -927,225 +967,127 @@ export default function PureTonePage() {
               </button>
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Frequency (Hz)
-            </label>
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Frequency (Hz)</label>
             <select
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded text-sm"
               value={selectedFrequency}
               onChange={(e) => handleFrequencyChange(Number(e.target.value))}
             >
               {availableFrequencies.map((freq) => (
-                <option key={freq} value={freq}>
-                  {freq}
-                </option>
+                <option key={freq} value={freq}>{freq}</option>
               ))}
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Level (dB HL)
-            </label>
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Level (dB HL)</label>
             <select
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded text-sm"
               value={selectedLevel}
               onChange={(e) => handleLevelChange(Number(e.target.value))}
             >
               {availableLevels.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
+                <option key={level} value={level}>{level}</option>
               ))}
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Signal Type
-            </label>
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Signal Type</label>
             <select
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded text-sm"
               value={selectedSignalType}
-              onChange={(e) =>
-                handleSignalTypeChange(e.target.value as SignalType)
-              }
+              onChange={(e) => handleSignalTypeChange(e.target.value as SignalType)}
             >
               {availableSignalTypes.map((type: SignalType) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
+                <option key={type} value={type}>{type}</option>
               ))}
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Pulsed Signal
-            </label>
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Pulsed</label>
             <button
-              className={`w-full px-4 py-2 rounded flex items-center justify-center gap-2 ${
-                isPulsed ? "bg-blue-500 text-white" : "bg-gray-200"
-              }`}
+              className={`w-full px-3 py-1 rounded text-xs ${isPulsed ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
               onClick={() => {
                 setIsPulsed((prev) => !prev);
-                if (isPlaying) {
-                  _endAudiometrySignal();
-                  _sendAudiometrySignal();
-                }
+                if (isPlaying) { _endAudiometrySignal(); _sendAudiometrySignal(); }
               }}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              {isPulsed ? "Pulsed On" : "Pulsed Off"}
+              {isPulsed ? 'Pulsed On' : 'Pulsed Off'}
             </button>
           </div>
-
-          {/* Masking Controls */}
-          <div className="col-span-2">
-            <div className="flex items-end gap-4">
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Masking</label>
+            <div className="flex items-center gap-2">
               <button
-                className={`px-4 py-2 rounded flex items-center gap-2 ${
-                  isMasking ? "bg-purple-500 text-white" : "bg-gray-200"
-                }`}
+                className={`px-3 py-1 rounded text-xs ${isMasking ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
                 onClick={() => setIsMasking((prev) => !prev)}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 100-12 6 6 0 000 12z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                {isMasking ? "Masking On" : "Masking Off"}
+                {isMasking ? 'On' : 'Off'}
               </button>
               {isMasking && (
-                <div className="flex-1 ">
-                  <label className="block text-sm font-medium mb-2">
-                    Masking Level (dB HL)
-                  </label>
                   <select
-                    className="w-full p-2 border rounded"
+                  className="flex-1 p-2 border rounded text-sm"
                     value={maskingLevel}
-                    onChange={(e) =>
-                      handleMaskingLevelChange(Number(e.target.value))
-                    }
+                  onChange={(e) => handleMaskingLevelChange(Number(e.target.value))}
                   >
                     {availableLevels.map((level) => (
-                      <option key={level} value={level}>
-                        {level}
-                      </option>
+                    <option key={level} value={level}>{level}</option>
                     ))}
                   </select>
-                </div>
               )}
             </div>
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-4 mb-6">
+          <div className="flex flex-col gap-2 mb-3">
           <button
-            className={`px-6 py-2 rounded flex items-center gap-2 ${
-              isPlaying
-                ? "bg-red-500 hover:bg-red-600"
-                : "bg-green-500 hover:bg-green-600"
-            } text-white select-none`}
+              className={`w-full px-4 py-2 rounded text-sm ${isPlaying ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} text-white`}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseLeave}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                clipRule="evenodd"
-              />
-            </svg>
-            {isPlaying ? "Release to Stop" : "Hold to Play"}
+              {isPlaying ? 'Release to Stop' : 'Hold to Play'}
           </button>
+          </div>
+          <div className="flex flex-col gap-2">
           <button
-            className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
             onClick={addResponse}
           >
             Add Response
           </button>
           <button
-            className="px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
+              className="w-full px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 text-sm"
             onClick={addNoResponse}
           >
             No Response
           </button>
+            <div className="mt-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2">
+                  <button className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm flex items-center justify-center gap-2">
                 Clear Test
-                <ChevronDown size={16} />
+                    <ChevronDown size={14} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => clearEarResults("L")}>
-                Clear Left Ear
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => clearEarResults("R")}>
-                Clear Right Ear
-              </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearEarResults('L')}>Clear Left Ear</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearEarResults('R')}>Clear Right Ear</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => clearModeResults("AC")}>
-                Clear Air Conduction
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => clearModeResults("BC")}>
-                Clear Bone Conduction
-              </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearModeResults('AC')}>Clear Air Conduction</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearModeResults('BC')}>Clear Bone Conduction</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={clearTest} className="text-red-600">
-                Clear All Results
-              </DropdownMenuItem>
+                  <DropdownMenuItem onClick={clearTest} className="text-red-600">Clear All Results</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+            </div>
           <button
-            className="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-all duration-200 hover:shadow-lg hover:scale-105"
+              className="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm transition-all duration-200 hover:shadow-lg hover:scale-105"
             onClick={handleSubmit}
           >
             Submit Test
           </button>
         </div>
-      </div>
-
-
-
-      {/* Audiogram Display */}
-      <div className="border flex items-center justify-center rounded p-4">
-        <div className="w-full">
-        <PureToneGraph
-          selectedLabelIndexes={selectedLabelIndexes}
-          resultMarkings={testResults}
-          onIndexChange={handleAudiogramClick}
-        />
       </div>
       </div>
     </div>

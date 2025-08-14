@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const [allConsulations, setAllConsulations] = useState<
     ConsultationModelData[]
   >([]);
+  const [blinkingIds, setBlinkingIds] = useState<string[]>([]);
   const { data: consultations, isLoading, isError } = useGetAllConsultations();
   const socket = useSocket();
 
@@ -63,10 +64,9 @@ export default function DashboardPage() {
         setTimeout(() => {
           if (Array.isArray(consultations.data)) {
             consultations.data.forEach((consultation: ConsultationModelData) => {
-              // Check if consultation needs attention (no audiologist OR pending status) AND not in progress/completed/cancelled
+              // Check if consultation needs attention (no audiologist assigned) AND not in progress/completed/cancelled
               const needsAttention = 
-                (!consultation.audiologist || 
-                consultation.status === SessionStatus.PENDING) &&
+                (!consultation.audiologist) &&
                 consultation.status !== SessionStatus.IN_PROGRESS && // NOT in progress (being handled)
                 consultation.status !== SessionStatus.COMPLETED && // NOT completed  
                 consultation.status !== SessionStatus.CANCELLED; // NOT cancelled
@@ -98,6 +98,24 @@ export default function DashboardPage() {
         if (prev.some((c) => c.id === data.id)) return prev;
         return [data, ...prev];
       });
+
+      // If audiologist and consultation needs attention, toast + blink
+      const isAudiologistUser = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+      if (isAudiologistUser) {
+        const needsAttention = (!data.audiologist)
+          && data.status !== SessionStatus.IN_PROGRESS
+          && data.status !== SessionStatus.COMPLETED
+          && data.status !== SessionStatus.CANCELLED;
+        if (needsAttention) {
+          const patientName = data.patient?.name || "New patient";
+          toast.info(`New consultation: ${patientName}`);
+          setBlinkingIds((prev) => prev.includes(data.id) ? prev : [...prev, data.id]);
+          // Remove blink after 6 seconds
+          setTimeout(() => {
+            setBlinkingIds((prev) => prev.filter((id) => id !== data.id));
+          }, 6000);
+        }
+      }
     };
 
     const onConsultationUpdate = (data: ConsultationModelData) => {
@@ -190,7 +208,7 @@ export default function DashboardPage() {
       socket.off("joined", handleJoined);
       socket.off("join_error", handleJoinError);
     };
-  }, [socket, joiningConsultationId, router]);
+  }, [socket, joiningConsultationId, router, user?.role]);
 
   const joinRoom = (consultationId: string) => {
     console.log(consultationId);
@@ -240,6 +258,18 @@ export default function DashboardPage() {
       statusConfig[consultation.status] || statusConfig[SessionStatus.PENDING];
     const isAudiologist =
       user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+
+    // Button styles vary by session status
+    const statusButtonStyles = {
+      [SessionStatus.PENDING]: "bg-yellow-500 hover:bg-yellow-600",
+      [SessionStatus.IN_PROGRESS]: "bg-blue-600 hover:bg-blue-700",
+      [SessionStatus.COMPLETED]: "bg-green-600 hover:bg-green-700",
+      [SessionStatus.FAILED]: "bg-red-600 hover:bg-red-700",
+      [SessionStatus.CANCELLED]: "bg-gray-500 hover:bg-gray-600",
+    } as const;
+    const commonButtonStyles =
+      "w-full text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed";
+    const buttonClassName = `${statusButtonStyles[consultation.status as keyof typeof statusButtonStyles] || "bg-primary-600 hover:bg-primary-700"} ${commonButtonStyles}`;
 
     return (
       <div
@@ -307,7 +337,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => joinRoom(consultation.id)}
                   disabled={joiningConsultationId === consultation.id}
-                  className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                  className={buttonClassName}
                 >
                   {joiningConsultationId === consultation.id ? (
                     <>
@@ -329,7 +359,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => joinRoom(consultation.id)}
                   disabled={joiningConsultationId === consultation.id}
-                  className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                  className={buttonClassName}
                 >
                   {joiningConsultationId === consultation.id ? (
                     <>
@@ -352,6 +382,14 @@ export default function DashboardPage() {
 
   return (
     <DashboardBodyWrapper>
+      <style>{`
+        @keyframes blink-card-border { 0%{ box-shadow: 0 0 0 0 rgba(59,130,246,.6);} 50%{ box-shadow: 0 0 0 4px rgba(59,130,246,.25);} 100%{ box-shadow: 0 0 0 0 rgba(59,130,246,.0);} }
+        .blink-card { animation: blink-card-border 1s ease-in-out 0s 6; }
+        
+        /* Stronger, continuous blink for PENDING consultations */
+        @keyframes blink-pending-border { 0%{ box-shadow: 0 0 0 0 rgba(202,138,4,.75);} 50%{ box-shadow: 0 0 0 8px rgba(202,138,4,.35);} 100%{ box-shadow: 0 0 0 0 rgba(202,138,4,0);} }
+        .pending-blink { animation: blink-pending-border 1.2s ease-in-out 0s infinite; border-radius: 0.75rem; }
+      `}</style>
       <div className="w-full mb-8 ">
         <div className="rounded-2xl bg-gradient-to-r from-primary-100 to-blue-100 dark:from-primary-900 dark:to-blue-900 p-6 flex items-center justify-between gap-4 shadow-md border border-primary-200 dark:border-primary-800">
           <div className="flex  gap-4">
@@ -384,7 +422,15 @@ export default function DashboardPage() {
       {isLoading && <div>Loading...</div>}
       {isError && <div>Error</div>}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {allConsulations?.map(renderConsultationCard)}
+        {allConsulations?.map((consultation) => {
+          const Card = renderConsultationCard(consultation);
+          const shouldBlinkPending = (!consultation.audiologist) && consultation.status === SessionStatus.PENDING;
+          return (
+            <div key={consultation.id} className={`${blinkingIds.includes(consultation.id) ? 'blink-card' : ''} ${shouldBlinkPending ? 'pending-blink' : ''}`}>
+              {Card}
+            </div>
+          );
+        })}
       </div>
     </DashboardBodyWrapper>
   );

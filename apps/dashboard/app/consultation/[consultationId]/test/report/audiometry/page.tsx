@@ -7,8 +7,10 @@ import { useParams, useRouter } from "next/navigation";
 import { Ear, SessionStatus } from "@/models/enums";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
+import FloatingReportActions from "@/components/ui/FloatingReportActions";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import ReportTopActions from "@/components/ui/ReportTopActions";
 
 import { ROUTES } from "@/lib/routes";
 import { toast } from "sonner";
@@ -73,20 +75,25 @@ const AudiogramChart: React.FC<{
   results: TestResult[];
   ear: "L" | "R";
 }> = ({ title, results, ear }) => {
-  const frequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000, 12000];
-  const mainFrequencies = [125, 250, 500, 1000, 2000, 4000, 8000, 12000];
-  const midFrequencies = [750, 1500, 3000, 6000, 10000];
+  const frequencies = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
+  const mainFrequencies = [125, 250, 500, 1000, 2000, 4000, 8000];
+  const midFrequencies = [750, 1500, 3000, 6000];
   const dbLevels = Array.from({ length: 27 }, (_, i) => (i - 2) * 5); // -10 to 120 dB
   
-  const gridSize = 25;
-  const chartWidth = gridSize * (frequencies.length - 1); // fixed by square cell width
+  const gridSize = 22; // slightly smaller to match component proportions
+  const stepsPerOctave = 2; // place a mid-octave step between each octave
+  const minFreq = mainFrequencies[0];
+  const maxFreq = mainFrequencies[mainFrequencies.length - 1];
+  const totalSteps = (mainFrequencies.length - 1) * stepsPerOctave;
+  const chartWidth = gridSize * totalSteps; // equal spacing per octave
   const height = 14 * gridSize; // Adjust height to start from -10
   const margin = { top: 30, right: 20, bottom: 40, left: 50 };
   
-  // Uniform positions for frequencies to ensure square cells (match printed audiogram)
+  // Map frequency to equal per-octave spacing; mid-octaves land midway
   const getFrequencyPosition = (freq: number) => {
-    const idx = frequencies.indexOf(freq);
-    return idx >= 0 ? idx * gridSize : 0;
+    const clamped = Math.max(minFreq, Math.min(maxFreq, freq));
+    const stepIndex = Math.round(Math.log2(clamped / minFreq) * stepsPerOctave);
+    return stepIndex * gridSize;
   };
   
   const COLORS = {
@@ -163,7 +170,7 @@ const AudiogramChart: React.FC<{
     const color = getSymbolColor(result.ear);
     const size = 8;
     
-    // Build the base symbol first
+    // Build the base symbol firstP
     let base: React.ReactNode = null;
       
       if (result.mode === "AC") {
@@ -678,6 +685,7 @@ export default function ReportPage() {
     }
   };
 
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -755,12 +763,7 @@ export default function ReportPage() {
   return (
     <div className="p-6 flex justify-center bg-gray-100">
       <div className="w-[794px] bg-white shadow-lg">
-        <div className="flex justify-center p-4 border-b">
-          <Button onClick={handleDownloadPDF} className="bg-blue-600 hover:bg-blue-700 text-white">
-            Download PDF
-          </Button>
-    
-        </div>
+        <ReportTopActions onDownload={handleDownloadPDF} />
         
         <div ref={reportRef} data-report-capture="true" className="bg-white" style={{ fontFamily: 'Arial, sans-serif', height: 'auto', minHeight: 'auto' }}>
           {/* Header */}
@@ -1242,39 +1245,14 @@ export default function ReportPage() {
       )}
 
       {/* Floating Action Buttons */}
-      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-10">
-        <Button
-          onClick={handleShowReport}
-          disabled={isScreenConnecting}
-          className={`${
-            (isShowingReport || isScreenSharing)
-              ? "bg-orange-600 hover:bg-orange-700" 
-              : "bg-blue-600 hover:bg-blue-700"
-          } text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 disabled:opacity-50`}
-        >
-          <span>{isScreenConnecting ? "🔄" : isScreenSharing ? "🖥️" : "📊"}</span>
-          {isScreenConnecting 
-            ? "Connecting..." 
-            : (isShowingReport || isScreenSharing) 
-              ? "Hide Report" 
-              : "Show Report"
-          }
-        </Button>
-        <Button
-          onClick={handleDoAnotherTest}
-          className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"
-        >
-          <span>🔄</span>
-          Do Another Test
-        </Button>
-        <Button
-          onClick={handleEndConsultation}
-          className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"
-        >
-          <span>✅</span>
-          End Consultation
-        </Button>
-      </div>
+      <FloatingReportActions
+        isScreenConnecting={isScreenConnecting}
+        isScreenSharing={isScreenSharing}
+        isShowingReport={isShowingReport}
+        onToggleShowReport={handleShowReport}
+        onDoAnotherTest={handleDoAnotherTest}
+        onEndConsultation={handleEndConsultation}
+      />
 
 
 
