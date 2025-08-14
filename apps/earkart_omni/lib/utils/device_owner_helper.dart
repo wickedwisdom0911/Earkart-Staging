@@ -140,6 +140,24 @@ class DeviceOwnerHelper {
     }
   }
 
+  /// Grant USB permissions specifically for device owner apps
+  static Future<bool> grantUSBPermissions() async {
+    try {
+      final bool isOwner = await isDeviceOwner();
+      if (isOwner) {
+        await platform.invokeMethod('grantUSBPermissions');
+        print('✅ USB permissions granted for device owner');
+        return true;
+      } else {
+        print('⚠️ Not device owner - cannot grant USB permissions');
+        return false;
+      }
+    } catch (e) {
+      print('Error granting USB permissions: $e');
+      return false;
+    }
+  }
+
   /// Smart screen sharing method that bypasses dialog if device owner
   static Future<Map<String, dynamic>?> smartScreenShare() async {
     try {

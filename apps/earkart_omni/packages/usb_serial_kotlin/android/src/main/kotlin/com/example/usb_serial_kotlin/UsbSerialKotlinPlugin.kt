@@ -116,21 +116,47 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
         dev["deviceId"] = device.deviceId
 
         // Check for permission before accessing properties that may require it
-        if (usbManager.hasPermission(device) || isDeviceOwner()) {
-        // Log.d(TAG, "Device has Permission: ${device.deviceName}")
-
+        val hasPermission = usbManager.hasPermission(device)
+        val isOwner = isDeviceOwner()
+        
+        if (hasPermission || isOwner) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 dev["manufacturerName"] = device.manufacturerName ?: "N/A"
                 dev["productName"] = device.productName ?: "N/A"
                 dev["interfaceCount"] = device.interfaceCount
-                try {
-                    dev["serialNumber"] = device.serialNumber ?: "N/A"
-                } catch (e: SecurityException) {
-                    // Log.e(TAG, "SecurityException while accessing serialNumber: ${e.message}")
+                
+                // For device owner, try to access serialNumber with proper error handling
+                if (isOwner) {
+                    // Device owner should have access, but handle gracefully if not
+                    try {
+                        dev["serialNumber"] = device.serialNumber ?: "N/A"
+                    } catch (e: SecurityException) {
+                        // For device owner, this shouldn't happen but handle it gracefully
+                        dev["serialNumber"] = "N/A"
+                    } catch (e: Exception) {
+                        dev["serialNumber"] = "N/A"
+                    }
+                } else {
+                    // For non-device owner, only try if we have explicit permission
+                    if (hasPermission) {
+                        try {
+                            dev["serialNumber"] = device.serialNumber ?: "N/A"
+                        } catch (e: SecurityException) {
+                            dev["serialNumber"] = "N/A"
+                        } catch (e: Exception) {
+                            dev["serialNumber"] = "N/A"
+                        }
+                    } else {
+                        dev["serialNumber"] = "N/A"
+                    }
                 }
             }
         } else {
-            Log.e(TAG, "No permission to access device: ${device.deviceName}")
+            // Set default values for properties that require permission
+            dev["manufacturerName"] = "N/A"
+            dev["productName"] = "N/A"
+            dev["interfaceCount"] = device.interfaceCount
+            dev["serialNumber"] = "N/A"
         }
 
         return dev
@@ -139,12 +165,10 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
     private fun acquirePermissions(device: UsbDevice, callback: (Boolean) -> Unit) {
         // Check if app is device owner - if so, skip permission request
         if (isDeviceOwner()) {
-            // Log.d(TAG, "Device owner detected - skipping USB permission request for ${device.deviceName}")
             callback(true)
             return
         }
 
-        // Log.d(TAG, "acquirePermissions called")
         val permissionIntent = PendingIntent.getBroadcast(
             context,
             0,
@@ -166,90 +190,131 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
     }
 
     private fun openDevice(device: UsbDevice, result: Result) {
-        // Log.d(TAG, "openDevice called for device: ${device.deviceName} at ${System.currentTimeMillis()}")
-        // Check if we have permission or are device owner
-        if (usbManager.hasPermission(device) || isDeviceOwner()) {
-            // Log.d(TAG, "Permission granted for device: ${device.deviceName}")
-            val connection: UsbDeviceConnection? = usbManager.openDevice(device)
-            if (connection != null) {
-                // Log.d(TAG, "Device opened successfully: ${device.deviceName} at ${System.currentTimeMillis()}")
-                // Get the first interface
-                val usbInterface: UsbInterface = device.getInterface(0)
-                if (connection.claimInterface(usbInterface, true)) {
-                    val adapter = UsbSerialPortAdapter(messenger, 0, connection, device, usbManager)
-                    result.success(adapter.getMethodChannelName())
-                    Log.d(TAG, "USB Serial Port Adapter initialized successfully.")
+        try {
+            // Check if we have permission or are device owner
+            if (usbManager.hasPermission(device) || isDeviceOwner()) {
+                val connection: UsbDeviceConnection? = usbManager.openDevice(device)
+                if (connection != null) {
+                    // Get the first interface
+                    val usbInterface: UsbInterface = device.getInterface(0)
+                    if (connection.claimInterface(usbInterface, true)) {
+                        val adapter = UsbSerialPortAdapter(messenger, 0, connection, device, usbManager)
+                        result.success(adapter.getMethodChannelName())
+                    } else {
+                        Log.e(TAG, "Failed to claim interface on device: ${device.deviceName}")
+                        result.error(TAG, "Failed to claim interface.", null)
+                    }
                 } else {
-                    Log.e(TAG, "Failed to claim interface on device: ${device.deviceName}")
-                    result.error(TAG, "Failed to claim interface.", null)
+                    result.error(TAG, "Failed to open device.", null)
                 }
             } else {
-                Log.e(TAG, "Failed to open device: ${device.deviceName} at ${System.currentTimeMillis()}")
-                result.error(TAG, "Failed to open device.", null)
-            }
-        } else {
-            Log.d(TAG, "Permission not granted for device: ${device.deviceName}")
-            acquirePermissions(device) { granted ->
-                if (granted) {
-                    Log.d(TAG, "Permission granted after request for device: ${device.deviceName} at ${System.currentTimeMillis()}")
-                    openDevice(device, result)
-                } else {
-                    Log.e(TAG, "Permission denied for device: ${device.deviceName} at ${System.currentTimeMillis()}")
-                    result.error(TAG, "Permission denied.", null)
+                acquirePermissions(device) { granted ->
+                    if (granted) {
+                        openDevice(device, result)
+                    } else {
+                        result.error(TAG, "Permission denied.", null)
+                    }
                 }
             }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException while opening device ${device.deviceName}: ${e.message}")
+            result.error(TAG, "Security exception: ${e.message}", null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception while opening device ${device.deviceName}: ${e.message}")
+            result.error(TAG, "Exception: ${e.message}", null)
         }
     }
 
     private fun listDevices(result: Result) {
-        val devices = usbManager.deviceList
-        if (devices.isEmpty()) {
-            result.success(emptyList<HashMap<String, Any>>())
-            return
-        }
+        try {
+            val devices = usbManager.deviceList
+            if (devices.isEmpty()) {
+                result.success(emptyList<HashMap<String, Any>>())
+                return
+            }
 
-        val transferDevices = mutableListOf<HashMap<String, Any>>()
-        // Log.d(TAG, "Devices found: ${devices.values}")
-        val isOwner = isDeviceOwner()
-        
-        if (isOwner) {
-            // Log.d(TAG, "Device owner detected - auto-granting USB permissions for all devices")
-            // For device owner, add all devices without permission requests
-            transferDevices.addAll(devices.values.map { serializeDevice(it) })
-        } else {
-            // Original logic for non-device owner apps
-            val pendingPermissions = devices.values.filter { !usbManager.hasPermission(it) }
-            // Log.d(TAG, "Pending permissions: ${pendingPermissions}")
-            if (pendingPermissions.isNotEmpty()) {
-                // Request permissions for devices that do not have permission
-                for (device in pendingPermissions) {
-                    acquirePermissions(device) { granted ->
-                        if (granted) {
-                            Log.d(TAG, "Permission granted for device: ${device.deviceName}")
-                            transferDevices.add(serializeDevice(device))
-                        } else {
-                            Log.e(TAG, "-> Permission denied for device: ${device.deviceName}")
-                        }
+            val transferDevices = mutableListOf<HashMap<String, Any>>()
+            val isOwner = isDeviceOwner()
+            
+            if (isOwner) {
+                // For device owner, process all devices with improved error handling
+                for (device in devices.values) {
+                    try {
+                        val serializedDevice = serializeDevice(device)
+                        transferDevices.add(serializedDevice)
+                    } catch (e: SecurityException) {
+                        // Add basic device info without sensitive properties
+                        val basicDev = HashMap<String, Any>()
+                        basicDev["deviceName"] = device.deviceName
+                        basicDev["vid"] = device.vendorId
+                        basicDev["pid"] = device.productId
+                        basicDev["deviceId"] = device.deviceId
+                        basicDev["manufacturerName"] = "N/A"
+                        basicDev["productName"] = "N/A"
+                        basicDev["interfaceCount"] = device.interfaceCount
+                        basicDev["serialNumber"] = "N/A"
+                        transferDevices.add(basicDev)
+                    } catch (e: Exception) {
+                        // Add basic device info as fallback
+                        val basicDev = HashMap<String, Any>()
+                        basicDev["deviceName"] = device.deviceName
+                        basicDev["vid"] = device.vendorId
+                        basicDev["pid"] = device.productId
+                        basicDev["deviceId"] = device.deviceId
+                        basicDev["manufacturerName"] = "N/A"
+                        basicDev["productName"] = "N/A"
+                        basicDev["interfaceCount"] = device.interfaceCount
+                        basicDev["serialNumber"] = "N/A"
+                        transferDevices.add(basicDev)
                     }
                 }
             } else {
-                // If all devices have permission, serialize them
-                transferDevices.addAll(devices.values.map { serializeDevice(it) })
+                // Original logic for non-device owner apps
+                val pendingPermissions = devices.values.filter { !usbManager.hasPermission(it) }
+                if (pendingPermissions.isNotEmpty()) {
+                    // Request permissions for devices that do not have permission
+                    for (device in pendingPermissions) {
+                        acquirePermissions(device) { granted ->
+                            if (granted) {
+                                try {
+                                    transferDevices.add(serializeDevice(device))
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "Exception while serializing device ${device.deviceName}: ${e.message}")
+                                }
+                            } else {
+                                Log.e(TAG, "-> Permission denied for device: ${device.deviceName}")
+                            }
+                        }
+                    }
+                } else {
+                    // If all devices have permission, serialize them
+                    for (device in devices.values) {
+                        try {
+                            transferDevices.add(serializeDevice(device))
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Exception while serializing device ${device.deviceName}: ${e.message}")
+                        }
+                    }
+                }
             }
-        }
 
-        // Return the serialized devices after processing permissions
-        result.success(transferDevices)
+            // Return the serialized devices after processing permissions
+            result.success(transferDevices)
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException in listDevices: ${e.message}")
+            result.error(TAG, "Security exception: ${e.message}", null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception in listDevices: ${e.message}")
+            result.error(TAG, "Exception: ${e.message}", null)
+        }
     }
 
   
 
     override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
-        // Log.d(TAG, "Method called: " + call.method)
         when (call.method) {
             "listDevices" -> listDevices(result)
             "openDevice" -> {
-                // Log.d(TAG, "openDevice method called at ${System.currentTimeMillis()}")
                 val device: UsbDevice? = call.argument("device")
                 if (device != null) {
                     openDevice(device, result)
@@ -259,7 +324,6 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
                 }
             }
             "create" -> {
-                // Log.d(TAG, "create method called at ${System.currentTimeMillis()}")
                 val type: String? = call.argument("type")
                 val vid: Int? = call.argument("vid")
                 val pid: Int? = call.argument("pid")
@@ -292,7 +356,6 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
     }
 
     override fun onAttachedToEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
-        // Log.d(TAG, "onAttachedToEngine called")
         context = binding.applicationContext
         usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
         messenger = binding.binaryMessenger
@@ -309,7 +372,6 @@ class UsbSerialKotlinPlugin : FlutterPlugin, MethodCallHandler, EventChannel.Str
     }
 
     override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
-        // Log.d(TAG, "onDetachedFromEngine called")
         context.unregisterReceiver(usbReceiver)
     }
 

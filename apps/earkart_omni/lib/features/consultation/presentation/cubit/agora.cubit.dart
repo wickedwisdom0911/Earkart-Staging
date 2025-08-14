@@ -29,6 +29,13 @@ class AgoraCubit extends Cubit<AgoraState> {
   String? _currentChannelName;
   StreamSubscription? _agoraStateSubscription;
 
+  // Release mode specific properties
+  bool _isEngineCreationFailed = false;
+  bool _isPermissionRequested = false;
+  Timer? _retryTimer;
+  int _retryCount = 0;
+  static int get _maxRetries => AgoraReleaseConfig.maxAgoraRetries;
+
   AgoraCubit(this.getAgoraTokenUsecase) : super(AgoraState.initial()) {
     _initializeTokenRenewalService();
   }
@@ -155,10 +162,21 @@ class AgoraCubit extends Cubit<AgoraState> {
         return;
       }
 
+      // Reset retry state for new initialization
+      _retryCount = 0;
+      _isEngineCreationFailed = false;
+
       _currentChannelName = channelName;
-      di<ILogger>().info('[VIDEO_CALL] Requesting permissions for video call');
-      await _requestPermissions();
-      di<ILogger>().info('[VIDEO_CALL] Permissions granted successfully');
+
+      // Request permissions first
+      if (!_isPermissionRequested) {
+        di<ILogger>().info(
+          '[VIDEO_CALL] Requesting permissions for video call',
+        );
+        await _requestPermissions();
+        di<ILogger>().info('[VIDEO_CALL] Permissions granted successfully');
+        _isPermissionRequested = true;
+      }
 
       // Check if we already have a valid video call token
       final agoraState = state;
@@ -192,6 +210,14 @@ class AgoraCubit extends Cubit<AgoraState> {
     di<ILogger>().info(
       '[VIDEO_CALL] Requesting camera and microphone permissions',
     );
+
+    // Add delay for release mode to ensure proper permission handling
+    if (ReleaseConfig.isReleaseMode) {
+      await Future.delayed(
+        Duration(milliseconds: AgoraReleaseConfig.agoraPermissionDelay),
+      );
+    }
+
     final status = await [Permission.microphone, Permission.camera].request();
     if (status[Permission.microphone] != PermissionStatus.granted ||
         status[Permission.camera] != PermissionStatus.granted) {
@@ -240,6 +266,14 @@ class AgoraCubit extends Cubit<AgoraState> {
       return;
     }
 
+    // If engine creation failed before, try to reset state
+    if (_isEngineCreationFailed) {
+      di<ILogger>().info('[VIDEO_CALL] Resetting failed engine state');
+      _isEngineCreationFailed = false;
+      _isInitialized = false;
+      _engine = null;
+    }
+
     di<ILogger>().info(
       '[VIDEO_CALL] Setting up Agora engine for video call with appId: ${appId.substring(0, 8)}...',
     );
@@ -248,6 +282,13 @@ class AgoraCubit extends Cubit<AgoraState> {
       di<ILogger>().info('[VIDEO_CALL] Creating Agora RTC engine');
       _engine = createAgoraRtcEngine();
       di<ILogger>().info('[VIDEO_CALL] Agora RTC engine created successfully');
+
+      // Add delay for release mode to ensure proper engine initialization
+      if (ReleaseConfig.isReleaseMode) {
+        await Future.delayed(
+          Duration(milliseconds: AgoraReleaseConfig.agoraEngineInitDelay),
+        );
+      }
 
       di<ILogger>().info('[VIDEO_CALL] Initializing Agora RTC engine');
       await _engine!.initialize(
@@ -267,6 +308,29 @@ class AgoraCubit extends Cubit<AgoraState> {
       di<ILogger>().info('[VIDEO_CALL] Enabling audio for video call');
       await _engine!.enableAudio();
       di<ILogger>().info('[VIDEO_CALL] Audio enabled successfully');
+
+      // Configure audio profile to prevent buffer size issues
+      di<ILogger>().info('[VIDEO_CALL] Setting audio profile configuration');
+      await _engine!.setAudioProfile(
+        profile: AudioProfileType.audioProfileDefault,
+        scenario: AudioScenarioType.audioScenarioGameStreaming,
+      );
+      di<ILogger>().info('[VIDEO_CALL] Audio profile configured successfully');
+
+      // Set audio parameters to prevent buffer overflow
+      di<ILogger>().info('[VIDEO_CALL] Setting audio parameters');
+      await _engine!.setParameters(
+        '{"che.audio.custom_bitrate": ${AgoraReleaseConfig.agoraAudioBitrate}}',
+      );
+      await _engine!.setParameters(
+        '{"che.audio.custom_sample_rate": ${AgoraReleaseConfig.agoraAudioSampleRate}}',
+      );
+      await _engine!.setParameters(
+        '{"che.audio.custom_channels": ${AgoraReleaseConfig.agoraAudioChannels}}',
+      );
+      di<ILogger>().info(
+        '[VIDEO_CALL] Audio parameters configured successfully',
+      );
 
       di<ILogger>().info('[VIDEO_CALL] Setting video encoder configuration');
       await _engine!.setVideoEncoderConfiguration(
@@ -327,6 +391,26 @@ class AgoraCubit extends Cubit<AgoraState> {
             di<ILogger>().error(
               '[VIDEO_CALL] Agora video call error: $err - $msg',
             );
+
+            // Handle specific error codes that might require retry
+            if (err == ErrorCodeType.errInvalidArgument ||
+                err == ErrorCodeType.errNotInitialized ||
+                err == ErrorCodeType.errInvalidState) {
+              di<ILogger>().info(
+                '[VIDEO_CALL] Attempting to recover from error',
+              );
+              _scheduleRetry();
+            }
+
+            // Handle audio buffer size errors specifically
+            if (msg.contains('AudioFrame') ||
+                msg.contains('kMaxDataSizeBytes')) {
+              di<ILogger>().error(
+                '[VIDEO_CALL] Audio buffer size error detected - attempting audio reconfiguration',
+              );
+              _handleAudioBufferError();
+            }
+
             emit(AgoraError(message: 'Video call error: $err - $msg'));
           },
           onTokenPrivilegeWillExpire: (RtcConnection connection, String token) {
@@ -343,16 +427,16 @@ class AgoraCubit extends Cubit<AgoraState> {
             ConnectionChangedReasonType reason,
           ) {
             di<ILogger>().info(
-              '[VIDEO_CALL] Video call connection state changed: $state',
+              '[VIDEO_CALL] Connection state changed: $state, reason: $reason',
             );
-            di<ILogger>().info(
-              '[VIDEO_CALL] Connection change reason: $reason',
-            );
-          },
-          onUserInfoUpdated: (int remoteUid, UserInfo info) {
-            di<ILogger>().info(
-              '[VIDEO_CALL] User info updated for remote user: $remoteUid',
-            );
+
+            // Handle connection failures
+            if (state == ConnectionStateType.connectionStateFailed) {
+              di<ILogger>().error(
+                '[VIDEO_CALL] Connection failed, attempting retry',
+              );
+              _scheduleRetry();
+            }
           },
           onLocalVideoStateChanged: (
             VideoSourceType source,
@@ -360,7 +444,7 @@ class AgoraCubit extends Cubit<AgoraState> {
             LocalVideoStreamReason error,
           ) {
             di<ILogger>().info(
-              '[SCREEN_SHARE] Local video state changed - source: $source, state: $state, error: $error',
+              '[VIDEO_CALL] Local video state changed: $state, error: $error',
             );
 
             // Handle screen sharing state changes
@@ -400,8 +484,122 @@ class AgoraCubit extends Cubit<AgoraState> {
       di<ILogger>().error(
         '[VIDEO_CALL] Error setting up Agora engine for video call: $e',
       );
-      emit(AgoraError(message: 'Error setting up video call: ${e.toString()}'));
+
+      // Mark engine creation as failed for retry mechanism
+      _isEngineCreationFailed = true;
+
+      // Schedule retry if we haven't exceeded max retries
+      if (_retryCount < _maxRetries) {
+        _scheduleRetry();
+      } else {
+        emit(
+          AgoraError(message: 'Error setting up video call: ${e.toString()}'),
+        );
+      }
       rethrow;
+    }
+  }
+
+  /// Schedule retry for failed initialization
+  void _scheduleRetry() {
+    if (_retryCount >= _maxRetries) {
+      di<ILogger>().error('[VIDEO_CALL] Max retries exceeded, giving up');
+      return;
+    }
+
+    _retryCount++;
+    final delay = Duration(
+      seconds: _retryCount * AgoraReleaseConfig.agoraRetryBaseDelay,
+    ); // Exponential backoff
+
+    di<ILogger>().info(
+      '[VIDEO_CALL] Scheduling retry #$_retryCount in ${delay.inSeconds} seconds',
+    );
+
+    _retryTimer?.cancel();
+    _retryTimer = Timer(delay, () {
+      if (!_isDisposed && _currentChannelName != null) {
+        di<ILogger>().info('[VIDEO_CALL] Executing retry #$_retryCount');
+        _retryInitialization();
+      }
+    });
+  }
+
+  /// Handle audio buffer size errors by reconfiguring audio settings
+  Future<void> _handleAudioBufferError() async {
+    try {
+      di<ILogger>().info(
+        '[VIDEO_CALL] Reconfiguring audio settings to fix buffer size issue',
+      );
+
+      if (_engine != null) {
+        // Disable and re-enable audio with conservative settings
+        await _engine!.disableAudio();
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        await _engine!.enableAudio();
+        await _engine!.setAudioProfile(
+          profile: AudioProfileType.audioProfileDefault,
+          scenario: AudioScenarioType.audioScenarioGameStreaming,
+        );
+
+        // Set more conservative audio parameters
+        await _engine!.setParameters(
+          '{"che.audio.custom_bitrate": ${AgoraReleaseConfig.agoraAudioBitrate}}',
+        );
+        await _engine!.setParameters(
+          '{"che.audio.custom_sample_rate": ${AgoraReleaseConfig.agoraAudioSampleRate}}',
+        );
+        await _engine!.setParameters(
+          '{"che.audio.custom_channels": ${AgoraReleaseConfig.agoraAudioChannels}}',
+        );
+
+        di<ILogger>().info('[VIDEO_CALL] Audio reconfiguration completed');
+      }
+    } catch (e) {
+      di<ILogger>().error(
+        '[VIDEO_CALL] Error during audio reconfiguration: $e',
+      );
+      // If audio reconfiguration fails, schedule a full retry
+      _scheduleRetry();
+    }
+  }
+
+  /// Retry initialization with proper cleanup
+  Future<void> _retryInitialization() async {
+    try {
+      // Clean up existing engine
+      if (_engine != null) {
+        try {
+          await _engine!.leaveChannel();
+        } catch (e) {
+          di<ILogger>().error(
+            '[VIDEO_CALL] Error leaving channel during retry: $e',
+          );
+        }
+
+        try {
+          _engine!.release();
+        } catch (e) {
+          di<ILogger>().error(
+            '[VIDEO_CALL] Error releasing engine during retry: $e',
+          );
+        }
+
+        _engine = null;
+      }
+
+      // Reset state
+      _isInitialized = false;
+      _isPreviewStarted = false;
+      _localUserJoined = false;
+      _remoteUid = null;
+      _isEngineCreationFailed = false;
+
+      // Get fresh token and retry
+      getAgoraToken('publisher');
+    } catch (e) {
+      di<ILogger>().error('[VIDEO_CALL] Error during retry initialization: $e');
     }
   }
 
@@ -468,6 +666,13 @@ class AgoraCubit extends Cubit<AgoraState> {
       );
       di<ILogger>().info('[VIDEO_CALL] User ID: $uid');
 
+      // Add delay for release mode to ensure proper channel joining
+      if (ReleaseConfig.isReleaseMode) {
+        await Future.delayed(
+          Duration(milliseconds: AgoraReleaseConfig.agoraChannelJoinDelay),
+        );
+      }
+
       // Join with token
       await _engine!.joinChannel(
         token: cleanToken,
@@ -509,42 +714,35 @@ class AgoraCubit extends Cubit<AgoraState> {
   }
 
   /// Toggle microphone
-  void toggleMic() {
+  Future<void> toggleMicrophone() async {
     if (!_isInitialized || _isDisposed) return;
-    _isMicOn = !_isMicOn;
-    _engine!.muteLocalAudioStream(!_isMicOn);
-    di<ILogger>().info('Microphone ${_isMicOn ? 'enabled' : 'disabled'}');
-    _emitCurrentState();
+
+    try {
+      _isMicOn = !_isMicOn;
+      await _engine!.muteLocalAudioStream(!_isMicOn);
+      di<ILogger>().info(
+        '[VIDEO_CALL] Microphone ${_isMicOn ? 'enabled' : 'disabled'}',
+      );
+      _emitCurrentState();
+    } catch (e) {
+      di<ILogger>().error('[VIDEO_CALL] Error toggling microphone: $e');
+    }
   }
 
   /// Toggle camera
   Future<void> toggleCamera() async {
     if (!_isInitialized || _isDisposed) return;
-    _isCameraOn = !_isCameraOn;
 
     try {
-      await _engine!.muteLocalVideoStream(!_isCameraOn);
-
-      // If enabling camera and not screen sharing, ensure preview is active
-      if (_isCameraOn && !_isScreenSharing) {
-        try {
-          await _engine!.startPreview();
-          di<ILogger>().info('Camera preview started with camera toggle');
-        } catch (e) {
-          di<ILogger>().warning(
-            'Preview start failed in toggle (may be expected): $e',
-          );
-        }
-      }
-
-      di<ILogger>().info('Camera ${_isCameraOn ? 'enabled' : 'disabled'}');
-    } catch (e) {
-      di<ILogger>().error('Error toggling camera: $e');
-      // Revert state on error
       _isCameraOn = !_isCameraOn;
+      await _engine!.muteLocalVideoStream(!_isCameraOn);
+      di<ILogger>().info(
+        '[VIDEO_CALL] Camera ${_isCameraOn ? 'enabled' : 'disabled'}',
+      );
+      _emitCurrentState();
+    } catch (e) {
+      di<ILogger>().error('[VIDEO_CALL] Error toggling camera: $e');
     }
-
-    _emitCurrentState();
   }
 
   /// Toggle screen sharing
@@ -721,55 +919,32 @@ class AgoraCubit extends Cubit<AgoraState> {
         const ChannelMediaOptions(
           publishCameraTrack: true,
           publishMicrophoneTrack: true,
-          publishScreenTrack: false,
-          publishScreenCaptureVideo: false,
-          publishScreenCaptureAudio: false,
           clientRoleType: ClientRoleType.clientRoleBroadcaster,
         ),
       );
-      di<ILogger>().info(
-        '[VIDEO_CALL] Channel media options updated for camera',
-      );
+      di<ILogger>().info('[VIDEO_CALL] Channel media options updated');
 
-      // Force a state emission to update UI
-      _emitCurrentState();
-
-      di<ILogger>().info(
-        '[VIDEO_CALL] Camera stream restoration completed successfully',
-      );
+      di<ILogger>().info('[VIDEO_CALL] Camera stream restoration completed');
     } catch (e) {
-      di<ILogger>().error(
-        '[VIDEO_CALL] Error in camera stream restoration: $e',
-      );
-
-      // If restoration fails, try a simpler approach
-      try {
-        await _engine!.muteLocalVideoStream(false);
-        await _engine!.updateChannelMediaOptions(
-          const ChannelMediaOptions(
-            publishCameraTrack: true,
-            publishMicrophoneTrack: true,
-            clientRoleType: ClientRoleType.clientRoleBroadcaster,
-          ),
-        );
-        di<ILogger>().info(
-          '[VIDEO_CALL] Fallback camera restoration attempted',
-        );
-      } catch (fallbackError) {
-        di<ILogger>().error(
-          '[VIDEO_CALL] Fallback restoration also failed: $fallbackError',
-        );
-      }
+      di<ILogger>().error('[VIDEO_CALL] Error restoring camera stream: $e');
     }
   }
 
   /// Leave video call channel
   Future<void> leaveChannel() async {
     if (!_isInitialized || _isDisposed) return;
+
     try {
-      await _stopPreview();
-      await _engine!.leaveChannel();
-      di<ILogger>().info('Successfully left video call channel');
+      di<ILogger>().info('[VIDEO_CALL] Leaving video call channel');
+
+      // Cancel any pending retry
+      _retryTimer?.cancel();
+
+      if (_localUserJoined) {
+        await _engine!.leaveChannel();
+        di<ILogger>().info('[VIDEO_CALL] Successfully left video call channel');
+      }
+
       _resetVideoCallState();
     } catch (e) {
       di<ILogger>().error('Error leaving video call channel: $e');
@@ -782,6 +957,8 @@ class AgoraCubit extends Cubit<AgoraState> {
     _remoteUid = null;
     _currentChannelName = null;
     _isScreenSharing = false;
+    _retryCount = 0;
+    _isEngineCreationFailed = false;
   }
 
   /// Handle app lifecycle changes
@@ -802,6 +979,7 @@ class AgoraCubit extends Cubit<AgoraState> {
   Future<void> close() {
     _isDisposed = true;
     _agoraStateSubscription?.cancel();
+    _retryTimer?.cancel();
     leaveChannel();
     if (_isInitialized) {
       try {

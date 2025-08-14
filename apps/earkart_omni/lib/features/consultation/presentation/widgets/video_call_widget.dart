@@ -230,7 +230,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                             di<ILogger>().info(
                               '[VIDEO_CALL] Toggling microphone',
                             );
-                            agoraCubit.toggleMic();
+                            agoraCubit.toggleMicrophone();
                           },
                           shape: const CircleBorder(),
                           padding: const EdgeInsets.all(12.0),

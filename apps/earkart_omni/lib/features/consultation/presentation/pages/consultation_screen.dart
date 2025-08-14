@@ -27,6 +27,7 @@ import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/config/release_config.dart';
 import 'package:earkart_omni/config/utils/error_handler.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
+import 'package:earkart_omni/utils/device_owner_helper.dart';
 import 'dart:async';
 
 class ConsultationScreen extends StatefulWidget {
@@ -66,7 +67,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void initState() {
     super.initState();
 
-    // Set up global error handler for camera-related crashes
+    // Set up global error handler for camera and USB-related crashes
     FlutterError.onError = (FlutterErrorDetails details) {
       final exceptionString = details.exception.toString();
 
@@ -90,6 +91,29 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
             _updateCameraState(false);
           } catch (e) {
             di<ILogger>().error('Error resetting camera state: $e');
+          }
+        }
+        return; // Don't crash the app
+      }
+
+      // Handle USB-related errors gracefully
+      if (exceptionString.contains('SecurityException') ||
+          exceptionString.contains('USB') ||
+          exceptionString.contains('UsbManager') ||
+          exceptionString.contains('device /dev/bus/usb') ||
+          exceptionString.contains('permission to access device')) {
+        di<ILogger>().error(
+          '🚨 Caught USB-related error, handling gracefully: ${details.exception}',
+        );
+
+        // Try to safely reset device state
+        if (mounted) {
+          try {
+            // Force a device check to refresh device state
+            di<DeviceCubit>().forceDeviceCheck();
+            di<ILogger>().info('Device state refreshed after USB error');
+          } catch (e) {
+            di<ILogger>().error('Error refreshing device state: $e');
           }
         }
         return; // Don't crash the app
@@ -123,8 +147,42 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           }
         }
       });
+
+      // Add USB permission handling for device owner
+      _handleUSBPermissionsForDeviceOwner();
     } catch (e) {
       di<ILogger>().error('Error forcing device check: $e');
+    }
+  }
+
+  Future<void> _handleUSBPermissionsForDeviceOwner() async {
+    try {
+      final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
+      if (isDeviceOwner) {
+        di<ILogger>().info(
+          'Device owner detected - ensuring USB permissions are granted',
+        );
+        await DeviceOwnerHelper.grantAllPermissions();
+
+        // Add a small delay to ensure permissions are properly applied
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Force another device check after permissions are granted
+        if (mounted) {
+          try {
+            di<DeviceCubit>().forceDeviceCheck();
+            di<ILogger>().debug('Device check after USB permission grant');
+          } catch (e) {
+            di<ILogger>().error(
+              'Error in device check after permission grant: $e',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      di<ILogger>().error(
+        'Error handling USB permissions for device owner: $e',
+      );
     }
   }
 
@@ -138,12 +196,33 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     while (retryCount < maxRetries) {
       if (!mounted) return;
 
-      final success = await context.read<CommunicationCubit>().initializePort(
-        device,
-      );
-      if (success) {
-        di<ILogger>().info('Device initialized successfully');
-        return;
+      try {
+        final success = await context.read<CommunicationCubit>().initializePort(
+          device,
+        );
+        if (success) {
+          di<ILogger>().info('Device initialized successfully');
+          return;
+        }
+      } catch (e) {
+        di<ILogger>().error('Error initializing device: $e');
+
+        // If it's a USB permission error, try to grant permissions
+        if (e.toString().contains('SecurityException') ||
+            e.toString().contains('permission') ||
+            e.toString().contains('USB')) {
+          di<ILogger>().info(
+            'USB permission error detected, attempting to grant permissions',
+          );
+          try {
+            await DeviceOwnerHelper.grantAllPermissions();
+            await Future.delayed(const Duration(milliseconds: 500));
+          } catch (permissionError) {
+            di<ILogger>().error(
+              'Error granting USB permissions: $permissionError',
+            );
+          }
+        }
       }
 
       retryCount++;
@@ -608,6 +687,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       di<ILogger>().debug(
         'Creating new VideoCallWidget with consultationId: "$consultationId"',
       );
+
+      // Add delay for release mode to ensure proper widget initialization
+      if (ReleaseConfig.isReleaseMode) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            di<ILogger>().debug(
+              'Delayed video widget initialization for release mode',
+            );
+          }
+        });
+      }
 
       _videoWidget = VideoCallWidget(
         key: _videoWidgetKey,
