@@ -140,7 +140,6 @@ class DeviceOwnerHelper {
     }
   }
 
-  /// Grant USB permissions specifically for device owner apps
   static Future<bool> grantUSBPermissions() async {
     try {
       final bool isOwner = await isDeviceOwner();
