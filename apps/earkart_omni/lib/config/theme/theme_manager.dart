@@ -9,7 +9,7 @@ ThemeData theme = ThemeData.light().copyWith(
   splashColor: Colors.transparent,
   highlightColor: Colors.transparent,
   scaffoldBackgroundColor: Colors.white,
-  cardTheme: CardTheme(
+  cardTheme: CardThemeData(
     color: Colors.white,
     shape: RoundedRectangleBorder(
       side: const BorderSide(color: Constants.bg, width: 0.2),

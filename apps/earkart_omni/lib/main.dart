@@ -70,10 +70,7 @@ Future<void> main() async {
 /// Initialize battery service
 Future<void> _initializeBatteryService() async {
   try {
-    developer.log(
-      'Initializing battery service...',
-      name: 'BatteryService',
-    );
+    developer.log('Initializing battery service...', name: 'BatteryService');
 
     final batteryService = di<BatteryService>();
     await batteryService.initialize();
