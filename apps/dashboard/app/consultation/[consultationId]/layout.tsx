@@ -10,6 +10,8 @@ import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
 import { ConsultationContent } from "./_components/consultation-content";
 import AgoraRTC, { AgoraRTCProvider } from "agora-rtc-react";
 import { useParams } from "next/navigation";
+import { useScreenRecordingUpload } from "@/hooks/recording/use-screen-recording-upload";
+import { SessionStatus } from "@/models/enums";
 
 export default function ConsultationLayout({
   children,
@@ -26,6 +28,9 @@ export default function ConsultationLayout({
   } = useGetConsultation(consultationId);
   const { deviceState } = useDevice();
   const { r15c, revo2, tablet } = deviceState;
+
+  // Screen recording uploader – expose manual controls
+  const { state: recordingState, start: startRecording, stop: stopRecording, complete: completeRecording, abort: abortRecording } = useScreenRecordingUpload(consultationId);
 
   // Add socket connection handling
   useEffect(() => {
@@ -50,6 +55,24 @@ export default function ConsultationLayout({
       socket.off("connect", handleConnect);
     };
   }, [socket, consultationId]);
+
+  // Start recording on mount (disabled in development to allow manual testing), stop on unmount
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") return;
+    startRecording({ filename: `consultation-${consultationId}-${Date.now()}.webm`, timesliceMs: 5000, maxConcurrentUploads: 3 });
+    return () => {
+      stopRecording();
+    };
+  }, [consultationId, startRecording, stopRecording]);
+
+  // Also stop if the consultation gets completed/cancelled while still on the page
+  useEffect(() => {
+    const status = (consultation?.data as ConsultationModelData | undefined)?.status;
+    if (!status) return;
+    if (status === SessionStatus.COMPLETED || status === SessionStatus.CANCELLED || status === SessionStatus.FAILED) {
+      stopRecording();
+    }
+  }, [consultation, stopRecording]);
 
   // Create a single Agora client instance shared across this layout (must be called every render before conditional returns)
   const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
@@ -77,7 +100,7 @@ export default function ConsultationLayout({
                     }`}
                   />
                   <span className="text-sm font-medium">
-                    R15C: {" "}
+                    R15C:{" "}
                     {r15c.connectionStatus.charAt(0).toUpperCase() +
                       r15c.connectionStatus.slice(1)}
                     {typeof r15c.batteryLevel === 'number' && (
@@ -97,7 +120,7 @@ export default function ConsultationLayout({
                     }`}
                   />
                   <span className="text-sm font-medium">
-                    Revo2: {" "}
+                    Revo2:{" "}
                     {revo2.connectionStatus.charAt(0).toUpperCase() +
                       revo2.connectionStatus.slice(1)}
                   </span>
@@ -111,6 +134,30 @@ export default function ConsultationLayout({
                       Tablet: {typeof tablet.batteryLevel === 'number' ? `${tablet.batteryLevel}%` : '—'} {" "}
                       {typeof tablet.isCharging === 'boolean' ? (tablet.isCharging ? '(Charging)' : '(On Battery)') : ''}
                     </span>
+                  </div>
+                )}
+
+                {/* Manual recording controls (development only) */}
+                {process.env.NODE_ENV === "development" && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="px-3 py-1 bg-blue-600 text-white rounded"
+                      onClick={() => startRecording({ filename: `consultation-${consultationId}-${Date.now()}.webm`, timesliceMs: 5000, maxConcurrentUploads: 3 })}
+                    >
+                      Start
+                    </button>
+                    <button
+                      className="px-3 py-1 bg-green-600 text-white rounded"
+                      onClick={completeRecording}
+                    >
+                      Complete
+                    </button>
+                    <button
+                      className="px-3 py-1 bg-red-600 text-white rounded"
+                      onClick={abortRecording}
+                    >
+                      Abort
+                    </button>
                   </div>
                 )}
               </div>
