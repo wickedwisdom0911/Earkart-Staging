@@ -168,4 +168,127 @@ export async function exportElementToPdf(element: HTMLElement, filename: string,
   } finally {
     element.removeAttribute(MARK_ATTR);
   }
+}
+
+// NEW: Generate a PDF Blob from an element without saving, for sharing purposes
+export async function exportElementToPdfBlob(element: HTMLElement, options?: { singlePage?: boolean }): Promise<Blob> {
+  const MARK_ATTR = `data-export-mark`;
+  const singlePage = !!options?.singlePage;
+  element.setAttribute(MARK_ATTR, "1");
+
+  const width = Math.max(element.scrollWidth, element.clientWidth, element.offsetWidth);
+  const height = Math.max(element.scrollHeight, element.clientHeight, element.offsetHeight);
+
+  const tryCapture = async (opts: { scale: number; foreignObjectRendering: boolean }) => {
+    try {
+      // @ts-ignore
+      if (document.fonts?.ready) await (document as any).fonts.ready;
+    } catch {}
+
+    const cfg = {
+      scale: opts.scale,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      foreignObjectRendering: opts.foreignObjectRendering,
+      allowTaint: true,
+      scrollX: 0,
+      scrollY: 0,
+      width,
+      height,
+      windowWidth: width,
+      windowHeight: height,
+      imageTimeout: 0,
+      logging: false,
+      onclone: (clonedDoc: Document) => {
+        const cloned = clonedDoc.querySelector(`[${MARK_ATTR}="1"]`) as HTMLElement | null;
+        if (!cloned) return;
+        const html = clonedDoc.documentElement;
+        const body = clonedDoc.body;
+        if (html) {
+          (html as HTMLElement).style.padding = "0";
+          (html as HTMLElement).style.margin = "0";
+          (html as HTMLElement).style.background = "#ffffff";
+        }
+        if (body) {
+          (body as HTMLElement).style.padding = "0";
+          (body as HTMLElement).style.margin = "0";
+          (body as HTMLElement).style.background = "#ffffff";
+        }
+        cloned.style.transform = "none";
+        cloned.style.boxSizing = "border-box";
+        cloned.style.width = `${width}px`;
+        cloned.style.minWidth = `${width}px`;
+        cloned.style.height = `${height}px`;
+
+        const hidden = cloned.querySelectorAll('.print\\:hidden');
+        const shown = cloned.querySelectorAll('.hidden.print\\:block');
+        hidden.forEach((el) => ((el as HTMLElement).style.display = 'none'));
+        shown.forEach((el) => ((el as HTMLElement).style.display = 'block'));
+        rasterizeSVGsInClone(cloned, clonedDoc);
+      },
+    } as Parameters<typeof html2canvas>[1];
+
+    const canvas = await html2canvas(element, cfg);
+    return canvas;
+  };
+
+  try {
+    let canvas: HTMLCanvasElement;
+    try {
+      canvas = await tryCapture({ scale: 2, foreignObjectRendering: false });
+    } catch {
+      try {
+        canvas = await tryCapture({ scale: 1.5, foreignObjectRendering: false });
+      } catch {
+        try {
+          canvas = await tryCapture({ scale: 1.5, foreignObjectRendering: true });
+        } catch {
+          canvas = await tryCapture({ scale: 1.2, foreignObjectRendering: true });
+        }
+      }
+    }
+
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = pdf.internal.pageSize.getHeight();
+
+    if (singlePage) {
+      const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
+      const drawW = canvas.width * fitRatio;
+      const drawH = canvas.height * fitRatio;
+      const x = (pdfW - drawW) / 2;
+      const y = (pdfH - drawH) / 2;
+      pdf.addImage(imgData, "PNG", x, y, drawW, drawH);
+      return pdf.output("blob");
+    }
+
+    const widthRatio = pdfW / canvas.width;
+    const scaledHeightWidthFit = canvas.height * widthRatio;
+
+    if (scaledHeightWidthFit <= pdfH) {
+      const yOffset = (pdfH - scaledHeightWidthFit) / 2;
+      pdf.addImage(imgData, "PNG", 0, yOffset, pdfW, scaledHeightWidthFit);
+    } else {
+      const pageHeight = pdfH / widthRatio;
+      let position = 0;
+      while (position < canvas.height) {
+        const pageCanvas = document.createElement('canvas');
+        const pageCtx = pageCanvas.getContext('2d');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = Math.min(pageHeight, canvas.height - position);
+        if (pageCtx) {
+          pageCtx.drawImage(canvas, 0, -position);
+          const pageImg = pageCanvas.toDataURL('image/png');
+          if (position > 0) pdf.addPage();
+          pdf.addImage(pageImg, 'PNG', 0, 0, pdfW, (pageCanvas.height * pdfW) / canvas.width);
+        }
+        position += pageHeight;
+      }
+    }
+
+    return pdf.output("blob");
+  } finally {
+    element.removeAttribute(MARK_ATTR);
+  }
 } 

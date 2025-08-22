@@ -2,7 +2,7 @@
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useDevice } from "@/providers/device-provider";
 import { OtoscopyProvider } from "@/providers/otoscopy-provider";
@@ -10,6 +10,8 @@ import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
 import { ConsultationContent } from "./_components/consultation-content";
 import AgoraRTC, { AgoraRTCProvider } from "agora-rtc-react";
 import { useParams } from "next/navigation";
+import { useScreenRecordingUpload } from "@/hooks/recording/use-screen-recording-upload";
+import { SessionStatus } from "@/models/enums";
 
 export default function ConsultationLayout({
   children,
@@ -26,6 +28,9 @@ export default function ConsultationLayout({
   } = useGetConsultation(consultationId);
   const { deviceState } = useDevice();
   const { r15c, revo2, tablet } = deviceState;
+
+  // Screen recording uploader – expose manual controls
+  const { state: recordingState, start: startRecording, stop: stopRecording, complete: completeRecording, abort: abortRecording } = useScreenRecordingUpload(consultationId);
 
   // Add socket connection handling
   useEffect(() => {
@@ -50,6 +55,23 @@ export default function ConsultationLayout({
       socket.off("connect", handleConnect);
     };
   }, [socket, consultationId]);
+
+  // Do NOT auto-start: require explicit user click due to browser security.
+  // Auto-stop and auto-complete when consultation ends.
+  useEffect(() => {
+    const status = (consultation?.data as ConsultationModelData | undefined)?.status;
+    if (!status) return;
+    if (
+      status === SessionStatus.COMPLETED ||
+      status === SessionStatus.CANCELLED ||
+      status === SessionStatus.FAILED
+    ) {
+      // finalize upload if needed
+      if (recordingState.isRecording || recordingState.isUploading) {
+        stopRecording();
+      }
+    }
+  }, [consultation, stopRecording, recordingState.isRecording, recordingState.isUploading]);
 
   // Create a single Agora client instance shared across this layout (must be called every render before conditional returns)
   const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
@@ -77,7 +99,7 @@ export default function ConsultationLayout({
                     }`}
                   />
                   <span className="text-sm font-medium">
-                    R15C: {" "}
+                    R15C:{" "}
                     {r15c.connectionStatus.charAt(0).toUpperCase() +
                       r15c.connectionStatus.slice(1)}
                     {typeof r15c.batteryLevel === 'number' && (
@@ -97,7 +119,7 @@ export default function ConsultationLayout({
                     }`}
                   />
                   <span className="text-sm font-medium">
-                    Revo2: {" "}
+                    Revo2:{" "}
                     {revo2.connectionStatus.charAt(0).toUpperCase() +
                       revo2.connectionStatus.slice(1)}
                   </span>
@@ -113,6 +135,20 @@ export default function ConsultationLayout({
                     </span>
                   </div>
                 )}
+
+                {/* View recording when available */}
+                {recordingState.playbackUrl && (
+                  <a
+                    href={recordingState.playbackUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                    View recording
+                  </a>
+                )}
+
+                {/* Testing complete button removed */}
               </div>
             }
           >
@@ -123,6 +159,43 @@ export default function ConsultationLayout({
               {children}
             </ConsultationContent>
           </DashboardBodyWrapper>
+          {/* Blocking overlay to require Start before proceeding (only while session not ended) */}
+          {!recordingState.isRecording &&
+            (consultationData.status !== SessionStatus.COMPLETED &&
+              consultationData.status !== SessionStatus.CANCELLED &&
+              consultationData.status !== SessionStatus.FAILED) && (
+            <div
+              className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+                <h3 className="text-lg font-semibold mb-2">Recording required</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  To continue this consultation, please start recording and select <b>Entire Screen</b> in the share picker.
+                </p>
+                {recordingState.error?.includes("Entire Screen") && (
+                  <div className="mb-3 text-sm text-yellow-800 bg-yellow-100 rounded px-3 py-2">
+                    Please select "Entire Screen" in the picker and try again.
+                  </div>
+                )}
+                <button
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-60"
+                  onClick={() =>
+                    startRecording({
+                      filename: `consultation-${consultationId}-${Date.now()}.webm`,
+                      timesliceMs: 5000,
+                      maxConcurrentUploads: 3,
+                      requireEntireScreen: true,
+                    })
+                  }
+                  disabled={recordingState.isInitializing}
+                >
+                  {recordingState.isInitializing ? "Starting..." : "Start recording"}
+                </button>
+              </div>
+            </div>
+          )}
         </AgoraRTCProvider>
       </AgoraOtoscopyProvider>
     </OtoscopyProvider>

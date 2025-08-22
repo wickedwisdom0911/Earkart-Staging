@@ -90,8 +90,12 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
       if (!masking) {
         // AC unmasked: X for Left ear, Circle for Right ear
         base = ear === "L"
-          ? <text x={x} y={y} fontSize={SYMBOL_SIZE} fill={color}
-              textAnchor="middle" dominantBaseline="middle">×</text>
+          ? (
+              <g>
+                <line x1={x - half} y1={y - half} x2={x + half} y2={y + half} stroke={color} strokeWidth={LINE_THICKNESS} strokeLinecap="round" />
+                <line x1={x - half} y1={y + half} x2={x + half} y2={y - half} stroke={color} strokeWidth={LINE_THICKNESS} strokeLinecap="round" />
+              </g>
+            )
           : <circle cx={x} cy={y} r={half} fill="none" stroke={color}
               strokeWidth={LINE_THICKNESS} />;
       } else {
