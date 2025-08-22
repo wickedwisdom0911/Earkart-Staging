@@ -11,6 +11,7 @@ import FloatingReportActions from "@/components/ui/FloatingReportActions";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReportTopActions from "@/components/ui/ReportTopActions";
+import { exportElementToPdfBlob } from "@/lib/pdf";
 
 import { ROUTES } from "@/lib/routes";
 import { toast } from "sonner";
@@ -760,10 +761,33 @@ export default function ReportPage() {
     }
   };
 
+  const handleShareReport = async () => {
+    if (!reportRef.current) return;
+    try {
+      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true });
+      const filename = `audiometry-report-${consultationData?.patient?.code || "unknown"}.pdf`;
+      const form = new FormData();
+      form.append("file", new File([blob], filename, { type: "application/pdf" }));
+      form.append("filename", filename);
+
+      const res = await fetch('/api/whatsapp/send-report', { method: 'POST', body: form });
+      const json = await res.json();
+      if (!res.ok) {
+        console.error('WhatsApp send error:', json);
+        toast.error('Failed to share via WhatsApp');
+        return;
+      }
+      toast.success('Report shared to patient via WhatsApp');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to share report');
+    }
+  };
+
   return (
     <div className="p-6 flex justify-center bg-gray-100">
       <div className="w-[794px] bg-white shadow-lg">
-        <ReportTopActions onDownload={handleDownloadPDF} />
+        <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
         
         <div ref={reportRef} data-report-capture="true" className="bg-white" style={{ fontFamily: 'Arial, sans-serif', height: 'auto', minHeight: 'auto' }}>
           {/* Header */}
@@ -1250,6 +1274,7 @@ export default function ReportPage() {
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}
         onToggleShowReport={handleShowReport}
+        onShare={handleShareReport}
         onDoAnotherTest={handleDoAnotherTest}
         onEndConsultation={handleEndConsultation}
       />

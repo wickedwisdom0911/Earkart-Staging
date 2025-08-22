@@ -2,7 +2,7 @@
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useDevice } from "@/providers/device-provider";
 import { OtoscopyProvider } from "@/providers/otoscopy-provider";
@@ -56,23 +56,22 @@ export default function ConsultationLayout({
     };
   }, [socket, consultationId]);
 
-  // Start recording on mount (disabled in development to allow manual testing), stop on unmount
-  useEffect(() => {
-    if (process.env.NODE_ENV === "development") return;
-    startRecording({ filename: `consultation-${consultationId}-${Date.now()}.webm`, timesliceMs: 5000, maxConcurrentUploads: 3 });
-    return () => {
-      stopRecording();
-    };
-  }, [consultationId, startRecording, stopRecording]);
-
-  // Also stop if the consultation gets completed/cancelled while still on the page
+  // Do NOT auto-start: require explicit user click due to browser security.
+  // Auto-stop and auto-complete when consultation ends.
   useEffect(() => {
     const status = (consultation?.data as ConsultationModelData | undefined)?.status;
     if (!status) return;
-    if (status === SessionStatus.COMPLETED || status === SessionStatus.CANCELLED || status === SessionStatus.FAILED) {
-      stopRecording();
+    if (
+      status === SessionStatus.COMPLETED ||
+      status === SessionStatus.CANCELLED ||
+      status === SessionStatus.FAILED
+    ) {
+      // finalize upload if needed
+      if (recordingState.isRecording || recordingState.isUploading) {
+        stopRecording();
+      }
     }
-  }, [consultation, stopRecording]);
+  }, [consultation, stopRecording, recordingState.isRecording, recordingState.isUploading]);
 
   // Create a single Agora client instance shared across this layout (must be called every render before conditional returns)
   const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
@@ -137,29 +136,19 @@ export default function ConsultationLayout({
                   </div>
                 )}
 
-                {/* Manual recording controls (development only) */}
-                {process.env.NODE_ENV === "development" && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="px-3 py-1 bg-blue-600 text-white rounded"
-                      onClick={() => startRecording({ filename: `consultation-${consultationId}-${Date.now()}.webm`, timesliceMs: 5000, maxConcurrentUploads: 3 })}
-                    >
-                      Start
-                    </button>
-                    <button
-                      className="px-3 py-1 bg-green-600 text-white rounded"
-                      onClick={completeRecording}
-                    >
-                      Complete
-                    </button>
-                    <button
-                      className="px-3 py-1 bg-red-600 text-white rounded"
-                      onClick={abortRecording}
-                    >
-                      Abort
-                    </button>
-                  </div>
+                {/* View recording when available */}
+                {recordingState.playbackUrl && (
+                  <a
+                    href={recordingState.playbackUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                    View recording
+                  </a>
                 )}
+
+                {/* Testing complete button removed */}
               </div>
             }
           >
@@ -170,6 +159,43 @@ export default function ConsultationLayout({
               {children}
             </ConsultationContent>
           </DashboardBodyWrapper>
+          {/* Blocking overlay to require Start before proceeding (only while session not ended) */}
+          {!recordingState.isRecording &&
+            (consultationData.status !== SessionStatus.COMPLETED &&
+              consultationData.status !== SessionStatus.CANCELLED &&
+              consultationData.status !== SessionStatus.FAILED) && (
+            <div
+              className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+                <h3 className="text-lg font-semibold mb-2">Recording required</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  To continue this consultation, please start recording and select <b>Entire Screen</b> in the share picker.
+                </p>
+                {recordingState.error?.includes("Entire Screen") && (
+                  <div className="mb-3 text-sm text-yellow-800 bg-yellow-100 rounded px-3 py-2">
+                    Please select "Entire Screen" in the picker and try again.
+                  </div>
+                )}
+                <button
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-60"
+                  onClick={() =>
+                    startRecording({
+                      filename: `consultation-${consultationId}-${Date.now()}.webm`,
+                      timesliceMs: 5000,
+                      maxConcurrentUploads: 3,
+                      requireEntireScreen: true,
+                    })
+                  }
+                  disabled={recordingState.isInitializing}
+                >
+                  {recordingState.isInitializing ? "Starting..." : "Start recording"}
+                </button>
+              </div>
+            </div>
+          )}
         </AgoraRTCProvider>
       </AgoraOtoscopyProvider>
     </OtoscopyProvider>

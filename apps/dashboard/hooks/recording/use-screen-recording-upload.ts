@@ -24,6 +24,7 @@ type StartOptions = {
 	contentType?: string;
 	timesliceMs?: number; // default 5000
 	maxConcurrentUploads?: number; // default 3
+	requireEntireScreen?: boolean; // enforce that user selects Entire Screen in the picker
 };
 
 export type ScreenRecordingState = {
@@ -36,6 +37,7 @@ export type ScreenRecordingState = {
 	pendingParts: number;
 	uploadId: string | null;
 	s3Key: string | null;
+  playbackUrl: string | null;
 };
 
 const DEFAULT_TIMESLICE = 5000;
@@ -57,10 +59,15 @@ export function useScreenRecordingUpload(consultationId: string) {
 		pendingParts: 0,
 		uploadId: null,
 		s3Key: null,
+    playbackUrl: null,
 	});
 
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const mediaStreamRef = useRef<MediaStream | null>(null);
+	const trackedVideoRef = useRef<MediaStreamTrack | null>(null);
+	const trackedStreamRef = useRef<MediaStream | null>(null);
+	const trackEndHandlerRef = useRef<(() => void) | null>(null);
+	const streamInactiveHandlerRef = useRef<(() => void) | null>(null);
 	const uploadIdRef = useRef<string | null>(null);
 	const partSizeRef = useRef<number>(10 * 1024 * 1024); // default 10MB until server returns
 	const nextPartNumberRef = useRef<number>(1);
@@ -192,12 +199,63 @@ export function useScreenRecordingUpload(consultationId: string) {
 			partSizeRef.current = Math.max(5 * 1024 * 1024, partSize || partSizeRef.current);
 			setState((s) => ({ ...s, uploadId }));
 
+
 			// 2) Capture screen
 			const stream = await navigator.mediaDevices.getDisplayMedia({
 				video: { frameRate: 15 },
 				audio: false,
 			});
 			mediaStreamRef.current = stream;
+
+			// Listen for user stopping from browser UI (track ended / stream inactive)
+			try {
+				const vTrack = stream.getVideoTracks()[0] || null;
+				trackedVideoRef.current = vTrack;
+				trackedStreamRef.current = stream;
+				if (vTrack) {
+					const onEnded = async () => {
+						if (!uploadIdRef.current && mediaRecorderRef.current == null) return;
+						// Immediately reflect stopped state so overlay blocks UI
+						setState((s) => ({ ...s, isRecording: false, isUploading: true }));
+						await stop();
+					};
+					vTrack.addEventListener("ended", onEnded);
+					trackEndHandlerRef.current = () => vTrack.removeEventListener("ended", onEnded);
+				}
+				const onInactive = async () => {
+					if (!uploadIdRef.current && mediaRecorderRef.current == null) return;
+					setState((s) => ({ ...s, isRecording: false, isUploading: true }));
+					await stop();
+				};
+				(stream as any).addEventListener?.("inactive", onInactive);
+				streamInactiveHandlerRef.current = () => (stream as any).removeEventListener?.("inactive", onInactive);
+			} catch {}
+
+			// If Entire Screen is required, validate selection; otherwise abort and prompt user to re-try
+			if (opts?.requireEntireScreen) {
+				const track = stream.getVideoTracks()[0];
+				const settings = (track?.getSettings?.() as any) || {};
+				if (settings?.displaySurface !== "monitor") {
+					try { track?.stop?.(); } catch {}
+					mediaStreamRef.current = null;
+					// Abort initiated multipart upload to avoid orphaned uploads
+					try {
+						const toAbort = uploadIdRef.current;
+						if (toAbort) {
+							await abortRecordingUpload({ uploadId: toAbort });
+						}
+					} catch {}
+					uploadIdRef.current = null;
+					uploadedPartsRef.current = [];
+					queueRef.current = [];
+					activeUploadsRef.current = 0;
+					nextPartNumberRef.current = 1;
+					pendingBlobsRef.current = [];
+					pendingSizeRef.current = 0;
+					setState((s) => ({ ...s, isInitializing: false, error: "Please select 'Entire Screen' in the share picker." }));
+					return;
+				}
+			}
 
 			// 3) Create MediaRecorder
 			const recorder = new MediaRecorder(stream, { mimeType: preferredMime, videoBitsPerSecond: 2_000_000 });
@@ -222,6 +280,11 @@ export function useScreenRecordingUpload(consultationId: string) {
 			recorder.onerror = (e) => {
 				const msg = (e as any)?.error?.message || "MediaRecorder error";
 				setState((s) => ({ ...s, error: msg }));
+			};
+
+			recorder.onstop = () => {
+				// If the recorder stopped externally, show overlay immediately
+				setState((s) => ({ ...s, isRecording: false }));
 			};
 
 			// 4) Start recording with timeslices
@@ -258,6 +321,13 @@ export function useScreenRecordingUpload(consultationId: string) {
 			mediaRecorderRef.current = null;
 			try { mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
 			mediaStreamRef.current = null;
+			// Remove listeners
+			try { trackEndHandlerRef.current?.(); } catch {}
+			trackEndHandlerRef.current = null;
+			try { streamInactiveHandlerRef.current?.(); } catch {}
+			streamInactiveHandlerRef.current = null;
+			trackedVideoRef.current = null;
+			trackedStreamRef.current = null;
 
 			// Flush any remaining buffered data as the final (possibly smaller) part
 			if (pendingSizeRef.current > 0) {
@@ -278,8 +348,9 @@ export function useScreenRecordingUpload(consultationId: string) {
 			const uploadId = uploadIdRef.current;
 			if (uploadId) {
 				const parts = [...uploadedPartsRef.current].sort((a, b) => a.partNumber - b.partNumber);
-				const { key } = await completeMultipart(uploadId, parts);
-				setState((s) => ({ ...s, s3Key: key }));
+				const { key, playbackUrl } = await completeMultipart(uploadId, parts);
+				try { console.log("[RECORDING_COMPLETE]", { key, playbackUrl }); } catch {}
+				setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null }));
 			}
 		} catch (err) {
 			console.error("Failed to finalize upload:", err);
@@ -339,7 +410,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 			nextPartNumberRef.current = 1;
 			pendingBlobsRef.current = [];
 			pendingSizeRef.current = 0;
-			setState((s) => ({ ...s, isRecording: false, isUploading: false }));
+			setState((s) => ({ ...s, isRecording: false, isUploading: false, uploadId: null }));
 		}
 	}, []);
 
@@ -348,6 +419,8 @@ export function useScreenRecordingUpload(consultationId: string) {
 		return () => {
 			try { mediaRecorderRef.current?.stop(); } catch {}
 			try { mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+			try { trackEndHandlerRef.current?.(); } catch {}
+			try { streamInactiveHandlerRef.current?.(); } catch {}
 		};
 	}, []);
 

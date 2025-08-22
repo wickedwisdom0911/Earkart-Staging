@@ -26,6 +26,33 @@ import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import getConsultation from "@/actions/consultations/get_consultation";
 import { toast } from "sonner";
+import getRecordingsBySession from "@/actions/recordings/get-by-session";
+
+function RecordingLink({ sessionId }: { sessionId: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const recs = await getRecordingsBySession(sessionId);
+        const latest = Array.isArray(recs) ? recs.find((r) => r.recordingUrl) : null;
+        if (mounted) setUrl(latest?.recordingUrl ?? null);
+      } catch {}
+    })();
+    return () => { mounted = false; };
+  }, [sessionId]);
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-3 inline-flex w-full items-center justify-center px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition-colors duration-200"
+    >
+      View recording
+    </a>
+  );
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -36,6 +63,7 @@ export default function DashboardPage() {
   const [blinkingIds, setBlinkingIds] = useState<string[]>([]);
   const { data: consultations, isLoading, isError } = useGetAllConsultations();
   const socket = useSocket();
+
 
   // NEW: Track socket connection status
   const [isSocketConnected, setIsSocketConnected] = useState(false);
@@ -374,6 +402,7 @@ export default function DashboardPage() {
                   )}
                 </button>
               )}
+            <RecordingLink sessionId={consultation.id} />
           </div>
         )}
       </div>
@@ -382,6 +411,7 @@ export default function DashboardPage() {
 
   return (
     <DashboardBodyWrapper>
+      {/* Recording test UI removed */}
       <style>{`
         @keyframes blink-card-border { 0%{ box-shadow: 0 0 0 0 rgba(59,130,246,.6);} 50%{ box-shadow: 0 0 0 4px rgba(59,130,246,.25);} 100%{ box-shadow: 0 0 0 0 rgba(59,130,246,.0);} }
         .blink-card { animation: blink-card-border 1s ease-in-out 0s 6; }
