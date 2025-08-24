@@ -8,4 +8,6 @@ abstract class AuthRemoteSource {
   Future<Either<Failure, CentreEntity>> getCentre();
   Future<Either<Failure, CentreEntity?>> getCentreData();
   Future<Either<Failure, UserEntity>> login(String email, String password);
+  Future<Either<Failure, void>> clearCentreData();
+  Future<Either<Failure, void>> logout();
 }

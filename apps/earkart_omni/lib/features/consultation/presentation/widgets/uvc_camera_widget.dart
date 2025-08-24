@@ -3,54 +3,20 @@ import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'dart:io';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
-import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
 import 'package:earkart_omni/utils/device_owner_helper.dart';
 
-/// UVC Camera Widget for Otoscopy Streaming
-///
-/// This widget provides a UVC camera interface with otoscopy streaming capabilities.
-/// It listens for socket events from the dashboard to control streaming:
-///
-/// Socket Events:
-/// - 'start-otoscopy': Starts streaming camera frames to dashboard
-/// - 'stop-otoscopy': Stops streaming camera frames
-///
-/// Emitted Events:
-/// - 'otoscopy-stream': Streams base64 encoded frames to dashboard
-///
-/// Features:
-/// - Automatic camera initialization and permission handling
-/// - High-performance frame capture at 30 FPS
-/// - Base64 frame encoding for web transmission
-/// - Socket-based streaming control
-/// - Real-time frame rate monitoring
-/// - Error handling and recovery
-/// - Lifecycle management
-/// - Performance optimizations for smooth streaming
-///
-/// Usage:
-/// ```dart
-/// UVCCameraWidget(socket: consultationSocket)
-/// ```
-///
-/// The widget automatically handles:
-/// - Camera permissions
-/// - USB device detection
-/// - Frame capture and encoding at 30 FPS
-/// - Socket event listening
-/// - Streaming lifecycle management
-/// - Performance monitoring and optimization
-
 class UVCCameraWidget extends StatefulWidget {
-  final IO.Socket? socket; // Pass socket from consultation screen
-  final Function(bool)?
-  onCameraStateChanged; // Callback for camera state changes
-  const UVCCameraWidget({super.key, this.socket, this.onCameraStateChanged});
+  final Function(bool)? onCameraStateChanged;
+  final String consultationId;
+  const UVCCameraWidget({
+    super.key,
+    this.onCameraStateChanged,
+    required this.consultationId,
+  });
 
   @override
   State<UVCCameraWidget> createState() => _UVCCameraWidgetState();
@@ -65,10 +31,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   bool _permissionsGranted = false;
   final GlobalKey _cameraKey = GlobalKey();
 
-  // Animation controller for live stream indicator
-  late AnimationController _pulseAnimationController;
-  late Animation<double> _pulseAnimation;
-
   // Lifecycle management improvements
   bool _isAppActive = true;
   Timer? _recoveryTimer;
@@ -78,50 +40,15 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   bool _isInitializing = false;
   bool _isViewReady = false;
   bool _initializationTriggered = false;
+  // Track if camera has ever reached OPENED state to avoid premature hide
+  bool _hasEverOpened = false;
   Timer? _initializationTimer;
   Timer? _platformViewTimer;
-
-  // Otoscopy streaming properties
-  bool _isOtoscopyStreaming = false;
-  Timer? _streamingTimer;
-  IO.Socket? _socket;
-  String? _consultationId;
-  static const int _maxStreamingFps = 20; // Reduced from 30 to 20 FPS
-  static const Duration _streamingInterval = Duration(
-    milliseconds: 50, // 50ms = 20 FPS
-  );
-
-  // Frame rate monitoring and adaptation
-  int _frameCount = 0;
-  DateTime? _lastFrameRateCheck;
-  double _currentFps = 0.0;
-  int _totalFramesSent = 0;
-  int _consecutiveEmptyFrames = 0;
-  static const int _maxConsecutiveEmptyFrames = 5;
-
-  // Frame buffering to prevent black frames
-  String? _lastValidFrame;
-  DateTime? _lastFrameTime;
-  static const Duration _frameTimeout = Duration(
-    milliseconds: 200,
-  ); // 200ms timeout for frames
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
-    // Initialize pulse animation
-    _pulseAnimationController = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    );
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(
-        parent: _pulseAnimationController,
-        curve: Curves.easeInOut,
-      ),
-    );
 
     // Check if UVC camera is enabled in release mode
     if (!ReleaseConfig.enableUVCCamera) {
@@ -196,386 +123,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         if (mounted && !_isDisposed) {
           di<ILogger>().info('Widget fully built, starting initialization...');
           _checkPermissionsAndInitialize();
-          _setupOtoscopyStreaming();
-          _setupConsultationListener();
         }
       });
     } catch (e) {
       di<ILogger>().error('Error during UVC camera initialization: $e');
       setState(() => _status = 'Camera initialization failed');
-    }
-  }
-
-  void _setupConsultationListener() {
-    // Listen for consultation state changes to update consultation ID
-    context.read<ConsultationCubit>().stream.listen((state) {
-      if (mounted && !_isDisposed) {
-        _updateConsultationId();
-      }
-    });
-  }
-
-  void _setupOtoscopyStreaming() {
-    // Use the socket passed from consultation screen
-    _socket = widget.socket;
-
-    // Get consultation ID from context
-    _updateConsultationId();
-
-    // Setup socket event listeners for otoscopy control
-    _setupSocketEventListeners();
-  }
-
-  void _updateConsultationId() {
-    try {
-      final consultationState = context.read<ConsultationCubit>().state;
-      consultationState.maybeWhen(
-        success: (consultation) {
-          final newConsultationId = consultation.id;
-          if (newConsultationId != null &&
-              newConsultationId != _consultationId) {
-            _consultationId = newConsultationId;
-            print(
-              'uvc_stream: 🎥 Otoscopy streaming consultation ID updated: $_consultationId',
-            );
-          }
-        },
-        orElse: () {
-          // Consultation ID will be provided in start-otoscopy event
-          print(
-            'uvc_stream: 🔄 Waiting for consultation ID from start-otoscopy event...',
-          );
-        },
-      );
-    } catch (e) {
-      print('uvc_stream: ⚠️ Error getting consultation ID: $e');
-    }
-  }
-
-  void _setupSocketEventListeners() {
-    if (_socket == null) {
-      print('uvc_stream: ⚠️ Socket not available for otoscopy streaming');
-      return;
-    }
-
-    // Listen for start-otoscopy event
-    _socket!.on('start-otoscopy', (data) {
-      print('uvc_stream: 🎥 Received start-otoscopy event: $data');
-
-      // Extract consultation ID from the event data
-      if (data is Map<String, dynamic>) {
-        if (data['consultationId'] != null) {
-          _consultationId = data['consultationId'].toString();
-          print(
-            'uvc_stream: 🎥 Got consultation ID from start-otoscopy event: $_consultationId',
-          );
-        } else {
-          print(
-            'uvc_stream: ⚠️ start-otoscopy event received but consultationId is missing',
-          );
-        }
-      } else {
-        print(
-          'uvc_stream: ⚠️ start-otoscopy event data is not in expected format: $data',
-        );
-      }
-
-      if (mounted && !_isDisposed) {
-        _startOtoscopyStreaming();
-      }
-    });
-
-    // Listen for stop-otoscopy event
-    _socket!.on('stop-otoscopy', (data) {
-      print('uvc_stream: 🛑 Received stop-otoscopy event: $data');
-      if (mounted && !_isDisposed) {
-        _stopOtoscopyStreaming();
-      }
-    });
-
-    // Listen for socket connection status
-    _socket!.onConnect((_) {
-      print('uvc_stream: 🎥 Otoscopy socket connected');
-    });
-
-    _socket!.onDisconnect((_) {
-      print('uvc_stream: 🎥 Otoscopy socket disconnected');
-      if (_isOtoscopyStreaming) {
-        _stopOtoscopyStreaming();
-      }
-    });
-
-    print('uvc_stream: 🎥 Otoscopy socket event listeners setup complete');
-  }
-
-  // Start otoscopy streaming to dashboard
-  void _startOtoscopyStreaming() {
-    if (_isOtoscopyStreaming || !isInitialized) {
-      print(
-        'uvc_stream: ⚠️ Cannot start otoscopy streaming - streaming: $_isOtoscopyStreaming, initialized: $isInitialized',
-      );
-      return;
-    }
-
-    if (_consultationId == null) {
-      print(
-        'uvc_stream: ⚠️ Consultation ID is null, cannot start streaming. Waiting for start-otoscopy event with consultation ID.',
-      );
-      return;
-    }
-
-    print(
-      'uvc_stream: 🎥 Starting otoscopy streaming to dashboard at $_maxStreamingFps FPS for consultation: $_consultationId',
-    );
-    setState(() {
-      _isOtoscopyStreaming = true;
-      _frameCount = 0;
-      _lastFrameRateCheck = null;
-      _currentFps = 0.0;
-      _consecutiveEmptyFrames = 0;
-    });
-
-    // Start pulse animation
-    _pulseAnimationController.repeat(reverse: true);
-
-    // Start frame capture in the camera controller
-    cameraController?.startFrameCapture();
-
-    // Start periodic frame capture and streaming
-    _streamingTimer = Timer.periodic(_streamingInterval, (timer) {
-      if (!_isOtoscopyStreaming || _isDisposed || !mounted) {
-        timer.cancel();
-        return;
-      }
-      _captureAndStreamFrame();
-    });
-  }
-
-  // Stop otoscopy streaming
-  void _stopOtoscopyStreaming() {
-    if (!_isOtoscopyStreaming) return;
-
-    print('uvc_stream: 🛑 Stopping otoscopy streaming...');
-    setState(() {
-      _isOtoscopyStreaming = false;
-    });
-
-    // Stop pulse animation
-    _pulseAnimationController.stop();
-
-    _streamingTimer?.cancel();
-    _streamingTimer = null;
-
-    // Stop frame capture in the camera controller
-    cameraController?.stopFrameCapture();
-  }
-
-  // Capture frame and stream to dashboard
-  void _captureAndStreamFrame() {
-    try {
-      // Capture current frame as base64 image
-      _captureFrameAsBase64()
-          .then((base64Image) {
-            if (base64Image != null &&
-                base64Image.isNotEmpty &&
-                base64Image != 'data:image/jpeg;base64,' &&
-                base64Image.length > 100 && // Ensure frame has actual data
-                _isOtoscopyStreaming &&
-                !_isDisposed) {
-              // Store valid frame
-              _lastValidFrame = base64Image;
-              _lastFrameTime = DateTime.now();
-
-              _streamFrameToDashboard(base64Image);
-              _consecutiveEmptyFrames = 0; // Reset counter on successful frame
-            } else {
-              _consecutiveEmptyFrames++;
-
-              // Use last valid frame if available and not too old
-              if (_lastValidFrame != null && _lastFrameTime != null) {
-                final timeSinceLastFrame = DateTime.now().difference(
-                  _lastFrameTime!,
-                );
-                if (timeSinceLastFrame < _frameTimeout) {
-                  _streamFrameToDashboard(_lastValidFrame!);
-                  print(
-                    'uvc_stream: Using cached frame (${timeSinceLastFrame.inMilliseconds}ms old)',
-                  );
-                } else {
-                  print('uvc_stream: Cached frame too old, skipping');
-                }
-              }
-
-              if (_consecutiveEmptyFrames >= _maxConsecutiveEmptyFrames) {
-                print(
-                  'uvc_stream: ⚠️ Too many consecutive empty frames ($_consecutiveEmptyFrames), pausing streaming temporarily',
-                );
-                _pauseStreamingTemporarily();
-              }
-            }
-          })
-          .catchError((error) {
-            print('uvc_stream: ❌ Error capturing frame: $error');
-            _consecutiveEmptyFrames++;
-
-            // Use last valid frame on error
-            if (_lastValidFrame != null && _lastFrameTime != null) {
-              final timeSinceLastFrame = DateTime.now().difference(
-                _lastFrameTime!,
-              );
-              if (timeSinceLastFrame < _frameTimeout) {
-                _streamFrameToDashboard(_lastValidFrame!);
-              }
-            }
-          });
-    } catch (e) {
-      print('uvc_stream: ❌ Error in frame capture: $e');
-      _consecutiveEmptyFrames++;
-
-      // Use last valid frame on error
-      if (_lastValidFrame != null && _lastFrameTime != null) {
-        final timeSinceLastFrame = DateTime.now().difference(_lastFrameTime!);
-        if (timeSinceLastFrame < _frameTimeout) {
-          _streamFrameToDashboard(_lastValidFrame!);
-        }
-      }
-    }
-  }
-
-  // Pause streaming temporarily to let camera catch up
-  void _pauseStreamingTemporarily() {
-    if (!_isOtoscopyStreaming) return;
-
-    print(
-      'uvc_stream: ⏸️ Pausing streaming temporarily to let camera catch up',
-    );
-    _streamingTimer?.cancel();
-
-    // Resume after 1 second
-    Timer(const Duration(seconds: 1), () {
-      if (_isOtoscopyStreaming && !_isDisposed && mounted) {
-        print('uvc_stream: ▶️ Resuming streaming after pause');
-        _consecutiveEmptyFrames = 0;
-        _streamingTimer = Timer.periodic(_streamingInterval, (timer) {
-          if (!_isOtoscopyStreaming || _isDisposed || !mounted) {
-            timer.cancel();
-            return;
-          }
-          _captureAndStreamFrame();
-        });
-      }
-    });
-  }
-
-  // Capture frame as base64 image
-  Future<String?> _captureFrameAsBase64() async {
-    try {
-      // Use the camera controller to capture a frame
-      if (cameraController != null && isInitialized) {
-        // Try to capture a frame using the UVC camera plugin
-        return await _captureFrameFromCamera();
-      }
-      return null;
-    } catch (e) {
-      print('uvc_stream: ❌ Error capturing frame as base64: $e');
-      return null;
-    }
-  }
-
-  // Capture frame from UVC camera
-  Future<String?> _captureFrameFromCamera() async {
-    try {
-      // Use the camera controller's capture functionality
-      if (cameraController != null && isInitialized) {
-        // Try to capture frame as base64 directly
-        try {
-          final base64Frame = await cameraController!.captureFrameAsBase64();
-          if (base64Frame != null &&
-              base64Frame.isNotEmpty &&
-              base64Frame != 'data:image/jpeg;base64,') {
-            return base64Frame;
-          }
-        } catch (e) {
-          print('uvc_stream: ⚠️ Direct frame capture failed: $e');
-        }
-
-        // Fallback: try to get last captured frame
-        try {
-          final lastFrame = await cameraController!.getLastCapturedFrame();
-          if (lastFrame != null &&
-              lastFrame.isNotEmpty &&
-              lastFrame != 'data:image/jpeg;base64,') {
-            return lastFrame;
-          }
-        } catch (e) {
-          print('uvc_stream: ⚠️ Last frame capture failed: $e');
-        }
-
-        // Final fallback: simulate frame capture
-        return await _simulateFrameCapture();
-      }
-      return null;
-    } catch (e) {
-      print('uvc_stream: ❌ Error capturing frame from camera: $e');
-      return null;
-    }
-  }
-
-  // Simulate frame capture (replace with actual implementation)
-  Future<String?> _simulateFrameCapture() async {
-    // This is a placeholder - you'll need to implement actual frame capture
-    // in the UVC camera plugin
-    await Future.delayed(const Duration(milliseconds: 10));
-    return 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxAAPwCdABmX/9k=';
-  }
-
-  // Stream frame to dashboard via socket
-  void _streamFrameToDashboard(String base64Image) {
-    try {
-      if (_socket != null && _socket!.connected && _consultationId != null) {
-        // Update frame rate monitoring
-        _frameCount++;
-        final now = DateTime.now();
-        if (_lastFrameRateCheck == null) {
-          _lastFrameRateCheck = now;
-        } else {
-          final elapsed = now.difference(_lastFrameRateCheck!).inMilliseconds;
-          if (elapsed >= 1000) {
-            // Check FPS every second
-            _currentFps = (_frameCount * 1000) / elapsed;
-            _frameCount = 0;
-            _lastFrameRateCheck = now;
-            print(
-              'uvc_stream: 📊 Current streaming FPS: ${_currentFps.toStringAsFixed(1)}',
-            );
-          }
-        }
-
-        final frameData = {
-          'type': 'otoscopy_frame',
-          'consultationId': _consultationId,
-          'timestamp': now.millisecondsSinceEpoch,
-          'frame': base64Image,
-          'fps': _maxStreamingFps,
-          'currentFps': _currentFps,
-          'resolution': '1280x720',
-        };
-
-        _socket!.emit('otoscopy-stream', frameData);
-
-        // Log frame streaming less frequently to avoid spam at 30 FPS
-        if (_frameCount % 30 == 0) {
-          // Log every 30 frames (once per second at 30 FPS)
-          _totalFramesSent += 30;
-          print(
-            'uvc_stream: 📡 Streamed otoscopy frame to dashboard (${base64Image.length} bytes, FPS: ${_currentFps.toStringAsFixed(1)}, Total frames: $_totalFramesSent)',
-          );
-        }
-      } else {
-        print('uvc_stream: ⚠️ Socket not connected or consultation ID missing');
-      }
-    } catch (e) {
-      print('uvc_stream: ❌ Error streaming frame: $e');
     }
   }
 
@@ -595,8 +147,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       _isAppActive = false;
-      // Don't close camera immediately on inactive/paused - only close on detach
-      // This prevents rapid open/close cycles during normal app usage
     }
   }
 
@@ -610,11 +160,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   }
 
   Future<void> _closeCamera() async {
-    print('Closing camera...');
+    di<ILogger>().info('Closing camera...');
 
     // Don't close camera if it's already working properly
-    if (isInitialized && _isViewReady) {
-      print('Camera is working properly, not closing');
+    if (isInitialized && _isViewReady && !_isDisposed) {
+      di<ILogger>().info('Camera is working properly, not closing');
       return;
     }
 
@@ -624,48 +174,57 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
     if (cameraController != null) {
       try {
-        // Wrap camera operations in try-catch to prevent unhandled exceptions
-        try {
-          cameraController?.captureStreamStop();
+        // Add initial delay to allow any pending operations to complete
+        await Future.delayed(const Duration(milliseconds: 100));
 
-          // cameraController?.updateResolution(previewSize)
+        // Step 1: Stop capture stream
+        try {
+          di<ILogger>().info('Stopping capture stream...');
+          cameraController?.captureStreamStop();
+          await Future.delayed(const Duration(milliseconds: 150));
+          di<ILogger>().info('Capture stream stopped');
         } catch (e) {
-          print('Error stopping capture stream: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            di<ILogger>().error('Non-platform error during stream stop: $e');
-          }
+          di<ILogger>().error('Error stopping capture stream: $e');
+          // Continue with cleanup even if this fails
+          await Future.delayed(const Duration(milliseconds: 100));
         }
 
+        // Step 2: Close camera
         try {
+          di<ILogger>().info('Closing camera...');
           cameraController?.closeCamera();
+          await Future.delayed(const Duration(milliseconds: 150));
+          di<ILogger>().info('Camera closed');
         } catch (e) {
           di<ILogger>().error('Error closing camera: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            di<ILogger>().error('Non-platform error during camera close: $e');
-          }
+          // Continue with cleanup even if this fails
+          await Future.delayed(const Duration(milliseconds: 100));
         }
 
+        // Step 3: Dispose controller
         try {
-          cameraController?.dispose();
+          di<ILogger>().info('Disposing camera controller...');
+          final controller = cameraController;
+          if (controller != null) {
+            cameraController = null; // Clear reference first
+            await Future.delayed(const Duration(milliseconds: 100));
+            controller.dispose();
+            di<ILogger>().info('Camera controller disposed');
+          }
         } catch (e) {
           di<ILogger>().error('Error disposing camera controller: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            di<ILogger>().error('Non-platform error during camera dispose: $e');
-          }
+          cameraController = null; // Ensure reference is cleared
         }
+
+        // Final delay for cleanup
+        await Future.delayed(const Duration(milliseconds: 100));
       } catch (e) {
         di<ILogger>().error('Error during camera cleanup: $e');
+        cameraController = null; // Ensure reference is cleared on error
       } finally {
+        // Ensure controller is null
         cameraController = null;
+
         // Only call setState if the widget is still mounted and not disposed
         if (mounted && !_isDisposed) {
           setState(() {
@@ -674,9 +233,22 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             _initializationTriggered = false;
             _status = 'Camera closed';
           });
+        }
 
-          // Notify parent about camera state change
-          widget.onCameraStateChanged?.call(false);
+        // Notify parent only if the camera had opened at least once, to avoid premature hide
+        try {
+          if (_hasEverOpened) {
+            widget.onCameraStateChanged?.call(false);
+            di<ILogger>().info('📷 Notified parent that camera is closed');
+          } else {
+            di<ILogger>().info(
+              '📷 Skipping parent notification since camera never opened',
+            );
+          }
+        } catch (e) {
+          di<ILogger>().error(
+            'Error notifying parent about camera state change: $e',
+          );
         }
       }
     }
@@ -684,32 +256,70 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
   @override
   void dispose() {
-    di<ILogger>().info('Disposing UVCCameraWidget');
+    di<ILogger>().info(
+      '[UVC_CAMERA] Starting comprehensive widget disposal...',
+    );
+
+    // Set disposed flag immediately to stop all operations
     _isDisposed = true;
     _isAppActive = false;
-    _recoveryTimer?.cancel();
-    _initializationTimer?.cancel();
-    _platformViewTimer?.cancel();
 
-    // Clean up animation controller
-    _pulseAnimationController.dispose();
-
-    // Clean up otoscopy streaming resources
-    _stopOtoscopyStreaming();
-
-    // Clean up socket event listeners
-    if (_socket != null) {
-      _socket!.off('start-otoscopy');
-      _socket!.off('stop-otoscopy');
+    // Cancel all timers first to stop any ongoing operations
+    try {
+      _recoveryTimer?.cancel();
+      _recoveryTimer = null;
+      _initializationTimer?.cancel();
+      _initializationTimer = null;
+      _platformViewTimer?.cancel();
+      _platformViewTimer = null;
+    } catch (e) {
+      di<ILogger>().error('[UVC_CAMERA] Error canceling timers: $e');
     }
 
     // Notify parent about camera state change
-    widget.onCameraStateChanged?.call(false);
+    try {
+      widget.onCameraStateChanged?.call(false);
+    } catch (e) {
+      di<ILogger>().error('[UVC_CAMERA] Error notifying parent: $e');
+    }
 
-    WidgetsBinding.instance.removeObserver(this);
+    // Remove lifecycle observer early to prevent callbacks during disposal
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (e) {
+      di<ILogger>().error('[UVC_CAMERA] Error removing observer: $e');
+    }
 
-    // Close camera without calling setState since we're disposing
-    _closeCameraSafely();
+    // Close camera with longer delay and better error isolation
+    // Run in a separate isolate to prevent crashes from affecting the main thread
+    Future.delayed(const Duration(milliseconds: 500), () async {
+      try {
+        // Wrap the entire disposal in a zone to catch any unhandled exceptions
+        await runZonedGuarded(
+          () async {
+            await _closeCameraSafely();
+          },
+          (error, stackTrace) {
+            di<ILogger>().error(
+              '[UVC_CAMERA] Caught unhandled exception during disposal: $error',
+            );
+            di<ILogger>().error('[UVC_CAMERA] Stack trace: $stackTrace');
+            // Don't rethrow - just log and continue
+          },
+        );
+      } catch (e) {
+        di<ILogger>().error('[UVC_CAMERA] Error closing camera safely: $e');
+        // Ensure camera controller is nullified even if disposal fails
+        try {
+          cameraController = null;
+        } catch (nullifyError) {
+          di<ILogger>().error(
+            '[UVC_CAMERA] Error nullifying controller: $nullifyError',
+          );
+        }
+      }
+    });
+
     super.dispose();
   }
 
@@ -723,47 +333,79 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
     if (cameraController != null) {
       try {
-        // Wrap camera operations in try-catch to prevent unhandled exceptions
+        // Add a longer delay to allow any pending operations to complete
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        // Use a more defensive approach with individual try-catch blocks
+        // and longer delays between operations to prevent race conditions
+
+        // Step 1: Stop capture stream with extended timeout
         try {
+          di<ILogger>().info('Step 1: Stopping capture stream...');
           cameraController?.captureStreamStop();
+          // Allow more time for stream to stop completely
+          await Future.delayed(const Duration(milliseconds: 300));
+          di<ILogger>().info('Capture stream stopped successfully');
         } catch (e) {
           di<ILogger>().error('Error stopping capture stream: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            di<ILogger>().error('Non-platform error during stream stop: $e');
-          }
+          // Continue with disposal even if this fails
+          await Future.delayed(const Duration(milliseconds: 200));
         }
 
+        // Step 2: Close camera with extended timeout
         try {
+          di<ILogger>().info('Step 2: Closing camera...');
           cameraController?.closeCamera();
+          // Allow more time for camera to close completely
+          await Future.delayed(const Duration(milliseconds: 300));
+          di<ILogger>().info('Camera closed successfully');
         } catch (e) {
-          print('Error closing camera: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            print('Non-platform error during camera close: $e');
-          }
+          di<ILogger>().error('Error closing camera: $e');
+          // Continue with disposal even if this fails
+          await Future.delayed(const Duration(milliseconds: 200));
         }
 
+        // Step 3: Dispose controller with extended timeout and null check
         try {
-          cameraController?.dispose();
-        } catch (e) {
-          print('Error disposing camera controller: $e');
-          // Ignore platform channel errors during cleanup
-          if (!e.toString().contains(
-            'lateinit property cameraView has not been initialized',
-          )) {
-            print('Non-platform error during camera dispose: $e');
+          di<ILogger>().info('Step 3: Disposing camera controller...');
+          final controller = cameraController;
+          if (controller != null) {
+            // Set to null first to prevent concurrent access
+            cameraController = null;
+            // Add delay before actual disposal to prevent native memory issues
+            await Future.delayed(const Duration(milliseconds: 200));
+            controller.dispose();
+            di<ILogger>().info('Camera controller disposed successfully');
           }
+        } catch (e) {
+          di<ILogger>().error('Error disposing camera controller: $e');
+          // Even if disposal fails, ensure controller reference is cleared
+          cameraController = null;
         }
+
+        // Final delay to ensure native cleanup is complete
+        await Future.delayed(const Duration(milliseconds: 200));
       } catch (e) {
-        print('Error during camera cleanup: $e');
-      } finally {
+        di<ILogger>().error('Error during camera cleanup: $e');
+        // Ensure controller is always nullified even on error
         cameraController = null;
-        // Don't call setState here since we're disposing
+      } finally {
+        // Ensure controller is null
+        cameraController = null;
+
+        // Add final delay before notifying parent to prevent UI race conditions
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        // Always notify parent about camera state change during disposal
+        // This ensures the parent layout reverts to full screen
+        try {
+          widget.onCameraStateChanged?.call(false);
+          di<ILogger>().info(
+            '📷 Notified parent during disposal that camera is closed',
+          );
+        } catch (e) {
+          di<ILogger>().error('Error notifying parent during disposal: $e');
+        }
       }
     }
   }
@@ -776,28 +418,21 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         return;
       }
       if (mounted && !_isDisposed) {
-        setState(() => _status = 'Checking device owner status...');
+        setState(() => _status = 'Checking permissions...');
       }
 
-      // Check if app is device owner first
-      final isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
+      // Check if app is device owner and auto-grant permissions
+      final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
+      di<ILogger>().info('Device owner status: $isDeviceOwner');
 
       if (isDeviceOwner) {
-        di<ILogger>().info('App is device owner - skipping permission dialogs');
-        if (mounted && !_isDisposed) {
-          setState(
-            () =>
-                _status =
-                    'Device owner detected - auto-granting permissions...',
-          );
-        }
+        di<ILogger>().info('App is device owner - auto-granting permissions');
+        await DeviceOwnerHelper.grantAllPermissions();
 
-        // For device owner, assume all permissions are granted
+        // For device owner, we can assume permissions are granted
         _permissionsGranted = true;
+        di<ILogger>().info('Device owner permissions auto-granted');
 
-        di<ILogger>().info(
-          'Device owner permissions auto-granted, scheduling camera initialization...',
-        );
         if (mounted && !_isDisposed) {
           setState(
             () =>
@@ -806,13 +441,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           );
         }
       } else {
-        // Only show permission dialogs for non-device owner apps
         di<ILogger>().info(
-          'App is NOT device owner - requesting permissions normally',
+          'Not device owner - requesting permissions normally',
         );
-        if (mounted && !_isDisposed) {
-          setState(() => _status = 'Requesting permissions...');
-        }
 
         // Request camera permission
         final camera = await Permission.camera.request();
@@ -844,15 +475,18 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         }
 
         _permissionsGranted = true;
-        di<ILogger>().info(
-          'Permissions granted, scheduling camera initialization...',
-        );
+        di<ILogger>().info('Standard permissions granted');
+
         if (mounted && !_isDisposed) {
           setState(
             () => _status = 'Permissions granted, initializing camera...',
           );
         }
       }
+
+      di<ILogger>().info(
+        'Permissions granted, scheduling camera initialization...',
+      );
 
       // Add delay before initializing to ensure permissions are fully processed
       Future.delayed(const Duration(milliseconds: 1000), () {
@@ -974,56 +608,72 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
       // Set up callbacks
       di<ILogger>().info('Setting up camera callbacks...');
-      cameraController?.cameraStateCallback = (state) {
+      cameraController?.cameraStateCallback = (state) async {
         if (_isDisposed || !mounted) return;
 
         di<ILogger>().info('Camera state: $state');
-        setState(() {
-          switch (state) {
-            case UVCCameraState.opened:
+
+        switch (state) {
+          case UVCCameraState.opened:
+            setState(() {
               isInitialized = true;
               _isViewReady = true;
               _status = 'Camera ready - streaming';
               _errorCount = 0; // Reset error count on success
               _initializationTriggered =
                   false; // Reset for future reinitializations
-              di<ILogger>().info(
-                'Camera state: opened - camera is ready and streaming',
-              );
+              _hasEverOpened =
+                  true; // Mark that camera has successfully opened at least once
+            });
 
-              // Notify parent about camera state change
-              widget.onCameraStateChanged?.call(true);
+            di<ILogger>().info(
+              'Camera state: opened - camera is ready and working',
+            );
 
-              // Start video streaming when camera is ready
-              // _setupSocketConnection(); // This is now handled by _setupOtoscopyStreaming
-              break;
-            case UVCCameraState.closed:
-              isInitialized = false;
-              _isViewReady = false;
+            // Notify parent about camera state change
+            widget.onCameraStateChanged?.call(true);
+            break;
+          case UVCCameraState.closed:
+            print('Camera closed');
+            setState(() {
               _status = 'Camera closed';
-              di<ILogger>().info('Camera state: closed');
-
-              // Notify parent about camera state change
-              widget.onCameraStateChanged?.call(false);
-
-              // Stop video streaming when camera is closed
-              _stopOtoscopyStreaming();
-              break;
-            case UVCCameraState.error:
               isInitialized = false;
               _isViewReady = false;
-              _status = 'Camera error';
-              di<ILogger>().error('Camera state: error');
+            });
 
-              // Notify parent about camera state change
+            // Notify parent only if camera was opened before to avoid flicker during init
+            if (_hasEverOpened) {
               widget.onCameraStateChanged?.call(false);
+              di<ILogger>().info('📷 Camera state closed - notified parent');
+            } else {
+              di<ILogger>().info(
+                '📷 Camera state closed before initial open - skipping parent notification',
+              );
+            }
+            break;
+          case UVCCameraState.error:
+            print('Camera error occurred');
+            setState(() {
+              _status = 'Camera error';
+              isInitialized = false;
+              _isViewReady = false;
+            });
 
-              // Stop video streaming on error
-              _stopOtoscopyStreaming();
-              _handleCameraError();
-              break;
-          }
-        });
+            // Notify parent about camera state change on error only if opened once
+            if (_hasEverOpened) {
+              widget.onCameraStateChanged?.call(false);
+              di<ILogger>().info(
+                '📷 Camera error occurred - notified parent to revert to full screen',
+              );
+            } else {
+              di<ILogger>().info(
+                '📷 Camera error before initial open - skipping parent notification',
+              );
+            }
+
+            _handleCameraError();
+            break;
+        }
       };
 
       cameraController?.msgCallback = (message) {
@@ -1245,6 +895,38 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       return;
     }
 
+    // Check for buffer management errors
+    if (_status.contains('buffer') ||
+        _status.contains('frame') ||
+        _status.contains('encoder')) {
+      print('Buffer management error detected, attempting extended recovery');
+      if (mounted && !_isDisposed) {
+        setState(() {
+          _status = 'Buffer management issue - retrying with extended delay...';
+        });
+      }
+      // Use longer delay for buffer issues
+      _recoveryTimer?.cancel();
+      _recoveryTimer = Timer(const Duration(seconds: 8), () {
+        if (!_isDisposed && _isAppActive && mounted) {
+          di<ILogger>().info(
+            'Attempting camera recovery for buffer issues (attempt ${_errorCount + 1}/${ReleaseConfig.maxCameraRetries})...',
+          );
+          _closeCamera().then((_) {
+            if (!_isDisposed && _isAppActive && mounted) {
+              // Add longer delay before reinitializing for buffer issues
+              Future.delayed(const Duration(seconds: 4), () {
+                if (!_isDisposed && _isAppActive && mounted) {
+                  _initializeCameraController();
+                }
+              });
+            }
+          });
+        }
+      });
+      return;
+    }
+
     if (_errorCount >= ReleaseConfig.maxCameraRetries) {
       if (mounted && !_isDisposed) {
         setState(() {
@@ -1283,8 +965,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
   @override
   Widget build(BuildContext context) {
-    // Mark that the widget has been built
-
     // Safety wrapper to prevent crashes in release mode
     try {
       return Container(
@@ -1295,10 +975,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           children: [
             // Main camera view
             _buildCameraContent(),
-
-            // Live stream indicator - always show when streaming
-            if (_isOtoscopyStreaming)
-              Positioned(top: 12, left: 12, child: _buildLiveStreamIndicator()),
 
             // Minimal status indicator overlay
             if (!_permissionsGranted ||
@@ -1579,42 +1255,6 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildLiveStreamIndicator() {
-    return Tooltip(
-      message: 'Live Otoscopy Streaming Active',
-      child: AnimatedBuilder(
-        animation: _pulseAnimation,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _pulseAnimation.value,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.stream, color: Colors.blue, size: 16),
-                  const SizedBox(width: 4),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
       ),
     );
   }

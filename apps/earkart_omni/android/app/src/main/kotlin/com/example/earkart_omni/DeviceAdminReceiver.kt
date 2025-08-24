@@ -93,9 +93,9 @@ class DeviceAdminReceiver : DeviceAdminReceiver() {
             // 4. Set global HTTP proxy (if needed for medical data)
             // devicePolicyManager.setGlobalHttpProxy(componentName, Proxy.NO_PROXY)
             
-            // 5. Disable screen capture (security)
-            devicePolicyManager.setScreenCaptureDisabled(componentName, true)
-            Log.d(TAG, "Screen capture disabled")
+            // 5. Enable screen capture for our app (needed for screen sharing)
+            devicePolicyManager.setScreenCaptureDisabled(componentName, false)
+            Log.d(TAG, "Screen capture enabled for our app")
             
             // 6. Set maximum time to lock (keep device awake for medical procedures)
             devicePolicyManager.setMaximumTimeToLock(componentName, 0) // Never lock

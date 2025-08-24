@@ -20,9 +20,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    print('🏠 HomeScreen initState - Starting home screen initialization');
+
     context.read<AuthCubit>().getCentre();
+    print('📞 HomeScreen: Called getCentre()');
+
     context.read<AuthCubit>().getCentreData();
-    context.read<ConsultationCubit>().getConsultationsByCentreId();
+    print('📞 HomeScreen: Called getCentreData()');
+
+    // Don't call getConsultationsByCentreId here - wait for centre data to be available
+    // context.read<ConsultationCubit>().getConsultationsByCentreId();
+    // print('📞 HomeScreen: Called getConsultationsByCentreId()');
   }
 
   void _showLogoutDialog() {
@@ -90,7 +98,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _logout() {
-    // Clear all data
+    // Use AuthCubit to logout which will clear all auth data
+    context.read<AuthCubit>().logout();
+
+    // Clear patient and consultation data
     context.read<PatientCubit>().deletePatientSession();
     context.read<ConsultationCubit>().deleteCurrentConsultationSession();
 
@@ -104,165 +115,186 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-        title: BlocBuilder<AuthCubit, AuthState>(
-          builder: (context, state) {
-            if (state is AuthCentreSuccess) {
-              print(state.centre?.toString());
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    state.centre?.user?.name ?? "Centre Dashboard",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  Text(
-                    state.centre?.code ?? "",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
-              );
-            }
-            return const Text(
-              "Centre Dashboard",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            );
-          },
-        ),
-        actions: [
-          IconButton(
-            onPressed: _showLogoutDialog,
-            icon: Icon(Icons.logout, color: Colors.red.shade600),
-            tooltip: 'Logout',
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Quick Actions Section
-              const Text(
-                "Quick Actions",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ActionCard(
-                      icon: Icons.people_outline,
-                      title: "View Patients",
-                      subtitle: "Browse all patients",
-                      color: Colors.blue,
-                      onTap: () {
-                        Navigator.pushNamed(
-                          context,
-                          AllPatientsScreen.routeName,
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _ActionCard(
-                      icon: Icons.add_circle_outline,
-                      title: "New Consultation",
-                      subtitle: "Start consultation",
-                      color: Colors.green,
-                      onTap: () {
-                        Navigator.pushNamed(
-                          context,
-                          PatientPhoneScreen.routeName,
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
+    return BlocListener<AuthCubit, AuthState>(
+      listener: (context, state) {
+        print('🏠 HomeScreen: AuthCubit state changed: ${state.runtimeType}');
 
-              const SizedBox(height: 32),
-
-              // Recent Consultations Section
-              const Text(
-                "Recent Consultations",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              BlocBuilder<ConsultationCubit, ConsultationState>(
-                builder: (context, state) {
-                  if (state is ConsultationLoading) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(40),
-                        child: CircularProgressIndicator(),
+        if (state is AuthCentreSuccess) {
+          print(
+            '✅ HomeScreen: AuthCentreSuccess - Centre: ${state.centre?.entName ?? 'null'}',
+          );
+          print(
+            '📞 HomeScreen: Now calling getConsultationsByCentreId() after centre data is available',
+          );
+          context.read<ConsultationCubit>().getConsultationsByCentreId();
+        } else if (state is AuthError || state is AuthCentreError) {
+          if (state is AuthError) {
+            print('❌ HomeScreen: Auth Error: ${state.message}');
+          } else if (state is AuthCentreError) {
+            print('❌ HomeScreen: Centre Error: ${state.message}');
+          }
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey.shade50,
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.white,
+          automaticallyImplyLeading: false,
+          title: BlocBuilder<AuthCubit, AuthState>(
+            builder: (context, state) {
+              if (state is AuthCentreSuccess) {
+                print(state.centre?.toString());
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      state.centre?.user?.name ?? "Centre Dashboard",
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
                       ),
-                    );
-                  }
-                  if (state is ConsultationError) {
-                    return _ErrorCard(message: state.message);
-                  }
-                  if (state is AllConsultationsSuccess) {
-                    if (state.consultations.isEmpty) {
-                      return const _EmptyStateCard();
+                    ),
+                    Text(
+                      state.centre?.code ?? "",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return const Text(
+                "Centre Dashboard",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              );
+            },
+          ),
+          actions: [
+            IconButton(
+              onPressed: _showLogoutDialog,
+              icon: Icon(Icons.logout, color: Colors.red.shade600),
+              tooltip: 'Logout',
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Quick Actions Section
+                const Text(
+                  "Quick Actions",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ActionCard(
+                        icon: Icons.people_outline,
+                        title: "View Patients",
+                        subtitle: "Browse all patients",
+                        color: Colors.blue,
+                        onTap: () {
+                          Navigator.pushNamed(
+                            context,
+                            AllPatientsScreen.routeName,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _ActionCard(
+                        icon: Icons.add_circle_outline,
+                        title: "New Consultation",
+                        subtitle: "Start consultation",
+                        color: Colors.green,
+                        onTap: () {
+                          Navigator.pushNamed(
+                            context,
+                            PatientPhoneScreen.routeName,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 32),
+
+                // Recent Consultations Section
+                const Text(
+                  "Recent Consultations",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                BlocBuilder<ConsultationCubit, ConsultationState>(
+                  builder: (context, state) {
+                    if (state is ConsultationLoading) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(40),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
                     }
-                    return ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount:
-                          state.consultations.length > 5
-                              ? 5
-                              : state.consultations.length,
-                      separatorBuilder:
-                          (context, index) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final consultation = state.consultations[index];
-                        return _ConsultationCard(
-                          patientName:
-                              consultation.patient?.name ?? "Unknown Patient",
-                          date:
-                              consultation.createdAt?.toString().split(
-                                ' ',
-                              )[0] ??
-                              "No date",
-                          status: consultation.status?.name ?? "Unknown",
-                        );
-                      },
-                    );
-                  }
-                  return const _EmptyStateCard();
-                },
-              ),
-            ],
+                    if (state is ConsultationError) {
+                      return _ErrorCard(message: state.message);
+                    }
+                    if (state is AllConsultationsSuccess) {
+                      if (state.consultations.isEmpty) {
+                        return const _EmptyStateCard();
+                      }
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount:
+                            state.consultations.length > 5
+                                ? 5
+                                : state.consultations.length,
+                        separatorBuilder:
+                            (context, index) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final consultation = state.consultations[index];
+                          return _ConsultationCard(
+                            patientName:
+                                consultation.patient?.name ?? "Unknown Patient",
+                            date:
+                                consultation.createdAt?.toString().split(
+                                  ' ',
+                                )[0] ??
+                                "No date",
+                            status: consultation.status?.name ?? "Unknown",
+                          );
+                        },
+                      );
+                    }
+                    return const _EmptyStateCard();
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),

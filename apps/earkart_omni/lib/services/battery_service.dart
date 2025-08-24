@@ -27,18 +27,12 @@ class BatteryService {
     }
 
     try {
-      di<ILogger>().info('Initializing battery service...');
-
       // Get initial battery level
       _currentBatteryLevel = await _battery.batteryLevel;
 
       // Get initial charging status
       final batteryState = await _battery.batteryState;
       _isCharging = batteryState == BatteryState.charging;
-
-      di<ILogger>().info(
-        'Initial battery level: $_currentBatteryLevel%, Charging: $_isCharging',
-      );
 
       // Start monitoring battery state changes
       _batteryStateSubscription = _battery.onBatteryStateChanged.listen(
@@ -47,7 +41,7 @@ class BatteryService {
           _isCharging = state == BatteryState.charging;
 
           if (wasCharging != _isCharging) {
-            di<ILogger>().info('Battery charging state changed: $_isCharging');
+            // Battery charging state changed (kept for debugging if needed)
           }
         },
         onError: (error) {
@@ -64,9 +58,7 @@ class BatteryService {
             if (newLevel != _currentBatteryLevel) {
               final oldLevel = _currentBatteryLevel;
               _currentBatteryLevel = newLevel;
-              di<ILogger>().info(
-                'Battery level changed: $oldLevel% -> $_currentBatteryLevel%',
-              );
+              // Battery level changed (kept for debugging if needed)
             }
           } catch (e) {
             di<ILogger>().error('Error checking battery level: $e');
@@ -75,7 +67,6 @@ class BatteryService {
       );
 
       _isInitialized = true;
-      di<ILogger>().info('Battery service initialized successfully');
     } catch (e) {
       di<ILogger>().error('Failed to initialize battery service: $e');
     }
@@ -124,10 +115,6 @@ class BatteryService {
       _currentBatteryLevel = freshLevel;
       _isCharging = freshCharging;
 
-      di<ILogger>().info(
-        'Battery info fetched - Level: $freshLevel%, Charging: $freshCharging',
-      );
-
       return {
         'level': freshLevel,
         'isCharging': freshCharging,
@@ -150,10 +137,6 @@ class BatteryService {
       _currentBatteryLevel = await _battery.batteryLevel;
       final batteryState = await _battery.batteryState;
       _isCharging = batteryState == BatteryState.charging;
-
-      di<ILogger>().info(
-        'Battery info refreshed - Level: $_currentBatteryLevel%, Charging: $_isCharging',
-      );
     } catch (e) {
       di<ILogger>().error('Error refreshing battery info: $e');
     }
@@ -164,6 +147,5 @@ class BatteryService {
     _batteryStateSubscription?.cancel();
     _batteryLevelTimer?.cancel();
     _isInitialized = false;
-    di<ILogger>().info('Battery service disposed');
   }
 }

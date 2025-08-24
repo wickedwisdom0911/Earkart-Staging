@@ -10,6 +10,8 @@ import 'package:earkart_omni/features/auth/domain/usecases/get.centre.data.useca
 import 'package:earkart_omni/features/auth/domain/usecases/get.centre.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/get.current.user.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/login.usecase.dart';
+import 'package:earkart_omni/features/auth/domain/usecases/clear.centre.data.usecase.dart';
+import 'package:earkart_omni/features/auth/domain/usecases/logout.usecase.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/repositories/agora.repository.impl.dart';
 import 'package:earkart_omni/features/consultation/data/repositories/consulation.repository.impl.dart';
@@ -28,6 +30,7 @@ import 'package:earkart_omni/features/consultation/domain/usecases/get_consultat
 import 'package:earkart_omni/features/consultation/domain/usecases/get_current_consultation.usecase.dart';
 import 'package:earkart_omni/features/consultation/domain/usecases/update_consultation.usecase.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
+
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
@@ -113,6 +116,13 @@ Future<void> setupDI() async {
       dio: di.call(),
       userEntityDataSource: di.call(),
       centreEntityDataSource: di.call(),
+      patientEntityDataSource: di.call(),
+      consultationEntityDataSource: di.call(),
+      countryEntityDataSource: di.call(),
+      stateEntityDataSource: di.call(),
+      languageEntityDataSource: di.call(),
+      cityEntityDataSource: di.call(),
+      districtEntityDataSource: di.call(),
     ),
   );
   di.registerLazySingleton<AuthRepository>(
@@ -128,12 +138,20 @@ Future<void> setupDI() async {
   di.registerLazySingleton<GetCurrentUserUsecase>(
     () => GetCurrentUserUsecase(authRepository: di.call()),
   );
+  di.registerLazySingleton<ClearCentreDataUsecase>(
+    () => ClearCentreDataUsecase(authRepository: di.call()),
+  );
+  di.registerLazySingleton<LogoutUsecase>(
+    () => LogoutUsecase(authRepository: di.call()),
+  );
   di.registerLazySingleton<AuthCubit>(
     () => AuthCubit(
       loginUseCase: di.call(),
       getCentreUsecase: di.call(),
       getCentreDataUsecase: di.call(),
       getCurrentUserUsecase: di.call(),
+      clearCentreDataUsecase: di.call(),
+      logoutUsecase: di.call(),
     ),
   );
   //patient

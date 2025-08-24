@@ -9,6 +9,7 @@ import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
+
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
@@ -287,6 +288,7 @@ void _registerHiveAdapters() {
   Hive.registerAdapter(WeekDaysAdapter());
   Hive.registerAdapter(EarAdapter());
   Hive.registerAdapter(PatientSoldStatusAdapter());
+  Hive.registerAdapter(TympTypeAdapter());
   // Audiologist
   Hive.registerAdapter(AudiologistEntityAdapter());
 }
@@ -394,6 +396,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ),
         BlocProvider<LookupCubit>(create: (context) => di.call<LookupCubit>()),
         BlocProvider<AgoraCubit>(create: (context) => di.call<AgoraCubit>()),
+
         BlocProvider<DeviceCubit>(create: (context) => di.call<DeviceCubit>()),
         BlocProvider<CommunicationCubit>(
           create: (context) => di.call<CommunicationCubit>(),

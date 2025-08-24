@@ -10,7 +10,10 @@ class AgoraRepositoryImpl implements IAgoraRepository {
   AgoraRepositoryImpl(this.agoraRemoteSource);
 
   @override
-  Future<Either<Failure, AgoraEntity>> getAgoraToken() async {
-    return await agoraRemoteSource.getAgoraToken();
+  Future<Either<Failure, AgoraEntity>> getAgoraToken(
+    bool isUVC,
+    String userRole,
+  ) async {
+    return await agoraRemoteSource.getAgoraToken(isUVC, userRole);
   }
 }

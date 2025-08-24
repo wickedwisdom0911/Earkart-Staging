@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -218,20 +219,44 @@ class UVCCameraController {
     }
   }
 
-  /// Capture current frame as base64 image for streaming
-  Future<String?> captureFrameAsBase64() async {
+  /// Capture current frame as binary data for streaming
+  Future<Uint8List?> captureFrameAsBinary() async {
     if (_cameraState == UVCCameraState.closed) {
       throw Exception('Camera must be opened before capturing frames');
     }
 
     try {
-      // Call native method to capture frame as base64
-      final result =
-          await _cameraChannel?.invokeMethod<String>('captureFrameAsBase64');
-      debugPrint("Frame captured as base64: ${result?.substring(0, 50)}...");
-      return result;
+      // Call native method to capture frame as binary data
+      final result = await _cameraChannel?.invokeMethod('captureFrameAsBinary');
+      if (result is Uint8List) {
+        debugPrint("Frame captured as binary: ${result.length} bytes");
+        return result;
+      } else if (result is List<int>) {
+        final binaryData = Uint8List.fromList(result);
+        debugPrint("Frame captured as binary: ${binaryData.length} bytes");
+        return binaryData;
+      }
+      debugPrint("No binary frame data received");
+      return null;
     } catch (e) {
-      debugPrint("Error capturing frame as base64: $e");
+      debugPrint("Error capturing frame as binary: $e");
+      return null;
+    }
+  }
+
+  /// Get the last captured frame as binary data
+  Future<Uint8List?> getLastCapturedFrameBinary() async {
+    try {
+      final result =
+          await _cameraChannel?.invokeMethod('getLastCapturedFrameBinary');
+      if (result is Uint8List) {
+        return result;
+      } else if (result is List<int>) {
+        return Uint8List.fromList(result);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Error getting last captured frame as binary: $e");
       return null;
     }
   }
@@ -248,18 +273,6 @@ class UVCCameraController {
   void stopFrameCapture() {
     _cameraChannel?.invokeMethod('stopFrameCapture');
     debugPrint("Stopped frame capture");
-  }
-
-  /// Get the last captured frame as base64
-  Future<String?> getLastCapturedFrame() async {
-    try {
-      final result =
-          await _cameraChannel?.invokeMethod<String>('getLastCapturedFrame');
-      return result;
-    } catch (e) {
-      debugPrint("Error getting last captured frame: $e");
-      return null;
-    }
   }
 
   bool _isRecording = false;
