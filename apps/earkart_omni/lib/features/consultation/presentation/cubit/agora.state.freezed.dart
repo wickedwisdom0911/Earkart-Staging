@@ -90,9 +90,6 @@ class _$AgoraStateCopyWithImpl<$Res, $Val extends AgoraState>
   final $Val _value;
   // ignore: unused_field
   final $Res Function($Val) _then;
-
-  /// Create a copy of AgoraState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -109,9 +106,6 @@ class __$$AgoraInitialImplCopyWithImpl<$Res>
   __$$AgoraInitialImplCopyWithImpl(
       _$AgoraInitialImpl _value, $Res Function(_$AgoraInitialImpl) _then)
       : super(_value, _then);
-
-  /// Create a copy of AgoraState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -232,9 +226,6 @@ class __$$AgoraLoadingImplCopyWithImpl<$Res>
   __$$AgoraLoadingImplCopyWithImpl(
       _$AgoraLoadingImpl _value, $Res Function(_$AgoraLoadingImpl) _then)
       : super(_value, _then);
-
-  /// Create a copy of AgoraState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -364,8 +355,6 @@ class __$$AgoraSuccessImplCopyWithImpl<$Res>
       _$AgoraSuccessImpl _value, $Res Function(_$AgoraSuccessImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of AgoraState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -459,9 +448,7 @@ class _$AgoraSuccessImpl implements AgoraSuccess {
   int get hashCode => Object.hash(runtimeType, agora, localUserJoined,
       remoteUid, isMicOn, isCameraOn, isScreenSharing);
 
-  /// Create a copy of AgoraState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$AgoraSuccessImplCopyWith<_$AgoraSuccessImpl> get copyWith =>
@@ -566,10 +553,7 @@ abstract class AgoraSuccess implements AgoraState {
   bool get isMicOn;
   bool get isCameraOn;
   bool get isScreenSharing;
-
-  /// Create a copy of AgoraState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$AgoraSuccessImplCopyWith<_$AgoraSuccessImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
@@ -591,8 +575,6 @@ class __$$AgoraErrorImplCopyWithImpl<$Res>
       _$AgoraErrorImpl _value, $Res Function(_$AgoraErrorImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of AgoraState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -631,9 +613,7 @@ class _$AgoraErrorImpl implements AgoraError {
   @override
   int get hashCode => Object.hash(runtimeType, message);
 
-  /// Create a copy of AgoraState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$AgoraErrorImplCopyWith<_$AgoraErrorImpl> get copyWith =>
@@ -724,10 +704,7 @@ abstract class AgoraError implements AgoraState {
   const factory AgoraError({required final String message}) = _$AgoraErrorImpl;
 
   String get message;
-
-  /// Create a copy of AgoraState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$AgoraErrorImplCopyWith<_$AgoraErrorImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

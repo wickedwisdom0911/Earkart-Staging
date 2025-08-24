@@ -112,9 +112,6 @@ class _$PatientStateCopyWithImpl<$Res, $Val extends PatientState>
   final $Val _value;
   // ignore: unused_field
   final $Res Function($Val) _then;
-
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -131,9 +128,6 @@ class __$$PatientInitialImplCopyWithImpl<$Res>
   __$$PatientInitialImplCopyWithImpl(
       _$PatientInitialImpl _value, $Res Function(_$PatientInitialImpl) _then)
       : super(_value, _then);
-
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -276,9 +270,6 @@ class __$$PatientLoadingImplCopyWithImpl<$Res>
   __$$PatientLoadingImplCopyWithImpl(
       _$PatientLoadingImpl _value, $Res Function(_$PatientLoadingImpl) _then)
       : super(_value, _then);
-
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -424,8 +415,6 @@ class __$$PatientSuccessImplCopyWithImpl<$Res>
       _$PatientSuccessImpl _value, $Res Function(_$PatientSuccessImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -464,9 +453,7 @@ class _$PatientSuccessImpl implements PatientSuccess {
   @override
   int get hashCode => Object.hash(runtimeType, patient);
 
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$PatientSuccessImplCopyWith<_$PatientSuccessImpl> get copyWith =>
@@ -581,10 +568,7 @@ abstract class PatientSuccess implements PatientState {
       _$PatientSuccessImpl;
 
   PatientEntity get patient;
-
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$PatientSuccessImplCopyWith<_$PatientSuccessImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
@@ -607,8 +591,6 @@ class __$$CurrentPatientSuccessImplCopyWithImpl<$Res>
       $Res Function(_$CurrentPatientSuccessImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -647,9 +629,7 @@ class _$CurrentPatientSuccessImpl implements CurrentPatientSuccess {
   @override
   int get hashCode => Object.hash(runtimeType, patient);
 
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$CurrentPatientSuccessImplCopyWith<_$CurrentPatientSuccessImpl>
@@ -764,10 +744,7 @@ abstract class CurrentPatientSuccess implements PatientState {
       _$CurrentPatientSuccessImpl;
 
   PatientEntity? get patient;
-
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$CurrentPatientSuccessImplCopyWith<_$CurrentPatientSuccessImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
@@ -789,8 +766,6 @@ class __$$AllPatientsSuccessImplCopyWithImpl<$Res>
       $Res Function(_$AllPatientsSuccessImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -836,9 +811,7 @@ class _$AllPatientsSuccessImpl implements AllPatientsSuccess {
   int get hashCode =>
       Object.hash(runtimeType, const DeepCollectionEquality().hash(_patients));
 
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$AllPatientsSuccessImplCopyWith<_$AllPatientsSuccessImpl> get copyWith =>
@@ -953,10 +926,7 @@ abstract class AllPatientsSuccess implements PatientState {
       {required final List<PatientEntity> patients}) = _$AllPatientsSuccessImpl;
 
   List<PatientEntity> get patients;
-
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$AllPatientsSuccessImplCopyWith<_$AllPatientsSuccessImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
@@ -978,8 +948,6 @@ class __$$PatientsByValueImplCopyWithImpl<$Res>
       _$PatientsByValueImpl _value, $Res Function(_$PatientsByValueImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -1025,9 +993,7 @@ class _$PatientsByValueImpl implements PatientsByValue {
   int get hashCode =>
       Object.hash(runtimeType, const DeepCollectionEquality().hash(_patients));
 
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$PatientsByValueImplCopyWith<_$PatientsByValueImpl> get copyWith =>
@@ -1142,10 +1108,7 @@ abstract class PatientsByValue implements PatientState {
       _$PatientsByValueImpl;
 
   List<PatientEntity> get patients;
-
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$PatientsByValueImplCopyWith<_$PatientsByValueImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
@@ -1166,9 +1129,6 @@ class __$$DeletePatientSessionSuccessImplCopyWithImpl<$Res>
       _$DeletePatientSessionSuccessImpl _value,
       $Res Function(_$DeletePatientSessionSuccessImpl) _then)
       : super(_value, _then);
-
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -1316,8 +1276,6 @@ class __$$PatientErrorImplCopyWithImpl<$Res>
       _$PatientErrorImpl _value, $Res Function(_$PatientErrorImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -1356,9 +1314,7 @@ class _$PatientErrorImpl implements PatientError {
   @override
   int get hashCode => Object.hash(runtimeType, message);
 
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$PatientErrorImplCopyWith<_$PatientErrorImpl> get copyWith =>
@@ -1472,10 +1428,7 @@ abstract class PatientError implements PatientState {
       _$PatientErrorImpl;
 
   String get message;
-
-  /// Create a copy of PatientState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$PatientErrorImplCopyWith<_$PatientErrorImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

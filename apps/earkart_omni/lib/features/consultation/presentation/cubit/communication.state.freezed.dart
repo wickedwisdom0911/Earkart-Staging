@@ -33,9 +33,7 @@ mixin _$CommunicationState {
   bool get isNewImpedanceData => throw _privateConstructorUsedError;
   String? get error => throw _privateConstructorUsedError;
 
-  /// Create a copy of CommunicationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   $CommunicationStateCopyWith<CommunicationState> get copyWith =>
       throw _privateConstructorUsedError;
 }
@@ -74,8 +72,6 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
   // ignore: unused_field
   final $Res Function($Val) _then;
 
-  /// Create a copy of CommunicationState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -194,8 +190,6 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
       $Res Function(_$CommunicationStateImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of CommunicationState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -403,9 +397,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
       isNewImpedanceData,
       error);
 
-  /// Create a copy of CommunicationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$CommunicationStateImplCopyWith<_$CommunicationStateImpl> get copyWith =>
@@ -461,11 +453,8 @@ abstract class _CommunicationState implements CommunicationState {
   bool get isNewImpedanceData;
   @override
   String? get error;
-
-  /// Create a copy of CommunicationState
-  /// with the given fields replaced by the non-null parameter values.
   @override
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$CommunicationStateImplCopyWith<_$CommunicationStateImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

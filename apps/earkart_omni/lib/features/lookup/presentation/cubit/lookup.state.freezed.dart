@@ -24,9 +24,7 @@ mixin _$LookupState {
   List<DistrictEntity> get districts => throw _privateConstructorUsedError;
   String? get error => throw _privateConstructorUsedError;
 
-  /// Create a copy of LookupState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   $LookupStateCopyWith<LookupState> get copyWith =>
       throw _privateConstructorUsedError;
 }
@@ -57,8 +55,6 @@ class _$LookupStateCopyWithImpl<$Res, $Val extends LookupState>
   // ignore: unused_field
   final $Res Function($Val) _then;
 
-  /// Create a copy of LookupState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -129,8 +125,6 @@ class __$$LookupStateImplCopyWithImpl<$Res>
       _$LookupStateImpl _value, $Res Function(_$LookupStateImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of LookupState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -277,9 +271,7 @@ class _$LookupStateImpl implements _LookupState {
       const DeepCollectionEquality().hash(_districts),
       error);
 
-  /// Create a copy of LookupState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$LookupStateImplCopyWith<_$LookupStateImpl> get copyWith =>
@@ -310,11 +302,8 @@ abstract class _LookupState implements LookupState {
   List<DistrictEntity> get districts;
   @override
   String? get error;
-
-  /// Create a copy of LookupState
-  /// with the given fields replaced by the non-null parameter values.
   @override
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$LookupStateImplCopyWith<_$LookupStateImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

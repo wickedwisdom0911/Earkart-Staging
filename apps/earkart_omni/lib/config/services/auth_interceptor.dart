@@ -47,6 +47,8 @@ class AuthInterceptor extends Interceptor {
       '/api/v1/state/get-all-states',
       '/api/v1/city/get-all-cities',
       '/api/v1/district/get-all-districts',
+      '/api/v1/device/find-by-value',
+      '/api/v1/device/setup',
     ];
 
     return publicEndpoints.any((endpoint) => path.contains(endpoint));

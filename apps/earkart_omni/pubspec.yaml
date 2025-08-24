@@ -34,7 +34,7 @@ dependencies:
   url_launcher: ^6.3.1
   easy_debounce: ^2.0.3
   package_info_plus: any
-  device_info_plus: ^11.4.0
+  device_info_plus: ^11.5.0
   dartz: ^0.10.1
   freezed_annotation: ^2.4.1
   agora_rtc_engine: ^6.5.2
@@ -72,6 +72,4 @@ flutter:
   assets:
     - .env
     - assets/images/
-    - assets/icons/
-    - assets/gifs/
-    - assets/sounds/
+  

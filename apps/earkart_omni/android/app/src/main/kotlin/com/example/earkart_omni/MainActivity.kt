@@ -62,6 +62,7 @@ class MainActivity: FlutterActivity() {
                     grantUSBPermissions()
                     result.success(true)
                 }
+
                 else -> result.notImplemented()
             }
         }
@@ -169,6 +170,8 @@ class MainActivity: FlutterActivity() {
                 
                 // 12. Security permissions
                 grantSecurityPermissions()
+                
+
                 
                 Log.d("MainActivity", "✅ ALL permissions granted for device owner")
                 
@@ -629,4 +632,6 @@ class MainActivity: FlutterActivity() {
             }
         }
     }
+
+
 }

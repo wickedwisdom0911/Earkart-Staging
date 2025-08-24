@@ -6,6 +6,7 @@ import 'package:earkart_omni/config/services/session_manager.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
+import 'package:earkart_omni/features/device/data/source/local/device.entity.source.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
@@ -13,6 +14,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubi
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
+import 'package:earkart_omni/features/device/presentation/cubit/device_registration.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
@@ -298,6 +300,7 @@ Future<void> _initDataSources() async {
   await di<CentreEntityDataSource>().init();
   await di<PatientEntityDataSource>().init();
   await di<ConsultationEntityDataSource>().init();
+  await di<DeviceEntityDataSource>().init();
 }
 
 Future<void> _initLookupData() async {
@@ -400,6 +403,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         BlocProvider<DeviceCubit>(create: (context) => di.call<DeviceCubit>()),
         BlocProvider<CommunicationCubit>(
           create: (context) => di.call<CommunicationCubit>(),
+        ),
+        BlocProvider<DeviceRegistrationCubit>(
+          create: (context) => di.call<DeviceRegistrationCubit>(),
         ),
         BlocProvider<NetworkCubit>(
           create: (context) => di.call<NetworkCubit>(),

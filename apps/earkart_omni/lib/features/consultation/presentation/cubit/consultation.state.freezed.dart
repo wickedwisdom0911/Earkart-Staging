@@ -127,9 +127,6 @@ class _$ConsultationStateCopyWithImpl<$Res, $Val extends ConsultationState>
   final $Val _value;
   // ignore: unused_field
   final $Res Function($Val) _then;
-
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -146,9 +143,6 @@ class __$$ConsultationInitialImplCopyWithImpl<$Res>
   __$$ConsultationInitialImplCopyWithImpl(_$ConsultationInitialImpl _value,
       $Res Function(_$ConsultationInitialImpl) _then)
       : super(_value, _then);
-
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -307,9 +301,6 @@ class __$$ConsultationLoadingImplCopyWithImpl<$Res>
   __$$ConsultationLoadingImplCopyWithImpl(_$ConsultationLoadingImpl _value,
       $Res Function(_$ConsultationLoadingImpl) _then)
       : super(_value, _then);
-
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -471,8 +462,6 @@ class __$$ConsultationSuccessImplCopyWithImpl<$Res>
       $Res Function(_$ConsultationSuccessImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -512,9 +501,7 @@ class _$ConsultationSuccessImpl implements ConsultationSuccess {
   @override
   int get hashCode => Object.hash(runtimeType, consultation);
 
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$ConsultationSuccessImplCopyWith<_$ConsultationSuccessImpl> get copyWith =>
@@ -645,10 +632,7 @@ abstract class ConsultationSuccess implements ConsultationState {
       _$ConsultationSuccessImpl;
 
   ConsultationEntity get consultation;
-
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$ConsultationSuccessImplCopyWith<_$ConsultationSuccessImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
@@ -673,8 +657,6 @@ class __$$CreateConsultationSuccessImplCopyWithImpl<$Res>
       $Res Function(_$CreateConsultationSuccessImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -714,9 +696,7 @@ class _$CreateConsultationSuccessImpl implements CreateConsultationSuccess {
   @override
   int get hashCode => Object.hash(runtimeType, consultation);
 
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$CreateConsultationSuccessImplCopyWith<_$CreateConsultationSuccessImpl>
@@ -847,10 +827,7 @@ abstract class CreateConsultationSuccess implements ConsultationState {
       _$CreateConsultationSuccessImpl;
 
   ConsultationEntity get consultation;
-
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$CreateConsultationSuccessImplCopyWith<_$CreateConsultationSuccessImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
@@ -874,8 +851,6 @@ class __$$AllConsultationsSuccessImplCopyWithImpl<$Res>
       $Res Function(_$AllConsultationsSuccessImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -923,9 +898,7 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
   int get hashCode => Object.hash(
       runtimeType, const DeepCollectionEquality().hash(_consultations));
 
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$AllConsultationsSuccessImplCopyWith<_$AllConsultationsSuccessImpl>
@@ -1056,10 +1029,7 @@ abstract class AllConsultationsSuccess implements ConsultationState {
       _$AllConsultationsSuccessImpl;
 
   List<ConsultationEntity> get consultations;
-
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$AllConsultationsSuccessImplCopyWith<_$AllConsultationsSuccessImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
@@ -1084,8 +1054,6 @@ class __$$CurrentConsultationSuccessImplCopyWithImpl<$Res>
       $Res Function(_$CurrentConsultationSuccessImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -1125,9 +1093,7 @@ class _$CurrentConsultationSuccessImpl implements CurrentConsultationSuccess {
   @override
   int get hashCode => Object.hash(runtimeType, consultation);
 
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$CurrentConsultationSuccessImplCopyWith<_$CurrentConsultationSuccessImpl>
@@ -1258,10 +1224,7 @@ abstract class CurrentConsultationSuccess implements ConsultationState {
       _$CurrentConsultationSuccessImpl;
 
   ConsultationEntity get consultation;
-
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$CurrentConsultationSuccessImplCopyWith<_$CurrentConsultationSuccessImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
@@ -1283,9 +1246,6 @@ class __$$DeleteConsultationSessionSuccessImplCopyWithImpl<$Res>
       _$DeleteConsultationSessionSuccessImpl _value,
       $Res Function(_$DeleteConsultationSessionSuccessImpl) _then)
       : super(_value, _then);
-
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -1449,8 +1409,6 @@ class __$$ConsultationErrorImplCopyWithImpl<$Res>
       $Res Function(_$ConsultationErrorImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -1489,9 +1447,7 @@ class _$ConsultationErrorImpl implements ConsultationError {
   @override
   int get hashCode => Object.hash(runtimeType, message);
 
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$ConsultationErrorImplCopyWith<_$ConsultationErrorImpl> get copyWith =>
@@ -1621,10 +1577,7 @@ abstract class ConsultationError implements ConsultationState {
       _$ConsultationErrorImpl;
 
   String get message;
-
-  /// Create a copy of ConsultationState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$ConsultationErrorImplCopyWith<_$ConsultationErrorImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

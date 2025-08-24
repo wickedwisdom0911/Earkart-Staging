@@ -5,8 +5,12 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/device.cub
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
+import 'package:earkart_omni/features/device/presentation/cubit/device_registration.cubit.dart';
+import 'package:earkart_omni/features/device/presentation/cubit/device_registration.state.dart';
+import 'package:earkart_omni/features/device/presentation/pages/device_registration_screen.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
@@ -39,10 +43,12 @@ class _RootScreenState extends State<RootScreen> {
   bool checkedPatient = false;
   bool checkedConsultation = false;
   bool checkedUser = false;
+  bool checkedDevice = false;
   UserEntity? user;
   CentreEntity? centre;
   PatientEntity? patient;
   ConsultationEntity? consultation;
+  DeviceEntity? device;
 
   Timer? _loadingTimeoutTimer;
 
@@ -52,13 +58,9 @@ class _RootScreenState extends State<RootScreen> {
 
     print('🚀 RootScreen initState - Starting initialization');
 
-    context.read<AuthCubit>().getCurrentUser();
-    print('📞 Called getCurrentUser()');
-
-    context.read<PatientCubit>().getCurrentPatient();
-    print('📞 Called getCurrentPatient()');
-
-    // Don't call getCurrentConsultation here - it will be called after centre data is available
+    // Only check device registration first - no other APIs until device is registered
+    context.read<DeviceRegistrationCubit>().getCurrentDevice();
+    print('📞 Called getCurrentDevice() - Device registration check only');
 
     _checkAndRequestPermissions();
 
@@ -68,41 +70,15 @@ class _RootScreenState extends State<RootScreen> {
 
   void _setupLoadingTimeout() {
     _loadingTimeoutTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted &&
-          (!checkedUser ||
-              !checkedCentre ||
-              !checkedPatient ||
-              !checkedConsultation)) {
-        print(
-          '⏰ Loading timeout reached! Force completing incomplete operations',
-        );
-        print('   checkedUser: $checkedUser');
-        print('   checkedCentre: $checkedCentre');
-        print('   checkedPatient: $checkedPatient');
-        print('   checkedConsultation: $checkedConsultation');
+      if (mounted && !checkedDevice) {
+        print('⏰ Loading timeout reached! Force completing device check');
+        print('   checkedDevice: $checkedDevice');
 
         setState(() {
-          // Force complete any incomplete operations
-          if (!checkedUser) {
-            checkedUser = true;
-            user = null;
-            print('   ⚠️ Forced checkedUser to true');
-          }
-          if (!checkedCentre) {
-            checkedCentre = true;
-            centre = null;
-            print('   ⚠️ Forced checkedCentre to true');
-          }
-          if (!checkedPatient) {
-            checkedPatient = true;
-            patient = null;
-            print('   ⚠️ Forced checkedPatient to true');
-          }
-          if (!checkedConsultation) {
-            checkedConsultation = true;
-            consultation = null;
-            print('   ⚠️ Forced checkedConsultation to true');
-          }
+          // Force complete device check only
+          checkedDevice = true;
+          device = null;
+          print('   ⚠️ Forced checkedDevice to true');
         });
       }
     });
@@ -472,11 +448,73 @@ class _RootScreenState extends State<RootScreen> {
             }
           },
         ),
+        BlocListener<DeviceRegistrationCubit, DeviceRegistrationState>(
+          listener: (context, state) {
+            print(
+              '📱 DeviceRegistrationCubit state changed: ${state.runtimeType}',
+            );
+
+            state.maybeWhen(
+              success: (device) {
+                print(
+                  '✅ DeviceRegistrationSuccess - Device: ${device != null ? device.deviceCode : 'null'}',
+                );
+                setState(() {
+                  checkedDevice = true;
+                  this.device = device;
+                });
+
+                // Only after device is registered, start other API calls
+                if (device != null) {
+                  print('📞 Device registered - starting other API calls');
+                  context.read<AuthCubit>().getCurrentUser();
+                  context.read<PatientCubit>().getCurrentPatient();
+                }
+              },
+              error: (message) {
+                print('❌ Device Registration Error: $message');
+                setState(() {
+                  checkedDevice = true;
+                  device = null;
+                });
+              },
+              orElse: () {
+                print('🔄 DeviceRegistrationInitial state');
+                setState(() {
+                  checkedDevice = true;
+                  device = null;
+                });
+              },
+            );
+          },
+        ),
       ],
       child: Builder(
         builder: (context) {
           // Debug logging to identify which operation is not completing
           print('🔍 RootScreen build check:');
+          print(
+            '   checkedDevice: $checkedDevice (device: ${device != null ? device!.deviceCode : 'null'})',
+          );
+
+          // First priority: Check device registration
+          if (!checkedDevice) {
+            print(
+              '⏳ Device registration check in progress - showing AppLoadingScreen.compact()',
+            );
+            return const AppLoadingScreen.compact();
+          }
+
+          // If device is not registered, show device registration screen
+          if (device == null) {
+            print(
+              '📱 Device not registered - navigating to device registration',
+            );
+            return const DeviceRegistrationScreen();
+          }
+
+          // Device is registered, now check other operations
+          print('📱 Device registered - checking other operations');
           print(
             '   checkedUser: $checkedUser (user: ${user?.email ?? 'null'})',
           );
@@ -494,7 +532,9 @@ class _RootScreenState extends State<RootScreen> {
               !checkedPatient ||
               !checkedConsultation ||
               !checkedUser) {
-            print('⏳ Still loading - showing AppLoadingScreen.compact()');
+            print(
+              '⏳ Other operations in progress - showing AppLoadingScreen.compact()',
+            );
             return const AppLoadingScreen.compact();
           }
 
