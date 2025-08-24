@@ -1,7 +1,7 @@
 "use client";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Ear, TympType } from "@/models/enums";
 import { TympanometryReadingModelData } from "@/models/tympanometry.model";
 import { format } from "date-fns";
@@ -10,8 +10,13 @@ import { useRef, useEffect, useState } from "react";
 import Image from "next/image";
 // PDF export utility is loaded dynamically to avoid bundling issues
 import { toast } from "sonner";
+import FloatingReportActions from "@/components/ui/FloatingReportActions";
 import { Textarea } from "@/components/ui/textarea";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
+import { exportElementToPdfBlob } from "@/lib/pdf";
+import ReportTopActions from "@/components/ui/ReportTopActions";
+import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
+import { useSocket } from "@/providers/socket-provider";
 import {
   LineChart,
   Line,
@@ -132,6 +137,8 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
 
 export default function TympanometryReportPage() {
   const { consultationId } = useParams();
+  const router = useRouter();
+  const socket = useSocket();
   const {
     data: consultation,
     isLoading,
@@ -141,9 +148,17 @@ export default function TympanometryReportPage() {
   const reportRef = useRef<HTMLDivElement>(null);
   const updateConsultationMutation = useUpdateConsultation();
   const [comments, setComments] = useState<string>("");
+  const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare, error: screenShareError } = useSharedScreenShare();
+  const [isShowingReport, setIsShowingReport] = useState(false);
   useEffect(() => {
     setComments(consultationData?.tympanometry?.notes || "");
   }, [consultationData?.tympanometry?.notes]);
+
+  useEffect(() => {
+    if (screenShareError) {
+      toast.error(`Screen sharing error: ${screenShareError}`);
+    }
+  }, [screenShareError]);
 
   const handleSaveComments = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -257,6 +272,105 @@ export default function TympanometryReportPage() {
     }
   };
 
+  const handleShowReport = async () => {
+    if (!socket) {
+      toast.error("Socket connection not available");
+      return;
+    }
+
+    const isCurrentlyShowing = isShowingReport || isScreenSharing;
+    try {
+      if (isCurrentlyShowing) {
+        socket.emit("generate-report:end", { consultationId });
+        setIsShowingReport(false);
+        if (isScreenSharing) {
+          await toggleScreenShare();
+        }
+        toast.success("Report hidden from patient");
+      } else {
+        socket.emit("generate-report:start", { consultationId });
+        setIsShowingReport(true);
+        if (reportRef.current) {
+          await toggleScreenShare(reportRef.current);
+        } else {
+          await toggleScreenShare();
+        }
+        toast.success("Report shown to patient via screen share");
+      }
+    } catch (err) {
+      console.error("Error handling report display:", err);
+      toast.error("Failed to show/hide report");
+    }
+  };
+
+  const handleShareReport = async () => {
+    if (!reportRef.current) return;
+    try {
+      // As with download, rasterize Recharts surfaces before capture to ensure fidelity
+      const svgs = Array.from(reportRef.current.querySelectorAll("svg.recharts-surface")) as SVGSVGElement[];
+      const cleanup: Array<() => void> = [];
+      for (const svg of svgs) {
+        try {
+          const rect = svg.getBoundingClientRect();
+          const width = Math.max(1, Math.floor(rect.width));
+          const height = Math.max(1, Math.floor(rect.height));
+          const xml = new XMLSerializer().serializeToString(svg);
+          const svgBlob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
+          const svgUrl = URL.createObjectURL(svgBlob);
+          const img = document.createElement("img");
+          img.width = width;
+          img.height = height;
+          img.style.width = `${width}px`;
+          img.style.height = `${height}px`;
+          await new Promise<void>((res) => { img.onload = () => res(); img.onerror = () => res(); img.src = svgUrl; });
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) ctx.drawImage(img, 0, 0, width, height);
+          const pngUrl = canvas.toDataURL("image/png");
+          const pngImg = document.createElement("img");
+          pngImg.src = pngUrl;
+          pngImg.width = width;
+          pngImg.height = height;
+          pngImg.style.width = `${width}px`;
+          pngImg.style.height = `${height}px`;
+          svg.style.display = "none";
+          svg.parentNode?.insertBefore(pngImg, svg);
+          cleanup.push(() => {
+            if (pngImg.parentNode) pngImg.parentNode.removeChild(pngImg);
+            svg.style.display = "";
+            URL.revokeObjectURL(svgUrl);
+          });
+        } catch {}
+      }
+
+      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true });
+      cleanup.forEach(fn => fn());
+      const file = new File([blob], `tympanometry-report-${consultationData?.patient?.code || "unknown"}.pdf`, { type: "application/pdf" });
+      if ((navigator as any).share && (navigator as any).canShare?.({ files: [file] })) {
+        await (navigator as any).share({
+          title: "Tympanometry Report",
+          text: `Report for ${consultationData.patient?.name || "patient"}`,
+          files: [file],
+        });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `tympanometry-report-${consultationData?.patient?.code || "unknown"}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast.info("Sharing not supported. Downloaded instead.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to share report");
+    }
+  };
+
   const getTympTypeDescription = (type: TympType): string => {
     switch (type) {
       case TympType.A:
@@ -308,11 +422,7 @@ export default function TympanometryReportPage() {
   return (
     <div className="p-6 flex justify-center bg-gray-100">
       <div className="w-[794px] bg-white shadow-lg">
-        <div className="flex justify-center p-4 border-b">
-          <Button onClick={handleDownloadPDF} className="bg-blue-600 hover:bg-blue-700 text-white">
-            Download PDF
-          </Button>
-        </div>
+        <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
 
         <div ref={reportRef} data-report-capture="true" className="bg-white" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
@@ -406,7 +516,7 @@ export default function TympanometryReportPage() {
                     const normalized = distance / sigma;
                     const compliance = Math.max(r.staticCompliance * Math.exp(-(normalized * normalized) / 2), 0.05);
                     data.push({ pressure, compliance: compliance * 1.1, compensatedCompliance: compliance, ear });
-                  }
+                    }
                     return data;
                   };
 
@@ -448,29 +558,32 @@ export default function TympanometryReportPage() {
               <div className="bg-blue-900 text-white p-3 text-center">
                 <h3 className="text-sm font-bold">Investigation : Impedance</h3>
               </div>
-              <div className="grid grid-cols-3 text-sm">
+              <div className="grid grid-cols-4 text-sm">
                 <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Test</div>
+                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">SI Units</div>
                 <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Rt</div>
                 <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Lt</div>
 
                 {(() => {
                   const left = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
                   const right = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
-                  const row = (label: string, r?: (typeof right), l?: (typeof left), formatter?: (v: number) => string) => (
+                  const row = (label: string, units: string, r?: (typeof right), l?: (typeof left), formatter?: (v: number) => string) => (
                     <>
                       <div className="font-semibold border border-gray-400 p-2 text-gray-800">{label}</div>
-                      <div className="border border-gray-400 p-2 text-center text-gray-800">{r ? (label === 'Tympanogram' ? r.tympType : formatter ? formatter((label === 'Compliance' ? r.staticCompliance : label === 'Ear canal volume' ? r.earCanalVolume : label === 'Peak Pressure (daPa)' ? r.peakPressure : 0)) : '—') : '—'}</div>
-                      <div className="border border-gray-400 p-2 text-center text-gray-800">{l ? (label === 'Tympanogram' ? l.tympType : formatter ? formatter((label === 'Compliance' ? l.staticCompliance : label === 'Ear canal volume' ? l.earCanalVolume : label === 'Peak Pressure (daPa)' ? l.peakPressure : 0)) : '—') : '—'}</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">{units}</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">{r ? (label === 'Tympanogram' ? r.tympType : formatter ? formatter((label === 'Compliance' ? r.staticCompliance : label === 'Ear canal volume' ? r.earCanalVolume : label === 'Peak Pressure' ? r.peakPressure : 0)) : '—') : '—'}</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">{l ? (label === 'Tympanogram' ? l.tympType : formatter ? formatter((label === 'Compliance' ? l.staticCompliance : label === 'Ear canal volume' ? l.earCanalVolume : label === 'Peak Pressure' ? l.peakPressure : 0)) : '—') : '—'}</div>
                     </>
                   );
                   return (
                     <>
-                      {row('Tympanogram', right, left)}
-                      {row('Compliance', right, left, (v) => `${v.toFixed(2)} ml`)}
-                      {row('Ear canal volume', right, left, (v) => `${v.toFixed(2)} ml`)}
-                      {row('Peak Pressure (daPa)', right, left, (v) => `${v} daPa`)}
+                      {row('Tympanogram', '—', right, left)}
+                      {row('Compliance', 'ml', right, left, (v) => `${v.toFixed(2)}`)}
+                      {row('Ear canal volume', 'ml', right, left, (v) => `${v.toFixed(2)}`)}
+                      {row('Peak Pressure', 'daPa', right, left, (v) => `${v}`)}
                       {/* Gradient not in model; show em dash */}
-                      <div className="font-semibold border border-gray-400 p-2 text-gray-800">Gradient (daPa)</div>
+                      <div className="font-semibold border border-gray-400 p-2 text-gray-800">Gradient</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">daPa</div>
                       <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
                       <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
                     </>
@@ -523,6 +636,14 @@ export default function TympanometryReportPage() {
           </div>
         </div>
       </div>
+      <FloatingReportActions
+        isScreenConnecting={isScreenConnecting}
+        isScreenSharing={isScreenSharing}
+        isShowingReport={isShowingReport}
+        onToggleShowReport={handleShowReport}
+        onDoAnotherTest={() => router.push(`/consultation/${consultationId}/test-selection`)}
+        onEndConsultation={() => router.push(`/consultation/${consultationId}/end-consultation`)}
+      />
     </div>
   );
 }

@@ -93,9 +93,25 @@ export const OtoscopyProvider: React.FC<OtoscopyProviderProps> = ({
     console.log("📡 Emitting start-otoscopy event with data:", eventData);
     
     // Emit with acknowledgment callback to confirm receipt
+    let acked = false;
+    const timeout = setTimeout(() => {
+      if (!acked) {
+        console.warn("⏱️ No ack from Flutter for start-otoscopy within 5s");
+      }
+    }, 5000);
+
+    try {
     socket.emit("start-otoscopy", eventData, (ack: any) => {
+        acked = true;
+        clearTimeout(timeout);
       console.log("📨 start-otoscopy acknowledgment received:", ack);
+        if (ack && ack.error) {
+          console.error("⚠️ start-otoscopy ack error:", ack.error);
+        }
     });
+    } catch (err) {
+      console.error("❌ Failed to emit start-otoscopy:", err);
+    }
 
     setIsOtoscopyActive(true);
     console.log("✅ Sent start_otoscopy event to Flutter app");
