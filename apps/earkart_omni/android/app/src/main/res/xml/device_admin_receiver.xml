@@ -45,23 +45,13 @@
         <disable-app-uninstallation />
         <disable-share-location />
         <disable-install-apps />
-        <disable-uninstall-apps />
         <disable-create-windows />
         <disable-cross-profile-contacts-search />
         <disable-cross-profile-caller-id />
         <disable-contacts-search />
-        <disable-outgoing-beam />
         <disable-phone-calls />
-        <disable-sms />
-        <disable-outgoing-calls />
-        <disable-phone-calls />
-        <disable-sms />
-        <disable-outgoing-calls />
-        <disable-phone-calls />
-        <disable-sms />
-        <disable-outgoing-calls />
-        <disable-phone-calls />
-        <disable-sms />
-        <disable-outgoing-calls />
+        
+        <!-- Permission Management -->
+        <set-permission-policy />
     </uses-policies>
 </device-admin> 

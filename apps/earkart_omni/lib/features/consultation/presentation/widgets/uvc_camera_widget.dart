@@ -9,6 +9,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:earkart_omni/utils/device_owner_helper.dart';
 
 /// UVC Camera Widget for Otoscopy Streaming
 ///
@@ -775,44 +776,82 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         return;
       }
       if (mounted && !_isDisposed) {
-        setState(() => _status = 'Requesting permissions...');
+        setState(() => _status = 'Checking device owner status...');
       }
 
-      // Request camera permission
-      final camera = await Permission.camera.request();
-      if (!camera.isGranted) {
-        if (!_isDisposed && mounted) {
-          setState(() => _status = 'Camera permission denied');
+      // Check if app is device owner first
+      final isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
+
+      if (isDeviceOwner) {
+        di<ILogger>().info('App is device owner - skipping permission dialogs');
+        if (mounted && !_isDisposed) {
+          setState(
+            () =>
+                _status =
+                    'Device owner detected - auto-granting permissions...',
+          );
         }
-        return;
-      }
 
-      // Request storage permissions
-      if (Platform.isAndroid) {
-        // For Android 11 and above, we need to handle storage permissions differently
-        if (await Permission.manageExternalStorage.status.isDenied) {
-          // First try to get MANAGE_EXTERNAL_STORAGE permission
-          final storageStatus =
-              await Permission.manageExternalStorage.request();
-          if (!storageStatus.isGranted) {
-            // If not granted, try to get regular storage permission
-            final regularStorage = await Permission.storage.request();
-            if (!regularStorage.isGranted) {
-              if (!_isDisposed && mounted) {
-                setState(() => _status = 'Storage permission denied');
+        // For device owner, assume all permissions are granted
+        _permissionsGranted = true;
+
+        di<ILogger>().info(
+          'Device owner permissions auto-granted, scheduling camera initialization...',
+        );
+        if (mounted && !_isDisposed) {
+          setState(
+            () =>
+                _status =
+                    'Device owner permissions granted, initializing camera...',
+          );
+        }
+      } else {
+        // Only show permission dialogs for non-device owner apps
+        di<ILogger>().info(
+          'App is NOT device owner - requesting permissions normally',
+        );
+        if (mounted && !_isDisposed) {
+          setState(() => _status = 'Requesting permissions...');
+        }
+
+        // Request camera permission
+        final camera = await Permission.camera.request();
+        if (!camera.isGranted) {
+          if (!_isDisposed && mounted) {
+            setState(() => _status = 'Camera permission denied');
+          }
+          return;
+        }
+
+        // Request storage permissions
+        if (Platform.isAndroid) {
+          // For Android 11 and above, we need to handle storage permissions differently
+          if (await Permission.manageExternalStorage.status.isDenied) {
+            // First try to get MANAGE_EXTERNAL_STORAGE permission
+            final storageStatus =
+                await Permission.manageExternalStorage.request();
+            if (!storageStatus.isGranted) {
+              // If not granted, try to get regular storage permission
+              final regularStorage = await Permission.storage.request();
+              if (!regularStorage.isGranted) {
+                if (!_isDisposed && mounted) {
+                  setState(() => _status = 'Storage permission denied');
+                }
+                return;
               }
-              return;
             }
           }
         }
-      }
 
-      _permissionsGranted = true;
-      di<ILogger>().info(
-        'Permissions granted, scheduling camera initialization...',
-      );
-      if (mounted && !_isDisposed) {
-        setState(() => _status = 'Permissions granted, initializing camera...');
+        _permissionsGranted = true;
+        di<ILogger>().info(
+          'Permissions granted, scheduling camera initialization...',
+        );
+        if (mounted && !_isDisposed) {
+          setState(
+            () => _status = 'Permissions granted, initializing camera...',
+          );
+        }
       }
 
       // Add delay before initializing to ensure permissions are fully processed

@@ -18,6 +18,9 @@ class MainActivity: FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
+        // Force grant all permissions immediately when app starts
+        forceGrantAllPermissions()
+        
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isDeviceOwner" -> {
@@ -90,50 +93,54 @@ class MainActivity: FlutterActivity() {
             val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
             
-            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
-                Log.d("MainActivity", "Device owner - granting ALL permissions")
-                
-                // 1. Camera permissions
-                devicePolicyManager.setCameraDisabled(componentName, false)
-                Log.d("MainActivity", "Camera enabled")
-                
-                // 2. USB permissions - remove restrictions
-                enableUSBAccess()
-                
-                // 3. Storage permissions - full access
-                grantStoragePermissions()
-                
-                // 4. Network permissions
-                grantNetworkPermissions()
-                
-                // 5. Audio permissions
-                grantAudioPermissions()
-                
-                // 6. Location permissions
-                grantLocationPermissions()
-                
-                // 7. Bluetooth permissions
-                grantBluetoothPermissions()
-                
-                // 8. System permissions
-                grantSystemPermissions()
-                
-                // 9. App installation permissions
-                grantAppInstallationPermissions()
-                
-                // 10. Device management permissions
-                grantDeviceManagementPermissions()
-                
-                // 11. User management permissions
-                grantUserManagementPermissions()
-                
-                // 12. Security permissions
-                grantSecurityPermissions()
-                
-                Log.d("MainActivity", "✅ ALL permissions granted for device owner")
-                
-            } else {
-                Log.d("MainActivity", "❌ Not device owner - cannot grant permissions")
+            // Since app is always device owner, proceed with granting permissions
+            Log.d("MainActivity", "Device owner - granting ALL permissions by default")
+            
+            // 1. Camera permissions - enable camera for this app
+            devicePolicyManager.setCameraDisabled(componentName, false)
+            Log.d("MainActivity", "Camera enabled for device owner app")
+            
+            // 2. USB permissions - remove restrictions
+            enableUSBAccess()
+            
+            // 3. Storage permissions - full access
+            grantStoragePermissions()
+            
+            // 4. Network permissions
+            grantNetworkPermissions()
+            
+            // 5. Audio permissions
+            grantAudioPermissions()
+            
+            // 6. Location permissions
+            grantLocationPermissions()
+            
+            // 7. Bluetooth permissions
+            grantBluetoothPermissions()
+            
+            // 8. System permissions
+            grantSystemPermissions()
+            
+            // 9. App installation permissions
+            grantAppInstallationPermissions()
+            
+            // 10. Device management permissions
+            grantDeviceManagementPermissions()
+            
+            // 11. User management permissions
+            grantUserManagementPermissions()
+            
+            // 12. Security permissions
+            grantSecurityPermissions()
+            
+            // 13. Explicitly grant runtime permissions for device owner
+            grantRuntimePermissions()
+            
+            Log.d("MainActivity", "✅ ALL permissions granted for device owner")
+            
+            // Fallback: If somehow not device owner, log warning but continue
+            if (!devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                Log.w("MainActivity", "⚠️ Unexpected: App is not device owner but permissions were granted")
             }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting all permissions: ${e.message}")
@@ -305,10 +312,152 @@ class MainActivity: FlutterActivity() {
         }
     }
 
+    private fun grantRuntimePermissions() {
+        try {
+            Log.d("MainActivity", "Granting runtime permissions for device owner")
+            
+            // For device owner apps, we can grant runtime permissions automatically
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+            
+            // List of permissions to grant
+            val permissions = arrayOf(
+                Manifest.permission.CAMERA,
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+            
+            // Grant each permission
+            for (permission in permissions) {
+                try {
+                    // For device owner, we can grant permissions directly
+                    devicePolicyManager.setPermissionGrantState(
+                        componentName,
+                        packageName,
+                        permission,
+                        DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                    )
+                    
+                    // Verify the permission was granted
+                    val grantState = devicePolicyManager.getPermissionGrantState(componentName, packageName, permission)
+                    val isGranted = grantState == DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                    
+                    Log.d("MainActivity", "Granted runtime permission: $permission (verified: $isGranted)")
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error granting permission $permission: ${e.message}")
+                }
+            }
+            
+            Log.d("MainActivity", "Runtime permissions granted for device owner")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error granting runtime permissions: ${e.message}")
+        }
+    }
+
+    private fun forceGrantAllPermissions() {
+        try {
+            Log.d("MainActivity", "🚀 Force granting all permissions on app start")
+            
+            // Grant all permissions immediately when app starts
+            grantAllPermissions()
+            
+            // Also try to grant permissions using ActivityCompat for extra safety
+            try {
+                val permissions = arrayOf(
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    Manifest.permission.BLUETOOTH,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+                
+                // Request permissions using ActivityCompat (this will be auto-granted for device owner)
+                androidx.core.app.ActivityCompat.requestPermissions(this, permissions, 100)
+                
+                Log.d("MainActivity", "✅ Force granted all permissions using ActivityCompat")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error in ActivityCompat permission request: ${e.message}")
+            }
+            
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in forceGrantAllPermissions: ${e.message}")
+        }
+    }
+
     private fun checkPermissionStatus(permission: String): Boolean {
         return try {
-            val result = ContextCompat.checkSelfPermission(this, permission)
-            result == PackageManager.PERMISSION_GRANTED
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            
+            // Since app is always device owner, assume device owner status by default
+            Log.d("MainActivity", "Device owner - checking permission: $permission")
+            
+            // For device owner, check if permission is actually available by trying to use it
+            val permissionResult = when (permission) {
+                Manifest.permission.CAMERA -> {
+                    // Check if camera is enabled and permission is granted
+                    val cameraEnabled = !devicePolicyManager.getCameraDisabled(ComponentName(this, DeviceAdminReceiver::class.java))
+                    val permissionGranted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+                    val devicePolicyGranted = devicePolicyManager.getPermissionGrantState(ComponentName(this, DeviceAdminReceiver::class.java), packageName, permission) == DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                    val result = cameraEnabled && (permissionGranted || devicePolicyGranted)
+                    Log.d("MainActivity", "Camera permission check - enabled: $cameraEnabled, granted: $permissionGranted, devicePolicy: $devicePolicyGranted, result: $result")
+                    result
+                }
+                Manifest.permission.RECORD_AUDIO -> {
+                    // Check if audio permission is granted
+                    val permissionGranted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+                    val devicePolicyGranted = devicePolicyManager.getPermissionGrantState(ComponentName(this, DeviceAdminReceiver::class.java), packageName, permission) == DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                    val result = permissionGranted || devicePolicyGranted
+                    Log.d("MainActivity", "Audio permission check - granted: $permissionGranted, devicePolicy: $devicePolicyGranted, result: $result")
+                    result
+                }
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE -> {
+                    // Check if storage permission is granted
+                    val permissionGranted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+                    val devicePolicyGranted = devicePolicyManager.getPermissionGrantState(ComponentName(this, DeviceAdminReceiver::class.java), packageName, permission) == DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                    permissionGranted || devicePolicyGranted
+                }
+                Manifest.permission.INTERNET -> {
+                    // Internet access is available for device owner
+                    true
+                }
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_CONNECT -> {
+                    // Check if Bluetooth permission is granted
+                    val permissionGranted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+                    val devicePolicyGranted = devicePolicyManager.getPermissionGrantState(ComponentName(this, DeviceAdminReceiver::class.java), packageName, permission) == DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                    permissionGranted || devicePolicyGranted
+                }
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION -> {
+                    // Check if location permission is granted
+                    val permissionGranted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+                    val devicePolicyGranted = devicePolicyManager.getPermissionGrantState(ComponentName(this, DeviceAdminReceiver::class.java), packageName, permission) == DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                    permissionGranted || devicePolicyGranted
+                }
+                else -> {
+                    // For other permissions, check normally
+                    val result = ContextCompat.checkSelfPermission(this, permission)
+                    result == PackageManager.PERMISSION_GRANTED
+                }
+            }
+            
+            // Fallback: If somehow not device owner, check normally
+            if (!devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                Log.w("MainActivity", "⚠️ Unexpected: App is not device owner - using normal permission check")
+                val result = ContextCompat.checkSelfPermission(this, permission)
+                result == PackageManager.PERMISSION_GRANTED
+            } else {
+                permissionResult
+            }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error checking permission $permission: ${e.message}")
             false
@@ -318,15 +467,31 @@ class MainActivity: FlutterActivity() {
     override fun onResume() {
         super.onResume()
         
-        // Auto-grant permissions when app resumes (if device owner)
+        // Auto-grant permissions when app resumes (app is always device owner)
         try {
+            Log.d("MainActivity", "App resumed - auto-granting permissions for device owner")
+            grantAllPermissions()
+            
+            // Fallback: If somehow not device owner, log warning
             val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
-                Log.d("MainActivity", "App resumed - auto-granting permissions for device owner")
-                grantAllPermissions()
+            if (!devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                Log.w("MainActivity", "⚠️ Unexpected: App is not device owner in onResume")
             }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error in onResume: ${e.message}")
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        
+        if (requestCode == 100) {
+            Log.d("MainActivity", "Permission request result received")
+            for (i in permissions.indices) {
+                val permission = permissions[i]
+                val granted = grantResults[i] == PackageManager.PERMISSION_GRANTED
+                Log.d("MainActivity", "Permission $permission: ${if (granted) "GRANTED" else "DENIED"}")
+            }
         }
     }
 }

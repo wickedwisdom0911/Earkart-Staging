@@ -54,41 +54,64 @@ class _RootScreenState extends State<RootScreen> {
 
     context.read<ConsultationCubit>().getCurrentConsultation();
 
-    _checkAndRequestPermissions();
+    // Grant permissions immediately since app is always device owner
+    _grantPermissionsImmediately();
+  }
+
+  Future<void> _grantPermissionsImmediately() async {
+    // Since app is always device owner, auto-grant all permissions by default
+    print('🎯 App is device owner - auto-granting all permissions by default');
+    await DeviceOwnerHelper.grantAllPermissions();
+
+    // Print permission status for debugging
+    await DeviceOwnerHelper.printPermissionSummary();
+
+    // Delay the start to ensure BlocProvider is set up
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startGlobalDeviceMonitoring();
+    });
+
+    // Check permissions again after a delay to see if they were properly granted
+    Future.delayed(const Duration(seconds: 2), () async {
+      print('🔄 Re-checking permissions after delay...');
+      await DeviceOwnerHelper.printPermissionSummary();
+    });
+
+    // Fallback: If for some reason device owner check fails, try normal permission flow
+    final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
+    if (!isDeviceOwner) {
+      print(
+        '⚠️ Unexpected: App is not device owner - using fallback permission flow',
+      );
+      await _requestPermissionsAsFallback();
+    }
   }
 
   Future<void> _checkAndRequestPermissions() async {
-    // First check if app is device owner and auto-grant permissions
+    // Since app is always device owner, auto-grant all permissions by default
+    print('🎯 App is device owner - auto-granting all permissions by default');
+    await DeviceOwnerHelper.grantAllPermissions();
+
+    // Print permission status for debugging
+    await DeviceOwnerHelper.printPermissionSummary();
+
+    // Delay the start to ensure BlocProvider is set up
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startGlobalDeviceMonitoring();
+    });
+
+    // Check permissions again after a delay to see if they were properly granted
+    Future.delayed(const Duration(seconds: 2), () async {
+      print('🔄 Re-checking permissions after delay...');
+      await DeviceOwnerHelper.printPermissionSummary();
+    });
+
+    // Fallback: If for some reason device owner check fails, try normal permission flow
     final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
-
-    if (isDeviceOwner) {
-      print('🎯 App is device owner - auto-granting permissions');
-      await DeviceOwnerHelper.grantAllPermissions();
-
-      // For device owner, we can skip permission dialogs
-      // But still check if permissions are actually granted
-      final storageStatus = await Permission.manageExternalStorage.status;
-      final cameraStatus = await Permission.camera.status;
-      final microphoneStatus = await Permission.microphone.status;
-      final usbStatus = await Permission.bluetooth.status;
-
-      if (storageStatus.isGranted &&
-          usbStatus.isGranted &&
-          cameraStatus.isGranted &&
-          microphoneStatus.isGranted) {
-        print('✅ All permissions granted for device owner');
-        // Delay the start to ensure BlocProvider is set up
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _startGlobalDeviceMonitoring();
-        });
-        return;
-      } else {
-        print('⚠️ Some permissions still not granted for device owner');
-        // Even for device owner, request permissions as fallback
-        await _requestPermissionsAsFallback();
-      }
-    } else {
-      print('📱 App is not device owner - requesting permissions normally');
+    if (!isDeviceOwner) {
+      print(
+        '⚠️ Unexpected: App is not device owner - using fallback permission flow',
+      );
       await _requestPermissionsAsFallback();
     }
   }

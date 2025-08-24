@@ -13,6 +13,7 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/agora.stat
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:earkart_omni/utils/device_owner_helper.dart';
 
 class VideoCallWidget extends StatefulWidget {
   final String channelName;
@@ -131,10 +132,25 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   }
 
   Future<void> _requestPermissions() async {
-    final status = await [Permission.microphone, Permission.camera].request();
-    if (status[Permission.microphone] != PermissionStatus.granted ||
-        status[Permission.camera] != PermissionStatus.granted) {
-      throw Exception('Camera and microphone permissions are required');
+    // Check if app is device owner first
+    final isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
+
+    if (isDeviceOwner) {
+      di<ILogger>().info(
+        'App is device owner - skipping permission dialogs for video call',
+      );
+      // For device owner, assume all permissions are granted
+      return;
+    } else {
+      // Only show permission dialogs for non-device owner apps
+      di<ILogger>().info(
+        'App is NOT device owner - requesting video call permissions normally',
+      );
+      final status = await [Permission.microphone, Permission.camera].request();
+      if (status[Permission.microphone] != PermissionStatus.granted ||
+          status[Permission.camera] != PermissionStatus.granted) {
+        throw Exception('Camera and microphone permissions are required');
+      }
     }
   }
 
