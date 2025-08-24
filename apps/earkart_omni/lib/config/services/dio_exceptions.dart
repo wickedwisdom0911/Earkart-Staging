@@ -48,7 +48,7 @@ class DioExceptions implements Exception {
         final statusCode = dioError.response?.statusCode;
         if (statusCode == 400) {
           return BadRequestFailure(error: message, stack: dioError.stackTrace);
-        } else if (statusCode == 401 || statusCode == 403) {
+        } else if (statusCode == 403) {
           return UnauthorisedFailure(
             error: message,
             stack: dioError.stackTrace,
@@ -71,6 +71,9 @@ class DioExceptions implements Exception {
     switch (statusCode) {
       case 400:
         return 'Bad request';
+      case 401:
+        // Let session interceptor handle 401 errors
+        return 'Unauthorized';
       case 404:
         return error?.toString() ?? 'Not found';
       case 500:

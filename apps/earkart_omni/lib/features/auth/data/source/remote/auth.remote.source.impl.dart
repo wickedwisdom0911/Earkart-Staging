@@ -130,11 +130,37 @@ class AuthRemoteSourceImpl extends AuthRemoteSource {
       await centreEntityDataSource.clearBox();
       await patientEntityDataSource.clearBox();
       await consultationEntityDataSource.clearBox();
-      await countryEntityDataSource.clearBox();
-      await stateEntityDataSource.clearBox();
-      await languageEntityDataSource.clearBox();
-      await cityEntityDataSource.clearBox();
-      await districtEntityDataSource.clearBox();
+
+      // Safely clear lookup data boxes (they might not be initialized)
+      try {
+        await countryEntityDataSource.clearBox();
+      } catch (e) {
+        print("Warning: Could not clear country box: $e");
+      }
+
+      try {
+        await stateEntityDataSource.clearBox();
+      } catch (e) {
+        print("Warning: Could not clear state box: $e");
+      }
+
+      try {
+        await languageEntityDataSource.clearBox();
+      } catch (e) {
+        print("Warning: Could not clear language box: $e");
+      }
+
+      try {
+        await cityEntityDataSource.clearBox();
+      } catch (e) {
+        print("Warning: Could not clear city box: $e");
+      }
+
+      try {
+        await districtEntityDataSource.clearBox();
+      } catch (e) {
+        print("Warning: Could not clear district box: $e");
+      }
 
       print(
         "Logout: Cleared all Hive boxes - user, centre, patient, consultation, and lookup data",

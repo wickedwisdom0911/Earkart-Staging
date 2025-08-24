@@ -16,9 +16,16 @@ class SessionInterceptor extends Interceptor {
       // Check if it's a map and contains a message field
       if (responseData is Map<String, dynamic>) {
         final message = responseData['message']?.toString().toLowerCase();
-        print('🔍 [SESSION_INTERCEPTOR] Error message: $message');
+        final error = responseData['error']?.toString().toLowerCase();
+        final msg = responseData['msg']?.toString().toLowerCase();
 
-        if (_isTokenError(message)) {
+        print('🔍 [SESSION_INTERCEPTOR] Error message: $message');
+        print('🔍 [SESSION_INTERCEPTOR] Error error: $error');
+        print('🔍 [SESSION_INTERCEPTOR] Error msg: $msg');
+
+        if (_isTokenError(message) ||
+            _isTokenError(error) ||
+            _isTokenError(msg)) {
           print(
             '🔍 [SESSION_INTERCEPTOR] Token error detected in onError - triggering session expired',
           );
@@ -36,6 +43,23 @@ class SessionInterceptor extends Interceptor {
           return;
         }
       }
+    }
+
+    // Also check for 401 status code without specific message
+    if (err.response?.statusCode == 401) {
+      print(
+        '🔍 [SESSION_INTERCEPTOR] 401 status code detected - triggering session expired',
+      );
+      SessionManager.handleSessionExpired();
+
+      handler.resolve(
+        Response(
+          requestOptions: err.requestOptions,
+          statusCode: 401,
+          data: {'message': 'Session expired'},
+        ),
+      );
+      return;
     }
 
     // For other errors, continue with normal error handling
@@ -58,10 +82,17 @@ class SessionInterceptor extends Interceptor {
       if (responseData is Map<String, dynamic>) {
         final success = responseData['success'];
         final message = responseData['message']?.toString().toLowerCase();
+        final error = responseData['error']?.toString().toLowerCase();
+        final msg = responseData['msg']?.toString().toLowerCase();
+
         print('🔍 [SESSION_INTERCEPTOR] Success: $success, Message: $message');
+        print('🔍 [SESSION_INTERCEPTOR] Error: $error, Msg: $msg');
 
         // Handle case where API returns success: false with token error message
-        if (success == false && _isTokenError(message)) {
+        if (success == false &&
+            (_isTokenError(message) ||
+                _isTokenError(error) ||
+                _isTokenError(msg))) {
           print(
             '🔍 [SESSION_INTERCEPTOR] Token error detected in onResponse - triggering session expired',
           );
@@ -95,7 +126,17 @@ class SessionInterceptor extends Interceptor {
         message.contains('token expired') ||
         message.contains('unauthorized') ||
         message.contains('authentication failed') ||
-        message.contains('not authenticated');
+        message.contains('not authenticated') ||
+        message.contains('access denied') ||
+        message.contains('forbidden') ||
+        message.contains('token invalid') ||
+        message.contains('token not found') ||
+        message.contains('token is invalid') ||
+        message.contains('token has expired') ||
+        message.contains('session expired') ||
+        message.contains('login required') ||
+        message.contains('please login') ||
+        message.contains('authentication required');
 
     print(
       '🔍 [SESSION_INTERCEPTOR] Checking token error: "$message" -> $isTokenError',

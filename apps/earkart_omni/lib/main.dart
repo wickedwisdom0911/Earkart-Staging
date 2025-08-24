@@ -23,6 +23,11 @@ import 'package:earkart_omni/features/network/presentation/widgets/wakelock_stat
 import 'package:earkart_omni/features/consultation/presentation/widgets/device_status_widget.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/countries.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/state.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/city.entity.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/district.entty.source.dart';
+import 'package:earkart_omni/features/lookup/data/source/local/language.entity.source.dart';
 import 'package:earkart_omni/services/battery_service.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
@@ -301,6 +306,11 @@ Future<void> _initDataSources() async {
   await di<PatientEntityDataSource>().init();
   await di<ConsultationEntityDataSource>().init();
   await di<DeviceEntityDataSource>().init();
+  await di<CountryEntityDataSource>().init();
+  await di<StateEntityDataSource>().init();
+  await di<CityEntityDataSource>().init();
+  await di<DistrictEntityDataSource>().init();
+  await di<LanguageEntityDataSource>().init();
 }
 
 Future<void> _initLookupData() async {

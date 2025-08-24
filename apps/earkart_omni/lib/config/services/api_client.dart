@@ -5,15 +5,26 @@ import 'package:dio/dio.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 
 class API {
-  final _dio = Dio();
+  static final API _instance = API._internal();
+  late final Dio _dio;
 
-  API() {
+  factory API() {
+    return _instance;
+  }
+
+  API._internal() {
+    _dio = Dio();
     _dio.options.baseUrl = Constants.baseUrl ?? "";
+
+    // Add interceptors in the correct order
+    // Session interceptor should be first to catch all errors
+    _dio.interceptors.add(SessionInterceptor());
+
+    // Auth interceptor should be second to add auth headers
+    _dio.interceptors.add(AuthInterceptor());
+
+    // Logger should be last to log all requests/responses
     _dio.interceptors.add(PrettyDioLogger());
-    _dio.interceptors.add(AuthInterceptor()); // Add auth interceptor first
-    _dio.interceptors.add(
-      SessionInterceptor(),
-    ); // Add session interceptor after auth
   }
 
   Dio get getDio => _dio;

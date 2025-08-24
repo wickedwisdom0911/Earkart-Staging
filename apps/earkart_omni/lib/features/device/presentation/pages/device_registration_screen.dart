@@ -58,64 +58,73 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
   }
 
   Widget _deviceRegistrationForm(DeviceRegistrationState state) {
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.device_hub, size: 80, color: Colors.blue),
-          const SizedBox(height: 20),
-          const Text(
-            'Device Registration',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 30),
-          TextField(
-            controller: deviceCodeController,
-            decoration: const InputDecoration(
-              labelText: 'Device Code',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.qr_code),
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const SizedBox(height: 40),
+            const Icon(Icons.device_hub, size: 80, color: Colors.blue),
+            const SizedBox(height: 20),
+            const Text(
+              'Device Registration',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            onSubmitted: (value) {
-              if (value.isNotEmpty) {
-                context.read<DeviceRegistrationCubit>().getDeviceByValue(value);
-              }
-            },
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: state.maybeWhen(
-                loading: () => null,
-                orElse:
-                    () => () {
-                      if (deviceCodeController.text.isNotEmpty) {
-                        context
-                            .read<DeviceRegistrationCubit>()
-                            .getDeviceByValue(deviceCodeController.text);
-                      } else {
-                        Fluttertoast.showToast(msg: "Please enter device code");
-                      }
-                    },
+            const SizedBox(height: 30),
+            TextField(
+              controller: deviceCodeController,
+              decoration: const InputDecoration(
+                labelText: 'Device Code',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.qr_code),
               ),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 15),
-              ),
-              child: state.maybeWhen(
-                loading: () => const CircularProgressIndicator(),
-                orElse: () => const Text('Register Device'),
+              onSubmitted: (value) {
+                if (value.isNotEmpty) {
+                  context.read<DeviceRegistrationCubit>().getDeviceByValue(
+                    value,
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: state.maybeWhen(
+                  loading: () => null,
+                  orElse:
+                      () => () {
+                        if (deviceCodeController.text.isNotEmpty) {
+                          context
+                              .read<DeviceRegistrationCubit>()
+                              .getDeviceByValue(deviceCodeController.text);
+                        } else {
+                          Fluttertoast.showToast(
+                            msg: "Please enter device code",
+                          );
+                        }
+                      },
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+                child: state.maybeWhen(
+                  loading: () => const CircularProgressIndicator(),
+                  orElse: () => const Text('Register Device'),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          if (tabletID != null) ...[
-            Text('Tablet ID: $tabletID'),
-            Text('Android Version: $tabletAndroidVersion'),
-            Text('App Version: $tabletAppVersion'),
+            const SizedBox(height: 20),
+            if (tabletID != null) ...[
+              Text('Tablet ID: $tabletID'),
+              Text('Android Version: $tabletAndroidVersion'),
+              Text('App Version: $tabletAppVersion'),
+            ],
+            const SizedBox(height: 40),
           ],
-        ],
+        ),
       ),
     );
   }

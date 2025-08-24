@@ -24,7 +24,13 @@ class CountryEntityDataSource {
   }
 
   Future<void> clearBox() async {
-    print("Clearning country box....");
-    await countryEntityBox.deleteAll(countryEntityBox.keys);
+    print("Clearing country box....");
+    try {
+      await countryEntityBox.deleteAll(countryEntityBox.keys);
+    } catch (e) {
+      print(
+        "Warning: Could not clear country box - it may not be initialized: $e",
+      );
+    }
   }
 }
