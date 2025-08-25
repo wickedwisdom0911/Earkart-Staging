@@ -103,6 +103,14 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   void dispose() {
     di<ILogger>().info('[VIDEO_CALL] VideoCallWidget dispose() called');
     _isDisposed = true;
+    try {
+      // Leave channel when widget disposes to avoid stale joined state
+      final agoraCubit = context.read<AgoraCubit>();
+      agoraCubit.leaveChannel();
+      agoraCubit.stopTokenRenewalMonitoring();
+    } catch (e) {
+      di<ILogger>().error('[VIDEO_CALL] Error during dispose cleanup: $e');
+    }
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -363,7 +371,10 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
     if (agoraCubit.localUserJoined && agoraCubit.engine != null) {
       di<ILogger>().debug('[VIDEO_CALL] Rendering local video view');
+      final channelForRender =
+          agoraCubit.joinedChannelName ?? widget.channelName;
       return AgoraVideoView(
+        key: ValueKey('local-$channelForRender'),
         controller: VideoViewController(
           rtcEngine: agoraCubit.engine!,
           canvas: const VideoCanvas(
@@ -401,11 +412,14 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       di<ILogger>().debug(
         '[VIDEO_CALL] Rendering remote video view for UID: ${agoraCubit.remoteUid}',
       );
+      final channelForRender =
+          agoraCubit.joinedChannelName ?? widget.channelName;
       return AgoraVideoView(
+        key: ValueKey('remote-$channelForRender-${agoraCubit.remoteUid}'),
         controller: VideoViewController.remote(
           rtcEngine: agoraCubit.engine!,
           canvas: VideoCanvas(uid: agoraCubit.remoteUid),
-          connection: RtcConnection(channelId: widget.channelName),
+          connection: RtcConnection(channelId: channelForRender),
         ),
       );
     } else {

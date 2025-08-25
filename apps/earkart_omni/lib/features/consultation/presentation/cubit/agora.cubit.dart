@@ -27,6 +27,8 @@ class AgoraCubit extends Cubit<AgoraState> {
   int? _remoteUid;
   bool _localUserJoined = false;
   String? _currentChannelName;
+  String? _joinedChannelName;
+  String? _lastTokenChannelName;
   StreamSubscription? _agoraStateSubscription;
 
   // Release mode specific properties
@@ -35,6 +37,10 @@ class AgoraCubit extends Cubit<AgoraState> {
   Timer? _retryTimer;
   int _retryCount = 0;
   static int get _maxRetries => AgoraReleaseConfig.maxAgoraRetries;
+  bool _isJoining = false;
+  bool _initInProgress = false;
+  String? _requestedTokenChannelName;
+  bool _isHandlingToken = false;
 
   AgoraCubit(this.getAgoraTokenUsecase) : super(AgoraState.initial()) {
     _initializeTokenRenewalService();
@@ -146,6 +152,7 @@ class AgoraCubit extends Cubit<AgoraState> {
   bool get isInitialized => _isInitialized;
   bool get isPreviewStarted => _isPreviewStarted;
   RtcEngine? get engine => _engine;
+  String? get joinedChannelName => _joinedChannelName;
 
   /// Initialize video call with channel name
   Future<void> initializeVideoCall(String channelName) async {
@@ -166,6 +173,22 @@ class AgoraCubit extends Cubit<AgoraState> {
       _retryCount = 0;
       _isEngineCreationFailed = false;
 
+      // If we're currently joined to a different channel, leave it first
+      if (_joinedChannelName != null && _joinedChannelName != channelName) {
+        di<ILogger>().info(
+          '[VIDEO_CALL] Switching channels from $_joinedChannelName to $channelName - leaving current channel first',
+        );
+        await leaveChannel();
+      }
+
+      // If an initialization is already in progress for the same channel, skip
+      if (_initInProgress && _currentChannelName == channelName) {
+        di<ILogger>().info(
+          '[VIDEO_CALL] Initialization already in progress for this channel, skipping',
+        );
+        return;
+      }
+
       _currentChannelName = channelName;
 
       // Request permissions first
@@ -178,7 +201,7 @@ class AgoraCubit extends Cubit<AgoraState> {
         _isPermissionRequested = true;
       }
 
-      // Check if we already have a valid video call token
+      // Check if we already have a valid video call token for this channel
       final agoraState = state;
       agoraState.maybeWhen(
         success: (
@@ -189,12 +212,51 @@ class AgoraCubit extends Cubit<AgoraState> {
           isCameraOn,
           isScreenSharing,
         ) async {
-          di<ILogger>().info('[VIDEO_CALL] Using existing video call token');
-          await _handleVideoCallToken(agora);
+          if (_lastTokenChannelName == channelName && !agora.isExpired) {
+            // Avoid duplicate joins if we're already joined or joining
+            if (_localUserJoined && _joinedChannelName == channelName) {
+              di<ILogger>().info(
+                '[VIDEO_CALL] Already joined current channel, skipping re-join',
+              );
+              return;
+            }
+            if (_isJoining) {
+              di<ILogger>().info(
+                '[VIDEO_CALL] Join already in progress, skipping token handling',
+              );
+              return;
+            }
+            di<ILogger>().info(
+              '[VIDEO_CALL] Using existing video call token for this channel',
+            );
+            _initInProgress = true;
+            await _handleVideoCallToken(agora);
+          } else {
+            di<ILogger>().info(
+              '[VIDEO_CALL] Requesting new video call token (channel changed or token expired)',
+            );
+            if (_requestedTokenChannelName == channelName) {
+              di<ILogger>().info(
+                '[VIDEO_CALL] Token already requested for this channel, skipping duplicate request',
+              );
+              return;
+            }
+            _initInProgress = true;
+            _requestedTokenChannelName = channelName;
+            getAgoraToken('publisher');
+          }
         },
         orElse: () {
           di<ILogger>().info('[VIDEO_CALL] Requesting new video call token');
           // Request video call token
+          if (_requestedTokenChannelName == channelName) {
+            di<ILogger>().info(
+              '[VIDEO_CALL] Token already requested for this channel (no success state yet), skipping duplicate request',
+            );
+            return;
+          }
+          _initInProgress = true;
+          _requestedTokenChannelName = channelName;
           getAgoraToken('publisher');
         },
       );
@@ -232,6 +294,14 @@ class AgoraCubit extends Cubit<AgoraState> {
   }
 
   Future<void> _handleVideoCallToken(AgoraEntity agora) async {
+    // Prevent handling multiple tokens concurrently which can cause duplicate joins
+    if (_isHandlingToken) {
+      di<ILogger>().info(
+        '[VIDEO_CALL] Token handling already in progress, skipping duplicate',
+      );
+      return;
+    }
+    _isHandlingToken = true;
     try {
       di<ILogger>().info(
         '[VIDEO_CALL] Video call token received - AppId: ${agora.appId.substring(0, 8)}...',
@@ -250,11 +320,24 @@ class AgoraCubit extends Cubit<AgoraState> {
         startTokenRenewalMonitoring('publisher');
       }
 
+      // If we are already joined to the desired channel, do not attempt re-join
+      if (_localUserJoined && _joinedChannelName == _currentChannelName) {
+        di<ILogger>().info(
+          '[VIDEO_CALL] Already joined target channel, skipping engine setup/join',
+        );
+        return;
+      }
+
       await _setupAgoraEngine(agora.appId);
+      // Remember which channel this token was created for
+      _lastTokenChannelName = _currentChannelName;
       await _joinChannel(agora.token, agora.userId);
     } catch (e) {
       di<ILogger>().error('[VIDEO_CALL] Error handling video call token: $e');
       emit(AgoraError(message: 'Error setting up video call: ${e.toString()}'));
+    } finally {
+      _isHandlingToken = false;
+      _initInProgress = false;
     }
   }
 
@@ -362,7 +445,13 @@ class AgoraCubit extends Cubit<AgoraState> {
             di<ILogger>().info(
               '[VIDEO_CALL] Channel join elapsed time: ${elapsed}ms',
             );
+            _joinedChannelName = connection.channelId;
             _localUserJoined = true;
+            _isJoining = false;
+            _requestedTokenChannelName = null;
+            _initInProgress = false;
+            // Ensure local camera and mic are published after join
+            _ensureCameraPublishing();
             _emitCurrentState();
           },
           onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
@@ -391,6 +480,8 @@ class AgoraCubit extends Cubit<AgoraState> {
             di<ILogger>().error(
               '[VIDEO_CALL] Agora video call error: $err - $msg',
             );
+            _isJoining = false;
+            _initInProgress = false;
 
             // Handle specific error codes that might require retry
             if (err == ErrorCodeType.errInvalidArgument ||
@@ -435,6 +526,8 @@ class AgoraCubit extends Cubit<AgoraState> {
               di<ILogger>().error(
                 '[VIDEO_CALL] Connection failed, attempting retry',
               );
+              _isJoining = false;
+              _initInProgress = false;
               _scheduleRetry();
             }
           },
@@ -595,6 +688,9 @@ class AgoraCubit extends Cubit<AgoraState> {
       _localUserJoined = false;
       _remoteUid = null;
       _isEngineCreationFailed = false;
+      _isJoining = false;
+      _initInProgress = false;
+      _isHandlingToken = false;
 
       // Get fresh token and retry
       getAgoraToken('publisher');
@@ -633,11 +729,39 @@ class AgoraCubit extends Cubit<AgoraState> {
       return;
     }
 
-    if (_localUserJoined) {
+    if (_isJoining) {
       di<ILogger>().info(
-        '[VIDEO_CALL] Already joined video call channel, skipping join request',
+        '[VIDEO_CALL] Join already in progress, skipping duplicate join request',
       );
       return;
+    }
+    _isJoining = true;
+
+    // If already joined to this channel, skip
+    if (_localUserJoined && _joinedChannelName == _currentChannelName) {
+      di<ILogger>().info(
+        '[VIDEO_CALL] Already joined to current channel ($_joinedChannelName), skipping join',
+      );
+      _isJoining = false;
+      return;
+    }
+
+    if (_localUserJoined) {
+      if (_joinedChannelName == _currentChannelName) {
+        di<ILogger>().info(
+          '[VIDEO_CALL] Already joined video call channel ($_joinedChannelName), skipping join request',
+        );
+        _isJoining = false;
+        return;
+      } else {
+        di<ILogger>().info(
+          '[VIDEO_CALL] Joined different channel ($_joinedChannelName), leaving to join new channel ($_currentChannelName)',
+        );
+        final desiredChannel = _currentChannelName;
+        await leaveChannel();
+        _currentChannelName =
+            desiredChannel; // restore desired channel after reset
+      }
     }
 
     di<ILogger>().info(
@@ -691,8 +815,22 @@ class AgoraCubit extends Cubit<AgoraState> {
       );
     } catch (e) {
       di<ILogger>().error('[VIDEO_CALL] Error joining video call channel: $e');
-      emit(AgoraError(message: 'Error joining video call: ${e.toString()}'));
+      // Gracefully handle duplicate join (-17): treat as success if we actually are joined
+      final isDuplicateJoin = e.toString().contains('AgoraRtcException(-17');
+      if (isDuplicateJoin) {
+        di<ILogger>().warning(
+          '[VIDEO_CALL] Duplicate join detected, reconciling state',
+        );
+        // Assume join succeeded; emit current state and continue
+        _joinedChannelName = _currentChannelName;
+        _localUserJoined = true;
+        _emitCurrentState();
+      } else {
+        emit(AgoraError(message: 'Error joining video call: ${e.toString()}'));
+      }
       rethrow;
+    } finally {
+      _isJoining = false;
     }
   }
 
@@ -956,9 +1094,41 @@ class AgoraCubit extends Cubit<AgoraState> {
     _localUserJoined = false;
     _remoteUid = null;
     _currentChannelName = null;
+    _joinedChannelName = null;
+    _lastTokenChannelName = null;
     _isScreenSharing = false;
     _retryCount = 0;
     _isEngineCreationFailed = false;
+    _isJoining = false;
+    _initInProgress = false;
+    _requestedTokenChannelName = null;
+    _isHandlingToken = false;
+  }
+
+  /// Ensure camera track is being published after join
+  Future<void> _ensureCameraPublishing() async {
+    try {
+      if (_engine == null) return;
+      await _engine!.muteLocalVideoStream(false);
+      await _engine!.muteLocalAudioStream(false);
+      await _engine!.updateChannelMediaOptions(
+        const ChannelMediaOptions(
+          publishCameraTrack: true,
+          publishMicrophoneTrack: true,
+          autoSubscribeVideo: true,
+          autoSubscribeAudio: true,
+          clientRoleType: ClientRoleType.clientRoleBroadcaster,
+        ),
+      );
+      if (!_isPreviewStarted) {
+        await _startPreview();
+      }
+      di<ILogger>().info(
+        '[VIDEO_CALL] Verified camera/mic publishing after join',
+      );
+    } catch (e) {
+      di<ILogger>().error('[VIDEO_CALL] Error ensuring camera publishing: $e');
+    }
   }
 
   /// Handle app lifecycle changes

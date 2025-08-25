@@ -1410,6 +1410,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
   void _handleConsultationCompletion() async {
     try {
+      // Ensure we leave the Agora video call channel and stop token monitoring
+      try {
+        final agoraCubit = context.read<AgoraCubit>();
+        await agoraCubit.leaveChannel();
+        agoraCubit.stopTokenRenewalMonitoring();
+      } catch (e) {
+        di<ILogger>().error('Error leaving Agora channel on completion: $e');
+      }
+
       // Leave the consultation channel via socket
       if (_isSocketInitialized && consultation?.id != null) {
         socket.emit("end:consultation", {"consultationId": consultation?.id});
