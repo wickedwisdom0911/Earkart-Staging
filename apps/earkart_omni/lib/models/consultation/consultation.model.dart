@@ -157,13 +157,13 @@ class ConsultationModelData extends ConsultationEntity {
       centre:
           json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
       recordings:
-          json['recordings'] != null
+          json['recordings'] != null && json['recordings'] is List
               ? List<ConsultationRecording>.from(
                 (json['recordings'] as List).map(
                   (x) => ConsultationRecording.fromJson(x),
                 ),
               )
-              : null,
+              : <ConsultationRecording>[],
       consultationPricing:
           json['consultationPricing'] != null
               ? List<ConsultationPricingEntity>.from(

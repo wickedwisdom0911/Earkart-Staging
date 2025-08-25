@@ -123,9 +123,11 @@ class ConsultationEntity extends Equatable {
     centre:
         json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
     recordings:
-        (json['recordings'] as List?)
-            ?.map((x) => ConsultationRecordingEntity.fromJson(x))
-            .toList(),
+        json['recordings'] != null && json['recordings'] is List
+            ? (json['recordings'] as List)
+                .map((x) => ConsultationRecordingEntity.fromJson(x))
+                .toList()
+            : <ConsultationRecordingEntity>[],
     consultationPricing:
         (json['consultationPricing'] as List?)
             ?.map((x) => ConsultationPricingEntity.fromJson(x))
