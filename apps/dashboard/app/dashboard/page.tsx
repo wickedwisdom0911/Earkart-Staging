@@ -26,33 +26,7 @@ import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import getConsultation from "@/actions/consultations/get_consultation";
 import { toast } from "sonner";
-import getRecordingsBySession from "@/actions/recordings/get-by-session";
-
-function RecordingLink({ sessionId }: { sessionId: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const recs = await getRecordingsBySession(sessionId);
-        const latest = Array.isArray(recs) ? recs.find((r) => r.recordingUrl) : null;
-        if (mounted) setUrl(latest?.recordingUrl ?? null);
-      } catch {}
-    })();
-    return () => { mounted = false; };
-  }, [sessionId]);
-  if (!url) return null;
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      className="mt-3 inline-flex w-full items-center justify-center px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition-colors duration-200"
-    >
-      View recording
-    </a>
-  );
-}
+// Removed RecordingLink component – we will use consultation.recordings provided by API
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -402,7 +376,19 @@ export default function DashboardPage() {
                   )}
                 </button>
               )}
-            <RecordingLink sessionId={consultation.id} />
+            {consultation.status === SessionStatus.COMPLETED &&
+              Array.isArray(consultation.recordings) &&
+              consultation.recordings.length > 0 &&
+              consultation.recordings[0]?.recordingUrl && (
+                <a
+                  href={consultation.recordings[0].recordingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex w-full items-center justify-center px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition-colors duration-200"
+                >
+                  View recording
+                </a>
+            )}
           </div>
         )}
       </div>
