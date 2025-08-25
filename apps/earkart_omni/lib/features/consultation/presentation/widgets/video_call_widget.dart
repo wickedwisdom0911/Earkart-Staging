@@ -12,16 +12,42 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/agora.stat
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 
+class VideoCallController {
+  _VideoCallWidgetState? _state;
+
+  void _attach(_VideoCallWidgetState state) {
+    _state = state;
+  }
+
+  void _detach(_VideoCallWidgetState state) {
+    if (identical(_state, state)) {
+      _state = null;
+    }
+  }
+
+  Future<void> leaveChannelOnly() async {
+    await _state?.leaveChannelOnly();
+  }
+
+  Future<void> endConsultation() async {
+    await _state?.endConsultation();
+  }
+}
+
 class VideoCallWidget extends StatefulWidget {
   final String channelName;
   final String consultationId;
   final VoidCallback? onLeaveChannel;
+  final Future<void> Function()? onEndCall;
+  final VideoCallController? controller;
 
   const VideoCallWidget({
     Key? key,
     required this.channelName,
     required this.consultationId,
     this.onLeaveChannel,
+    this.onEndCall,
+    this.controller,
   }) : super(key: key);
 
   @override
@@ -36,6 +62,8 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Attach controller if provided
+    widget.controller?._attach(this);
     di<ILogger>().info(
       '[VIDEO_CALL] Initializing video call widget for consultation: ${widget.consultationId}',
     );
@@ -46,6 +74,11 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   @override
   void didUpdateWidget(VideoCallWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Reattach controller if changed
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._detach(this);
+      widget.controller?._attach(this);
+    }
     // Reset state if channel name changed
     if (oldWidget.channelName != widget.channelName) {
       di<ILogger>().info(
@@ -104,6 +137,8 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     di<ILogger>().info('[VIDEO_CALL] VideoCallWidget dispose() called');
     _isDisposed = true;
     try {
+      // Detach controller
+      widget.controller?._detach(this);
       // Leave channel when widget disposes to avoid stale joined state
       final agoraCubit = context.read<AgoraCubit>();
       agoraCubit.leaveChannel();
@@ -317,15 +352,20 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                                 di<ILogger>().info(
                                   '[VIDEO_CALL] Updating consultation with ID: ${widget.consultationId}',
                                 );
-                                // Update consultation status to completed
-                                context
-                                    .read<ConsultationCubit>()
-                                    .updateConsultation(
-                                      ConsultationEntity(
-                                        id: widget.consultationId,
-                                        status: SessionStatus.completed,
-                                      ),
-                                    );
+                                // If parent provided an end-call handler, delegate to it
+                                if (widget.onEndCall != null) {
+                                  await widget.onEndCall!.call();
+                                } else {
+                                  // Fallback: Update consultation status to completed
+                                  context
+                                      .read<ConsultationCubit>()
+                                      .updateConsultation(
+                                        ConsultationEntity(
+                                          id: widget.consultationId,
+                                          status: SessionStatus.completed,
+                                        ),
+                                      );
+                                }
                               } catch (e) {
                                 di<ILogger>().error(
                                   '[VIDEO_CALL] Error ending consultation: $e',

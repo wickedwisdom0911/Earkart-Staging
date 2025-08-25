@@ -53,6 +53,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   bool _socketReconnectFailed = false;
   final GlobalKey _videoWidgetKey = GlobalKey();
   VideoCallWidget? _videoWidget;
+  final VideoCallController _videoController = VideoCallController();
+  bool _hasEmittedEndCall = false;
+  bool _endCallInProgress = false;
 
   Timer? _deviceEventDebounceTimer;
   CommunicationState? _lastEmittedDeviceState;
@@ -703,6 +706,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         key: _videoWidgetKey,
         channelName: channelName,
         consultationId: consultationId,
+        controller: _videoController,
+        onEndCall: _onEndCallPressed,
         onLeaveChannel: () {
           // This will be called when the video channel is left
           di<ILogger>().debug('Video channel left successfully');
@@ -710,6 +715,43 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       );
     }
     return _videoWidget!;
+  }
+
+  Future<void> _onEndCallPressed() async {
+    if (_endCallInProgress) {
+      di<ILogger>().debug('End call already in progress, ignoring duplicate');
+      return;
+    }
+    final String? consultationId = consultation?.id;
+    if (consultationId == null || consultationId.isEmpty) {
+      di<ILogger>().error('Cannot end call: missing consultationId');
+      _showErrorSnackBar('Cannot end consultation: missing ID');
+      return;
+    }
+
+    _endCallInProgress = true;
+    try {
+      // Emit socket event immediately on button press
+      if (_isSocketInitialized && !_hasEmittedEndCall) {
+        di<ILogger>().info('Emitting end:consultation for $consultationId');
+        socket.emit("end:consultation", {"consultationId": consultationId});
+        _hasEmittedEndCall = true;
+      }
+
+      // Leave Agora channel via controller without clearing sessions
+      try {
+        await _videoController.leaveChannelOnly();
+      } catch (e) {
+        di<ILogger>().error('Error leaving video channel: $e');
+      }
+
+      // Update consultation to completed
+      context.read<ConsultationCubit>().updateConsultation(
+        ConsultationEntity(id: consultationId, status: SessionStatus.completed),
+      );
+    } finally {
+      _endCallInProgress = false;
+    }
   }
 
   @override
@@ -1420,8 +1462,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       }
 
       // Leave the consultation channel via socket
-      if (_isSocketInitialized && consultation?.id != null) {
+      if (_isSocketInitialized &&
+          consultation?.id != null &&
+          !_hasEmittedEndCall) {
         socket.emit("end:consultation", {"consultationId": consultation?.id});
+        _hasEmittedEndCall = true;
       }
 
       // Clear patient and consultation data
