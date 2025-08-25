@@ -2,6 +2,26 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:developer' as dev;
 
+/// Packet format interpreter for USB communication with audio devices.
+///
+/// This class handles the construction and parsing of packets according to the
+/// device protocol. It includes a USB buffer fix that adds a null byte after
+/// packets that are exactly 512 bytes long to prevent them from getting stuck
+/// in USB endpoint buffers.
+///
+/// Protocol format: [STK][ID][LEN_HIGH][LEN_LOW][PAYLOAD][CRC][ETK]
+/// Where:
+/// - STK: Start token (0x4B / 'K')
+/// - ID: Packet identifier
+/// - LEN_HIGH/LEN_LOW: Payload length in big-endian format
+/// - PAYLOAD: JSON data with null terminator
+/// - CRC: XOR-based checksum of payload
+/// - ETK: End token (0x6B / 'k')
+///
+/// USB Buffer Fix: When a packet is exactly 512 bytes, a null byte (0x00) is
+/// added after the end token to prevent the packet from getting stuck in USB
+/// endpoint buffers. This null byte is not part of the protocol and is ignored
+/// during parsing.
 class PacketFormatInterpreter {
   final int Stk = 0x4B; // Start Token ('K')
   final int Etk = 0x6B; // End Token ('k')
@@ -38,9 +58,13 @@ class PacketFormatInterpreter {
 
     List<int> packet = [Stk, 0x42, lengthHigh, lengthLow, ...payload, crc, Etk];
 
+    // Apply USB 512-byte buffer fix
+    _applyUsbBufferFix(packet, context: 'JSON packet');
+
     // _log('Final packet: ${_bytesToHex(packet)}');
     _log('=== Packet Construction Complete ===\n');
     _log('[USB] Sent: ${jsonEncode(jsonPayload)}');
+    _log('[USB] Packet size: ${packet.length} bytes');
 
     return Uint8List.fromList(packet);
   }
@@ -97,6 +121,9 @@ class PacketFormatInterpreter {
 
     // Add end token
     packet.add(endToken);
+
+    // Apply USB 512-byte buffer fix
+    _applyUsbBufferFix(packet, context: 'serial number query packet');
 
     return Uint8List.fromList(packet);
   }
@@ -328,7 +355,12 @@ Invalid tokens:
         'Expected total length: $expectedTotalLength, Actual length: ${packet.length}',
       );
 
-      if (packet.length != expectedTotalLength) {
+      // Check for USB buffer fix (null byte after 512-byte packets)
+      bool hasUsbBufferFix =
+          packet.length == expectedTotalLength + 1 &&
+          packet[packet.length - 1] == 0x00;
+
+      if (packet.length != expectedTotalLength && !hasUsbBufferFix) {
         print(
           'Length mismatch: Expected $expectedTotalLength, got ${packet.length}',
         );
@@ -376,5 +408,16 @@ Invalid tokens:
   void clearCache() {
     _cache.clear();
     _log('Cache cleared');
+  }
+
+  /// Apply USB 512-byte buffer fix to prevent packets from getting stuck
+  /// This adds a null byte after packets that are exactly 512 bytes long
+  void _applyUsbBufferFix(List<int> packet, {String context = 'packet'}) {
+    if (packet.length == 512) {
+      packet.add(0x00); // Add null byte after the complete packet
+      _log(
+        'Added null byte after $context to avoid 512-byte USB buffer issue (now ${packet.length} bytes)',
+      );
+    }
   }
 }
