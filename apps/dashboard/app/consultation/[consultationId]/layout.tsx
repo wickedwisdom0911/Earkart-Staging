@@ -90,7 +90,7 @@ export default function ConsultationLayout({
             pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
             className="border-none "
             button={
-              <div className="flex items-center justify-center gap-4 w-full">
+              <div className="flex items-center  justify-center gap-2 mr-2">
                 {/* R15C Device Status */}
                 <div className="flex items-center gap-2">
                   <div
@@ -147,6 +147,8 @@ export default function ConsultationLayout({
                     View recording
                   </a>
                 )}
+
+                {/* Testing complete button removed */}
               </div>
             }
           >
@@ -167,18 +169,18 @@ export default function ConsultationLayout({
               role="dialog"
               aria-modal="true"
             >
-              <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-                <h3 className="text-lg font-semibold mb-2">Recording required</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  To continue this consultation, please start recording and select <b>Entire Screen</b> in the share picker.
+              <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl border border-gray-200">
+                <h3 className="text-2xl font-bold mb-4 text-gray-800">Recording Required</h3>
+                <p className="text-base text-gray-700 mb-6 leading-relaxed">
+                  To continue this consultation, please start recording and select <b className="text-blue-600">Entire Screen</b> in the share picker.
                 </p>
                 {recordingState.error?.includes("Entire Screen") && (
-                  <div className="mb-3 text-sm text-yellow-800 bg-yellow-100 rounded px-3 py-2">
+                  <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">
                     Please select "Entire Screen" in the picker and try again.
                   </div>
                 )}
                 <button
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-60"
+                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-60 hover:bg-blue-700 transition-colors duration-200 font-semibold text-lg shadow-lg"
                   onClick={() =>
                     startRecording({
                       filename: `consultation-${consultationId}-${Date.now()}.webm`,
@@ -189,7 +191,7 @@ export default function ConsultationLayout({
                   }
                   disabled={recordingState.isInitializing}
                 >
-                  {recordingState.isInitializing ? "Starting..." : "Start recording"}
+                  {recordingState.isInitializing ? "Starting..." : "Start Recording"}
                 </button>
               </div>
             </div>
