@@ -9,7 +9,7 @@ import { OtoscopyProvider } from "@/providers/otoscopy-provider";
 import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
 import { ConsultationContent } from "./_components/consultation-content";
 import AgoraRTC, { AgoraRTCProvider } from "agora-rtc-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useScreenRecordingUpload } from "@/hooks/recording/use-screen-recording-upload";
 import { SessionStatus } from "@/models/enums";
 
@@ -19,6 +19,7 @@ export default function ConsultationLayout({
   children: React.ReactNode;
 }) {
   const { consultationId } = useParams() as { consultationId: string };
+  const router = useRouter();
   const socket = useSocket();
 
   const {
@@ -55,6 +56,29 @@ export default function ConsultationLayout({
       socket.off("connect", handleConnect);
     };
   }, [socket, consultationId]);
+
+  // Listen for explicit end event from socket and redirect to dashboard after finalizing recording
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleEnd = async () => {
+      try {
+        if (recordingState.isRecording || recordingState.isInitializing) {
+          await stopRecording(); // flush and complete
+        } else {
+          await completeRecording(); // finalize if parts exist
+        }
+      } catch {}
+      if (process.env.NODE_ENV === "development") {
+        try { window.location.href = "http://localhost:3001/dashboard"; } catch {}
+      } else {
+        router.push("/dashboard");
+      }
+    };
+
+    socket.on("end:consultation", handleEnd);
+    return () => { socket.off("end:consultation", handleEnd); };
+  }, [socket, stopRecording, completeRecording, recordingState.isRecording, recordingState.isInitializing, router]);
 
   // Do NOT auto-start: require explicit user click due to browser security.
   // Auto-stop and auto-complete when consultation ends.
@@ -103,6 +127,16 @@ export default function ConsultationLayout({
   if (!consultation?.data) return <div>No data</div>;
 
   const consultationData = consultation.data as ConsultationModelData;
+  try {
+    console.log("[layout] consultation.data:", consultationData);
+    console.log("[layout] recordings:", (consultationData as any)?.recordings);
+    console.log(
+      "[layout] recordingName(s):",
+      (consultationData as any)?.recordingName,
+      (consultationData as any)?.recordingsName,
+      (consultationData as any)?.recording?.name
+    );
+  } catch {}
 
   return (
     <OtoscopyProvider consultationId={consultationId}>
@@ -112,7 +146,7 @@ export default function ConsultationLayout({
             pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
             className="border-none "
             button={
-              <div className="flex items-center  justify-center gap-2 mr-2">
+              <div className="flex items-center justify-center gap-6 mr-2">
                 {/* R15C Device Status */}
                 <div className="flex items-center gap-2">
                   <div
