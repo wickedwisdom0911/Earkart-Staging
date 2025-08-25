@@ -73,6 +73,28 @@ export default function ConsultationLayout({
     }
   }, [consultation, stopRecording, recordingState.isRecording, recordingState.isUploading]);
 
+  // Prefer playback from consultation's new recording fields via callback
+  const [externalPlaybackUrl, setExternalPlaybackUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const data = (consultation?.data as any) || {};
+    const status = data?.status;
+    const recordingName = data?.recordingName ?? data?.recordingsName ?? data?.recording?.name ?? null;
+    const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
+    if (status === SessionStatus.COMPLETED && callbackBase && recordingName) {
+      (async () => {
+        try {
+          const url = `${callbackBase}?name=${encodeURIComponent(recordingName)}`;
+          const res = await fetch(url, { cache: "no-store" });
+          if (res.ok) {
+            const json = await res.json().catch(() => ({} as any));
+            const playback = json?.url ?? json?.playbackUrl ?? json?.playback_url ?? null;
+            if (typeof playback === "string") setExternalPlaybackUrl(playback);
+          }
+        } catch {}
+      })();
+    }
+  }, [consultation]);
+
   // Create a single Agora client instance shared across this layout (must be called every render before conditional returns)
   const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
 
@@ -136,10 +158,10 @@ export default function ConsultationLayout({
                   </div>
                 )}
 
-                {/* View recording when available */}
-                {recordingState.playbackUrl && (
+                {/* View recording when available (prefer external callback) */}
+                {(externalPlaybackUrl || recordingState.playbackUrl) && (
                   <a
-                    href={recordingState.playbackUrl}
+                    href={externalPlaybackUrl || recordingState.playbackUrl!}
                     target="_blank"
                     rel="noreferrer"
                     className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
