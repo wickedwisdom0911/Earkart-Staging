@@ -1,7 +1,5 @@
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
-import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
-import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,6 +7,13 @@ import 'package:earkart_omni/di.dart';
 
 class ErrorHandler {
   static final ILogger _logger = di<ILogger>();
+
+  /// Errors that should NOT display a snackbar (expected empty states)
+  static final List<String> _suppressedErrorSubstrings = <String>[
+    'No consultation found',
+    'No patient found',
+    'No patients found',
+  ];
 
   /// Check if an error message should trigger automatic logout
   static bool shouldAutoLogout(String errorMessage) {
@@ -26,6 +31,13 @@ class ErrorHandler {
     return autoLogoutErrors.any((error) => errorMessage.contains(error));
   }
 
+  /// Check if an error message should be suppressed (no snackbar shown)
+  static bool shouldSuppress(String errorMessage) {
+    return _suppressedErrorSubstrings.any(
+      (needle) => errorMessage.contains(needle),
+    );
+  }
+
   /// Handle error with automatic logout for specific cases
   static void handleError(
     BuildContext context,
@@ -33,6 +45,12 @@ class ErrorHandler {
     String? source,
   }) {
     _logger.error('Error from $source: $errorMessage');
+
+    // Suppress expected empty-state errors to avoid noisy snackbars
+    if (shouldSuppress(errorMessage)) {
+      _logger.info('Suppressed error (no snackbar): $errorMessage');
+      return;
+    }
 
     if (shouldAutoLogout(errorMessage)) {
       _logger.error('Auto-logging out due to error: $errorMessage');

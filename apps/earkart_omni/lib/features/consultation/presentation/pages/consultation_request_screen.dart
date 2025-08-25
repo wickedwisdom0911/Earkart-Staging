@@ -723,15 +723,7 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                                     );
                                   },
                                   error: (message) {
-                                    print('Consultation error: $message');
-                                    // Reset submission state on error
                                     _isSubmitting = false;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Error: $message'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
                                   },
                                   loading: () {
                                     // Keep submission state true while loading
