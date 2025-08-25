@@ -25,6 +25,8 @@ type StartOptions = {
 	timesliceMs?: number; // default 5000
 	maxConcurrentUploads?: number; // default 3
 	requireEntireScreen?: boolean; // enforce that user selects Entire Screen in the picker
+	captureMic?: boolean; // default true - include microphone audio
+	captureSystemAudio?: boolean; // default false - include system/tab audio (if supported by browser)
 };
 
 export type ScreenRecordingState = {
@@ -64,6 +66,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const mediaStreamRef = useRef<MediaStream | null>(null);
+	const micStreamRef = useRef<MediaStream | null>(null);
 	const trackedVideoRef = useRef<MediaStreamTrack | null>(null);
 	const trackedStreamRef = useRef<MediaStream | null>(null);
 	const trackEndHandlerRef = useRef<(() => void) | null>(null);
@@ -200,18 +203,20 @@ export function useScreenRecordingUpload(consultationId: string) {
 			setState((s) => ({ ...s, uploadId }));
 
 
-			// 2) Capture screen
-			const stream = await navigator.mediaDevices.getDisplayMedia({
+
+			// 2) Capture screen (optionally with system audio if supported)
+			const includeSystemAudio = opts?.captureSystemAudio === true;
+			const screenStream = await navigator.mediaDevices.getDisplayMedia({
 				video: { frameRate: 15 },
-				audio: false,
+				audio: includeSystemAudio, // some browsers support tab/system audio when true
 			});
-			mediaStreamRef.current = stream;
+			mediaStreamRef.current = screenStream;
 
 			// Listen for user stopping from browser UI (track ended / stream inactive)
 			try {
-				const vTrack = stream.getVideoTracks()[0] || null;
+				const vTrack = screenStream.getVideoTracks()[0] || null;
 				trackedVideoRef.current = vTrack;
-				trackedStreamRef.current = stream;
+				trackedStreamRef.current = screenStream;
 				if (vTrack) {
 					const onEnded = async () => {
 						if (!uploadIdRef.current && mediaRecorderRef.current == null) return;
@@ -227,13 +232,13 @@ export function useScreenRecordingUpload(consultationId: string) {
 					setState((s) => ({ ...s, isRecording: false, isUploading: true }));
 					await stop();
 				};
-				(stream as any).addEventListener?.("inactive", onInactive);
-				streamInactiveHandlerRef.current = () => (stream as any).removeEventListener?.("inactive", onInactive);
+				(screenStream as any).addEventListener?.("inactive", onInactive);
+				streamInactiveHandlerRef.current = () => (screenStream as any).removeEventListener?.("inactive", onInactive);
 			} catch {}
 
 			// If Entire Screen is required, validate selection; otherwise abort and prompt user to re-try
 			if (opts?.requireEntireScreen) {
-				const track = stream.getVideoTracks()[0];
+				const track = screenStream.getVideoTracks()[0];
 				const settings = (track?.getSettings?.() as any) || {};
 				if (settings?.displaySurface !== "monitor") {
 					try { track?.stop?.(); } catch {}
@@ -257,8 +262,25 @@ export function useScreenRecordingUpload(consultationId: string) {
 				}
 			}
 
+			// Optionally capture microphone and merge tracks into a single mixed stream
+			let finalStream: MediaStream = screenStream;
+			const wantsMic = opts?.captureMic !== false; // default true
+			if (wantsMic) {
+				try {
+					const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+					micStreamRef.current = mic;
+					finalStream = new MediaStream([
+						...screenStream.getVideoTracks(),
+						...screenStream.getAudioTracks(),
+						...mic.getAudioTracks(),
+					]);
+				} catch (e) {
+					console.warn("Mic capture failed; proceeding without mic:", e);
+				}
+			}
+
 			// 3) Create MediaRecorder
-			const recorder = new MediaRecorder(stream, { mimeType: preferredMime, videoBitsPerSecond: 2_000_000 });
+			const recorder = new MediaRecorder(finalStream, { mimeType: preferredMime, videoBitsPerSecond: 2_000_000 });
 			mediaRecorderRef.current = recorder;
 
 			recorder.ondataavailable = (ev: BlobEvent) => {
@@ -296,7 +318,9 @@ export function useScreenRecordingUpload(consultationId: string) {
 			try { mediaRecorderRef.current?.stop(); } catch {}
 			mediaRecorderRef.current = null;
 			try { mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+			try { micStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
 			mediaStreamRef.current = null;
+			micStreamRef.current = null;
 			uploadIdRef.current = null;
 			uploadedPartsRef.current = [];
 			queueRef.current = [];
