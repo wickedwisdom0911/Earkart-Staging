@@ -146,7 +146,7 @@ export default function ConsultationLayout({
             pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
             className="border-none "
             button={
-              <div className="flex items-center  justify-center gap-2 mr-2">
+              <div className="flex items-center justify-center gap-6 mr-2">
                 {/* R15C Device Status */}
                 <div className="flex items-center gap-2">
                   <div

@@ -181,11 +181,14 @@ export default function PureTonePage() {
 
   // Populate test results from existing audiometry data
   useEffect(() => {
-    if (socket) {
-      socket.on("patient-response", (data) => {
-        setIsPatientResponse(data.patientResponse);
-      });
-    }
+    if (!socket) return;
+    const onPatientResponse = (data: any) => {
+      setIsPatientResponse(!!data?.patientResponse);
+    };
+    socket.on("patient-response", onPatientResponse);
+    return () => {
+      socket.off("patient-response", onPatientResponse);
+    };
 
     if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
       return;
@@ -884,14 +887,19 @@ export default function PureTonePage() {
       `}</style>
       {/* Patient Response Indicator */}
       {isPatientResponse && (
-        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded-md">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
-            <span className="text-yellow-800 font-medium">
-              Patient Responded
-            </span>
+        <>
+          {/* Full-screen visual cue */}
+          <div className="fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center">
+            <div className="absolute inset-0 bg-green-200/25 animate-pulse" />
+            <div className="relative pointer-events-none bg-white/90 border border-green-300 rounded-2xl shadow-xl px-8 py-6 text-center">
+              <div className="mx-auto mb-2 relative flex h-5 w-5 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-600"></span>
+              </div>
+              <div className="text-green-700 font-semibold text-lg tracking-wide">Patient Responded</div>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       <div className="mb-6">
@@ -924,8 +932,8 @@ export default function PureTonePage() {
       </div>
 
       {/* Full Controls (Right-side floating) */}
-      <div className="fixed right-4 top-1/2 -translate-y-1/2 z-40 w-72">
-        <div className="bg-white shadow-lg rounded-lg p-3 w-64 border">
+      <div className="fixed right-4 top-28 md:top-1/2 md:-translate-y-1/2 z-30 w-72">
+        <div className="bg-white shadow-lg rounded-lg p-3 w-64 border max-h-[calc(100vh-8rem)] overflow-auto">
           <div className="mb-3">
             <label className="block text-xs font-medium mb-1">Ear</label>
             <div className="flex gap-2">
