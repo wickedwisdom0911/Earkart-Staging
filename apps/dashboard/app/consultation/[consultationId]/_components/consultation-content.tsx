@@ -61,9 +61,9 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
   if (shouldEnlargeVideo) {
     // Cropping controls - tweak these values later as needed
     const cropLeft = 0.0;      // 0.0 = left edge, range 0.0 - 1.0
-    const cropTop = 0.2;       // 0.0 = top edge, range 0.0 - 1.0
-    const cropWidth = 0.5;     // visible width as fraction of original (50% width)
-    const cropHeight = .6    // visible height as fraction of original (full height)
+    const cropTop = 0;       // 0.0 = top edge, range 0.0 - 1.0
+    const cropWidth = 0;     // visible width as fraction of original (50% width)
+    const cropHeight = 0    // visible height as fraction of original (full height)
 
     const scaleX = 1 / cropWidth;
     const scaleY = 1 / cropHeight;
