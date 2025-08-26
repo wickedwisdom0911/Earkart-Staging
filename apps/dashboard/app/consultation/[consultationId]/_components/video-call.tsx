@@ -22,6 +22,7 @@ interface VideoCallProps {
   channel: string;
   patientName: string;
   isFullscreen?: boolean;
+  onBeforeLeaveCall?: () => Promise<void>;
 }
 
 const VideoCallSkeleton = () => {
@@ -94,6 +95,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   channel,
   patientName,
   isFullscreen = false,
+  onBeforeLeaveCall,
 }) => {
   const localRef = useRef<HTMLDivElement>(null);
   const remoteRef = useRef<HTMLDivElement>(null);
@@ -304,6 +306,11 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         try {
           setIsLeaving(true);
           setError(null);
+
+          // finalize screen recording (if provided by parent)
+          if (onBeforeLeaveCall) {
+            try { await onBeforeLeaveCall(); } catch {}
+          }
 
           // Aggressive cleanup of tracks
           const cleanupTrack = async (track: ILocalTrack) => {

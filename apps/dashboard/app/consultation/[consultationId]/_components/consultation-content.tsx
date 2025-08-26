@@ -8,12 +8,14 @@ interface ConsultationContentProps {
   consultationId: string;
   patientName: string;
   children: React.ReactNode;
+  onBeforeLeaveCall?: () => Promise<void>;
 }
 
 export const ConsultationContent: React.FC<ConsultationContentProps> = ({
   consultationId,
   patientName,
   children,
+  onBeforeLeaveCall,
 }) => {
   const { isOtoscopyActive, stopOtoscopy } = useOtoscopy();
   const pathname = usePathname();
@@ -89,6 +91,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
                   channel={consultationId}
                   patientName={patientName}
                   isFullscreen={true}
+                  onBeforeLeaveCall={onBeforeLeaveCall}
                 />
               </div>
             </div>
@@ -123,6 +126,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
         channel={consultationId}
         patientName={patientName}
         isFullscreen={false}
+        onBeforeLeaveCall={onBeforeLeaveCall}
       />
 
       {/* Main content on right */}
