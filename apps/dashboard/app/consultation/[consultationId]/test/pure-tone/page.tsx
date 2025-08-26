@@ -78,6 +78,8 @@ export default function PureTonePage() {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [acTestResults, setAcTestResults] = useState<TestResult[]>([]);
   const [bcTestResults, setBcTestResults] = useState<TestResult[]>([]);
+  // Masking playback state: true when masking noise is actually playing
+  const [isMaskingActive, setIsMaskingActive] = useState(false);
   const [selectedLabelIndexes, setSelectedLabelIndexes] = useState({
     x: FREQUENCIES.findIndex(f => f === 1000), // Index 4 for 1000Hz
     y: HEARING_LEVELS.findIndex(h => h === 25), // Index 7 for 25dB
@@ -404,7 +406,7 @@ export default function PureTonePage() {
         earSide: selectedEar,
         signalType: selectedSignalType,
         conductionType: selectedMode,
-        maskingSignal: isMasking,
+        maskingSignal: isMaskingActive,
         maskingLevel: maskingLevel,
       });
       setIsPlaying(true);
@@ -417,7 +419,7 @@ export default function PureTonePage() {
     selectedEar,
     selectedSignalType,
     selectedMode,
-    isMasking,
+    isMaskingActive,
     maskingLevel,
     isPulsed,
   ]);
@@ -450,6 +452,22 @@ export default function PureTonePage() {
     maskingLevel,
     isPulsed,
   ]);
+
+  // Emit masking-signal to backend with frequency, level (masking), signal (on/off), and earSide
+  const sendMaskingSignal = useCallback(
+    (signal: boolean) => {
+      if (!socket) return;
+      socket.emit("masking-signal", {
+        consultationId: consultationId,
+        frequency: selectedFrequency,
+        level: maskingLevel,
+        signal,
+        earSide: selectedEar,
+      });
+      setIsMaskingActive(signal);
+    },
+    [socket, consultationId, selectedFrequency, maskingLevel, selectedEar]
+  );
 
   // Handle mouse down for play tone
   const handleMouseDown = useCallback(() => {
@@ -550,6 +568,11 @@ export default function PureTonePage() {
       _endAudiometrySignal();
       _sendAudiometrySignal();
     }
+
+    // If masking is active, update masking signal with new frequency
+    if (isMasking) {
+      sendMaskingSignal(true);
+    }
   };
 
   // Handle level change
@@ -572,6 +595,11 @@ export default function PureTonePage() {
     if (isPlaying) {
       _endAudiometrySignal();
       _sendAudiometrySignal();
+    }
+
+    // If masking is active, (re)send masking signal with updated level
+    if (isMasking) {
+      sendMaskingSignal(true);
     }
   };
 
@@ -987,7 +1015,13 @@ export default function PureTonePage() {
                         : "bg-red-500 text-white"
                       : "bg-gray-200"
                   }`}
-                  onClick={() => setSelectedEar(ear)}
+                  onClick={() => {
+                    setSelectedEar(ear);
+                    // If masking is active, re-emit for the new ear side
+                    if (isMasking) {
+                      sendMaskingSignal(true);
+                    }
+                  }}
                 >
                   {ear === "L" ? "Left" : "Right"}
                 </button>
@@ -1068,21 +1102,24 @@ export default function PureTonePage() {
             <div className="flex items-center gap-2">
               <button
                 className={`px-3 py-1 rounded text-xs ${isMasking ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
-                onClick={() => setIsMasking((prev) => !prev)}
+                onClick={() => {
+                  const next = !isMasking;
+                  setIsMasking(next);
+                  // Emit masking start/stop immediately
+                  sendMaskingSignal(next);
+                }}
               >
                 {isMasking ? 'On' : 'Off'}
               </button>
-              {isMasking && (
-                  <select
-                  className="flex-1 p-2 border rounded text-sm"
-                    value={maskingLevel}
-                  onChange={(e) => handleMaskingLevelChange(Number(e.target.value))}
-                  >
-                    {availableLevels.map((level) => (
-                    <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
-              )}
+              <select
+                className="flex-1 p-2 border rounded text-sm"
+                value={maskingLevel}
+                onChange={(e) => handleMaskingLevelChange(Number(e.target.value))}
+              >
+                {availableLevels.map((level) => (
+                  <option key={level} value={level}>{level}</option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="flex flex-col gap-2 mb-3">
