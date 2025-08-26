@@ -494,22 +494,22 @@ export default function ReportPage() {
     { 
       value: "option-1", 
       label: "Option 1",
-      description: "ENT Consultation\nHAT\nFollow up"
+      description: "ENT Consultation\nHearing Aid Trial\nFollow up"
     },
     { 
       value: "option-2", 
       label: "Option 2",
-      description: "ENT\nHAT\nTinnitus matching and masking\nFollow up"
+      description: "ENT\nHearing Aid Trial\nTinnitus matching and masking\nFollow up"
     },
     { 
       value: "option-3", 
       label: "Option 3",
-      description: "ENT consultation\nHAT right ear\nFollow up"
+      description: "ENT consultation\nHearing Aid Trial right ear\nFollow up"
     },
     { 
       value: "option-4", 
       label: "Option 4",
-      description: "ENT consultation\nHAT for left ear\nFollow up"
+      description: "ENT consultation\nHearing Aid Trial for left ear\nFollow up"
     },
     { 
       value: "option-5", 
@@ -974,65 +974,89 @@ export default function ReportPage() {
                   <h3 className="text-sm font-bold">Symbols (ASHA Standards)</h3>
                 </div>
                 <div className="bg-white border border-gray-300 p-4">
-                  <div className="grid grid-cols-4 gap-2 text-xs">
+                  <div className="grid grid-cols-4 gap-4 text-xs">
                     {/* Air Conduction Unmasked */}
-                    <div className="text-centersp">
-                      <div className="font-bold mb-1 text-gray-800 text-xs">AC Unmasked</div>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-red-500 text-base">○</div>
-                          <span className="text-xs text-gray-700">R</span>
+                    <div className="text-center">
+                      <div className="font-bold mb-2 text-gray-800 text-xs">AC Unmasked</div>
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-red-500 text-lg">○</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">R</span>
                         </div>
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-blue-500 text-base font-bold">×</div>
-                          <span className="text-xs text-gray-700">L</span>
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-blue-500 text-lg font-bold">×</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">L</span>
                         </div>
                       </div>
                     </div>
                     
                     {/* Air Conduction Masked */}
                     <div className="text-center">
-                      <div className="font-bold mb-1 text-gray-800 text-xs">AC Masked</div>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-red-500 text-base">□</div>
-                          <span className="text-xs text-gray-700">R</span>
+                      <div className="font-bold mb-2 text-gray-800 text-xs">AC Masked</div>
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-red-500 text-lg">□</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">R</span>
                         </div>
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-blue-500 text-base">△</div>
-                          <span className="text-xs text-gray-700">L</span>
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-blue-500 text-lg">△</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">L</span>
                         </div>
                       </div>
                     </div>
                     
                     {/* Bone Conduction */}
                     <div className="text-center">
-                      <div className="font-bold mb-1 text-gray-800 text-xs">Bone Conduction</div>
+                      <div className="font-bold mb-2 text-gray-800 text-xs">Bone Conduction</div>
                       <div className="flex flex-col space-y-1">
-                        <div className="text-xs font-semibold mb-1 text-gray-700">Unmasked:</div>
-                        <div className="flex items-center justify-center space-x-2">
-                          <div className="text-red-500 text-base font-bold">&lt;</div>
-                          <div className="text-blue-500 text-base font-bold">&gt;</div>
+                        <div className="text-xs font-semibold text-gray-700 mb-1">Unmasked:</div>
+                        <div className="flex items-center justify-center space-x-3 mb-2">
+                          <div className="flex items-center">
+                            <span className="text-red-500 text-lg font-bold">&lt;</span>
+                            <span className="text-xs text-gray-700 ml-1">R</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-blue-500 text-lg font-bold">&gt;</span>
+                            <span className="text-xs text-gray-700 ml-1">L</span>
+                          </div>
                         </div>
-                        <div className="text-xs font-semibold mb-1 mt-1 text-gray-700">Masked:</div>
-                        <div className="flex items-center justify-center space-x-2">
-                          <div className="text-red-500 text-base font-bold">[</div>
-                          <div className="text-blue-500 text-base font-bold">]</div>
+                        <div className="text-xs font-semibold text-gray-700 mb-1">Masked:</div>
+                        <div className="flex items-center justify-center space-x-3">
+                          <div className="flex items-center">
+                            <span className="text-red-500 text-lg font-bold">[</span>
+                            <span className="text-xs text-gray-700 ml-1">R</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-blue-500 text-lg font-bold">]</span>
+                            <span className="text-xs text-gray-700 ml-1">L</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                     
                     {/* No Response */}
                     <div className="text-center">
-                      <div className="font-bold mb-1 text-gray-800 text-xs">No Response</div>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-red-500 text-base">↙</div>
-                          <span className="text-xs text-gray-700">R</span>
+                      <div className="font-bold mb-2 text-gray-800 text-xs">No Response</div>
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-red-500 text-lg">↙</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">R</span>
                         </div>
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-blue-500 text-base">↘</div>
-                          <span className="text-xs text-gray-700">L</span>
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-blue-500 text-lg">↘</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">L</span>
                         </div>
                       </div>
                     </div>

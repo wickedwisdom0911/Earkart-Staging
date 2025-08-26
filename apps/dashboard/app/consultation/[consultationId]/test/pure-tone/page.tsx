@@ -283,6 +283,8 @@ export default function PureTonePage() {
     }
   }, [isPatientResponse]);
 
+
+
   // Reset justCleared flag after a delay to allow backend sync
   useEffect(() => {
     if (justCleared) {
@@ -525,10 +527,16 @@ export default function PureTonePage() {
       setSelectedLabelIndexes((prev) => ({ ...prev, x: freqIndex }));
     }
 
-    // Reset level to first available level for the new frequency
+    // Only change level if current level is not available for the new frequency
+    // This preserves the user's selected level when possible
     if (availableLevels.length > 0) {
-      const newLevel = availableLevels[0];
-      setSelectedLevel(newLevel);
+      let newLevel = selectedLevel; // Keep current level by default
+      
+      // If current level is not available for this frequency, use the first available level
+      if (!availableLevels.includes(selectedLevel)) {
+        newLevel = availableLevels[0];
+        setSelectedLevel(newLevel);
+      }
 
       // Update the y-axis index for the audiogram using HEARING_LEVELS array
       const levelIndex = HEARING_LEVELS.findIndex((l) => l === newLevel);
@@ -568,7 +576,7 @@ export default function PureTonePage() {
   };
 
   // Add test result
-  const addTestResult = (noResponse = false) => {
+  const addTestResult = useCallback((noResponse = false) => {
     if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
       return;
 
@@ -660,10 +668,10 @@ export default function PureTonePage() {
         },
       }
     );
-  };
+  }, [consultationResponse?.data, consultationId, selectedEar, selectedFrequency, selectedLevel, selectedMode, isMasking, maskingLevel, selectedSignalType, isPulsed, acTestResults, bcTestResults, updateConsultation, queryClient]);
 
-  // Helper functions for button clicks
-  const addResponse = () => {
+  // Helper functions for button clicks (moved up to be used in useEffect dependencies)
+  const addResponse = useCallback(() => {
     addTestResult(false);  // false = normal response, no arrow
     // Scroll to the audiogram and flash background
     const audiogramElement = document.querySelector(".audiogram-graph");
@@ -678,8 +686,40 @@ export default function PureTonePage() {
         if (heading) (heading as HTMLElement).classList.remove("float-heading");
       }, 1000); // Blink for 1 second
     }
-  }; 
-  const addNoResponse = () => addTestResult(true); // true = no response, show arrow
+  }, [addTestResult]); 
+  
+  const addNoResponse = useCallback(() => addTestResult(true), [addTestResult]); // true = no response, show arrow
+
+  // Add keyboard and double-click event listeners for adding responses
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Only respond to spacebar or Enter key
+      if (event.code === 'Space' || event.code === 'Enter') {
+        // Prevent default behavior (e.g., scrolling with spacebar)
+        event.preventDefault();
+        addResponse();
+      }
+    };
+
+    const handleDoubleClick = (event: MouseEvent) => {
+      // Prevent double-click from interfering with existing controls
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'BUTTON' || target.tagName === 'SELECT' || target.tagName === 'INPUT') {
+        return; // Don't trigger on UI controls
+      }
+      addResponse();
+    };
+
+    // Add event listeners
+    document.addEventListener('keydown', handleKeyPress);
+    document.addEventListener('dblclick', handleDoubleClick);
+
+    // Cleanup event listeners
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress);
+      document.removeEventListener('dblclick', handleDoubleClick);
+    };
+  }, [addResponse]); // Include addResponse in dependencies
 
   // Helper function to persist cleared results to backend
   const persistClearedResults = (updatedAcResults: TestResult[], updatedBcResults: TestResult[]) => {
@@ -1055,6 +1095,8 @@ export default function PureTonePage() {
               {isPlaying ? 'Release to Stop' : 'Hold to Play'}
           </button>
           </div>
+       
+          
           <div className="flex flex-col gap-2">
           <button
               className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
