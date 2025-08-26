@@ -434,7 +434,7 @@ export default function ReportPage() {
   const router = useRouter();
   const socket = useSocket();
   const { data: consultation, isLoading, error } = useGetConsultation(consultationId as string);
-  const consultationData = consultation?.data as ConsultationModelData;
+  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const updateConsultationMutation = useUpdateConsultation();
   const reportRef = useRef<HTMLDivElement>(null);
   
@@ -548,17 +548,18 @@ export default function ReportPage() {
 
   // Listen for end:consultation socket event
   useEffect(() => {
-    if (socket) {
-      socket.on("end:consultation", (data) => {
-        console.log("Consultation ended via socket:", data);
-        toast.info("Consultation has ended. Redirecting to dashboard...");
-        router.push("http://localhost:3001/dashboard");
-      });
-
-      return () => {
-        socket.off("end:consultation");
-      };
-    }
+    if (!socket) return;
+    const handler = (data: any) => {
+      console.log("Consultation ended via socket:", data);
+      toast.info("Consultation has ended. Redirecting to dashboard...");
+      if (process.env.NODE_ENV === "development") {
+        try { (window as any).location.href = "http://localhost:3001/dashboard"; } catch {}
+      } else {
+        router.push("/dashboard");
+      }
+    };
+    socket.on("end:consultation", handler);
+    return () => { socket.off("end:consultation", handler); };
   }, [socket, router]);
 
   // Show screen share error if any

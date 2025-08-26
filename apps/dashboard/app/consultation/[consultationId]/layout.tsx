@@ -2,7 +2,7 @@
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useCallback } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useDevice } from "@/providers/device-provider";
 import { OtoscopyProvider } from "@/providers/otoscopy-provider";
@@ -83,7 +83,7 @@ export default function ConsultationLayout({
   // Do NOT auto-start: require explicit user click due to browser security.
   // Auto-stop and auto-complete when consultation ends.
   useEffect(() => {
-    const status = (consultation?.data as ConsultationModelData | undefined)?.status;
+    const status = ((consultation as any)?.data as ConsultationModelData | undefined)?.status;
     if (!status) return;
     if (
       status === SessionStatus.COMPLETED ||
@@ -100,7 +100,7 @@ export default function ConsultationLayout({
   // Prefer playback from consultation's new recording fields via callback
   const [externalPlaybackUrl, setExternalPlaybackUrl] = useState<string | null>(null);
   useEffect(() => {
-    const data = (consultation?.data as any) || {};
+    const data = ((consultation as any)?.data as any) || {};
     const status = data?.status;
     const recordingName = data?.recordingName ?? data?.recordingsName ?? data?.recording?.name ?? null;
     const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
@@ -122,11 +122,22 @@ export default function ConsultationLayout({
   // Create a single Agora client instance shared across this layout (must be called every render before conditional returns)
   const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
 
+  // Expose a finalize helper that child components can await before navigating
+  const finalizeBeforeNavigate = useCallback(async () => {
+    try {
+      if (recordingState.isRecording || recordingState.isInitializing) {
+        await stopRecording();
+      } else {
+        await completeRecording();
+      }
+    } catch {}
+  }, [recordingState.isRecording, recordingState.isInitializing, stopRecording, completeRecording]);
+
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
-  if (!consultation?.data) return <div>No data</div>;
+  if (!((consultation as any)?.data)) return <div>No data</div>;
 
-  const consultationData = consultation.data as ConsultationModelData;
+  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   try {
     console.log("[layout] consultation.data:", consultationData);
     console.log("[layout] recordings:", (consultationData as any)?.recordings);
@@ -211,6 +222,7 @@ export default function ConsultationLayout({
             <ConsultationContent
               consultationId={consultationId}
               patientName={consultationData.patient?.name || "Patient"}
+              onBeforeLeaveCall={finalizeBeforeNavigate}
             >
               {children}
             </ConsultationContent>
