@@ -25,6 +25,7 @@ mixin _$ConsultationState {
         createConsultationSuccess,
     required TResult Function(List<ConsultationEntity> consultations)
         allConsultationsSuccess,
+    required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
         currentConsultationSuccess,
     required TResult Function() deleteConsultationSessionSuccess,
@@ -40,6 +41,7 @@ mixin _$ConsultationState {
         createConsultationSuccess,
     TResult? Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult? Function()? deleteConsultationSessionSuccess,
@@ -55,6 +57,7 @@ mixin _$ConsultationState {
         createConsultationSuccess,
     TResult Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult Function()? deleteConsultationSessionSuccess,
@@ -71,6 +74,8 @@ mixin _$ConsultationState {
         createConsultationSuccess,
     required TResult Function(AllConsultationsSuccess value)
         allConsultationsSuccess,
+    required TResult Function(AllConsultationsError value)
+        allConsultationsError,
     required TResult Function(CurrentConsultationSuccess value)
         currentConsultationSuccess,
     required TResult Function(DeleteConsultationSessionSuccess value)
@@ -86,6 +91,7 @@ mixin _$ConsultationState {
     TResult? Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult? Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult? Function(AllConsultationsError value)? allConsultationsError,
     TResult? Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult? Function(DeleteConsultationSessionSuccess value)?
@@ -101,6 +107,7 @@ mixin _$ConsultationState {
     TResult Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult Function(AllConsultationsError value)? allConsultationsError,
     TResult Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult Function(DeleteConsultationSessionSuccess value)?
@@ -175,6 +182,7 @@ class _$ConsultationInitialImpl implements ConsultationInitial {
         createConsultationSuccess,
     required TResult Function(List<ConsultationEntity> consultations)
         allConsultationsSuccess,
+    required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
         currentConsultationSuccess,
     required TResult Function() deleteConsultationSessionSuccess,
@@ -193,6 +201,7 @@ class _$ConsultationInitialImpl implements ConsultationInitial {
         createConsultationSuccess,
     TResult? Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult? Function()? deleteConsultationSessionSuccess,
@@ -211,6 +220,7 @@ class _$ConsultationInitialImpl implements ConsultationInitial {
         createConsultationSuccess,
     TResult Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult Function()? deleteConsultationSessionSuccess,
@@ -233,6 +243,8 @@ class _$ConsultationInitialImpl implements ConsultationInitial {
         createConsultationSuccess,
     required TResult Function(AllConsultationsSuccess value)
         allConsultationsSuccess,
+    required TResult Function(AllConsultationsError value)
+        allConsultationsError,
     required TResult Function(CurrentConsultationSuccess value)
         currentConsultationSuccess,
     required TResult Function(DeleteConsultationSessionSuccess value)
@@ -251,6 +263,7 @@ class _$ConsultationInitialImpl implements ConsultationInitial {
     TResult? Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult? Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult? Function(AllConsultationsError value)? allConsultationsError,
     TResult? Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult? Function(DeleteConsultationSessionSuccess value)?
@@ -269,6 +282,7 @@ class _$ConsultationInitialImpl implements ConsultationInitial {
     TResult Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult Function(AllConsultationsError value)? allConsultationsError,
     TResult Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult Function(DeleteConsultationSessionSuccess value)?
@@ -333,6 +347,7 @@ class _$ConsultationLoadingImpl implements ConsultationLoading {
         createConsultationSuccess,
     required TResult Function(List<ConsultationEntity> consultations)
         allConsultationsSuccess,
+    required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
         currentConsultationSuccess,
     required TResult Function() deleteConsultationSessionSuccess,
@@ -351,6 +366,7 @@ class _$ConsultationLoadingImpl implements ConsultationLoading {
         createConsultationSuccess,
     TResult? Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult? Function()? deleteConsultationSessionSuccess,
@@ -369,6 +385,7 @@ class _$ConsultationLoadingImpl implements ConsultationLoading {
         createConsultationSuccess,
     TResult Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult Function()? deleteConsultationSessionSuccess,
@@ -391,6 +408,8 @@ class _$ConsultationLoadingImpl implements ConsultationLoading {
         createConsultationSuccess,
     required TResult Function(AllConsultationsSuccess value)
         allConsultationsSuccess,
+    required TResult Function(AllConsultationsError value)
+        allConsultationsError,
     required TResult Function(CurrentConsultationSuccess value)
         currentConsultationSuccess,
     required TResult Function(DeleteConsultationSessionSuccess value)
@@ -409,6 +428,7 @@ class _$ConsultationLoadingImpl implements ConsultationLoading {
     TResult? Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult? Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult? Function(AllConsultationsError value)? allConsultationsError,
     TResult? Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult? Function(DeleteConsultationSessionSuccess value)?
@@ -427,6 +447,7 @@ class _$ConsultationLoadingImpl implements ConsultationLoading {
     TResult Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult Function(AllConsultationsError value)? allConsultationsError,
     TResult Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult Function(DeleteConsultationSessionSuccess value)?
@@ -518,6 +539,7 @@ class _$ConsultationSuccessImpl implements ConsultationSuccess {
         createConsultationSuccess,
     required TResult Function(List<ConsultationEntity> consultations)
         allConsultationsSuccess,
+    required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
         currentConsultationSuccess,
     required TResult Function() deleteConsultationSessionSuccess,
@@ -536,6 +558,7 @@ class _$ConsultationSuccessImpl implements ConsultationSuccess {
         createConsultationSuccess,
     TResult? Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult? Function()? deleteConsultationSessionSuccess,
@@ -554,6 +577,7 @@ class _$ConsultationSuccessImpl implements ConsultationSuccess {
         createConsultationSuccess,
     TResult Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult Function()? deleteConsultationSessionSuccess,
@@ -576,6 +600,8 @@ class _$ConsultationSuccessImpl implements ConsultationSuccess {
         createConsultationSuccess,
     required TResult Function(AllConsultationsSuccess value)
         allConsultationsSuccess,
+    required TResult Function(AllConsultationsError value)
+        allConsultationsError,
     required TResult Function(CurrentConsultationSuccess value)
         currentConsultationSuccess,
     required TResult Function(DeleteConsultationSessionSuccess value)
@@ -594,6 +620,7 @@ class _$ConsultationSuccessImpl implements ConsultationSuccess {
     TResult? Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult? Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult? Function(AllConsultationsError value)? allConsultationsError,
     TResult? Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult? Function(DeleteConsultationSessionSuccess value)?
@@ -612,6 +639,7 @@ class _$ConsultationSuccessImpl implements ConsultationSuccess {
     TResult Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult Function(AllConsultationsError value)? allConsultationsError,
     TResult Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult Function(DeleteConsultationSessionSuccess value)?
@@ -713,6 +741,7 @@ class _$CreateConsultationSuccessImpl implements CreateConsultationSuccess {
         createConsultationSuccess,
     required TResult Function(List<ConsultationEntity> consultations)
         allConsultationsSuccess,
+    required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
         currentConsultationSuccess,
     required TResult Function() deleteConsultationSessionSuccess,
@@ -731,6 +760,7 @@ class _$CreateConsultationSuccessImpl implements CreateConsultationSuccess {
         createConsultationSuccess,
     TResult? Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult? Function()? deleteConsultationSessionSuccess,
@@ -749,6 +779,7 @@ class _$CreateConsultationSuccessImpl implements CreateConsultationSuccess {
         createConsultationSuccess,
     TResult Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult Function()? deleteConsultationSessionSuccess,
@@ -771,6 +802,8 @@ class _$CreateConsultationSuccessImpl implements CreateConsultationSuccess {
         createConsultationSuccess,
     required TResult Function(AllConsultationsSuccess value)
         allConsultationsSuccess,
+    required TResult Function(AllConsultationsError value)
+        allConsultationsError,
     required TResult Function(CurrentConsultationSuccess value)
         currentConsultationSuccess,
     required TResult Function(DeleteConsultationSessionSuccess value)
@@ -789,6 +822,7 @@ class _$CreateConsultationSuccessImpl implements CreateConsultationSuccess {
     TResult? Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult? Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult? Function(AllConsultationsError value)? allConsultationsError,
     TResult? Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult? Function(DeleteConsultationSessionSuccess value)?
@@ -807,6 +841,7 @@ class _$CreateConsultationSuccessImpl implements CreateConsultationSuccess {
     TResult Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult Function(AllConsultationsError value)? allConsultationsError,
     TResult Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult Function(DeleteConsultationSessionSuccess value)?
@@ -915,6 +950,7 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
         createConsultationSuccess,
     required TResult Function(List<ConsultationEntity> consultations)
         allConsultationsSuccess,
+    required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
         currentConsultationSuccess,
     required TResult Function() deleteConsultationSessionSuccess,
@@ -933,6 +969,7 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
         createConsultationSuccess,
     TResult? Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult? Function()? deleteConsultationSessionSuccess,
@@ -951,6 +988,7 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
         createConsultationSuccess,
     TResult Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult Function()? deleteConsultationSessionSuccess,
@@ -973,6 +1011,8 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
         createConsultationSuccess,
     required TResult Function(AllConsultationsSuccess value)
         allConsultationsSuccess,
+    required TResult Function(AllConsultationsError value)
+        allConsultationsError,
     required TResult Function(CurrentConsultationSuccess value)
         currentConsultationSuccess,
     required TResult Function(DeleteConsultationSessionSuccess value)
@@ -991,6 +1031,7 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
     TResult? Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult? Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult? Function(AllConsultationsError value)? allConsultationsError,
     TResult? Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult? Function(DeleteConsultationSessionSuccess value)?
@@ -1009,6 +1050,7 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
     TResult Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult Function(AllConsultationsError value)? allConsultationsError,
     TResult Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult Function(DeleteConsultationSessionSuccess value)?
@@ -1031,6 +1073,204 @@ abstract class AllConsultationsSuccess implements ConsultationState {
   List<ConsultationEntity> get consultations;
   @JsonKey(ignore: true)
   _$$AllConsultationsSuccessImplCopyWith<_$AllConsultationsSuccessImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$AllConsultationsErrorImplCopyWith<$Res> {
+  factory _$$AllConsultationsErrorImplCopyWith(
+          _$AllConsultationsErrorImpl value,
+          $Res Function(_$AllConsultationsErrorImpl) then) =
+      __$$AllConsultationsErrorImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({String message});
+}
+
+/// @nodoc
+class __$$AllConsultationsErrorImplCopyWithImpl<$Res>
+    extends _$ConsultationStateCopyWithImpl<$Res, _$AllConsultationsErrorImpl>
+    implements _$$AllConsultationsErrorImplCopyWith<$Res> {
+  __$$AllConsultationsErrorImplCopyWithImpl(_$AllConsultationsErrorImpl _value,
+      $Res Function(_$AllConsultationsErrorImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? message = null,
+  }) {
+    return _then(_$AllConsultationsErrorImpl(
+      message: null == message
+          ? _value.message
+          : message // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$AllConsultationsErrorImpl implements AllConsultationsError {
+  const _$AllConsultationsErrorImpl({required this.message});
+
+  @override
+  final String message;
+
+  @override
+  String toString() {
+    return 'ConsultationState.allConsultationsError(message: $message)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AllConsultationsErrorImpl &&
+            (identical(other.message, message) || other.message == message));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, message);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AllConsultationsErrorImplCopyWith<_$AllConsultationsErrorImpl>
+      get copyWith => __$$AllConsultationsErrorImplCopyWithImpl<
+          _$AllConsultationsErrorImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() initial,
+    required TResult Function() loading,
+    required TResult Function(ConsultationEntity consultation) success,
+    required TResult Function(ConsultationEntity consultation)
+        createConsultationSuccess,
+    required TResult Function(List<ConsultationEntity> consultations)
+        allConsultationsSuccess,
+    required TResult Function(String message) allConsultationsError,
+    required TResult Function(ConsultationEntity consultation)
+        currentConsultationSuccess,
+    required TResult Function() deleteConsultationSessionSuccess,
+    required TResult Function(String message) error,
+  }) {
+    return allConsultationsError(message);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? initial,
+    TResult? Function()? loading,
+    TResult? Function(ConsultationEntity consultation)? success,
+    TResult? Function(ConsultationEntity consultation)?
+        createConsultationSuccess,
+    TResult? Function(List<ConsultationEntity> consultations)?
+        allConsultationsSuccess,
+    TResult? Function(String message)? allConsultationsError,
+    TResult? Function(ConsultationEntity consultation)?
+        currentConsultationSuccess,
+    TResult? Function()? deleteConsultationSessionSuccess,
+    TResult? Function(String message)? error,
+  }) {
+    return allConsultationsError?.call(message);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? initial,
+    TResult Function()? loading,
+    TResult Function(ConsultationEntity consultation)? success,
+    TResult Function(ConsultationEntity consultation)?
+        createConsultationSuccess,
+    TResult Function(List<ConsultationEntity> consultations)?
+        allConsultationsSuccess,
+    TResult Function(String message)? allConsultationsError,
+    TResult Function(ConsultationEntity consultation)?
+        currentConsultationSuccess,
+    TResult Function()? deleteConsultationSessionSuccess,
+    TResult Function(String message)? error,
+    required TResult orElse(),
+  }) {
+    if (allConsultationsError != null) {
+      return allConsultationsError(message);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(ConsultationInitial value) initial,
+    required TResult Function(ConsultationLoading value) loading,
+    required TResult Function(ConsultationSuccess value) success,
+    required TResult Function(CreateConsultationSuccess value)
+        createConsultationSuccess,
+    required TResult Function(AllConsultationsSuccess value)
+        allConsultationsSuccess,
+    required TResult Function(AllConsultationsError value)
+        allConsultationsError,
+    required TResult Function(CurrentConsultationSuccess value)
+        currentConsultationSuccess,
+    required TResult Function(DeleteConsultationSessionSuccess value)
+        deleteConsultationSessionSuccess,
+    required TResult Function(ConsultationError value) error,
+  }) {
+    return allConsultationsError(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(ConsultationInitial value)? initial,
+    TResult? Function(ConsultationLoading value)? loading,
+    TResult? Function(ConsultationSuccess value)? success,
+    TResult? Function(CreateConsultationSuccess value)?
+        createConsultationSuccess,
+    TResult? Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult? Function(AllConsultationsError value)? allConsultationsError,
+    TResult? Function(CurrentConsultationSuccess value)?
+        currentConsultationSuccess,
+    TResult? Function(DeleteConsultationSessionSuccess value)?
+        deleteConsultationSessionSuccess,
+    TResult? Function(ConsultationError value)? error,
+  }) {
+    return allConsultationsError?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(ConsultationInitial value)? initial,
+    TResult Function(ConsultationLoading value)? loading,
+    TResult Function(ConsultationSuccess value)? success,
+    TResult Function(CreateConsultationSuccess value)?
+        createConsultationSuccess,
+    TResult Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult Function(AllConsultationsError value)? allConsultationsError,
+    TResult Function(CurrentConsultationSuccess value)?
+        currentConsultationSuccess,
+    TResult Function(DeleteConsultationSessionSuccess value)?
+        deleteConsultationSessionSuccess,
+    TResult Function(ConsultationError value)? error,
+    required TResult orElse(),
+  }) {
+    if (allConsultationsError != null) {
+      return allConsultationsError(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class AllConsultationsError implements ConsultationState {
+  const factory AllConsultationsError({required final String message}) =
+      _$AllConsultationsErrorImpl;
+
+  String get message;
+  @JsonKey(ignore: true)
+  _$$AllConsultationsErrorImplCopyWith<_$AllConsultationsErrorImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
 
@@ -1110,6 +1350,7 @@ class _$CurrentConsultationSuccessImpl implements CurrentConsultationSuccess {
         createConsultationSuccess,
     required TResult Function(List<ConsultationEntity> consultations)
         allConsultationsSuccess,
+    required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
         currentConsultationSuccess,
     required TResult Function() deleteConsultationSessionSuccess,
@@ -1128,6 +1369,7 @@ class _$CurrentConsultationSuccessImpl implements CurrentConsultationSuccess {
         createConsultationSuccess,
     TResult? Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult? Function()? deleteConsultationSessionSuccess,
@@ -1146,6 +1388,7 @@ class _$CurrentConsultationSuccessImpl implements CurrentConsultationSuccess {
         createConsultationSuccess,
     TResult Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult Function()? deleteConsultationSessionSuccess,
@@ -1168,6 +1411,8 @@ class _$CurrentConsultationSuccessImpl implements CurrentConsultationSuccess {
         createConsultationSuccess,
     required TResult Function(AllConsultationsSuccess value)
         allConsultationsSuccess,
+    required TResult Function(AllConsultationsError value)
+        allConsultationsError,
     required TResult Function(CurrentConsultationSuccess value)
         currentConsultationSuccess,
     required TResult Function(DeleteConsultationSessionSuccess value)
@@ -1186,6 +1431,7 @@ class _$CurrentConsultationSuccessImpl implements CurrentConsultationSuccess {
     TResult? Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult? Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult? Function(AllConsultationsError value)? allConsultationsError,
     TResult? Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult? Function(DeleteConsultationSessionSuccess value)?
@@ -1204,6 +1450,7 @@ class _$CurrentConsultationSuccessImpl implements CurrentConsultationSuccess {
     TResult Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult Function(AllConsultationsError value)? allConsultationsError,
     TResult Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult Function(DeleteConsultationSessionSuccess value)?
@@ -1279,6 +1526,7 @@ class _$DeleteConsultationSessionSuccessImpl
         createConsultationSuccess,
     required TResult Function(List<ConsultationEntity> consultations)
         allConsultationsSuccess,
+    required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
         currentConsultationSuccess,
     required TResult Function() deleteConsultationSessionSuccess,
@@ -1297,6 +1545,7 @@ class _$DeleteConsultationSessionSuccessImpl
         createConsultationSuccess,
     TResult? Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult? Function()? deleteConsultationSessionSuccess,
@@ -1315,6 +1564,7 @@ class _$DeleteConsultationSessionSuccessImpl
         createConsultationSuccess,
     TResult Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult Function()? deleteConsultationSessionSuccess,
@@ -1337,6 +1587,8 @@ class _$DeleteConsultationSessionSuccessImpl
         createConsultationSuccess,
     required TResult Function(AllConsultationsSuccess value)
         allConsultationsSuccess,
+    required TResult Function(AllConsultationsError value)
+        allConsultationsError,
     required TResult Function(CurrentConsultationSuccess value)
         currentConsultationSuccess,
     required TResult Function(DeleteConsultationSessionSuccess value)
@@ -1355,6 +1607,7 @@ class _$DeleteConsultationSessionSuccessImpl
     TResult? Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult? Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult? Function(AllConsultationsError value)? allConsultationsError,
     TResult? Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult? Function(DeleteConsultationSessionSuccess value)?
@@ -1373,6 +1626,7 @@ class _$DeleteConsultationSessionSuccessImpl
     TResult Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult Function(AllConsultationsError value)? allConsultationsError,
     TResult Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult Function(DeleteConsultationSessionSuccess value)?
@@ -1464,6 +1718,7 @@ class _$ConsultationErrorImpl implements ConsultationError {
         createConsultationSuccess,
     required TResult Function(List<ConsultationEntity> consultations)
         allConsultationsSuccess,
+    required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
         currentConsultationSuccess,
     required TResult Function() deleteConsultationSessionSuccess,
@@ -1482,6 +1737,7 @@ class _$ConsultationErrorImpl implements ConsultationError {
         createConsultationSuccess,
     TResult? Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult? Function()? deleteConsultationSessionSuccess,
@@ -1500,6 +1756,7 @@ class _$ConsultationErrorImpl implements ConsultationError {
         createConsultationSuccess,
     TResult Function(List<ConsultationEntity> consultations)?
         allConsultationsSuccess,
+    TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
         currentConsultationSuccess,
     TResult Function()? deleteConsultationSessionSuccess,
@@ -1522,6 +1779,8 @@ class _$ConsultationErrorImpl implements ConsultationError {
         createConsultationSuccess,
     required TResult Function(AllConsultationsSuccess value)
         allConsultationsSuccess,
+    required TResult Function(AllConsultationsError value)
+        allConsultationsError,
     required TResult Function(CurrentConsultationSuccess value)
         currentConsultationSuccess,
     required TResult Function(DeleteConsultationSessionSuccess value)
@@ -1540,6 +1799,7 @@ class _$ConsultationErrorImpl implements ConsultationError {
     TResult? Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult? Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult? Function(AllConsultationsError value)? allConsultationsError,
     TResult? Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult? Function(DeleteConsultationSessionSuccess value)?
@@ -1558,6 +1818,7 @@ class _$ConsultationErrorImpl implements ConsultationError {
     TResult Function(CreateConsultationSuccess value)?
         createConsultationSuccess,
     TResult Function(AllConsultationsSuccess value)? allConsultationsSuccess,
+    TResult Function(AllConsultationsError value)? allConsultationsError,
     TResult Function(CurrentConsultationSuccess value)?
         currentConsultationSuccess,
     TResult Function(DeleteConsultationSessionSuccess value)?

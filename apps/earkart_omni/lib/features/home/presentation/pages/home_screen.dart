@@ -253,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         );
                       }
-                      if (state is ConsultationError) {
+                      if (state is AllConsultationsError) {
                         return _ErrorCard(message: state.message);
                       }
                       if (state is AllConsultationsSuccess) {
