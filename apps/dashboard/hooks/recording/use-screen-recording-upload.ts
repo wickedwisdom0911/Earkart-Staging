@@ -67,8 +67,8 @@ export function useScreenRecordingUpload(consultationId: string) {
 	// Generate unique session ID for this recording session
 	const sessionIdRef = useRef<string>(Date.now().toString());
 	
-	// Track incomplete uploads in localStorage to complete them after refresh
-	const storageKey = `recording_${consultationId}`;
+	// Track incomplete uploads in localStorage - use session ID to allow multiple recordings
+	const storageKey = `recording_${consultationId}_${sessionIdRef.current}`;
 
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -133,18 +133,26 @@ export function useScreenRecordingUpload(consultationId: string) {
 		const uploadId = uploadIdRef.current;
 		if (!uploadId) throw new Error("No upload in progress");
 
+		console.log(`🚀 [S3_UPLOAD] Uploading part ${partNumber}, size: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
 		const { url } = await presignPart(uploadId, partNumber);
 		const putRes = await fetch(url, {
 			method: "PUT",
 			body: blob,
 			headers: { "Content-Type": "application/octet-stream" },
 		});
-		if (!putRes.ok) throw new Error(`S3 PUT failed with ${putRes.status}`);
+		if (!putRes.ok) {
+			console.error(`❌ [S3_UPLOAD] Part ${partNumber} failed: ${putRes.status} ${putRes.statusText}`);
+			throw new Error(`S3 PUT failed with ${putRes.status}`);
+		}
 		const eTag = putRes.headers.get("ETag") || putRes.headers.get("Etag") || putRes.headers.get("etag");
-		if (!eTag) throw new Error("Missing ETag from S3 response; ensure CORS exposes ETag");
+		if (!eTag) {
+			console.error(`❌ [S3_UPLOAD] Part ${partNumber} missing ETag header`);
+			throw new Error("Missing ETag from S3 response; ensure CORS exposes ETag");
+		}
 		// Strip quotes to satisfy S3 CompleteMultipartUpload XML
 		uploadedPartsRef.current.push({ partNumber, etag: eTag.replace(/"/g, "") });
 		setState((s) => ({ ...s, uploadedParts: s.uploadedParts + 1, uploadedBytes: s.uploadedBytes + blob.size }));
+		console.log(`✅ [S3_UPLOAD] Part ${partNumber} uploaded successfully, ETag: ${eTag}`);
 	}, [presignPart]);
 
 	// Helper: take exactly size bytes from pendingBlobsRef, returning a Blob and mutating the buffer
@@ -182,6 +190,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 	}, [enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart]);
 
 	const handleChunk = useCallback((chunk: Blob) => {
+		console.log(`📊 [RECORDING_CHUNK] Received ${(chunk.size / 1024).toFixed(1)}KB chunk, total pending: ${(pendingSizeRef.current / 1024 / 1024).toFixed(2)}MB`);
 		pendingBlobsRef.current.push(chunk);
 		pendingSizeRef.current += chunk.size;
 		tryFlushFullParts();
@@ -217,12 +226,13 @@ export function useScreenRecordingUpload(consultationId: string) {
 			partSizeRef.current = Math.max(5 * 1024 * 1024, partSize || partSizeRef.current);
 			setState((s) => ({ ...s, uploadId }));
 			
-			// Save upload info to localStorage for recovery after refresh
+			// Save upload session info for cleanup (not for recovery, since we can't recover data)
 			localStorage.setItem(storageKey, JSON.stringify({
 				uploadId,
 				filename,
 				timestamp: Date.now(),
-				sessionId: sessionIdRef.current
+				sessionId: sessionIdRef.current,
+				status: 'recording' // Track recording status
 			}));
 
 
@@ -494,33 +504,77 @@ export function useScreenRecordingUpload(consultationId: string) {
 		};
 	}, []);
 
+	// Prevent accidental page refresh during recording or uploading
+	useEffect(() => {
+		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+			if (state.isRecording || state.isUploading) {
+				e.preventDefault();
+				const message = "Screen recording is in progress. Leaving now will lose the recording data.";
+				e.returnValue = message;
+				return message;
+			}
+		};
+
+		// Also prevent navigation during recording
+		const handleNavigation = (e: Event) => {
+			if (state.isRecording || state.isUploading) {
+				e.preventDefault();
+				if (confirm("Screen recording is in progress. Leaving now will lose the recording data. Continue anyway?")) {
+					// User confirmed, stop recording gracefully
+					if (mediaRecorderRef.current && state.isRecording) {
+						try {
+							mediaRecorderRef.current.stop();
+						} catch {}
+					}
+					return true;
+				}
+				return false;
+			}
+		};
+
+		window.addEventListener('beforeunload', handleBeforeUnload);
+		window.addEventListener('pagehide', handleNavigation);
+		
+		return () => {
+			window.removeEventListener('beforeunload', handleBeforeUnload);
+			window.removeEventListener('pagehide', handleNavigation);
+		};
+	}, [state.isRecording, state.isUploading]);
+
 	// Check for incomplete uploads on mount
 	useEffect(() => {
 		const checkIncompleteUploads = async () => {
 			try {
-				const stored = localStorage.getItem(storageKey);
-				if (stored) {
-					const { uploadId, timestamp } = JSON.parse(stored);
-					const isOld = Date.now() - timestamp > 30 * 60 * 1000; // 30 minutes
-					
-					if (uploadId && !isOld) {
-						console.log("🔄 [RECORDING] Found incomplete upload, completing...", uploadId);
-						try {
-							// Set the uploadId first so complete() can work
-							uploadIdRef.current = uploadId;
-							await complete();
-							localStorage.removeItem(storageKey);
-							console.log("✅ [RECORDING] Completed interrupted upload");
-						} catch (err) {
-							console.error("❌ [RECORDING] Failed to complete interrupted upload:", err);
-							// Try to abort if completion fails
-							try {
-								await abortRecordingUpload({ uploadId });
-							} catch {}
-							localStorage.removeItem(storageKey);
+				// Check ALL localStorage keys for this consultation
+				const allKeys = Object.keys(localStorage);
+				const consultationKeys = allKeys.filter(key => 
+					key.startsWith(`recording_${consultationId}_`) && key !== storageKey
+				);
+				
+				console.log(`🔍 [RECORDING] Found ${consultationKeys.length} other recording sessions for consultation ${consultationId}`);
+				
+				for (const key of consultationKeys) {
+					try {
+						const stored = localStorage.getItem(key);
+						if (!stored) continue;
+						
+						const { uploadId, timestamp, filename } = JSON.parse(stored);
+						const isOld = Date.now() - timestamp > 30 * 60 * 1000; // 30 minutes
+						
+						if (uploadId && !isOld) {
+							console.log("🔄 [RECORDING] Found incomplete upload from previous session:", uploadId, filename);
+							
+							// Instead of aborting, we'll let it remain incomplete but clean up localStorage
+							// This allows multiple recording attempts without interfering with each other
+							console.log("📂 [RECORDING] Allowing previous session to remain as incomplete record");
+							console.log("🧹 [RECORDING] Cleaning up localStorage entry only");
 						}
-					} else {
-						localStorage.removeItem(storageKey);
+						
+						// Remove the localStorage entry regardless of success/failure
+						localStorage.removeItem(key);
+					} catch (err) {
+						console.error(`Error processing incomplete upload ${key}:`, err);
+						localStorage.removeItem(key);
 					}
 				}
 			} catch (err) {

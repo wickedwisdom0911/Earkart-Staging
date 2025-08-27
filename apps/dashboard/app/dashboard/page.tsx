@@ -27,6 +27,7 @@ import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import getConsultation from "@/actions/consultations/get_consultation";
 import { toast } from "sonner";
+import getRecordingById from "@/actions/recordings/get-by-id";
 // Removed RecordingLink component – we will use consultation.recordings provided by API
 
 export default function DashboardPage() {
@@ -36,6 +37,7 @@ export default function DashboardPage() {
     ConsultationModelData[]
   >([]);
   const [blinkingIds, setBlinkingIds] = useState<string[]>([]);
+  const [detailedRecordings, setDetailedRecordings] = useState<Record<string, any>>({});
   const { data: consultations, isLoading, isError } = useGetAllConsultations();
   const socket = useSocket();
 
@@ -55,7 +57,46 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (Array.isArray(consultations?.data)) {
+      // 🐛 DEBUG: Console log consultations data structure
+      console.log("[CONSULTATIONS] Raw consultations data:", consultations.data.map(c => ({
+        id: c.id.substring(0, 8),
+        status: c.status,
+        recordings: c.recordings?.map(r => ({
+          id: r.id,
+          fileName: (r as any).fileName,
+          mimeType: (r as any).mimeType,
+          recordingUrl: r.recordingUrl,
+          createdAt: r.createdAt,
+          // 🐛 Show ALL fields to see what's available
+          allFields: Object.keys(r)
+        })),
+        recordingName: (c as any).recordingName,
+        recordingUrl: (c as any).recordingUrl
+      })));
+      
       setAllConsulations(consultations?.data);
+      
+      // 🐛 DEBUG: Fetch detailed recording info for completed consultations
+      consultations.data
+        .filter(c => c.status === SessionStatus.COMPLETED && c.recordings?.length)
+        .forEach(async (consultation) => {
+          if (consultation.recordings) {
+            for (const recording of consultation.recordings) {
+              if (recording.id && !detailedRecordings[recording.id]) {
+                try {
+                  const detailedRecording = await getRecordingById(recording.id);
+                  setDetailedRecordings(prev => ({
+                    ...prev,
+                    [recording.id!]: detailedRecording
+                  }));
+                  console.log(`[RECORDING_DETAIL] ${recording.id}:`, detailedRecording);
+                } catch (err) {
+                  console.error(`Failed to fetch recording ${recording.id}:`, err);
+                }
+              }
+            }
+          }
+        });
       
       // NEW: Check and notify for consultations that need attention when they're displayed
       if (user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST) {
@@ -409,6 +450,31 @@ export default function DashboardPage() {
               
               const allRecordings = [...regularRecordings, ...screenRecordings];
               
+              // 🐛 DEBUG: Console log recordings data
+              console.log(`[RECORDINGS] Consultation ${consultation.id.substring(0, 8)}...:`, {
+                totalRecordings: allRecordings.length,
+                regularRecordings: regularRecordings.length,
+                screenRecordings: screenRecordings.length,
+                withUrls: allRecordings.filter(r => r.recordingUrl).length,
+                recordings: allRecordings.map(r => {
+                  const detailedInfo = r.id ? detailedRecordings[r.id] : null;
+                  return {
+                    id: r.id,
+                    fileName: detailedInfo?.fileName || (r as any).fileName,
+                    mimeType: detailedInfo?.mimeType || (r as any).mimeType,
+                    status: detailedInfo?.status || 'unknown',
+                    hasUrl: !!r.recordingUrl,
+                    createdAt: r.createdAt,
+                    type: (r as any).type,
+                    // 🐛 Show ALL fields to debug what's available
+                    allFields: Object.keys(r),
+                    detailedFields: detailedInfo ? Object.keys(detailedInfo) : [],
+                    rawObject: r,
+                    detailedInfo
+                  }
+                })
+              });
+              
               return allRecordings.length > 0 && (
                 <div className="mt-3 space-y-2">
                   <div className="text-sm font-medium text-gray-700 mb-2">
@@ -419,7 +485,17 @@ export default function DashboardPage() {
                       ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
                       : `Part ${index + 1}`;
                     
-                    const isScreenRecording = (recording as any).type === 'screen';
+                    // Get detailed recording info if available
+                    const detailedInfo = recording.id ? detailedRecordings[recording.id] : null;
+                    const fileName = detailedInfo?.fileName || (recording as any).fileName || (recording as any).name || '';
+                    const mimeType = detailedInfo?.mimeType || (recording as any).mimeType || '';
+                    const status = detailedInfo?.status || 'unknown';
+                    
+                    // Detect screen recording by filename pattern or mimeType
+                    const isScreenRecording = fileName.includes('.webm') || 
+                                            mimeType?.includes('video/webm') || 
+                                            fileName.includes('consultation-') ||
+                                            fileName.includes('session-');
                     const recordingType = isScreenRecording ? 'Screen Recording' : 'Audio Recording';
                     const hasUrl = !!recording.recordingUrl;
                     
