@@ -2,7 +2,7 @@
 import React from "react";
 import { VideoCall } from "./video-call";
 import { useOtoscopy } from "@/providers/otoscopy-provider";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 interface DelayedVideoCallProps {
   channel: string;
@@ -52,6 +52,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
 }) => {
   const { isOtoscopyActive, stopOtoscopy } = useOtoscopy();
   const pathname = usePathname();
+  const router = useRouter();
   
   // Check if we're on the specific video-otoscopy page
   const isVideoOtoscopyPage = pathname?.includes('/test/video-otoscopy');
@@ -84,13 +85,14 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     try {
       setIsStopping(true);
       await stopOtoscopy();
+      // Redirect to test selection instead of hard refresh
+      router.push(`/consultation/${consultationId}/test-selection`);
     } catch (e) {
       console.error("Error stopping otoscopy:", e);
     } finally {
-      // Hard refresh to fully restore layout/video call
-      window.location.reload();
+      setIsStopping(false);
     }
-  }, [stopOtoscopy]);
+  }, [stopOtoscopy, router, consultationId]);
 
   // When video should be enlarged (only on video-otoscopy page when active)
   if (shouldEnlargeVideo) {

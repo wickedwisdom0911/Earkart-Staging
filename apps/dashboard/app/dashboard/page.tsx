@@ -377,39 +377,75 @@ export default function DashboardPage() {
                   )}
                 </button>
               )}
-            {consultation.status === SessionStatus.COMPLETED &&
-              Array.isArray(consultation.recordings) &&
-              consultation.recordings.length > 0 && (
+                        {consultation.status === SessionStatus.COMPLETED && (() => {
+              // Collect all recordings: regular recordings + screen recordings
+              const regularRecordings = Array.isArray(consultation.recordings) 
+                ? consultation.recordings.filter(r => r.recordingUrl)
+                : [];
+              
+              // Check for screen recording URLs from different sources
+              const screenRecordings = [];
+              
+              // From consultation.recordingName field (external callback)
+              const recordingName = (consultation as any)?.recordingName ?? (consultation as any)?.recordingsName ?? (consultation as any)?.recording?.name;
+              if (recordingName && process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL) {
+                screenRecordings.push({
+                  id: `screen-${consultation.id}`,
+                  recordingUrl: `${process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL}?name=${encodeURIComponent(recordingName)}`,
+                  createdAt: consultation.updatedAt,
+                  type: 'screen'
+                });
+              }
+              
+              // From consultation.recordingUrl field (direct)
+              if ((consultation as any)?.recordingUrl) {
+                screenRecordings.push({
+                  id: `screen-direct-${consultation.id}`,
+                  recordingUrl: (consultation as any).recordingUrl,
+                  createdAt: consultation.updatedAt,
+                  type: 'screen'
+                });
+              }
+              
+              const allRecordings = [...regularRecordings, ...screenRecordings];
+              
+              return allRecordings.length > 0 && (
                 <div className="mt-3 space-y-2">
                   <div className="text-sm font-medium text-gray-700 mb-2">
-                    Recordings ({consultation.recordings.filter(r => r.recordingUrl).length} available):
+                    Recordings ({allRecordings.length} available):
                   </div>
-                  {consultation.recordings
-                    .filter(r => r.recordingUrl)
-                    .map((recording, index) => {
-                      const timestamp = recording.createdAt 
-                        ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
-                        : `Part ${index + 1}`;
-                      
-                      return (
-                        <a
-                          key={recording.id || `recording-${index}`}
-                          href={recording.recordingUrl ?? '#'}
-                          download={`consultation-${consultation.id}-recording-${index + 1}.webm`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between px-3 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-700 hover:text-emerald-800 transition-colors duration-200 text-sm"
-                        >
-                          <span className="flex items-center">
-                            <PlayCircle className="h-4 w-4 mr-2" />
-                            Recording {index + 1} - {timestamp}
-                          </span>
-                          <Download className="h-3 w-3 text-emerald-600" />
-                        </a>
-                      );
-                    })}
+                  {allRecordings.map((recording, index) => {
+                    const timestamp = recording.createdAt 
+                      ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
+                      : `Part ${index + 1}`;
+                    
+                    const isScreenRecording = (recording as any).type === 'screen';
+                    const recordingType = isScreenRecording ? 'Screen Recording' : 'Audio Recording';
+                    
+                    return (
+                      <a
+                        key={recording.id || `recording-${index}`}
+                        href={recording.recordingUrl ?? '#'}
+                        download={`consultation-${consultation.id}-${isScreenRecording ? 'screen' : 'audio'}-${index + 1}.webm`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex items-center justify-between px-3 py-2 border rounded-lg transition-colors duration-200 text-sm ${
+                          isScreenRecording 
+                            ? 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 hover:text-blue-800'
+                            : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700 hover:text-emerald-800'
+                        }`}
+                      >
+                        <span className="flex items-center">
+                          <PlayCircle className="h-4 w-4 mr-2" />
+                          {recordingType} {index + 1} - {timestamp}
+                        </span>
+                        <Download className="h-3 w-3" />
+                      </a>
+                    );
+                  })}
                 </div>
-            )}
+              );
+            })()}
           </div>
         )}
       </div>
