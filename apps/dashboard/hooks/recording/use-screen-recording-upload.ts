@@ -265,13 +265,16 @@ export function useScreenRecordingUpload(consultationId: string) {
 			console.error(`❌ [CHUNK_STORAGE] Failed to save chunk ${chunkIndex}:`, err);
 		}
 		
-		// Try immediate upload
+		// Try immediate upload (ONLY method - removed old chunked system)
 		try {
 			await uploadChunkImmediately(chunk, chunkIndex, chunkId);
 		} catch (err) {
 			console.error(`⚠️ [CHUNK_UPLOAD] Failed to upload chunk ${chunkIndex} immediately:`, err);
 			// Chunk is safely stored in IndexedDB, will retry on next load
 		}
+		
+		// NO MORE: pendingBlobsRef.current.push(chunk) or tryFlushFullParts()
+		// We upload each chunk immediately instead of batching
 	}, [consultationId, uploadChunkImmediately]);
 
 	const start = useCallback(async (opts?: StartOptions) => {
@@ -366,11 +369,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 					} catch {}
 					uploadIdRef.current = null;
 					uploadedPartsRef.current = [];
-					queueRef.current = [];
-					activeUploadsRef.current = 0;
-					nextPartNumberRef.current = 1;
-					pendingBlobsRef.current = [];
-					pendingSizeRef.current = 0;
+					chunkCounterRef.current = 0;
 					setState((s) => ({ ...s, isInitializing: false, error: "Please select 'Entire Screen' in the share picker." }));
 					return;
 				}
@@ -400,17 +399,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 			recorder.ondataavailable = (ev: BlobEvent) => {
 				if (!ev.data || ev.data.size === 0) return;
 				handleChunk(ev.data);
-				const tooManyPending = state.pendingParts > 20;
-				if (tooManyPending && recorder.state === "recording") {
-					recorder.pause();
-					const interval = setInterval(() => {
-						const ok = queueRef.current.length < 5 && activeUploadsRef.current < concurrencyRef.current;
-						if (ok) {
-							clearInterval(interval);
-							if (recorder.state === "paused") recorder.resume();
-						}
-					}, 500);
-				}
+				// Removed queue management since we upload immediately
 			};
 
 			recorder.onerror = (e) => {
@@ -437,11 +426,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 			micStreamRef.current = null;
 			uploadIdRef.current = null;
 			uploadedPartsRef.current = [];
-			queueRef.current = [];
-			activeUploadsRef.current = 0;
-			nextPartNumberRef.current = 1;
-			pendingBlobsRef.current = [];
-			pendingSizeRef.current = 0;
+			chunkCounterRef.current = 0;
 		}
 	}, [consultationId, handleChunk, initiateMultipart, state.isRecording, state.isInitializing]);
 
@@ -467,32 +452,25 @@ export function useScreenRecordingUpload(consultationId: string) {
 			trackedVideoRef.current = null;
 			trackedStreamRef.current = null;
 
-			// Flush any remaining buffered data as the final (possibly smaller) part
-			if (pendingSizeRef.current > 0) {
-				const finalBlob = takeExactBytesFromBuffer(pendingSizeRef.current);
-				const pn = nextPartNumberRef.current;
-				enqueueUpload(() => uploadBlobPart(finalBlob, pn));
-				nextPartNumberRef.current = pn + 1;
-			}
-
-			await new Promise<void>((resolve) => {
-				const check = () => {
-					if (queueRef.current.length === 0 && activeUploadsRef.current === 0) return resolve();
-					setTimeout(check, 250);
-				};
-				check();
-			});
+			// Wait a moment for any final chunks to upload
+			console.log("⏳ [RECORDING_STOP] Waiting for final chunks to upload...");
+			await new Promise(resolve => setTimeout(resolve, 2000));
 
 			const uploadId = uploadIdRef.current;
 			if (uploadId) {
 				const parts = [...uploadedPartsRef.current].sort((a, b) => a.partNumber - b.partNumber);
+				console.log("🏁 [RECORDING_STOP] Attempting to complete upload:", { 
+					uploadId: uploadId.substring(0, 8) + '...', 
+					partsCount: parts.length,
+					parts: parts.map(p => ({ part: p.partNumber, etag: p.etag.substring(0, 8) + '...' }))
+				});
+				
 				const { key, playbackUrl } = await completeMultipart(uploadId, parts);
 				console.log("✅ [RECORDING_COMPLETE] Recording saved successfully:", { 
 					consultationId, 
 					key, 
 					playbackUrl,
-					parts: parts.length,
-					totalSize: uploadedPartsRef.current.reduce((sum, part) => sum + (part as any).size || 0, 0)
+					parts: parts.length
 				});
 				setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null }));
 				
@@ -507,44 +485,36 @@ export function useScreenRecordingUpload(consultationId: string) {
 		} finally {
 			uploadIdRef.current = null;
 			uploadedPartsRef.current = [];
-			queueRef.current = [];
-			activeUploadsRef.current = 0;
-			nextPartNumberRef.current = 1;
-			pendingBlobsRef.current = [];
-			pendingSizeRef.current = 0;
+			chunkCounterRef.current = 0;
 			isStoppingRef.current = false;
 			setState((s) => ({ ...s, isUploading: false }));
 		}
-	}, [completeMultipart, enqueueUpload, state.isInitializing, state.isRecording, takeExactBytesFromBuffer, uploadBlobPart]);
+	}, [completeMultipart, state.isInitializing, state.isRecording, storageKey]);
 
 	const complete = useCallback(async () => {
 		const uploadId = uploadIdRef.current;
-		if (!uploadId) return;
-
-		// If there is pending buffered data that hasn't reached partSize, flush it as the final part
-		if (pendingSizeRef.current > 0) {
-			const finalBlob = takeExactBytesFromBuffer(pendingSizeRef.current);
-			const pn = nextPartNumberRef.current;
-			enqueueUpload(() => uploadBlobPart(finalBlob, pn));
-			nextPartNumberRef.current = pn + 1;
+		if (!uploadId) {
+			console.log("ℹ️ [RECORDING_COMPLETE] No uploadId to complete");
+			return;
 		}
 
-		// wait for queue drain
-		await new Promise<void>((resolve) => {
-			const check = () => {
-				if (queueRef.current.length === 0 && activeUploadsRef.current === 0) return resolve();
-				setTimeout(check, 250);
-			};
-			check();
-		});
+		console.log("🏁 [RECORDING_COMPLETE] Completing upload with parts:", uploadedPartsRef.current.length);
 
 		if (uploadedPartsRef.current.length === 0) {
+			console.log("⚠️ [RECORDING_COMPLETE] No parts uploaded, aborting");
 			await abortRecordingUpload({ uploadId });
 			return;
 		}
+		
 		const parts = [...uploadedPartsRef.current].sort((a, b) => a.partNumber - b.partNumber);
-		await completeMultipart(uploadId, parts);
-	}, [completeMultipart, enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart]);
+		console.log("📋 [RECORDING_COMPLETE] Parts to complete:", parts.map(p => ({ part: p.partNumber, etag: p.etag.substring(0, 8) + '...' })));
+		
+		const { key, playbackUrl } = await completeMultipart(uploadId, parts);
+		console.log("✅ [RECORDING_COMPLETE] Successfully completed:", { key, playbackUrl });
+		
+		setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null }));
+		localStorage.removeItem(storageKey);
+	}, [completeMultipart, storageKey]);
 
 	const abort = useCallback(async () => {
 		const uploadId = uploadIdRef.current;
@@ -563,11 +533,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 			// Clean up all state regardless of abort success/failure
 			uploadIdRef.current = null;
 			uploadedPartsRef.current = [];
-			queueRef.current = [];
-			activeUploadsRef.current = 0;
-			nextPartNumberRef.current = 1;
-			pendingBlobsRef.current = [];
-			pendingSizeRef.current = 0;
+			chunkCounterRef.current = 0;
 			setState((s) => ({ ...s, isRecording: false, isUploading: false, uploadId: null, error: null }));
 			
 			// Clear localStorage since upload is aborted
