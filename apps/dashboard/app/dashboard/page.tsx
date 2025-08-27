@@ -21,6 +21,7 @@ import {
   PlayCircle,
   AlertCircle,
   XCircle,
+  Download,
 } from "lucide-react";
 import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
@@ -378,16 +379,36 @@ export default function DashboardPage() {
               )}
             {consultation.status === SessionStatus.COMPLETED &&
               Array.isArray(consultation.recordings) &&
-              consultation.recordings.length > 0 &&
-              consultation.recordings[0]?.recordingUrl && (
-                <a
-                  href={consultation.recordings[0].recordingUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 inline-flex w-full items-center justify-center px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition-colors duration-200"
-                >
-                  View recording
-                </a>
+              consultation.recordings.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <div className="text-sm font-medium text-gray-700 mb-2">
+                    Recordings ({consultation.recordings.filter(r => r.recordingUrl).length} available):
+                  </div>
+                  {consultation.recordings
+                    .filter(r => r.recordingUrl)
+                    .map((recording, index) => {
+                      const timestamp = recording.createdAt 
+                        ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
+                        : `Part ${index + 1}`;
+                      
+                      return (
+                        <a
+                          key={recording.id || `recording-${index}`}
+                          href={recording.recordingUrl ?? '#'}
+                          download={`consultation-${consultation.id}-recording-${index + 1}.webm`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between px-3 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-700 hover:text-emerald-800 transition-colors duration-200 text-sm"
+                        >
+                          <span className="flex items-center">
+                            <PlayCircle className="h-4 w-4 mr-2" />
+                            Recording {index + 1} - {timestamp}
+                          </span>
+                          <Download className="h-3 w-3 text-emerald-600" />
+                        </a>
+                      );
+                    })}
+                </div>
             )}
           </div>
         )}

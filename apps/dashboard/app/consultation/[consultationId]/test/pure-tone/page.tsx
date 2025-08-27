@@ -22,7 +22,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, HelpCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 const SIGNAL_TYPE_MAP = {
   0: SignalType.Steady,
@@ -90,6 +91,7 @@ export default function PureTonePage() {
   const [transducerData, setTransducerData] = useState<TransducerData | null>(
     null
   );
+  const [showHelpDialog, setShowHelpDialog] = useState(false);
 
   // Dummy transducer data for testing
   const dummyTransducerData: TransducerData = {
@@ -718,14 +720,239 @@ export default function PureTonePage() {
   
   const addNoResponse = useCallback(() => addTestResult(true), [addTestResult]); // true = no response, show arrow
 
-  // Add keyboard and double-click event listeners for adding responses
+  // Handle test submission
+  const handleSubmit = useCallback(() => {
+    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+      return;
+
+    const consultationData = consultationResponse.data as ConsultationModelData;
+    
+    // Ensure we preserve all test data when completing
+    const acTests = acTestResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y, // Always store the test level, even for no response
+      response: result.noResponse === 0, // true if patient responded
+      maskingUsed: result.masking > 0,
+      maskingEar:
+        result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
+    const bcTests = bcTestResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y, // Always store the test level, even for no response
+      response: result.noResponse === 0, // true if patient responded
+      maskingUsed: result.masking > 0,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
+    updateConsultation(
+      {
+        ...consultationData,
+        audiometry: {
+          ...consultationData.audiometry,
+          id: consultationData.audiometry?.id,
+          sessionId: consultationId as string,
+          status: TestStatus.COMPLETED,
+          acTests: acTests,
+          bcTests: bcTests,
+          audiologicalDiagnosis: consultationData.audiometry?.audiologicalDiagnosis,
+          suggestion: consultationData.audiometry?.suggestion,
+          recommendation: consultationData.audiometry?.recommendation,
+          createdAt:
+            consultationData.audiometry?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      {
+        onSuccess: (data) => {
+          if (data.success) {
+            toast.success("Test completed successfully");
+            console.log(`Test completed with ${acTests.length} AC tests and ${bcTests.length} BC tests`);
+            router.push(
+              ROUTES.AUDIOMETRY_TEST_REPORT(consultationId as string)
+            );
+          } else {
+            toast.error(data.message);
+          }
+        },
+        onError: (error) => {
+          toast.error(`Failed to complete test: ${error.message}`);
+        },
+      }
+    );
+  }, [consultationResponse, acTestResults, bcTestResults, consultationId, updateConsultation, router]);
+
+  // Comprehensive keyboard shortcuts for audiologist efficiency
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      // Only respond to spacebar or Enter key
-      if (event.code === 'Space' || event.code === 'Enter') {
-        // Prevent default behavior (e.g., scrolling with spacebar)
+      // Skip if typing in input/select/textarea
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Help dialog toggle
+      if (event.code === 'KeyH' && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
-        addResponse();
+        setShowHelpDialog(prev => !prev);
+        return;
+      }
+
+      // Skip other shortcuts if help dialog is open
+      if (showHelpDialog) return;
+
+      // Prevent default for handled keys
+      const preventDefault = () => event.preventDefault();
+
+      switch (event.code) {
+        // Quick responses
+        case 'Space':
+        case 'Enter':
+          preventDefault();
+          addResponse();
+          break;
+        case 'KeyN':
+          preventDefault();
+          addNoResponse();
+          break;
+
+        // Ear switching
+        case 'KeyL':
+          preventDefault();
+          setSelectedEar('L');
+          if (isMasking) sendMaskingSignal(true);
+          break;
+        case 'KeyR':
+          preventDefault();
+          setSelectedEar('R');
+          if (isMasking) sendMaskingSignal(true);
+          break;
+
+        // Mode switching
+        case 'KeyA':
+          preventDefault();
+          setSelectedMode('AC');
+          break;
+        case 'KeyB':
+          preventDefault();
+          setSelectedMode('BC');
+          break;
+
+        // Frequency navigation
+        case 'ArrowLeft':
+          if (!event.shiftKey) {
+            preventDefault();
+            const currentFreqIndex = FREQUENCIES.indexOf(selectedFrequency);
+            if (currentFreqIndex > 0) {
+              const newFreq = FREQUENCIES[currentFreqIndex - 1];
+              handleFrequencyChange(newFreq);
+            }
+          }
+          break;
+        case 'ArrowRight':
+          if (!event.shiftKey) {
+            preventDefault();
+            const currentFreqIndexRight = FREQUENCIES.indexOf(selectedFrequency);
+            if (currentFreqIndexRight < FREQUENCIES.length - 1) {
+              const newFreq = FREQUENCIES[currentFreqIndexRight + 1];
+              handleFrequencyChange(newFreq);
+            }
+          }
+          break;
+
+        // Level adjustment (5dB steps)
+        case 'ArrowUp':
+          if (!event.shiftKey) {
+            preventDefault();
+            const currentLevelIndex = HEARING_LEVELS.indexOf(selectedLevel);
+            if (currentLevelIndex > 0) {
+              const newLevel = HEARING_LEVELS[currentLevelIndex - 1];
+              handleLevelChange(newLevel);
+            }
+          } else {
+            // 10dB steps with Shift
+            preventDefault();
+            const currentIdx = HEARING_LEVELS.indexOf(selectedLevel);
+            const newIdx = Math.max(0, currentIdx - 2); // 2 steps = 10dB
+            handleLevelChange(HEARING_LEVELS[newIdx]);
+          }
+          break;
+        case 'ArrowDown':
+          if (!event.shiftKey) {
+            preventDefault();
+            const currentLevelIndexDown = HEARING_LEVELS.indexOf(selectedLevel);
+            if (currentLevelIndexDown < HEARING_LEVELS.length - 1) {
+              const newLevel = HEARING_LEVELS[currentLevelIndexDown + 1];
+              handleLevelChange(newLevel);
+            }
+          } else {
+            // 10dB steps with Shift
+            preventDefault();
+            const currentIdx = HEARING_LEVELS.indexOf(selectedLevel);
+            const newIdx = Math.min(HEARING_LEVELS.length - 1, currentIdx + 2);
+            handleLevelChange(HEARING_LEVELS[newIdx]);
+          }
+          break;
+
+        // Masking toggle
+        case 'KeyM':
+          preventDefault();
+          const nextMasking = !isMasking;
+          setIsMasking(nextMasking);
+          sendMaskingSignal(nextMasking);
+          break;
+
+        // Pulsed toggle
+        case 'KeyP':
+          preventDefault();
+          setIsPulsed(prev => {
+            const next = !prev;
+            if (isPlaying) {
+              _endAudiometrySignal();
+              _sendAudiometrySignal();
+            }
+            return next;
+          });
+          break;
+
+        // Common frequencies (quick jump)
+        case 'Digit1':
+          preventDefault();
+          handleFrequencyChange(1000); // 1K
+          break;
+        case 'Digit2':
+          preventDefault();
+          handleFrequencyChange(2000); // 2K
+          break;
+        case 'Digit4':
+          preventDefault();
+          handleFrequencyChange(4000); // 4K
+          break;
+        case 'Digit5':
+          preventDefault();
+          handleFrequencyChange(500); // 500Hz
+          break;
+
+        // Play/stop tone
+        case 'KeyT':
+          preventDefault();
+          if (isPlaying) {
+            _endAudiometrySignal();
+          } else {
+            _sendAudiometrySignal();
+          }
+          break;
+
+        // Submit test
+        case 'KeyS':
+          if (event.ctrlKey || event.metaKey) {
+            preventDefault();
+            handleSubmit();
+          }
+          break;
       }
     };
 
@@ -747,7 +974,21 @@ export default function PureTonePage() {
       document.removeEventListener('keydown', handleKeyPress);
       document.removeEventListener('dblclick', handleDoubleClick);
     };
-  }, [addResponse]); // Include addResponse in dependencies
+  }, [
+    addResponse, 
+    addNoResponse, 
+    selectedFrequency, 
+    selectedLevel, 
+    isMasking, 
+    isPlaying, 
+    showHelpDialog,
+    handleFrequencyChange, 
+    handleLevelChange, 
+    sendMaskingSignal,
+    _endAudiometrySignal,
+    _sendAudiometrySignal,
+    handleSubmit
+  ]);
 
   // Helper function to persist cleared results to backend
   const persistClearedResults = (updatedAcResults: TestResult[], updatedBcResults: TestResult[]) => {
@@ -876,71 +1117,6 @@ export default function PureTonePage() {
     }
   };
 
-  // Handle test submission
-  const handleSubmit = () => {
-    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
-      return;
-
-    const consultationData = consultationResponse.data as ConsultationModelData;
-    
-    // Ensure we preserve all test data when completing
-    const acTests = acTestResults.map((result) => ({
-      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
-      frequencyHz: result.x,
-      thresholdDb: result.y, // Always store the test level, even for no response
-      response: result.noResponse === 0, // true if patient responded
-      maskingUsed: result.masking > 0,
-      maskingEar:
-        result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
-      maskingThresholdDb: result.masking > 0 ? result.masking : null,
-    }));
-
-    const bcTests = bcTestResults.map((result) => ({
-      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
-      frequencyHz: result.x,
-      thresholdDb: result.y, // Always store the test level, even for no response
-      response: result.noResponse === 0, // true if patient responded
-      maskingUsed: result.masking > 0,
-      maskingThresholdDb: result.masking > 0 ? result.masking : null,
-    }));
-
-    updateConsultation(
-      {
-        ...consultationData,
-        audiometry: {
-          ...consultationData.audiometry,
-          id: consultationData.audiometry?.id,
-          sessionId: consultationId as string,
-          status: TestStatus.COMPLETED,
-          acTests: acTests,
-          bcTests: bcTests,
-          audiologicalDiagnosis: consultationData.audiometry?.audiologicalDiagnosis,
-          suggestion: consultationData.audiometry?.suggestion,
-          recommendation: consultationData.audiometry?.recommendation,
-          createdAt:
-            consultationData.audiometry?.createdAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      },
-      {
-        onSuccess: (data) => {
-          if (data.success) {
-            toast.success("Test completed successfully");
-            console.log(`Test completed with ${acTests.length} AC tests and ${bcTests.length} BC tests`);
-            router.push(
-              ROUTES.AUDIOMETRY_TEST_REPORT(consultationId as string)
-            );
-          } else {
-            toast.error(data.message);
-          }
-        },
-        onError: (error) => {
-          toast.error(`Failed to complete test: ${error.message}`);
-        },
-      }
-    );
-  };
-
   if (!currentTransducer) {
     return <PureToneLoadingSkeleton />;
   }
@@ -995,6 +1171,25 @@ export default function PureTonePage() {
           selectedLabelIndexes={selectedLabelIndexes}
           resultMarkings={testResults}
           onIndexChange={handleAudiogramClick}
+          onRightClickIndex={(i,j) => {
+            // Jump crosshair then add No Response
+            setSelectedLabelIndexes({ x: i, y: j });
+            setSelectedFrequency(FREQUENCIES[i]);
+            setSelectedLevel(HEARING_LEVELS[j]);
+            addTestResult(true);
+          }}
+          onDoubleClickIndex={(i,j) => {
+            setSelectedLabelIndexes({ x: i, y: j });
+            setSelectedFrequency(FREQUENCIES[i]);
+            setSelectedLevel(HEARING_LEVELS[j]);
+            addTestResult(false);
+          }}
+          onAltClickIndex={(i,j) => {
+            setSelectedLabelIndexes({ x: i, y: j });
+            setSelectedFrequency(FREQUENCIES[i]);
+            setSelectedLevel(HEARING_LEVELS[j]);
+            addTestResult(true);
+          }}
         />
       </div>
       </div>
@@ -1177,6 +1372,81 @@ export default function PureTonePage() {
         </div>
       </div>
       </div>
+
+      {/* Keyboard Shortcuts Help Dialog */}
+      <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HelpCircle size={20} />
+              Keyboard Shortcuts
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-semibold text-blue-600 mb-2">Quick Actions</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">Space</kbd> or <kbd className="px-2 py-1 bg-gray-100 rounded">Enter</kbd> - Add response</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">N</kbd> - Add no response</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">T</kbd> - Play/stop tone</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">Ctrl+S</kbd> - Submit test</div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-green-600 mb-2">Navigation</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">L</kbd> - Switch to Left ear</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">R</kbd> - Switch to Right ear</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">A</kbd> - Air Conduction</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">B</kbd> - Bone Conduction</div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-purple-600 mb-2">Frequency & Level</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">←/→</kbd> - Navigate frequencies</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">↑/↓</kbd> - Adjust level (5dB)</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">Shift+↑/↓</kbd> - Adjust level (10dB)</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">1/2/4/5</kbd> - Jump to 1K/2K/4K/500Hz</div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-orange-600 mb-2">Settings</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">M</kbd> - Toggle masking</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">P</kbd> - Toggle pulsed tone</div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-red-600 mb-2">Graph Interactions</h4>
+              <div className="space-y-1 text-sm">
+                <div>• <strong>Right-click</strong> on graph - Add no response at point</div>
+                <div>• <strong>Double-click</strong> on graph - Add response at point</div>
+                <div>• <strong>Alt+click</strong> on graph - Add no response at point</div>
+              </div>
+            </div>
+            
+            <div className="pt-2 border-t">
+              <div className="text-xs text-gray-600">
+                Press <kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Ctrl+H</kbd> to toggle this help dialog
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Floating Help Button */}
+      <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
+        <DialogTrigger asChild>
+          <button className="fixed bottom-6 left-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg z-50 transition-all duration-200 hover:scale-105">
+            <HelpCircle size={20} />
+          </button>
+        </DialogTrigger>
+      </Dialog>
     </div>
   );
 }
