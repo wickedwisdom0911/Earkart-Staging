@@ -113,6 +113,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _onRefresh() async {
+    context.read<AuthCubit>().getCentre();
+    context.read<AuthCubit>().getCentreData();
+    context.read<ConsultationCubit>().getConsultationsByCentreId();
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthCubit, AuthState>(
@@ -186,114 +192,119 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 8),
           ],
         ),
-        body: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Quick Actions Section
-                const Text(
-                  "Quick Actions",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ActionCard(
-                        icon: Icons.people_outline,
-                        title: "View Patients",
-                        subtitle: "Browse all patients",
-                        color: Colors.blue,
-                        onTap: () {
-                          Navigator.pushNamed(
-                            context,
-                            AllPatientsScreen.routeName,
-                          );
-                        },
-                      ),
+        body: RefreshIndicator(
+          onRefresh: _onRefresh,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Quick Actions Section
+                  const Text(
+                    "Quick Actions",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _ActionCard(
-                        icon: Icons.add_circle_outline,
-                        title: "New Consultation",
-                        subtitle: "Start consultation",
-                        color: Colors.green,
-                        onTap: () {
-                          Navigator.pushNamed(
-                            context,
-                            PatientPhoneScreen.routeName,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 32),
-
-                // Recent Consultations Section
-                const Text(
-                  "Recent Consultations",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
                   ),
-                ),
-                const SizedBox(height: 16),
-
-                BlocBuilder<ConsultationCubit, ConsultationState>(
-                  builder: (context, state) {
-                    if (state is ConsultationLoading) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(40),
-                          child: CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ActionCard(
+                          icon: Icons.people_outline,
+                          title: "View Patients",
+                          subtitle: "Browse all patients",
+                          color: Colors.blue,
+                          onTap: () {
+                            Navigator.pushNamed(
+                              context,
+                              AllPatientsScreen.routeName,
+                            );
+                          },
                         ),
-                      );
-                    }
-                    if (state is ConsultationError) {
-                      return _ErrorCard(message: state.message);
-                    }
-                    if (state is AllConsultationsSuccess) {
-                      if (state.consultations.isEmpty) {
-                        return const _EmptyStateCard();
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _ActionCard(
+                          icon: Icons.add_circle_outline,
+                          title: "New Consultation",
+                          subtitle: "Start consultation",
+                          color: Colors.green,
+                          onTap: () {
+                            Navigator.pushNamed(
+                              context,
+                              PatientPhoneScreen.routeName,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Recent Consultations Section
+                  const Text(
+                    "Recent Consultations",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  BlocBuilder<ConsultationCubit, ConsultationState>(
+                    builder: (context, state) {
+                      if (state is ConsultationLoading) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(40),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
                       }
-                      return ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount:
-                            state.consultations.length > 5
-                                ? 5
-                                : state.consultations.length,
-                        separatorBuilder:
-                            (context, index) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final consultation = state.consultations[index];
-                          return _ConsultationCard(
-                            patientName:
-                                consultation.patient?.name ?? "Unknown Patient",
-                            date:
-                                consultation.createdAt?.toString().split(
-                                  ' ',
-                                )[0] ??
-                                "No date",
-                            status: consultation.status?.name ?? "Unknown",
-                          );
-                        },
-                      );
-                    }
-                    return const _EmptyStateCard();
-                  },
-                ),
-              ],
+                      if (state is ConsultationError) {
+                        return _ErrorCard(message: state.message);
+                      }
+                      if (state is AllConsultationsSuccess) {
+                        if (state.consultations.isEmpty) {
+                          return const _EmptyStateCard();
+                        }
+                        return ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount:
+                              state.consultations.length > 5
+                                  ? 5
+                                  : state.consultations.length,
+                          separatorBuilder:
+                              (context, index) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final consultation = state.consultations[index];
+                            return _ConsultationCard(
+                              patientName:
+                                  consultation.patient?.name ??
+                                  "Unknown Patient",
+                              date:
+                                  consultation.createdAt?.toString().split(
+                                    ' ',
+                                  )[0] ??
+                                  "No date",
+                              status: consultation.status?.name ?? "Unknown",
+                            );
+                          },
+                        );
+                      }
+                      return const _EmptyStateCard();
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
