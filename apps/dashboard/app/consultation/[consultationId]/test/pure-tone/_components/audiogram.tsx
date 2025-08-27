@@ -17,6 +17,10 @@ interface PureToneGraphProps {
   width?: number;
   height?: number;
   axisFontSize ? : number
+  // Quick-action hooks
+  onRightClickIndex?: (x: number, y: number) => void;
+  onDoubleClickIndex?: (x: number, y: number) => void;
+  onAltClickIndex?: (x: number, y: number) => void;
 }
 
 export const FREQUENCIES = [125, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000];
@@ -40,7 +44,10 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
   onIndexChange,
   width = 800,
   height = 600,
-   axisFontSize = 12
+   axisFontSize = 12,
+  onRightClickIndex,
+  onDoubleClickIndex,
+  onAltClickIndex,
 }) => {
   const margin = { top: 40, right: 40, bottom: 40, left: 60 };
   const graphH = height - margin.top - margin.bottom;
@@ -146,6 +153,7 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
     // Create vertical lines for main frequencies (solid, dark)
     mainFrequencies.forEach(freq => {
       const x = xScale(freq);
+      const isImportantFreq = freq === 1000 || freq === 2000 || freq === 4000 || freq === 8000;
       
       gridElements.push(
         <line
@@ -155,7 +163,7 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
           x2={x}
           y2={height - margin.bottom}
           stroke={COLORS.grid}
-          strokeWidth={1}
+          strokeWidth={isImportantFreq ? 2.5 : 1}
         />
       );
     });
@@ -228,6 +236,7 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
     extendedFrequencies.forEach(f => {
       const x = xScale(f);
       const isMidFreq = midFrequencies.includes(f);
+      const isImportantFreq = f === 1000 || f === 2000 || f === 4000 || f === 8000;
       const label = f >= 1000 ? `${f/1000}K` : `${f}`;
       
       axisElements.push(
@@ -237,8 +246,8 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
           y={height - margin.bottom + 20}
           textAnchor="middle" 
           fill={isMidFreq ? "#666666" : COLORS.text}
-          fontSize={isMidFreq ? axisFontSize - 1 : axisFontSize}
-          fontWeight={isMidFreq ? "normal" : "500"}
+          fontSize={isImportantFreq ? axisFontSize + 1 : (isMidFreq ? axisFontSize - 1 : axisFontSize)}
+          fontWeight={isImportantFreq ? "800" : (isMidFreq ? "normal" : "500")}
         >
           {label}
         </text>
@@ -343,6 +352,22 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
     return <g key={i}>{renderSymbol(px,py,m.ear,m.mode,m.masking,m.noResponse)}</g>;
   }), [resultMarkings, renderSymbol, xScale, yScale]);
 
+  const computeNearestIndices = useCallback((svgEl: SVGSVGElement, clientX: number, clientY: number) => {
+    const rect = svgEl.getBoundingClientRect();
+    const cx = clientX - rect.left, cy = clientY - rect.top;
+    let bi = 0, bd = Infinity;
+    FREQUENCIES.forEach((f,i) => {
+      const d = Math.abs(cx - xScale(f));
+      if (d < bd) { bd = d; bi = i; }
+    });
+    let bj = 0; bd = Infinity;
+    HEARING_LEVELS.forEach((h,i) => {
+      const d = Math.abs(cy - yScale(h));
+      if (d < bd) { bd = d; bj = i; }
+    });
+    return { bi, bj };
+  }, [xScale, yScale]);
+
   const handleClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
@@ -356,13 +381,33 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
       const d = Math.abs(cy - yScale(h));
       if (d < bd) { bd = d; bj = i; }
     });
+    // Alt+Click quick mark as No Response
+    if (e.altKey && onAltClickIndex) {
+      onAltClickIndex(bi, bj);
+      return;
+    }
     onIndexChange(bi, bj);
-  }, [onIndexChange, xScale, yScale]);
+  }, [onIndexChange, onAltClickIndex, xScale, yScale]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!onRightClickIndex) return;
+    e.preventDefault();
+    const { bi, bj } = computeNearestIndices(e.currentTarget, e.clientX, e.clientY);
+    onRightClickIndex(bi, bj);
+  }, [onRightClickIndex, computeNearestIndices]);
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!onDoubleClickIndex) return;
+    const { bi, bj } = computeNearestIndices(e.currentTarget, e.clientX, e.clientY);
+    onDoubleClickIndex(bi, bj);
+  }, [onDoubleClickIndex, computeNearestIndices]);
 
   return (
     <svg width={svgW} height={height}
       style={{ backgroundColor: COLORS.background }}
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
+      onDoubleClick={handleDoubleClick}
     >
       {grid}
       {midIntensityLines}
