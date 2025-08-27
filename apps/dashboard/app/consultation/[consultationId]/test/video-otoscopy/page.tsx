@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useOtoscopy } from "@/providers/otoscopy-provider";
+import { useDevice } from "@/providers/device-provider";
 
 export default function VideoOtoscopyPage() {
   const { consultationId } = useParams();
@@ -13,10 +14,14 @@ export default function VideoOtoscopyPage() {
     startOtoscopy, 
     stopOtoscopy 
   } = useOtoscopy();
+  const { deviceState } = useDevice();
   
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
 
+  // Check if camera is open for UI feedback
+  const isCameraOpen = deviceState.r15c.isCameraOpen;
+  
   // Handle start otoscopy with loading state
   const handleStartOtoscopy = async () => {
     setIsStarting(true);
@@ -93,17 +98,41 @@ export default function VideoOtoscopyPage() {
               {isStopping ? 'Stopping...' : 'Stop Otoscopy'}
             </Button>
           </div>
+          
+          {/* Camera Status */}
+          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">Otoscope Camera:</span>
+              <span className={`flex items-center gap-1 ${isCameraOpen ? 'text-green-600' : 'text-orange-600'}`}>
+                <div className={`w-2 h-2 rounded-full ${isCameraOpen ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                {isCameraOpen ? 'Ready' : 'Please open camera on device'}
+              </span>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Status Indicator */}
-      {isOtoscopyActive && (
+      {/* Status Indicators */}
+      {isOtoscopyActive && !isCameraOpen && (
+        <Card className="border-orange-500 bg-orange-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-orange-500 animate-pulse"></div>
+              <span className="font-medium text-orange-800">
+                Otoscopy started - Waiting for camera to open on device
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {isOtoscopyActive && isCameraOpen && (
         <Card className="border-green-500 bg-green-50">
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
               <span className="font-medium text-green-800">
-                Otoscopy examination in progress
+                Otoscopy examination in progress - Camera ready
               </span>
             </div>
           </CardContent>

@@ -380,7 +380,7 @@ export default function DashboardPage() {
                         {consultation.status === SessionStatus.COMPLETED && (() => {
               // Collect all recordings: regular recordings + screen recordings
               const regularRecordings = Array.isArray(consultation.recordings) 
-                ? consultation.recordings.filter(r => r.recordingUrl)
+                ? consultation.recordings // Show all recordings, even if recordingUrl is null
                 : [];
               
               // Check for screen recording URLs from different sources
@@ -421,11 +421,28 @@ export default function DashboardPage() {
                     
                     const isScreenRecording = (recording as any).type === 'screen';
                     const recordingType = isScreenRecording ? 'Screen Recording' : 'Audio Recording';
+                    const hasUrl = !!recording.recordingUrl;
+                    
+                    // If no URL, show as disabled item instead of link
+                    if (!hasUrl) {
+                      return (
+                        <div
+                          key={recording.id || `recording-${index}`}
+                          className="flex items-center justify-between px-3 py-2 border rounded-lg text-sm bg-gray-50 border-gray-200 text-gray-500"
+                        >
+                          <span className="flex items-center">
+                            <PlayCircle className="h-4 w-4 mr-2 opacity-50" />
+                            {recordingType} {index + 1} - {timestamp}
+                          </span>
+                          <span className="text-xs">Processing...</span>
+                        </div>
+                      );
+                    }
                     
                     return (
                       <a
                         key={recording.id || `recording-${index}`}
-                        href={recording.recordingUrl ?? '#'}
+                        href={recording.recordingUrl}
                         download={`consultation-${consultation.id}-${isScreenRecording ? 'screen' : 'audio'}-${index + 1}.webm`}
                         target="_blank"
                         rel="noopener noreferrer"

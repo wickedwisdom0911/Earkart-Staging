@@ -3,6 +3,7 @@ import React from "react";
 import { VideoCall } from "./video-call";
 import { useOtoscopy } from "@/providers/otoscopy-provider";
 import { usePathname, useRouter } from "next/navigation";
+import { useDevice } from "@/providers/device-provider";
 
 interface DelayedVideoCallProps {
   channel: string;
@@ -53,18 +54,21 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
   const { isOtoscopyActive, stopOtoscopy } = useOtoscopy();
   const pathname = usePathname();
   const router = useRouter();
+  const { deviceState } = useDevice();
   
   // Check if we're on the specific video-otoscopy page
   const isVideoOtoscopyPage = pathname?.includes('/test/video-otoscopy');
   
-  // Only enlarge video when on video-otoscopy page AND otoscopy is active
-  const shouldEnlargeVideo = isVideoOtoscopyPage && isOtoscopyActive;
+  // Only enlarge video when on video-otoscopy page AND otoscopy is active AND camera is open
+  const isCameraOpen = deviceState.r15c.isCameraOpen;
+  const shouldEnlargeVideo = isVideoOtoscopyPage && isOtoscopyActive && isCameraOpen;
 
   // Debug logging
   console.log("🔍 ConsultationContent Debug:", {
     pathname,
     isVideoOtoscopyPage,
     isOtoscopyActive,
+    isCameraOpen,
     shouldEnlargeVideo,
     consultationId,
     timestamp: new Date().toISOString()
@@ -85,14 +89,16 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     try {
       setIsStopping(true);
       await stopOtoscopy();
-      // Redirect to test selection instead of hard refresh
-      router.push(`/consultation/${consultationId}/test-selection`);
+      // Small delay then refresh to restore video call properly
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (e) {
       console.error("Error stopping otoscopy:", e);
     } finally {
       setIsStopping(false);
     }
-  }, [stopOtoscopy, router, consultationId]);
+  }, [stopOtoscopy]);
 
   // When video should be enlarged (only on video-otoscopy page when active)
   if (shouldEnlargeVideo) {

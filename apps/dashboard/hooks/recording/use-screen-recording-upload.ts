@@ -182,7 +182,15 @@ export function useScreenRecordingUpload(consultationId: string) {
 	}, [tryFlushFullParts]);
 
 	const start = useCallback(async (opts?: StartOptions) => {
-		if (state.isRecording || state.isInitializing) return;
+		if (state.isRecording || state.isInitializing) {
+			console.log("⚠️ [RECORDING] Cannot start - recording already in progress");
+			return;
+		}
+		if (state.isUploading) {
+			console.log("⚠️ [RECORDING] Cannot start - previous recording still uploading");
+			return;
+		}
+		console.log("🎬 [RECORDING] Starting new screen recording...");
 		setState((s) => ({ ...s, isInitializing: true, error: null }));
 
 		try {
@@ -373,8 +381,16 @@ export function useScreenRecordingUpload(consultationId: string) {
 			if (uploadId) {
 				const parts = [...uploadedPartsRef.current].sort((a, b) => a.partNumber - b.partNumber);
 				const { key, playbackUrl } = await completeMultipart(uploadId, parts);
-				try { console.log("[RECORDING_COMPLETE]", { key, playbackUrl }); } catch {}
+				console.log("✅ [RECORDING_COMPLETE] Recording saved successfully:", { 
+					consultationId, 
+					key, 
+					playbackUrl,
+					parts: parts.length,
+					totalSize: uploadedPartsRef.current.reduce((sum, part) => sum + (part as any).size || 0, 0)
+				});
 				setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null }));
+			} else {
+				console.log("⚠️ [RECORDING_COMPLETE] No upload ID found - recording may not have been saved");
 			}
 		} catch (err) {
 			console.error("Failed to finalize upload:", err);
@@ -423,10 +439,19 @@ export function useScreenRecordingUpload(consultationId: string) {
 
 	const abort = useCallback(async () => {
 		const uploadId = uploadIdRef.current;
-		if (!uploadId) return;
+		if (!uploadId) {
+			console.log("ℹ️ [RECORDING_ABORT] No active upload to abort");
+			return;
+		}
+		
+		console.log("🛑 [RECORDING_ABORT] Aborting current recording upload:", uploadId);
 		try {
 			await abortRecordingUpload({ uploadId });
+			console.log("✅ [RECORDING_ABORT] Successfully aborted upload");
+		} catch (err) {
+			console.error("❌ [RECORDING_ABORT] Error aborting upload:", err);
 		} finally {
+			// Clean up all state regardless of abort success/failure
 			uploadIdRef.current = null;
 			uploadedPartsRef.current = [];
 			queueRef.current = [];
@@ -434,7 +459,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 			nextPartNumberRef.current = 1;
 			pendingBlobsRef.current = [];
 			pendingSizeRef.current = 0;
-			setState((s) => ({ ...s, isRecording: false, isUploading: false, uploadId: null }));
+			setState((s) => ({ ...s, isRecording: false, isUploading: false, uploadId: null, error: null }));
 		}
 	}, []);
 
