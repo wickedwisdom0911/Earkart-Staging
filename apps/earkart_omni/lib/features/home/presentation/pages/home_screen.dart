@@ -1,7 +1,9 @@
+import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
+import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_phone_screen.dart';
@@ -20,17 +22,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    print('🏠 HomeScreen initState - Starting home screen initialization');
 
     context.read<AuthCubit>().getCentre();
-    print('📞 HomeScreen: Called getCentre()');
 
     context.read<AuthCubit>().getCentreData();
-    print('📞 HomeScreen: Called getCentreData()');
-
-    // Don't call getConsultationsByCentreId here - wait for centre data to be available
-    // context.read<ConsultationCubit>().getConsultationsByCentreId();
-    // print('📞 HomeScreen: Called getConsultationsByCentreId()');
   }
 
   void _showLogoutDialog() {
@@ -117,28 +112,19 @@ class _HomeScreenState extends State<HomeScreen> {
     context.read<AuthCubit>().getCentre();
     context.read<AuthCubit>().getCentreData();
     context.read<ConsultationCubit>().getConsultationsByCentreId();
+    await di<LookupCubit>().getLanguages();
+    await di<LookupCubit>().getCountries();
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
-        print('🏠 HomeScreen: AuthCubit state changed: ${state.runtimeType}');
-
         if (state is AuthCentreSuccess) {
-          print(
-            '✅ HomeScreen: AuthCentreSuccess - Centre: ${state.centre?.entName ?? 'null'}',
-          );
-          print(
-            '📞 HomeScreen: Now calling getConsultationsByCentreId() after centre data is available',
-          );
           context.read<ConsultationCubit>().getConsultationsByCentreId();
         } else if (state is AuthError || state is AuthCentreError) {
           if (state is AuthError) {
-            print('❌ HomeScreen: Auth Error: ${state.message}');
-          } else if (state is AuthCentreError) {
-            print('❌ HomeScreen: Centre Error: ${state.message}');
-          }
+          } else if (state is AuthCentreError) {}
         }
       },
       child: Scaffold(
@@ -150,7 +136,6 @@ class _HomeScreenState extends State<HomeScreen> {
           title: BlocBuilder<AuthCubit, AuthState>(
             builder: (context, state) {
               if (state is AuthCentreSuccess) {
-                print(state.centre?.toString());
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
