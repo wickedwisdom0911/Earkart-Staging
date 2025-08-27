@@ -59,7 +59,7 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
             context,
             PatientFormScreen.routeName,
             arguments: PatientEntity(
-              contactNumber: "",
+              contactNumber: _phoneController.text.trim(),
               name: "",
               gender: Gender.male,
               password: "",
