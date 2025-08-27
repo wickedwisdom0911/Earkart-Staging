@@ -393,9 +393,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     bool? maskingSignal,
     int? maskingLevel,
   }) async {
-    di<ILogger>().debug(
-      'Sending state packet - Frequency: $frequency, Level: $level, Signal: $signal',
-    );
+    // Create base channel
     final channel0 = {
       "Channel": 0,
       "Valid": true,
@@ -415,7 +413,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
               ? 0
               : 2,
       "SignalType":
-          signalType == SignalType.Steady
+          (signalType == SignalType.Steady
               ? 0
               : signalType == SignalType.Warble
               ? 1
@@ -427,7 +425,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
               ? 4
               : signalType == SignalType.Speech
               ? 7
-              : 0,
+              : 0),
       "Frequency": frequency,
       "Level": level,
       "Pulsed": pulsed,
@@ -435,8 +433,11 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       "Signal": signal,
     };
 
+    // Create channels list with channel 0
     List<Map<String, dynamic>> channels = [channel0];
 
+    // Only add channel 1 if conduction type is Air
+    //white noise for masking
     final channel1 = {
       "Channel": 1,
       "Valid": true,
@@ -449,7 +450,61 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       "Level": maskingLevel ?? 0,
       "Pulsed": false,
       "Rate": 1.0,
-      "Signal": signal == true ? maskingSignal ?? false : false,
+      "Signal": maskingSignal ?? false,
+    };
+    channels.add(channel1);
+
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 4,
+      "AudiometerCoreState": {"Enabled": true, "Channels": channels},
+    });
+
+    await sendCommand(packet);
+  }
+
+  Future<void> sendMaskingPacket({
+    required int frequency,
+    required int level,
+    required bool signal,
+    required EarSide earSide,
+  }) async {
+    final channel0 = {
+      "Channel": 0,
+      "Valid": true,
+      "ConductionType": 0,
+      "TransducerID": state.transducerResponse?.transducers[0].id,
+      "TransducerName": state.transducerResponse?.transducers[0].name,
+      "EarSide":
+          earSide == EarSide.Left
+              ? 1
+              : earSide == EarSide.Right
+              ? 0
+              : 2,
+      "SignalType": 0,
+      "Frequency": frequency,
+      "Level": level,
+      "Pulsed": false,
+      "Rate": 1.0,
+      "Signal": false,
+    };
+
+    // Create channels list with channel 0
+    List<Map<String, dynamic>> channels = [channel0];
+
+    //white noise for masking
+    final channel1 = {
+      "Channel": 1,
+      "Valid": true,
+      "ConductionType": 0,
+      "TransducerID": state.transducerResponse?.transducers[0].id,
+      "TransducerName": state.transducerResponse?.transducers[0].name,
+      "EarSide": earSide == EarSide.Left ? 0 : 1,
+      "SignalType": 3,
+      "Frequency": -1,
+      "Level": level,
+      "Pulsed": false,
+      "Rate": 1.0,
+      "Signal": signal,
     };
     channels.add(channel1);
 

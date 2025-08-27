@@ -486,7 +486,16 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       if (!mounted) return;
       di<ILogger>().debug('User left: $data');
     });
-
+    socket.on("masking-signal", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('Masking signal: $data');
+      context.read<CommunicationCubit>().sendMaskingPacket(
+        frequency: data["frequency"],
+        level: data["level"],
+        signal: data["signal"],
+        earSide: data["earSide"] == "L" ? EarSide.Left : EarSide.Right,
+      );
+    });
     socket.on("audiometry-signal", (data) {
       if (!mounted) return;
 
