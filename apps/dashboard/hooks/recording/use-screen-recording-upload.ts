@@ -64,6 +64,12 @@ export function useScreenRecordingUpload(consultationId: string) {
     playbackUrl: null,
 	});
 
+	// Generate unique session ID for this recording session
+	const sessionIdRef = useRef<string>(Date.now().toString());
+	
+	// Track incomplete uploads in localStorage to complete them after refresh
+	const storageKey = `recording_${consultationId}`;
+
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const mediaStreamRef = useRef<MediaStream | null>(null);
 	const micStreamRef = useRef<MediaStream | null>(null);
@@ -194,7 +200,8 @@ export function useScreenRecordingUpload(consultationId: string) {
 		setState((s) => ({ ...s, isInitializing: true, error: null }));
 
 		try {
-			const filename = opts?.filename || `consultation-${consultationId}-${Date.now()}.webm`;
+			// Generate unique filename with session ID to prevent overwrites
+			const filename = opts?.filename || `consultation-${consultationId}-session-${sessionIdRef.current}-${Date.now()}.webm`;
 			const mimeTypeCandidates = [
 				"video/webm;codecs=vp9,opus",
 				"video/webm;codecs=vp8,opus",
@@ -209,6 +216,14 @@ export function useScreenRecordingUpload(consultationId: string) {
 			uploadIdRef.current = uploadId;
 			partSizeRef.current = Math.max(5 * 1024 * 1024, partSize || partSizeRef.current);
 			setState((s) => ({ ...s, uploadId }));
+			
+			// Save upload info to localStorage for recovery after refresh
+			localStorage.setItem(storageKey, JSON.stringify({
+				uploadId,
+				filename,
+				timestamp: Date.now(),
+				sessionId: sessionIdRef.current
+			}));
 
 
 
@@ -389,6 +404,9 @@ export function useScreenRecordingUpload(consultationId: string) {
 					totalSize: uploadedPartsRef.current.reduce((sum, part) => sum + (part as any).size || 0, 0)
 				});
 				setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null }));
+				
+				// Clear localStorage since upload is complete
+				localStorage.removeItem(storageKey);
 			} else {
 				console.log("⚠️ [RECORDING_COMPLETE] No upload ID found - recording may not have been saved");
 			}
@@ -460,8 +478,11 @@ export function useScreenRecordingUpload(consultationId: string) {
 			pendingBlobsRef.current = [];
 			pendingSizeRef.current = 0;
 			setState((s) => ({ ...s, isRecording: false, isUploading: false, uploadId: null, error: null }));
+			
+			// Clear localStorage since upload is aborted
+			localStorage.removeItem(storageKey);
 		}
-	}, []);
+	}, [storageKey]);
 
 	// Cleanup on unmount
 	useEffect(() => {
@@ -472,6 +493,43 @@ export function useScreenRecordingUpload(consultationId: string) {
 			try { streamInactiveHandlerRef.current?.(); } catch {}
 		};
 	}, []);
+
+	// Check for incomplete uploads on mount
+	useEffect(() => {
+		const checkIncompleteUploads = async () => {
+			try {
+				const stored = localStorage.getItem(storageKey);
+				if (stored) {
+					const { uploadId, timestamp } = JSON.parse(stored);
+					const isOld = Date.now() - timestamp > 30 * 60 * 1000; // 30 minutes
+					
+					if (uploadId && !isOld) {
+						console.log("🔄 [RECORDING] Found incomplete upload, completing...", uploadId);
+						try {
+							// Set the uploadId first so complete() can work
+							uploadIdRef.current = uploadId;
+							await complete();
+							localStorage.removeItem(storageKey);
+							console.log("✅ [RECORDING] Completed interrupted upload");
+						} catch (err) {
+							console.error("❌ [RECORDING] Failed to complete interrupted upload:", err);
+							// Try to abort if completion fails
+							try {
+								await abortRecordingUpload({ uploadId });
+							} catch {}
+							localStorage.removeItem(storageKey);
+						}
+					} else {
+						localStorage.removeItem(storageKey);
+					}
+				}
+			} catch (err) {
+				console.error("Error checking incomplete uploads:", err);
+			}
+		};
+		
+		checkIncompleteUploads();
+	}, [consultationId, storageKey, complete]);
 
 	return useMemo(() => ({ state, start, stop, complete, abort }), [state, start, stop, complete, abort]);
 }
