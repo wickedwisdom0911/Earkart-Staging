@@ -375,6 +375,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         // App is in foreground, enable wakelock
         WakelockManager.enable();
+        // Force a device check on resume to resubscribe to USB stream if needed
+        try {
+          final deviceCubit = di<DeviceCubit>();
+          deviceCubit.startDeviceMonitoring();
+          deviceCubit.forceDeviceCheck();
+        } catch (_) {}
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:

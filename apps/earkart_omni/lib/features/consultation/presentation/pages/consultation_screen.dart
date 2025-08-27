@@ -6,6 +6,7 @@ import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/agora.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
@@ -56,12 +57,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   final VideoCallController _videoController = VideoCallController();
   bool _hasEmittedEndCall = false;
   bool _endCallInProgress = false;
+  bool? _lastEmittedPatientPressed;
 
   Timer? _deviceEventDebounceTimer;
   CommunicationState? _lastEmittedDeviceState;
   bool _isCameraOpen = false;
   bool _lastEmittedR15cConnected = false;
   bool _lastEmittedRevo2Connected = false;
+  DateTime? _lastDeviceEventEmittedAt;
+  static const Duration _deviceEventThrottleDuration = Duration(seconds: 1);
 
   static const Duration _deviceEventDebounceDuration = Duration(
     milliseconds: 500,
@@ -71,6 +75,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     super.initState();
 
     // Set up global error handler for camera and USB-related crashes
+    final previousErrorHandler = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
       final exceptionString = details.exception.toString();
 
@@ -122,9 +127,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         return; // Don't crash the app
       }
 
-      // For other errors, use default handling
+      // For other errors, forward to previous handler if available, else default
       di<ILogger>().error('Flutter error: ${details.exception}');
-      FlutterError.presentError(details);
+      if (previousErrorHandler != null) {
+        previousErrorHandler(details);
+      } else {
+        FlutterError.presentError(details);
+      }
     };
 
     _initializeScreen();
@@ -385,6 +394,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
     // Handle consultation join errors
     socket.on("error", (data) {
+      if (!mounted) return;
       ErrorHandler.handleSocketErrorData(context, data);
     });
 
@@ -442,12 +452,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       if (!mounted) return;
 
       di<ILogger>().info('👥 User joined consultation, sending device status');
-      // Force emit device event immediately when user joins, regardless of state changes
-      _forceEmitDeviceEvent(context.read<CommunicationCubit>().state);
-      _handleBeginPacket(testType);
+      // Defer device event emission until after consultation is set to ensure ID is present
 
       if (data == null) {
         di<ILogger>().debug('Received null data in user_joined event');
+        // Fallback: attempt a delayed emit so device state/consultation can settle
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && _isSocketInitialized) {
+            _forceEmitDeviceEvent(context.read<CommunicationCubit>().state);
+            _handleBeginPacket(testType);
+          }
+        });
         return;
       }
       try {
@@ -459,12 +474,30 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
             });
 
             _storeConsultationDataInHive(consultationData);
+
+            // Now that consultation ID is available, emit device event immediately
+            _forceEmitDeviceEvent(context.read<CommunicationCubit>().state);
+            _handleBeginPacket(testType);
           } else {
             di<ILogger>().error('Failed to parse consultation data');
+            // Best-effort emit even if parsing failed
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted && _isSocketInitialized) {
+                _forceEmitDeviceEvent(context.read<CommunicationCubit>().state);
+                _handleBeginPacket(testType);
+              }
+            });
           }
         }
       } catch (e) {
         di<ILogger>().error('Error handling user_joined event: $e');
+        // Attempt a delayed best-effort emit on error
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && _isSocketInitialized) {
+            _forceEmitDeviceEvent(context.read<CommunicationCubit>().state);
+            _handleBeginPacket(testType);
+          }
+        });
       }
     });
 
@@ -473,7 +506,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
       di<ILogger>().debug('Start test: $data');
       if (data["testId"] != null) {
-        context.read<CommunicationCubit>().sendStopCommand();
+        // Only send to device if it is actually connected
+        final comm = context.read<CommunicationCubit>().state;
+        if (comm.isConnected) {
+          context.read<CommunicationCubit>().sendStopCommand();
+        } else {
+          di<ILogger>().warning('Skipping stop command; device not connected');
+        }
         setState(() {
           testType =
               data["testId"] == "pure-tone" ? TestType.PTA : TestType.Impedance;
@@ -807,6 +846,43 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       ),
       body: MultiBlocListener(
         listeners: [
+          BlocListener<AgoraCubit, AgoraState>(
+            listener: (context, state) {
+              state.mapOrNull(
+                success: (s) {
+                  if (s.remoteUid != null) {
+                    di<ILogger>().info(
+                      '[VIDEO_CALL] Remote user joined via Agora - emitting device status',
+                    );
+                    if (_isSocketInitialized) {
+                      if ((consultation?.id ?? '').isNotEmpty) {
+                        _forceEmitDeviceEvent(
+                          context.read<CommunicationCubit>().state,
+                        );
+                      } else {
+                        di<ILogger>().warning(
+                          'Consultation ID not ready on Agora join; scheduling emit retry',
+                        );
+                        Future.delayed(const Duration(milliseconds: 300), () {
+                          if (mounted &&
+                              _isSocketInitialized &&
+                              (consultation?.id ?? '').isNotEmpty) {
+                            _forceEmitDeviceEvent(
+                              context.read<CommunicationCubit>().state,
+                            );
+                          }
+                        });
+                      }
+                    } else {
+                      di<ILogger>().warning(
+                        'Socket not initialized on Agora join; skipping device emit',
+                      );
+                    }
+                  }
+                },
+              );
+            },
+          ),
           BlocListener<AuthCubit, AuthState>(
             listener: (context, state) {
               state.when(
@@ -873,6 +949,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   di<ILogger>().debug(
                     'ConsultationScreen: Consultation completed, calling _handleConsultationCompletion',
                   );
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Consultation completed successfully'),
@@ -983,13 +1060,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
           BlocListener<CommunicationCubit, CommunicationState>(
             listener: (context, state) {
-              // Always emit patient response events
-              if (!state.isReleased) {
-                _emitPatientResponseEvent(state.isReleased);
-              }
-              if (state.isReleased) {
-                _emitPatientResponseEvent(state.isReleased);
-              }
+              // Patient response: emit only on change; use tri-state (true pressed, null released)
+              _maybeEmitPatientResponse(state);
 
               // Handle impedance status
               if (state.impedanceStatus != null) {
@@ -1091,11 +1163,25 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               'ConsultationScreen: BlocBuilder state: $state',
             );
 
-            if (state is CurrentConsultationSuccess) {
-              di<ILogger>().debug(
-                'ConsultationScreen: BlocBuilder - consultation ID: ${state.consultation.id}',
-              );
-              final videoWidget = _getVideoWidget(state.consultation.id ?? "");
+            // Prefer consultation ID from state when available; otherwise fall back to
+            // the locally stored consultation set via socket events.
+            final String? currentConsultationId =
+                (state is CurrentConsultationSuccess)
+                    ? state.consultation.id
+                    : consultation?.id;
+
+            if ((currentConsultationId ?? '').isNotEmpty) {
+              if (state is CurrentConsultationSuccess) {
+                di<ILogger>().debug(
+                  'ConsultationScreen: BlocBuilder - consultation ID: ${state.consultation.id}',
+                );
+              } else {
+                di<ILogger>().debug(
+                  'ConsultationScreen: Using stored consultation ID: $currentConsultationId',
+                );
+              }
+
+              final videoWidget = _getVideoWidget(currentConsultationId!);
 
               if (_showCamera) {
                 // Split screen: video call on left, camera on right
@@ -1353,6 +1439,24 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
   void _emitDeviceEvent(CommunicationState state) {
     if (_isSocketInitialized) {
+      // Refresh device attachments from DeviceCubit to avoid stale local refs
+      final deviceState = di<DeviceCubit>().state;
+      deviceState.maybeWhen(
+        success: (devices, latestR15c, latestRevo2) {
+          r15cDevice = latestR15c ?? r15cDevice;
+          revo2Device = latestRevo2 ?? revo2Device;
+        },
+        orElse: () {},
+      );
+
+      // Throttle emissions to avoid bursts
+      final now = DateTime.now();
+      if (_lastDeviceEventEmittedAt != null &&
+          now.difference(_lastDeviceEventEmittedAt!) <
+              _deviceEventThrottleDuration) {
+        di<ILogger>().debug('Throttling device event emission');
+        return;
+      }
       String connectionStatus = "Disconnected";
       if (state.isInBeginMode) {
         connectionStatus = "begin";
@@ -1383,6 +1487,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           "error": state.error,
         },
         "tabletState": {
+          // Keep both keys for backward compatibility with server expectations
+          "batteryLevel": state.tabletBatteryLevel,
           "batterylevel": state.tabletBatteryLevel.toString(),
           "isCharging": state.isTabletBatteryCharging,
         },
@@ -1395,6 +1501,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       _lastEmittedDeviceState = state.copyWith(isCameraOpen: _isCameraOpen);
       _lastEmittedR15cConnected = r15cDevice != null;
       _lastEmittedRevo2Connected = revo2Device != null;
+      _lastDeviceEventEmittedAt = now;
 
       di<ILogger>().info('🚀 DEVICE EVENT EMITTED: $deviceEventData');
       di<ILogger>().info(
@@ -1450,13 +1557,19 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     }
   }
 
-  _emitPatientResponseEvent(bool isReleased) {
+  void _maybeEmitPatientResponse(CommunicationState state) {
     if (!mounted || !_isSocketInitialized) return;
 
-    socket.emit("patient-response", {
-      "consultationId": consultation?.id,
-      "patientResponse": !isReleased,
-    });
+    // true when pressed (not released), null when released
+    final bool? currentPressed = state.isReleased ? null : true;
+
+    if (_lastEmittedPatientPressed != currentPressed) {
+      socket.emit("patient-response", {
+        "consultationId": consultation?.id,
+        "patientResponse": currentPressed,
+      });
+      _lastEmittedPatientPressed = currentPressed;
+    }
   }
 
   void _handleConsultationCompletion() async {

@@ -81,21 +81,30 @@ class ErrorHandler {
   static void _performAutoLogout(BuildContext context, String errorMessage) {
     try {
       // Use AuthCubit to logout which will clear all data including Hive boxes
-      context.read<AuthCubit>().logout();
+      if (context.mounted) {
+        context.read<AuthCubit>().logout();
+      } else {
+        // Fallback when context is not mounted to avoid deactivated context access
+        di<AuthCubit>().logout();
+      }
 
-      // Show logout message
-      _showErrorSnackBar(
-        context,
-        'Session expired due to: $errorMessage. Please login again.',
-        duration: const Duration(seconds: 5),
-      );
+      // Show logout message (only if context is still mounted)
+      if (context.mounted) {
+        _showErrorSnackBar(
+          context,
+          'Session expired due to: $errorMessage. Please login again.',
+          duration: const Duration(seconds: 5),
+        );
+      }
 
-      // Navigate to login screen and clear all routes
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        LoginScreen.routeName,
-        (route) => false,
-      );
+      // Navigate to login screen and clear all routes (only if context is mounted)
+      if (context.mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          LoginScreen.routeName,
+          (route) => false,
+        );
+      }
     } catch (e) {
       _logger.error('Error during auto-logout: $e');
       // If navigation fails, try to restart the app

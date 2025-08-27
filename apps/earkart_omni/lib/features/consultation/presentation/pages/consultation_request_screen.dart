@@ -55,7 +55,6 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
   void startConsultation() {
     // Prevent multiple submissions
     if (_isSubmitting) {
-      print('Consultation submission already in progress, ignoring request');
       return;
     }
 
@@ -70,11 +69,9 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
 
   void _performConsultationCreation() {
     if (_isSubmitting) {
-      print('Consultation submission already in progress, ignoring request');
       return;
     }
 
-    print('Starting consultation creation...');
     _isSubmitting = true;
 
     // Get the selected pricing data from the auth state
@@ -88,12 +85,14 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
           discountAmount = double.parse(discountAmountController.text);
         } catch (e) {
           // Show error for invalid discount amount
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please enter a valid discount amount'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please enter a valid discount amount'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
           _isSubmitting = false;
           return;
         }
@@ -117,19 +116,14 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                       : null,
               notes: null,
             );
-            print(
-              'Created consultation pricing: ${consultationPricing.toJson()}',
-            );
             return consultationPricing;
           }).toList();
 
-      print('Selected services count: ${selectedServices.length}');
       // Create consultation with selected services
       context.read<ConsultationCubit>().createConsultation(
         selectedServices: selectedServices,
       );
     } else {
-      print('No services selected, creating consultation without services');
       // Create consultation without selected services
       context.read<ConsultationCubit>().createConsultation();
     }
@@ -703,16 +697,9 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                               ConsultationState
                             >(
                               listener: (context, state) {
-                                print('Consultation State: $state');
                                 state.maybeWhen(
                                   orElse: () {},
                                   createConsultationSuccess: (consultation) {
-                                    print(
-                                      'Consultation created successfully: ${consultation.id}',
-                                    );
-                                    print(
-                                      'Consultation pricing count: ${consultation.consultationPricing?.length ?? 0}',
-                                    );
                                     // Reset submission state
                                     _isSubmitting = false;
                                     // Only navigate on successful creation

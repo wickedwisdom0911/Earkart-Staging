@@ -20,6 +20,7 @@ import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 class _Command {
   final Uint8List packet;
   final Completer<void> completer;
+  Timer? timeoutTimer;
   _Command(this.packet, this.completer);
 }
 
@@ -29,9 +30,10 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   StreamSubscription<Uint8List>? _subscription;
   final _commandQueue = Queue<_Command>();
   bool _processing = false;
-  Timer? _commandTimeoutTimer;
+  // Removed single global command timeout in favor of per-command timers
   Timer? _syncRetryTimer;
   Timer? _tabletBatteryUpdateTimer;
+  UsbDevice? _lastDevice;
 
   static const int MAX_CONSECUTIVE_ERRORS = 15;
   static const int MAX_RETRY_ATTEMPTS = 3;
@@ -53,6 +55,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       // Close existing port if any
       await _cleanupPort();
 
+      _lastDevice = device;
       _port = await device.create();
       if (_port == null) {
         throw Exception('Failed to create port');
@@ -273,25 +276,39 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   Future<void> sendCommand(Uint8List packet) async {
     if (_port == null) {
-      throw Exception('Port not initialized');
+      di<ILogger>().warning('Port not initialized; ignoring command');
+      return;
     }
 
     return _withRetry(() async {
       final completer = Completer<void>();
-      _commandQueue.add(_Command(packet, completer));
-      _processQueue();
+      final command = _Command(packet, completer);
+      _commandQueue.add(command);
 
-      // Set command timeout
-      _commandTimeoutTimer?.cancel();
-      _commandTimeoutTimer = Timer(
+      // Set per-command timeout that safely removes the command on expiry
+      command.timeoutTimer = Timer(
         const Duration(milliseconds: COMMAND_TIMEOUT_MS),
         () {
           if (!completer.isCompleted) {
+            di<ILogger>().warning('Command timeout occurred');
             completer.completeError('Command timeout');
+            // Remove the timed-out command if still queued
+            if (_commandQueue.isNotEmpty &&
+                identical(_commandQueue.first, command)) {
+              _commandQueue.removeFirst();
+            } else {
+              _commandQueue.remove(command);
+            }
+            _errorCount++;
+            _handleError('Command timeout');
+            _processing = false;
+            // Attempt to continue processing remaining commands
+            _processQueue();
           }
         },
       );
 
+      _processQueue();
       return completer.future;
     });
   }
@@ -305,12 +322,19 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       try {
         await _port!.write(command.packet);
         await Future.delayed(const Duration(milliseconds: 50));
-        command.completer.complete();
+        if (!command.completer.isCompleted) {
+          command.completer.complete();
+        }
+        // Cancel timeout for this command
+        command.timeoutTimer?.cancel();
         _commandQueue.removeFirst();
         _errorCount = 0; // Reset error count on successful command
       } catch (e) {
         di<ILogger>().error('Error sending command: $e');
-        command.completer.completeError(e);
+        if (!command.completer.isCompleted) {
+          command.completer.completeError(e);
+        }
+        command.timeoutTimer?.cancel();
         _handleError(e);
         break;
       }
@@ -597,9 +621,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       di<ILogger>().info(
         'Sending device status packet with tablet battery info: ${state.tabletBatteryLevel}%, charging: ${state.isTabletBatteryCharging}',
       );
-      print(
-        '🔋 Sending device status packet with tablet battery info: ${state.tabletBatteryLevel}%, charging: ${state.isTabletBatteryCharging}',
-      );
 
       final packet = _packetInterpreter.constructPacket({
         "PacketType": 18,
@@ -613,7 +634,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       await sendCommand(packet);
     } catch (e) {
       di<ILogger>().error('Error sending device status packet: $e');
-      print('❌ Error sending device status packet: $e');
 
       // Send packet without battery info if there's an error
       final packet = _packetInterpreter.constructPacket({
@@ -717,7 +737,10 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   @override
   Future<void> close() {
-    _commandTimeoutTimer?.cancel();
+    // Cancel any pending per-command timers
+    for (final command in _commandQueue) {
+      command.timeoutTimer?.cancel();
+    }
     _syncRetryTimer?.cancel();
     _tabletBatteryUpdateTimer?.cancel();
     _cleanupPort();
@@ -768,8 +791,10 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       // Wait for device to stabilize
       await Future.delayed(const Duration(seconds: 1));
 
-      // Attempt to reopen port
-      if (_port != null) {
+      // Attempt to recreate and reopen port from last known device
+      if (_lastDevice != null) {
+        _port = await _lastDevice!.create();
+        if (_port == null) throw Exception('Failed to recreate port');
         bool openResult = await _port!.open();
         if (!openResult) throw Exception('Failed to reopen port');
 
@@ -785,6 +810,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         );
 
         await sendSyncPacket();
+      } else {
+        throw Exception('No known device to reset connection');
       }
     } catch (e) {
       di<ILogger>().error('Reset failed: $e');

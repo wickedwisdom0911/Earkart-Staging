@@ -57,6 +57,7 @@ class VideoCallWidget extends StatefulWidget {
 class _VideoCallWidgetState extends State<VideoCallWidget>
     with WidgetsBindingObserver {
   bool _isDisposed = false;
+  late final AgoraCubit _agoraCubit;
 
   @override
   void initState() {
@@ -64,6 +65,8 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     WidgetsBinding.instance.addObserver(this);
     // Attach controller if provided
     widget.controller?._attach(this);
+    // Cache cubit reference to avoid context lookups during dispose
+    _agoraCubit = context.read<AgoraCubit>();
     di<ILogger>().info(
       '[VIDEO_CALL] Initializing video call widget for consultation: ${widget.consultationId}',
     );
@@ -91,8 +94,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     di<ILogger>().info('[VIDEO_CALL] App lifecycle state changed to: $state');
-    final agoraCubit = context.read<AgoraCubit>();
-    agoraCubit.handleAppLifecycleState(state);
+    _agoraCubit.handleAppLifecycleState(state);
   }
 
   void _initializeVideoCall() {
@@ -102,8 +104,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     di<ILogger>().info(
       '[VIDEO_CALL] Consultation ID: ${widget.consultationId}',
     );
-    final agoraCubit = context.read<AgoraCubit>();
-    agoraCubit.initializeVideoCall(widget.channelName);
+    _agoraCubit.initializeVideoCall(widget.channelName);
   }
 
   // Public method to leave channel (without clearing data)
@@ -111,8 +112,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     di<ILogger>().info(
       '[VIDEO_CALL] Leaving channel only (without clearing data)',
     );
-    final agoraCubit = context.read<AgoraCubit>();
-    await agoraCubit.leaveChannel();
+    await _agoraCubit.leaveChannel();
     // Call the callback if provided
     widget.onLeaveChannel?.call();
   }
@@ -122,8 +122,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     di<ILogger>().info(
       '[VIDEO_CALL] Ending consultation and clearing sessions',
     );
-    final agoraCubit = context.read<AgoraCubit>();
-    await agoraCubit.leaveChannel();
+    await _agoraCubit.leaveChannel();
     di<ILogger>().info(
       '[VIDEO_CALL] Successfully ended video call consultation',
     );
@@ -140,9 +139,8 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       // Detach controller
       widget.controller?._detach(this);
       // Leave channel when widget disposes to avoid stale joined state
-      final agoraCubit = context.read<AgoraCubit>();
-      agoraCubit.leaveChannel();
-      agoraCubit.stopTokenRenewalMonitoring();
+      _agoraCubit.leaveChannel();
+      _agoraCubit.stopTokenRenewalMonitoring();
     } catch (e) {
       di<ILogger>().error('[VIDEO_CALL] Error during dispose cleanup: $e');
     }
@@ -170,6 +168,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                   '[VIDEO_CALL] Consultation completed successfully',
                 );
                 // Show success message
+                if (!mounted || _isDisposed) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Consultation completed successfully'),
@@ -185,6 +184,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
               di<ILogger>().error(
                 '[VIDEO_CALL] Consultation error - ${state.message}',
               );
+              if (!mounted || _isDisposed) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('Failed to end consultation: ${state.message}'),
@@ -238,7 +238,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       ],
       child: BlocBuilder<AgoraCubit, AgoraState>(
         builder: (context, state) {
-          final agoraCubit = context.read<AgoraCubit>();
+          final agoraCubit = _agoraCubit;
           di<ILogger>().debug('[VIDEO_CALL] Agora state changed: $state');
 
           return Scaffold(

@@ -49,22 +49,19 @@ class BatteryService {
         },
       );
 
-      // Start periodic battery level checks
-      _batteryLevelTimer = Timer.periodic(
-        const Duration(seconds: 3), // Check every 3 seconds
-        (timer) async {
-          try {
-            final newLevel = await _battery.batteryLevel;
-            if (newLevel != _currentBatteryLevel) {
-              final oldLevel = _currentBatteryLevel;
-              _currentBatteryLevel = newLevel;
-              // Battery level changed (kept for debugging if needed)
-            }
-          } catch (e) {
-            di<ILogger>().error('Error checking battery level: $e');
+      // Start periodic battery level checks (reduced frequency for efficiency)
+      _batteryLevelTimer = Timer.periodic(const Duration(seconds: 30), (
+        timer,
+      ) async {
+        try {
+          final newLevel = await _battery.batteryLevel;
+          if (newLevel != _currentBatteryLevel) {
+            _currentBatteryLevel = newLevel;
           }
-        },
-      );
+        } catch (e) {
+          di<ILogger>().error('Error checking battery level: $e');
+        }
+      });
 
       _isInitialized = true;
     } catch (e) {

@@ -31,7 +31,6 @@ class PacketFormatInterpreter {
 
   void _log(String message, {String name = 'PacketInterpreter'}) {
     dev.log(message, name: name, time: DateTime.now());
-    // print('[$name] $message'); // Added print for immediate console visibility
   }
 
   /// Constructs a packet from a JSON payload
@@ -130,7 +129,7 @@ class PacketFormatInterpreter {
 
   /// Process incoming data and parse valid packets
   List<int>? onListenerDataReady(List<int> buffer) {
-    print('\n=== Starting Data Processing ===');
+    _log('=== Starting Data Processing ===');
     // _log('Received buffer: ${_bytesToHex(buffer)}');
     // _log('Buffer length: ${buffer.length} bytes');
 
@@ -327,18 +326,18 @@ Invalid tokens:
 
       // Check minimum packet length (STK + ID + LEN_LOW + LEN_HIGH + payload + CRC + ETK)
       if (packet.length < 7) {
-        print('Packet too short: ${packet.length} bytes');
+        _log('Packet too short: ${packet.length} bytes');
         return null;
       }
 
       // Verify start and end tokens
       if (packet[0] != Stk) {
-        print('Invalid start token: 0x${packet[0].toRadixString(16)}');
+        _log('Invalid start token: 0x${packet[0].toRadixString(16)}');
         return null;
       }
 
       if (packet[packet.length - 1] != Etk) {
-        print(
+        _log(
           'Invalid end token: 0x${packet[packet.length - 1].toRadixString(16)}',
         );
         return null;
@@ -346,12 +345,12 @@ Invalid tokens:
 
       // Extract payload length (big endian)
       int payloadLength = (packet[2] << 8) | packet[3]; // Changed to big-endian
-      print('Decoded payload length: $payloadLength');
+      _log('Decoded payload length: $payloadLength');
 
       // Verify packet length matches expected total length
       int expectedTotalLength =
           payloadLength + 6; // Header(4) + CRC(1) + ETK(1)
-      print(
+      _log(
         'Expected total length: $expectedTotalLength, Actual length: ${packet.length}',
       );
 
@@ -361,7 +360,7 @@ Invalid tokens:
           packet[packet.length - 1] == 0x00;
 
       if (packet.length != expectedTotalLength && !hasUsbBufferFix) {
-        print(
+        _log(
           'Length mismatch: Expected $expectedTotalLength, got ${packet.length}',
         );
         return null;
@@ -369,7 +368,7 @@ Invalid tokens:
 
       // Extract just the payload (skipping header bytes and trailing CRC/ETK)
       if (4 + payloadLength > packet.length) {
-        print('Payload bounds would exceed packet length');
+        _log('Payload bounds would exceed packet length');
         return null;
       }
 
@@ -386,14 +385,14 @@ Invalid tokens:
       // );
 
       if (calculatedCrc != expectedCrc) {
-        print('CRC mismatch');
+        _log('CRC mismatch');
         return null;
       }
 
-      print('Successfully extracted payload of length: ${payload.length}');
+      _log('Successfully extracted payload of length: ${payload.length}');
       return payload;
     } catch (e) {
-      print('Error extracting payload: $e');
+      _log('Error extracting payload: $e');
       return null;
     }
   }

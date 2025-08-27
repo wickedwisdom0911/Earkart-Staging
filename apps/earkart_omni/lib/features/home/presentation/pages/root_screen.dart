@@ -231,15 +231,6 @@ class _RootScreenState extends State<RootScreen> {
     // Cancel loading timeout timer
     _loadingTimeoutTimer?.cancel();
     _loadingTimeoutTimer = null;
-
-    // Stop global device monitoring when root screen is disposed
-    try {
-      final deviceCubit = di<DeviceCubit>();
-      deviceCubit.stopDeviceMonitoring();
-      print('✅ Global device monitoring stopped');
-    } catch (e) {
-      print('Error stopping global device monitoring: $e');
-    }
     super.dispose();
   }
 
