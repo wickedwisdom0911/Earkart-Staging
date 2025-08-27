@@ -61,48 +61,23 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
 
   // When video should be enlarged (only on video-otoscopy page when active)
   if (shouldEnlargeVideo) {
-    // Cropping controls - tweak these values later as needed
-    const cropLeft = 0.0;      // 0.0 = left edge, range 0.0 - 1.0
-    const cropTop = 0;       // 0.0 = top edge, range 0.0 - 1.0
-    const cropWidth = 0;     // visible width as fraction of original (50% width)
-    const cropHeight = 0    // visible height as fraction of original (full height)
-
-    const scaleX = 1 / cropWidth;
-    const scaleY = 1 / cropHeight;
-
     return (
       <div className="fixed inset-0 z-50 bg-black">
-        {/* 16:9 frame centered in viewport */}
-        <div className="w-screen h-screen flex items-center justify-center">
-          <div className="relative aspect-video w-[80%] max-w-[120vh] max-h-[100vh]">
-            {/* Cropping wrapper constrained to 16:9 frame */}
-            <div className="absolute inset-0 overflow-hidden">
-              <div
-                className="absolute"
-                style={{
-                  inset: 0,
-                  transformOrigin: "left top",
-                  transform: `translate(${-cropLeft * 100}%, ${-cropTop * 100}%) scale(${scaleX}, ${scaleY})`,
-                  width: "100%",
-                  height: "100%",
-                }}
-              >
-                <VideoCall
-                  channel={consultationId}
-                  patientName={patientName}
-                  isFullscreen={true}
-                  onBeforeLeaveCall={onBeforeLeaveCall}
-                />
-              </div>
-            </div>
-          </div>
+        {/* Full screen video without cropping */}
+        <div className="w-screen h-screen">
+          <VideoCall
+            channel={consultationId}
+            patientName={patientName}
+            isFullscreen={true}
+            onBeforeLeaveCall={onBeforeLeaveCall}
+          />
         </div>
 
         {/* Top-left indicator */}
         <div className="absolute top-4 left-4 z-10 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-            <span className="font-medium">🔬 OTOSCOPY FULL SCREEN (CROPPED 16:9)</span>
+            <span className="font-medium">🔬 OTOSCOPY FULL SCREEN</span>
           </div>
         </div>
 
