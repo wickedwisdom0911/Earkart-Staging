@@ -550,6 +550,39 @@ class AgoraCubit extends Cubit<AgoraState> {
                     '[SCREEN_SHARE] Screen sharing is now active',
                   );
                   _isScreenSharing = true;
+                  // Re-apply channel media options to reinforce screen track publish after capture starts
+                  try {
+                    _engine?.updateChannelMediaOptions(
+                      const ChannelMediaOptions(
+                        publishScreenTrack: true,
+                        publishScreenCaptureAudio: false,
+                        publishScreenCaptureVideo: true,
+                        publishCameraTrack: false,
+                        publishMicrophoneTrack: true,
+                        clientRoleType: ClientRoleType.clientRoleBroadcaster,
+                      ),
+                    );
+                    // Schedule a short delayed re-apply to smooth device timing
+                    Future.delayed(const Duration(milliseconds: 200), () {
+                      if (_engine != null && _isScreenSharing) {
+                        _engine!.updateChannelMediaOptions(
+                          const ChannelMediaOptions(
+                            publishScreenTrack: true,
+                            publishScreenCaptureAudio: false,
+                            publishScreenCaptureVideo: true,
+                            publishCameraTrack: false,
+                            publishMicrophoneTrack: true,
+                            clientRoleType:
+                                ClientRoleType.clientRoleBroadcaster,
+                          ),
+                        );
+                      }
+                    });
+                  } catch (e) {
+                    di<ILogger>().error(
+                      '[SCREEN_SHARE] Error re-applying media options after capturing: $e',
+                    );
+                  }
                   _emitCurrentState();
                   break;
                 case LocalVideoStreamState.localVideoStreamStateStopped:

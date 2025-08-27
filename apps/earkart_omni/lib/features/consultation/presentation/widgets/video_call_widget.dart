@@ -138,8 +138,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     try {
       // Detach controller
       widget.controller?._detach(this);
-      // Leave channel when widget disposes to avoid stale joined state
-      _agoraCubit.leaveChannel();
+      // Avoid leaving the Agora channel here to prevent racing with
+      // a new widget initialization for the next consultation.
+      // Channel teardown is handled explicitly on end-call/completion flows.
       _agoraCubit.stopTokenRenewalMonitoring();
     } catch (e) {
       di<ILogger>().error('[VIDEO_CALL] Error during dispose cleanup: $e');

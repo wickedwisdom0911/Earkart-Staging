@@ -1060,8 +1060,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
           BlocListener<CommunicationCubit, CommunicationState>(
             listener: (context, state) {
-              // Patient response: emit only on change; use tri-state (true pressed, null released)
-              _maybeEmitPatientResponse(state);
+              if (!state.isReleased) {
+                _emitPatientResponseEvent(state.isReleased);
+              }
 
               // Handle impedance status
               if (state.impedanceStatus != null) {
@@ -1557,19 +1558,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     }
   }
 
-  void _maybeEmitPatientResponse(CommunicationState state) {
+  _emitPatientResponseEvent(bool isReleased) {
     if (!mounted || !_isSocketInitialized) return;
 
-    // true when pressed (not released), null when released
-    final bool? currentPressed = state.isReleased ? null : true;
-
-    if (_lastEmittedPatientPressed != currentPressed) {
-      socket.emit("patient-response", {
-        "consultationId": consultation?.id,
-        "patientResponse": currentPressed,
-      });
-      _lastEmittedPatientPressed = currentPressed;
-    }
+    socket.emit("patient-response", {
+      "consultationId": consultation?.id,
+      "patientResponse": !isReleased,
+    });
   }
 
   void _handleConsultationCompletion() async {
