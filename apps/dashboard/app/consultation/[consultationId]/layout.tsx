@@ -226,6 +226,20 @@ export default function ConsultationLayout({
                   </div>
                 )}
 
+                {/* Recording Status Indicator */}
+                {(recordingState.isRecording || recordingState.isUploading) && (
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${recordingState.isRecording ? "bg-red-500 animate-pulse" : "bg-blue-500"}`} />
+                    <span className="text-sm font-medium">
+                      {recordingState.isRecording ? (
+                        <>Recording... ({recordingState.uploadedParts} chunks uploaded)</>
+                      ) : recordingState.isUploading ? (
+                        <>Finalizing... ({recordingState.uploadedParts} parts)</>
+                      ) : null}
+                    </span>
+                  </div>
+                )}
+
                 {/* View recording when available (prefer external callback) */}
                 {(externalPlaybackUrl || recordingState.playbackUrl) && (
                   <a
