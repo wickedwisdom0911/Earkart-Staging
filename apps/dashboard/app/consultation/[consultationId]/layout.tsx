@@ -10,7 +10,13 @@ import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
 import { ConsultationContent } from "./_components/consultation-content";
 import AgoraRTC, { AgoraRTCProvider } from "agora-rtc-react";
 import { useParams, useRouter } from "next/navigation";
-import { useScreenRecordingUpload } from "@/hooks/recording/use-screen-recording-upload";
+import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording";
+import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
+
+// Import debug utilities in development
+if (process.env.NODE_ENV === 'development') {
+  import("@/utils/recording-debug");
+}
 import { SessionStatus } from "@/models/enums";
 
 export default function ConsultationLayout({
@@ -30,8 +36,19 @@ export default function ConsultationLayout({
   const { deviceState } = useDevice();
   const { r15c, revo2, tablet } = deviceState;
 
-  // Screen recording uploader – expose manual controls
-  const { state: recordingState, start: startRecording, stop: stopRecording, complete: completeRecording, abort: abortRecording } = useScreenRecordingUpload(consultationId);
+  // Screen recording uploader – expose manual controls with persistence
+  const { 
+    state: recordingState, 
+    start: startRecording, 
+    stop: stopRecording, 
+    complete: completeRecording, 
+    abort: abortRecording,
+    resumeUploads,
+    recoverSession 
+  } = usePersistentScreenRecording(consultationId);
+
+  // State for managing recovery banner visibility
+  const [showRecoveryBanner, setShowRecoveryBanner] = useState(true);
 
   // Add socket connection handling
   useEffect(() => {
@@ -176,6 +193,14 @@ export default function ConsultationLayout({
     <OtoscopyProvider consultationId={consultationId}>
       <AgoraOtoscopyProvider>
         <AgoraRTCProvider client={agoraClient}>
+          {/* Recovery banner for resumed sessions */}
+          {showRecoveryBanner && (
+            <RecordingRecoveryBanner
+              state={recordingState}
+              onResumeUploads={resumeUploads}
+              onDismiss={() => setShowRecoveryBanner(false)}
+            />
+          )}
           <DashboardBodyWrapper
             pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
             className="border-none "
@@ -265,7 +290,7 @@ export default function ConsultationLayout({
             </ConsultationContent>
           </DashboardBodyWrapper>
           {/* Blocking overlay to require Start before proceeding (only while session not ended) */}
-          {!recordingState.isRecording &&
+          {!recordingState.isRecording && !recordingState.hasActiveSession &&
             (consultationData.status !== SessionStatus.COMPLETED &&
               consultationData.status !== SessionStatus.CANCELLED &&
               consultationData.status !== SessionStatus.FAILED) && (
@@ -294,9 +319,13 @@ export default function ConsultationLayout({
                       requireEntireScreen: true,
                     })
                   }
-                  disabled={recordingState.isInitializing}
+                  disabled={recordingState.isInitializing || recordingState.isRecovering}
                 >
-                  {recordingState.isInitializing ? "Starting..." : "Start Recording"}
+                  {recordingState.isRecovering 
+                    ? "Recovering session..." 
+                    : recordingState.isInitializing 
+                      ? "Starting..." 
+                      : "Start Recording"}
                 </button>
               </div>
             </div>
