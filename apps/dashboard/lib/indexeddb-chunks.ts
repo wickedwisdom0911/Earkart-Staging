@@ -20,36 +20,62 @@ class ChunkStorage {
 
   async init(): Promise<void> {
     return new Promise((resolve, reject) => {
+      console.log(`🗄️ [INDEXEDDB] Opening database: ${this.dbName} v${this.version}`);
+      
       const request = indexedDB.open(this.dbName, this.version);
       
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        console.error(`❌ [INDEXEDDB] Failed to open database:`, request.error);
+        reject(request.error);
+      };
+      
       request.onsuccess = () => {
         this.db = request.result;
+        console.log(`✅ [INDEXEDDB] Database opened successfully`);
         resolve();
       };
       
       request.onupgradeneeded = (event) => {
+        console.log(`🔄 [INDEXEDDB] Database upgrade needed`);
         const db = (event.target as IDBOpenDBRequest).result;
         if (!db.objectStoreNames.contains(this.storeName)) {
+          console.log(`📦 [INDEXEDDB] Creating object store: ${this.storeName}`);
           const store = db.createObjectStore(this.storeName, { keyPath: 'id' });
           store.createIndex('consultationId', 'consultationId', { unique: false });
           store.createIndex('sessionId', 'sessionId', { unique: false });
           store.createIndex('uploaded', 'uploaded', { unique: false });
+          console.log(`✅ [INDEXEDDB] Object store created with indexes`);
         }
       };
     });
   }
 
   async saveChunk(chunk: ChunkData): Promise<void> {
-    if (!this.db) await this.init();
+    if (!this.db) {
+      console.log(`🔧 [INDEXEDDB] Initializing database for chunk ${chunk.id}`);
+      await this.init();
+    }
     
     return new Promise((resolve, reject) => {
+      console.log(`💾 [INDEXEDDB] Saving chunk ${chunk.id}, size: ${(chunk.blob.size / 1024).toFixed(1)}KB`);
+      
       const transaction = this.db!.transaction([this.storeName], 'readwrite');
       const store = transaction.objectStore(this.storeName);
       
+      transaction.onerror = (event) => {
+        console.error(`❌ [INDEXEDDB] Transaction failed for chunk ${chunk.id}:`, event);
+        reject(transaction.error);
+      };
+      
       const request = store.put(chunk);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        console.log(`✅ [INDEXEDDB] Successfully saved chunk ${chunk.id}`);
+        resolve();
+      };
+      request.onerror = () => {
+        console.error(`❌ [INDEXEDDB] Failed to save chunk ${chunk.id}:`, request.error);
+        reject(request.error);
+      };
     });
   }
 

@@ -39,30 +39,33 @@ export default async function completeRecordingUpload(
 
   // Robust parsing: some dev setups prepend lines. Parse the last JSON object.
   const rawText = await res.text();
-  try {
-    // Server-side console for debugging raw response
-    console.log("[RECORDINGS_COMPLETE] raw response:", rawText);
-  } catch {}
+  console.log("🔍 [RECORDINGS_COMPLETE] Raw backend response:", rawText);
 
   let raw: any;
   try {
     raw = JSON.parse(rawText);
   } catch {
     const match = rawText.match(/\{[\s\S]*\}$/);
-    if (!match) throw new Error(`Unexpected complete response: ${rawText.slice(0, 500)}`);
+    if (!match) {
+      console.error("❌ [RECORDINGS_COMPLETE] Failed to parse response:", rawText.slice(0, 500));
+      throw new Error(`Unexpected complete response: ${rawText.slice(0, 500)}`);
+    }
     raw = JSON.parse(match[0]);
   }
 
   const data = raw?.data ?? raw;
-
-  try {
-    console.log("[RECORDINGS_COMPLETE] parsed keys:", Object.keys(data || {}));
-  } catch {}
+  console.log("📋 [RECORDINGS_COMPLETE] Parsed data:", data);
+  console.log("🔑 [RECORDINGS_COMPLETE] Available keys:", Object.keys(data || {}));
 
   const key = data?.key ?? data?.Key ?? data?.s3Key ?? data?.Location ?? data?.location ?? null;
   const playbackUrl = data?.playbackUrl ?? data?.playback_url ?? data?.url ?? undefined;
 
-  if (!key) throw new Error(`Unexpected complete response shape. Raw: ${rawText.slice(0, 500)}`);
+  console.log("🎯 [RECORDINGS_COMPLETE] Extracted values:", { key, playbackUrl });
+
+  if (!key) {
+    console.error("❌ [RECORDINGS_COMPLETE] No key found in response. Data:", data);
+    throw new Error(`Unexpected complete response shape. Raw: ${rawText.slice(0, 500)}`);
+  }
   return { key, playbackUrl };
 }
 
