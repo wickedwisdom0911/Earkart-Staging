@@ -80,12 +80,35 @@ export default function ConsultationLayout({
 
     const handleEnd = async () => {
       try {
+        // Ensure current recording is properly completed before ending
         if (recordingState.isRecording || recordingState.isInitializing) {
-          await stopRecording(); // flush and complete
+          console.log("🔴 [END] Stopping active recording...");
+          await stopRecording(); // flush and complete current recording
+        } else if (recordingState.isUploading) {
+          console.log("🔄 [END] Waiting for upload to complete...");
+          // Wait for current upload to finish
+          await new Promise((resolve) => {
+            const checkUpload = () => {
+              if (!recordingState.isUploading) {
+                resolve(void 0);
+              } else {
+                setTimeout(checkUpload, 250);
+              }
+            };
+            checkUpload();
+          });
         } else {
+          console.log("💾 [END] Completing any pending recordings...");
           await completeRecording(); // finalize if parts exist
         }
-      } catch {}
+      } catch (err) {
+        console.error("❌ [END] Error finalizing recording:", err);
+      }
+      
+      // Extra delay to ensure backend processes everything
+      console.log("⏳ [END] Waiting for backend finalization...");
+      await new Promise((r) => setTimeout(r, 2000));
+      
       if (process.env.NODE_ENV === "development") {
         try { window.location.href = "http://localhost:3001/dashboard"; } catch {}
       } else {
@@ -95,7 +118,7 @@ export default function ConsultationLayout({
 
     socket.on("end:consultation", handleEnd);
     return () => { socket.off("end:consultation", handleEnd); };
-  }, [socket, stopRecording, completeRecording, recordingState.isRecording, recordingState.isInitializing, router]);
+  }, [socket, stopRecording, completeRecording, recordingState.isRecording, recordingState.isInitializing, recordingState.isUploading, router]);
 
   // Do NOT auto-start: require explicit user click due to browser security.
   // Auto-stop and auto-complete when consultation ends.
@@ -224,6 +247,20 @@ export default function ConsultationLayout({
                     <span className="text-sm font-medium">
                       Tablet: {typeof tablet.batteryLevel === 'number' ? `${tablet.batteryLevel}%` : '—'} {" "}
                       {typeof tablet.isCharging === 'boolean' ? (tablet.isCharging ? '(Charging)' : '(On Battery)') : ''}
+                    </span>
+                  </div>
+                )}
+
+                {/* Recording Status Indicator */}
+                {(recordingState.isRecording || recordingState.isUploading) && (
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${recordingState.isRecording ? "bg-red-500 animate-pulse" : "bg-blue-500"}`} />
+                    <span className="text-sm font-medium">
+                      {recordingState.isRecording ? (
+                        <>Recording... ({recordingState.uploadedParts} chunks uploaded)</>
+                      ) : recordingState.isUploading ? (
+                        <>Finalizing... ({recordingState.uploadedParts} parts)</>
+                      ) : null}
                     </span>
                   </div>
                 )}

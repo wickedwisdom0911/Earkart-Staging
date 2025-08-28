@@ -27,6 +27,7 @@ import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import getConsultation from "@/actions/consultations/get_consultation";
 import { toast } from "sonner";
+import getRecordingById from "@/actions/recordings/get-by-id";
 // Removed RecordingLink component – we will use consultation.recordings provided by API
 
 export default function DashboardPage() {
@@ -36,6 +37,7 @@ export default function DashboardPage() {
     ConsultationModelData[]
   >([]);
   const [blinkingIds, setBlinkingIds] = useState<string[]>([]);
+  const [detailedRecordings, setDetailedRecordings] = useState<Record<string, any>>({});
   const { data: consultations, isLoading, isError } = useGetAllConsultations();
   const socket = useSocket();
 
@@ -55,7 +57,46 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (Array.isArray(consultations?.data)) {
+      // 🐛 DEBUG: Console log consultations data structure
+      console.log("[CONSULTATIONS] Raw consultations data:", consultations.data.map(c => ({
+        id: c.id.substring(0, 8),
+        status: c.status,
+        recordings: c.recordings?.map(r => ({
+          id: r.id,
+          fileName: (r as any).fileName,
+          mimeType: (r as any).mimeType,
+          recordingUrl: r.recordingUrl,
+          createdAt: r.createdAt,
+          // 🐛 Show ALL fields to see what's available
+          allFields: Object.keys(r)
+        })),
+        recordingName: (c as any).recordingName,
+        recordingUrl: (c as any).recordingUrl
+      })));
+      
       setAllConsulations(consultations?.data);
+      
+      // 🐛 DEBUG: Fetch detailed recording info for completed consultations
+      consultations.data
+        .filter(c => c.status === SessionStatus.COMPLETED && c.recordings?.length)
+        .forEach(async (consultation) => {
+          if (consultation.recordings) {
+            for (const recording of consultation.recordings) {
+              if (recording.id && !detailedRecordings[recording.id]) {
+                try {
+                  const detailedRecording = await getRecordingById(recording.id);
+                  setDetailedRecordings(prev => ({
+                    ...prev,
+                    [recording.id!]: detailedRecording
+                  }));
+                  console.log(`[RECORDING_DETAIL] ${recording.id}:`, detailedRecording);
+                } catch (err) {
+                  console.error(`Failed to fetch recording ${recording.id}:`, err);
+                }
+              }
+            }
+          }
+        });
       
       // NEW: Check and notify for consultations that need attention when they're displayed
       if (user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST) {
@@ -377,39 +418,127 @@ export default function DashboardPage() {
                   )}
                 </button>
               )}
-            {consultation.status === SessionStatus.COMPLETED &&
-              Array.isArray(consultation.recordings) &&
-              consultation.recordings.length > 0 && (
+                        {consultation.status === SessionStatus.COMPLETED && (() => {
+              // Collect all recordings: regular recordings + screen recordings
+              const regularRecordings = Array.isArray(consultation.recordings) 
+                ? consultation.recordings // Show all recordings, even if recordingUrl is null
+                : [];
+              
+              // Check for screen recording URLs from different sources
+              const screenRecordings = [];
+              
+              // From consultation.recordingName field (external callback)
+              const recordingName = (consultation as any)?.recordingName ?? (consultation as any)?.recordingsName ?? (consultation as any)?.recording?.name;
+              if (recordingName && process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL) {
+                screenRecordings.push({
+                  id: `screen-${consultation.id}`,
+                  recordingUrl: `${process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL}?name=${encodeURIComponent(recordingName)}`,
+                  createdAt: consultation.updatedAt,
+                  type: 'screen'
+                });
+              }
+              
+              // From consultation.recordingUrl field (direct)
+              if ((consultation as any)?.recordingUrl) {
+                screenRecordings.push({
+                  id: `screen-direct-${consultation.id}`,
+                  recordingUrl: (consultation as any).recordingUrl,
+                  createdAt: consultation.updatedAt,
+                  type: 'screen'
+                });
+              }
+              
+              const allRecordings = [...regularRecordings, ...screenRecordings];
+              
+              // 🐛 DEBUG: Console log recordings data
+              console.log(`[RECORDINGS] Consultation ${consultation.id.substring(0, 8)}...:`, {
+                totalRecordings: allRecordings.length,
+                regularRecordings: regularRecordings.length,
+                screenRecordings: screenRecordings.length,
+                withUrls: allRecordings.filter(r => r.recordingUrl).length,
+                recordings: allRecordings.map(r => {
+                  const detailedInfo = r.id ? detailedRecordings[r.id] : null;
+                  return {
+                    id: r.id,
+                    fileName: detailedInfo?.fileName || (r as any).fileName,
+                    mimeType: detailedInfo?.mimeType || (r as any).mimeType,
+                    status: detailedInfo?.status || 'unknown',
+                    hasUrl: !!r.recordingUrl,
+                    createdAt: r.createdAt,
+                    type: (r as any).type,
+                    // 🐛 Show ALL fields to debug what's available
+                    allFields: Object.keys(r),
+                    detailedFields: detailedInfo ? Object.keys(detailedInfo) : [],
+                    rawObject: r,
+                    detailedInfo
+                  }
+                })
+              });
+              
+              return allRecordings.length > 0 && (
                 <div className="mt-3 space-y-2">
                   <div className="text-sm font-medium text-gray-700 mb-2">
-                    Recordings ({consultation.recordings.filter(r => r.recordingUrl).length} available):
+                    Recordings ({allRecordings.length} available):
                   </div>
-                  {consultation.recordings
-                    .filter(r => r.recordingUrl)
-                    .map((recording, index) => {
-                      const timestamp = recording.createdAt 
-                        ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
-                        : `Part ${index + 1}`;
-                      
+                  {allRecordings.map((recording, index) => {
+                    const timestamp = recording.createdAt 
+                      ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
+                      : `Part ${index + 1}`;
+                    
+                    // Get detailed recording info if available
+                    const detailedInfo = recording.id ? detailedRecordings[recording.id] : null;
+                    const fileName = detailedInfo?.fileName || (recording as any).fileName || (recording as any).name || '';
+                    const mimeType = detailedInfo?.mimeType || (recording as any).mimeType || '';
+                    const status = detailedInfo?.status || 'unknown';
+                    
+                    // Detect screen recording by filename pattern or mimeType
+                    const isScreenRecording = fileName.includes('.webm') || 
+                                            mimeType?.includes('video/webm') || 
+                                            fileName.includes('consultation-') ||
+                                            fileName.includes('session-');
+                    const recordingType = isScreenRecording ? 'Screen Recording' : 'Audio Recording';
+                    const hasUrl = !!recording.recordingUrl;
+                    
+                    // If no URL, show as disabled item instead of link
+                    if (!hasUrl) {
                       return (
-                        <a
+                        <div
                           key={recording.id || `recording-${index}`}
-                          href={recording.recordingUrl ?? '#'}
-                          download={`consultation-${consultation.id}-recording-${index + 1}.webm`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between px-3 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-700 hover:text-emerald-800 transition-colors duration-200 text-sm"
+                          className="flex items-center justify-between px-3 py-2 border rounded-lg text-sm bg-gray-50 border-gray-200 text-gray-500"
                         >
                           <span className="flex items-center">
-                            <PlayCircle className="h-4 w-4 mr-2" />
-                            Recording {index + 1} - {timestamp}
+                            <PlayCircle className="h-4 w-4 mr-2 opacity-50" />
+                            {recordingType} {index + 1} - {timestamp}
                           </span>
-                          <Download className="h-3 w-3 text-emerald-600" />
-                        </a>
+                          <span className="text-xs">Processing...</span>
+                        </div>
                       );
-                    })}
+                    }
+                    
+                    return (
+                      <a
+                        key={recording.id || `recording-${index}`}
+                        href={recording.recordingUrl}
+                        download={`consultation-${consultation.id}-${isScreenRecording ? 'screen' : 'audio'}-${index + 1}.webm`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex items-center justify-between px-3 py-2 border rounded-lg transition-colors duration-200 text-sm ${
+                          isScreenRecording 
+                            ? 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 hover:text-blue-800'
+                            : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700 hover:text-emerald-800'
+                        }`}
+                      >
+                        <span className="flex items-center">
+                          <PlayCircle className="h-4 w-4 mr-2" />
+                          {recordingType} {index + 1} - {timestamp}
+                        </span>
+                        <Download className="h-3 w-3" />
+                      </a>
+                    );
+                  })}
                 </div>
-            )}
+              );
+            })()}
           </div>
         )}
       </div>

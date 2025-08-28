@@ -2,7 +2,41 @@
 import React from "react";
 import { VideoCall } from "./video-call";
 import { useOtoscopy } from "@/providers/otoscopy-provider";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useDevice } from "@/providers/device-provider";
+
+interface DelayedVideoCallProps {
+  channel: string;
+  patientName: string;
+  isFullscreen: boolean;
+  onBeforeLeaveCall?: () => Promise<void>;
+  delay: number;
+}
+
+const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({ delay, ...props }) => {
+  const [shouldRender, setShouldRender] = React.useState(false);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setShouldRender(true);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  if (!shouldRender) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-white">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-lg">Preparing otoscopy camera...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <VideoCall {...props} />;
+};
 
 interface ConsultationContentProps {
   consultationId: string;
@@ -19,18 +53,22 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
 }) => {
   const { isOtoscopyActive, stopOtoscopy } = useOtoscopy();
   const pathname = usePathname();
+  const router = useRouter();
+  const { deviceState } = useDevice();
   
   // Check if we're on the specific video-otoscopy page
   const isVideoOtoscopyPage = pathname?.includes('/test/video-otoscopy');
   
-  // Only enlarge video when on video-otoscopy page AND otoscopy is active
-  const shouldEnlargeVideo = isVideoOtoscopyPage && isOtoscopyActive;
+  // Only enlarge video when on video-otoscopy page AND otoscopy is active AND camera is open
+  const isCameraOpen = deviceState.r15c.isCameraOpen;
+  const shouldEnlargeVideo = isVideoOtoscopyPage && isOtoscopyActive && isCameraOpen;
 
   // Debug logging
   console.log("🔍 ConsultationContent Debug:", {
     pathname,
     isVideoOtoscopyPage,
     isOtoscopyActive,
+    isCameraOpen,
     shouldEnlargeVideo,
     consultationId,
     timestamp: new Date().toISOString()
@@ -51,11 +89,14 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     try {
       setIsStopping(true);
       await stopOtoscopy();
+      // Small delay then refresh to restore video call properly
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (e) {
       console.error("Error stopping otoscopy:", e);
     } finally {
-      // Hard refresh to fully restore layout/video call
-      window.location.reload();
+      setIsStopping(false);
     }
   }, [stopOtoscopy]);
 
@@ -65,11 +106,13 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
       <div className="fixed inset-0 z-50 bg-black">
         {/* Full screen video without cropping */}
         <div className="w-screen h-screen">
-          <VideoCall
+          {/* Add a small delay before rendering VideoCall to let device prepare */}
+          <DelayedVideoCall
             channel={consultationId}
             patientName={patientName}
             isFullscreen={true}
             onBeforeLeaveCall={onBeforeLeaveCall}
+            delay={800} // 800ms delay for device to start camera
           />
         </div>
 

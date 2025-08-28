@@ -14,6 +14,7 @@ interface DeviceState {
     batteryLevel?: number | null;
     isCharging?: boolean | null;
     error?: string;
+    isCameraOpen?: boolean;
   };
   revo2: {
     isConnected: boolean;
@@ -71,6 +72,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
         revo2Connected: boolean;
         connectionStatus: string;
         transducerResponse: TransducersResponse;
+        isCameraOpen?: boolean;
         // Optional extended payloads
         deviceState?: {
           isConnected?: boolean;
@@ -99,6 +101,7 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
             isCharging:
               (data.deviceState?.isCharging as boolean | undefined) ?? prev.r15c.isCharging ?? null,
             error: data.deviceState?.error ?? prev.r15c.error,
+            isCameraOpen: (data.isCameraOpen as boolean | undefined) ?? prev.r15c.isCameraOpen,
           },
           revo2: {
             ...prev.revo2,
