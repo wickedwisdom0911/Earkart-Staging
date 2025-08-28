@@ -84,39 +84,10 @@ export function useScreenRecordingUpload(consultationId: string) {
 	const isStoppingRef = useRef<boolean>(false);
 	const chunkCounterRef = useRef<number>(0);
 
-	// Upload queue with concurrency control
-	const concurrencyRef = useRef<number>(DEFAULT_MAX_CONCURRENCY);
-	const activeUploadsRef = useRef<number>(0);
-	const queueRef = useRef<Array<() => Promise<void>>>([]);
+	// Track uploaded parts for multipart upload completion
 	const uploadedPartsRef = useRef<UploadedPart[]>([]);
 
-	// Buffer to aggregate 5s chunks into exact partSize parts
-	const pendingBlobsRef = useRef<Blob[]>([]);
-	const pendingSizeRef = useRef<number>(0);
-
-	const runNextInQueue = useCallback(() => {
-		if (activeUploadsRef.current >= concurrencyRef.current) return;
-		const next = queueRef.current.shift();
-		if (!next) return;
-		activeUploadsRef.current += 1;
-		next()
-			.catch(() => {})
-			.finally(() => {
-				activeUploadsRef.current -= 1;
-				setState((s) => ({ ...s, pendingParts: Math.max(0, s.pendingParts - 1) }));
-				if (queueRef.current.length > 0) {
-					setTimeout(runNextInQueue, 0);
-				} else if (activeUploadsRef.current === 0 && state.isRecording === false && isStoppingRef.current) {
-					// Await finalize in stop()
-				}
-			});
-	}, [state.isRecording]);
-
-	const enqueueUpload = useCallback((fn: () => Promise<void>) => {
-		queueRef.current.push(fn);
-		setState((s) => ({ ...s, pendingParts: s.pendingParts + 1 }));
-		runNextInQueue();
-	}, [runNextInQueue]);
+	// Removed old queue system - using immediate chunk uploads instead
 
 	const initiateMultipart = useCallback(async (fileName: string, mimeType: string): Promise<InitiateResponse> => {
 		const { uploadId, partSize, key } = await initiateRecordingUpload({ fileName, sessionId: consultationId, mimeType });
@@ -131,31 +102,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 		return await completeRecordingUpload({ uploadId, parts });
 	}, []);
 
-	const uploadBlobPart = useCallback(async (blob: Blob, partNumber: number) => {
-		const uploadId = uploadIdRef.current;
-		if (!uploadId) throw new Error("No upload in progress");
-
-		console.log(`🚀 [S3_UPLOAD] Uploading part ${partNumber}, size: ${(blob.size / 1024 / 1024).toFixed(2)}MB`);
-		const { url } = await presignPart(uploadId, partNumber);
-		const putRes = await fetch(url, {
-			method: "PUT",
-			body: blob,
-			headers: { "Content-Type": "application/octet-stream" },
-		});
-		if (!putRes.ok) {
-			console.error(`❌ [S3_UPLOAD] Part ${partNumber} failed: ${putRes.status} ${putRes.statusText}`);
-			throw new Error(`S3 PUT failed with ${putRes.status}`);
-		}
-		const eTag = putRes.headers.get("ETag") || putRes.headers.get("Etag") || putRes.headers.get("etag");
-		if (!eTag) {
-			console.error(`❌ [S3_UPLOAD] Part ${partNumber} missing ETag header`);
-			throw new Error("Missing ETag from S3 response; ensure CORS exposes ETag");
-		}
-		// Strip quotes to satisfy S3 CompleteMultipartUpload XML
-		uploadedPartsRef.current.push({ partNumber, etag: eTag.replace(/"/g, "") });
-		setState((s) => ({ ...s, uploadedParts: s.uploadedParts + 1, uploadedBytes: s.uploadedBytes + blob.size }));
-		console.log(`✅ [S3_UPLOAD] Part ${partNumber} uploaded successfully, ETag: ${eTag}`);
-	}, [presignPart]);
+	// Removed uploadBlobPart - using uploadChunkImmediately instead
 
 	const uploadChunkImmediately = useCallback(async (chunk: Blob, chunkIndex: number, chunkId: string) => {
 		const uploadId = uploadIdRef.current;
@@ -209,39 +156,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 		}
 	}, [presignPart]);
 
-	// Helper: take exactly size bytes from pendingBlobsRef, returning a Blob and mutating the buffer
-	const takeExactBytesFromBuffer = useCallback((size: number): Blob => {
-		let remaining = size;
-		const out: Blob[] = [];
-		while (remaining > 0 && pendingBlobsRef.current.length > 0) {
-			const head = pendingBlobsRef.current[0];
-			if (head.size <= remaining) {
-				out.push(head);
-				pendingBlobsRef.current.shift();
-				pendingSizeRef.current -= head.size;
-				remaining -= head.size;
-			} else {
-				// Split head
-				const part = head.slice(0, remaining);
-				const leftover = head.slice(remaining);
-				out.push(part);
-				pendingBlobsRef.current[0] = leftover;
-				pendingSizeRef.current -= remaining;
-				remaining = 0;
-			}
-		}
-		return new Blob(out, { type: "application/octet-stream" });
-	}, []);
-
-	const tryFlushFullParts = useCallback(() => {
-		const partSize = partSizeRef.current;
-		while (pendingSizeRef.current >= partSize) {
-			const partBlob = takeExactBytesFromBuffer(partSize);
-			const pn = nextPartNumberRef.current;
-			enqueueUpload(() => uploadBlobPart(partBlob, pn));
-			nextPartNumberRef.current = pn + 1;
-		}
-	}, [enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart]);
+	// Removed old buffer/queue chunking system - using immediate uploads
 
 	const handleChunk = useCallback(async (chunk: Blob) => {
 		const chunkIndex = chunkCounterRef.current++;
@@ -273,8 +188,7 @@ export function useScreenRecordingUpload(consultationId: string) {
 			// Chunk is safely stored in IndexedDB, will retry on next load
 		}
 		
-		// NO MORE: pendingBlobsRef.current.push(chunk) or tryFlushFullParts()
-		// We upload each chunk immediately instead of batching
+		// Each chunk uploads immediately instead of batching
 	}, [consultationId, uploadChunkImmediately]);
 
 	const start = useCallback(async (opts?: StartOptions) => {
@@ -610,8 +524,14 @@ export function useScreenRecordingUpload(consultationId: string) {
 						
 						if (uploadId && !isOld) {
 							console.log("🔄 [RECORDING] Found incomplete upload from previous session:", uploadId, filename);
-							console.log("📂 [RECORDING] Allowing previous session to remain as incomplete record");
-							console.log("🧹 [RECORDING] Cleaning up localStorage entry only");
+							console.log("🧹 [RECORDING] Aborting incomplete upload to prevent orphaned database records");
+							
+							try {
+								await abortRecordingUpload({ uploadId });
+								console.log("✅ [RECORDING] Successfully aborted orphaned upload:", uploadId);
+							} catch (err) {
+								console.error("❌ [RECORDING] Failed to abort orphaned upload:", err);
+							}
 						}
 						
 						// Remove the localStorage entry regardless of success/failure
