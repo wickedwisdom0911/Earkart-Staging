@@ -178,16 +178,16 @@ export default function ConsultationLayout({
   if (!((consultation as any)?.data)) return <div>No data</div>;
 
   const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
-  const isCompleted = consultationData.status === SessionStatus.COMPLETED;
-  const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
-  const rawRecordingNames: string[] = [
-    ...((Array.isArray((consultationData as any)?.recordingsName) ? (consultationData as any)?.recordingsName : []) as string[]),
-    ...(((consultationData as any)?.recordingName ? [(consultationData as any)?.recordingName] : []) as string[]),
-    ...((Array.isArray((consultationData as any)?.recordings) ? (consultationData as any)?.recordings.map((r: any) => r?.name).filter(Boolean) : []) as string[]),
-    ...(((consultationData as any)?.recording?.name ? [(consultationData as any)?.recording?.name] : []) as string[]),
-  ].filter(Boolean);
-  const uniqueRecordingNames = Array.from(new Set(rawRecordingNames));
-  const allRecordingLinks = (callbackBase ? uniqueRecordingNames.map((name) => ({ name, url: `${callbackBase}?name=${encodeURIComponent(name)}` })) : []) as { name: string; url: string }[];
+  try {
+    console.log("[layout] consultation.data:", consultationData);
+    console.log("[layout] recordings:", (consultationData as any)?.recordings);
+    console.log(
+      "[layout] recordingName(s):",
+      (consultationData as any)?.recordingName,
+      (consultationData as any)?.recordingsName,
+      (consultationData as any)?.recording?.name
+    );
+  } catch {}
 
   return (
     <OtoscopyProvider consultationId={consultationId}>
@@ -265,35 +265,16 @@ export default function ConsultationLayout({
                   </div>
                 )}
 
-                {/* View recordings: during active session show latest only; when completed show all */}
-                {isCompleted ? (
-                  allRecordingLinks.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {allRecordingLinks.map((r) => (
-                        <a
-                          key={r.name}
-                          href={r.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                          title={r.name}
-                        >
-                          {r.name}
-                        </a>
-                      ))}
-                    </div>
-                  )
-                ) : (
-                  (externalPlaybackUrl || recordingState.playbackUrl) && (
-                    <a
-                      href={externalPlaybackUrl || recordingState.playbackUrl!}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                    >
-                      View recording
-                    </a>
-                  )
+                {/* View recording when available (prefer external callback) */}
+                {(externalPlaybackUrl || recordingState.playbackUrl) && (
+                  <a
+                    href={externalPlaybackUrl || recordingState.playbackUrl!}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                    View recording
+                  </a>
                 )}
 
                 {/* Testing complete button removed */}
@@ -308,9 +289,8 @@ export default function ConsultationLayout({
               {children}
             </ConsultationContent>
           </DashboardBodyWrapper>
-          {/* Blocking overlay to require Start before proceeding (only while session not ended)
-              Show even if a previous session is finalizing, but disable the start button while uploading */}
-          {!recordingState.isRecording &&
+          {/* Blocking overlay to require Start before proceeding (only while session not ended) */}
+          {!recordingState.isRecording && !recordingState.hasActiveSession &&
             (consultationData.status !== SessionStatus.COMPLETED &&
               consultationData.status !== SessionStatus.CANCELLED &&
               consultationData.status !== SessionStatus.FAILED) && (
@@ -329,11 +309,6 @@ export default function ConsultationLayout({
                     Please select "Entire Screen" in the picker and try again.
                   </div>
                 )}
-                {recordingState.isUploading && (
-                  <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
-                    Finalizing previous recording… You can start a new one as soon as it completes.
-                  </div>
-                )}
                 <button
                   className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-60 hover:bg-blue-700 transition-colors duration-200 font-semibold text-lg shadow-lg"
                   onClick={() =>
@@ -344,15 +319,13 @@ export default function ConsultationLayout({
                       requireEntireScreen: true,
                     })
                   }
-                  disabled={recordingState.isInitializing || recordingState.isRecovering || recordingState.isUploading}
+                  disabled={recordingState.isInitializing || recordingState.isRecovering}
                 >
                   {recordingState.isRecovering 
                     ? "Recovering session..." 
-                    : recordingState.isUploading
-                      ? "Finalizing previous recording…" 
-                      : recordingState.isInitializing 
-                        ? "Starting..." 
-                        : "Start Recording"}
+                    : recordingState.isInitializing 
+                      ? "Starting..." 
+                      : "Start Recording"}
                 </button>
               </div>
             </div>
