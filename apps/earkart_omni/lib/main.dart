@@ -10,7 +10,6 @@ import 'package:earkart_omni/features/device/data/source/local/device.entity.sou
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
-
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
@@ -434,6 +433,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           title: "EarKart Omni",
           debugShowCheckedModeBanner: false,
           theme: theme,
+          navigatorKey: SessionManager.navigatorKey,
           initialRoute: RootScreen.routeName,
           onGenerateRoute: (settings) => generateRoute(settings),
 

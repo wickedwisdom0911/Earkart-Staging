@@ -8,6 +8,9 @@ class SessionManager {
   static bool _isShowingDialog = false;
   static BuildContext? _currentContext;
   static bool _isHandlingSessionExpired = false;
+  // Navigator key to obtain a context that is guaranteed to be under a Navigator
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
   static void setContext(BuildContext context) {
     print('🔍 [SESSION_MANAGER] Setting context');
@@ -45,9 +48,10 @@ class SessionManager {
 
     // Use a post-frame callback to ensure the dialog is shown after the current frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_currentContext != null && _isShowingDialog) {
-        // Show the session expired dialog
-        SessionExpiredDialog.show(_currentContext!, () {
+      final ctx = navigatorKey.currentContext ?? _currentContext;
+      if (ctx != null && _isShowingDialog) {
+        // Show the session expired dialog with a context that includes a Navigator
+        SessionExpiredDialog.show(ctx, () {
           print(
             '🔍 [SESSION_MANAGER] Session expired dialog callback triggered',
           );
@@ -59,8 +63,9 @@ class SessionManager {
 
   static void _performLogout() {
     print('🔍 [SESSION_MANAGER] _performLogout called');
-    if (_currentContext == null) {
-      print('🔍 [SESSION_MANAGER] No context available for logout');
+    final navState = navigatorKey.currentState;
+    if (navState == null) {
+      print('🔍 [SESSION_MANAGER] No navigator available for logout');
       _resetState();
       return;
     }
@@ -68,15 +73,13 @@ class SessionManager {
     try {
       print('🔍 [SESSION_MANAGER] Calling AuthCubit logout');
       // Use AuthCubit to logout which will clear all data including Hive boxes
-      _currentContext!.read<AuthCubit>().logout();
+      (navigatorKey.currentContext ?? _currentContext)!
+          .read<AuthCubit>()
+          .logout();
 
       print('🔍 [SESSION_MANAGER] Navigating to login screen');
       // Navigate to login screen and clear all routes
-      Navigator.pushNamedAndRemoveUntil(
-        _currentContext!,
-        LoginScreen.routeName,
-        (route) => false,
-      );
+      navState.pushNamedAndRemoveUntil(LoginScreen.routeName, (route) => false);
     } catch (e) {
       // If navigation fails, try to restart the app
       print('🔍 [SESSION_MANAGER] Error during logout: $e');
