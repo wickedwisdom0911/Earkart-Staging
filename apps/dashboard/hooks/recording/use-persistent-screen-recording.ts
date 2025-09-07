@@ -255,27 +255,6 @@ export function usePersistentScreenRecording(consultationId: string) {
 	}, [enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
 
 	const handleChunk = useCallback(async (chunk: Blob) => {
-		// Step 1: Immediately save chunk to IndexedDB for persistence
-		const sessionId = sessionIdRef.current;
-		if (sessionId) {
-			try {
-				const chunkId = generateChunkId();
-				const storedChunk: StoredChunk = {
-					id: chunkId,
-					sessionId,
-					partNumber: 0, // Will be assigned during upload
-					blob: chunk,
-					timestamp: Date.now(),
-					isUploaded: false
-				};
-				await recordingStorage.saveChunk(storedChunk);
-				console.log(`ðŸ’¾ [CHUNK] Saved chunk ${chunkId} to IndexedDB (${(chunk.size / 1024).toFixed(1)}KB)`);
-			} catch (error) {
-				console.error("âŒ [CHUNK] Failed to save chunk to IndexedDB:", error);
-			}
-		}
-
-		// Step 2: Continue with existing buffer logic for upload processing
 		pendingBlobsRef.current.push(chunk);
 		pendingSizeRef.current += chunk.size;
 		await tryFlushFullParts();
@@ -380,14 +359,14 @@ export function usePersistentScreenRecording(consultationId: string) {
 				return false;
 			}
 
-			console.log("ðŸ”„ Found existing recording session:", activeSession.sessionId);
+			console.log("🔄 Found existing recording session:", activeSession.sessionId);
 
 			// Check if we can safely recover by testing the upload
 			try {
 				// Try to test the upload session
 				const testResult = await finalizeNow(activeSession.uploadId);
 				if (testResult) {
-					console.log("âœ… Successfully recovered existing session");
+					console.log("✅ Successfully recovered existing session");
 					
 					// Restore session state
 					sessionIdRef.current = activeSession.sessionId;
@@ -400,7 +379,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 						...s,
 						sessionId: activeSession.sessionId,
 						uploadId: activeSession.uploadId,
-						s3Key: activeSession.s3Key || null,
+						s3Key: activeSession.s3Key,
 						uploadedParts: activeSession.uploadedParts.length,
 						hasActiveSession: true,
 						isRecovering: false,
@@ -410,7 +389,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 					// Resume uploading pending chunks
 					const pendingChunks = await recordingStorage.getPendingChunks(activeSession.sessionId);
 					if (pendingChunks.length > 0) {
-						console.log(`ðŸ“¤ Resuming upload of ${pendingChunks.length} pending chunks`);
+						console.log(`📤 Resuming upload of ${pendingChunks.length} pending chunks`);
 						setState((s) => ({ ...s, isUploading: true }));
 
 						for (const chunk of pendingChunks) {
@@ -421,11 +400,11 @@ export function usePersistentScreenRecording(consultationId: string) {
 					return true;
 				}
 			} catch (error) {
-				console.log("âš ï¸ Cannot recover existing session, starting fresh:", error);
+				console.log("⚠️ Cannot recover existing session, starting fresh:", error);
 			}
 
 			// If recovery failed, clean up old session and indicate need for fresh start
-			console.log("ðŸ§¹ Cleaning up broken session and starting fresh");
+			console.log("🧹 Cleaning up broken session and starting fresh");
 			await recordingStorage.deactivateSession(activeSession.sessionId);
 			await recordingStorage.deleteSessionChunks(activeSession.sessionId);
 			
@@ -439,155 +418,44 @@ export function usePersistentScreenRecording(consultationId: string) {
 		}
 	}, [consultationId, enqueueUpload, uploadBlobPart, finalizeNow]);
 
-	// Recovery function for orphaned sessions (from page reload)
-	const recoverOrphanedSessions = useCallback(async () => {
-		try {
-			console.log("ðŸ” [RECOVERY] Checking for orphaned sessions...");
-			
-			// Get all sessions from localStorage for this consultation
-			const storageKey = `recordings_${consultationId}`;
-			const savedRecordings = JSON.parse(localStorage.getItem(storageKey) || '[]');
-			
-			for (const recording of savedRecordings) {
-				// Look for sessions that are stuck in "recording" or "processing" state
-				if ((recording.status === 'recording' || recording.status === 'processing') && recording.sessionId) {
-					console.log(`ðŸ”„ [RECOVERY] Found orphaned session: ${recording.sessionId}`);
-					
-					// Check if there are leftover chunks in IndexedDB
-					const sessionChunks = await recordingStorage.getSessionChunks(recording.sessionId);
-					
-					if (sessionChunks && sessionChunks.length > 0) {
-						console.log(`ðŸ“¦ [RECOVERY] Found ${sessionChunks.length} chunks for session ${recording.sessionId}, attempting recovery...`);
-						
-						try {
-							// Get session metadata
-							const session = await recordingStorage.getSession(recording.sessionId);
-							if (session && session.uploadId) {
-								// Try to finalize the multipart upload with existing parts
-								const result = await finalizeNow(session.uploadId);
-								
-								if (result?.playbackUrl) {
-									console.log(`âœ… [RECOVERY] Successfully recovered session: ${result.playbackUrl}`);
-									
-									// Update localStorage with recovered URL
-									recording.url = result.playbackUrl;
-									recording.status = 'completed';
-									recording.source = 'page_reload_recovery';
-								} else {
-									console.log(`âš ï¸ [RECOVERY] Could not get playback URL, marking as failed`);
-									recording.status = 'failed';
-									recording.error = 'Recovery failed - no playback URL';
-								}
-							} else {
-								console.log(`âš ï¸ [RECOVERY] No session metadata found, marking as failed`);
-								recording.status = 'failed';
-								recording.error = 'Recovery failed - no session metadata';
-							}
-							
-							// Clean up IndexedDB chunks for this session
-							await recordingStorage.deleteSessionChunks(recording.sessionId);
-							
-						} catch (recoveryError) {
-							console.error(`âŒ [RECOVERY] Failed to recover session ${recording.sessionId}:`, recoveryError);
-							recording.status = 'failed';
-							recording.error = `Recovery failed: ${(recoveryError as Error).message}`;
-						}
-					} else {
-						console.log(`ðŸ“­ [RECOVERY] No chunks found for session ${recording.sessionId}, marking as failed`);
-						recording.status = 'failed';
-						recording.error = 'No data to recover';
-					}
-				}
-			}
-			
-			// Save updated recordings back to localStorage
-			localStorage.setItem(storageKey, JSON.stringify(savedRecordings));
-			console.log("ðŸ’¾ [RECOVERY] Updated localStorage with recovery results");
-			
-		} catch (error) {
-			console.error("âŒ [RECOVERY] Error during orphaned session recovery:", error);
-		}
-	}, [consultationId, finalizeNow]);
-
 	// Initialize and check for existing sessions on mount
 	useEffect(() => {
 		const initialize = async () => {
 			try {
-				console.log("ðŸ”„ Initializing recording system...");
+				console.log("🔄 Initializing recording system...");
 				// Clean up old sessions first
 				await recordingStorage.cleanupOldSessions();
 				
-				// Step 3: Recovery logic for orphaned sessions
-				await recoverOrphanedSessions();
-				
 				// Check for active session
 				const hasActive = await recoverSession();
-				console.log("ðŸ“‹ Recovery result:", { hasActive });
+				console.log("📋 Recovery result:", { hasActive });
 				setState((s) => ({ ...s, hasActiveSession: hasActive }));
 				
 				if (!hasActive) {
-					console.log("ðŸ’» No existing recording session - ready for new recording");
+					console.log("💻 No existing recording session - ready for new recording");
 				}
 			} catch (error) {
-				console.error("âŒ Failed to initialize recording storage:", error);
+				console.error("❌ Failed to initialize recording storage:", error);
 				setState((s) => ({ ...s, hasActiveSession: false }));
 			}
 		};
 
 		initialize();
-	}, [consultationId, recoverSession, recoverOrphanedSessions]);
+	}, [consultationId, recoverSession]);
 
-	// Add beforeunload warning with immediate chunk flushing
+	// Add beforeunload warning
 	useEffect(() => {
-		const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
+		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
 			if (state.isRecording || state.isUploading || (state.pendingParts > 0)) {
-				console.log("âš ï¸ [BEFOREUNLOAD] Page unloading with active recording, attempting immediate flush...");
-				
-				try {
-					// Step 4: Try to flush any pending chunks before unload
-					if (sessionIdRef.current && (pendingBlobsRef.current.length > 0 || queueRef.current.length > 0)) {
-						console.log(`ðŸš€ [BEFOREUNLOAD] Flushing ${pendingBlobsRef.current.length} pending blobs and ${queueRef.current.length} queued uploads...`);
-						
-						// Force flush any pending blobs to create uploadable parts
-						await tryFlushFullParts();
-						
-						// Update session metadata in IndexedDB with current state
-						const session = await recordingStorage.getSession(sessionIdRef.current);
-						if (session) {
-							session.lastUpdated = Date.now();
-							session.uploadedParts = uploadedPartsRef.current;
-							await recordingStorage.saveSession(session);
-							console.log("ðŸ’¾ [BEFOREUNLOAD] Updated session metadata");
-						}
-						
-						// Update localStorage with current progress
-						const storageKey = `recordings_${consultationId}`;
-						const savedRecordings = JSON.parse(localStorage.getItem(storageKey) || '[]');
-						const currentRecordingIndex = savedRecordings.findIndex((r: any) => 
-							r.sessionId === sessionIdRef.current || r.status === 'recording'
-						);
-						
-						if (currentRecordingIndex >= 0) {
-							savedRecordings[currentRecordingIndex].status = 'processing';
-							savedRecordings[currentRecordingIndex].lastUpdate = new Date().toISOString();
-							savedRecordings[currentRecordingIndex].partCount = uploadedPartsRef.current.length;
-							localStorage.setItem(storageKey, JSON.stringify(savedRecordings));
-							console.log("ðŸ’¾ [BEFOREUNLOAD] Updated localStorage with processing status");
-						}
-					}
-				} catch (flushError) {
-					console.error("âŒ [BEFOREUNLOAD] Failed to flush chunks:", flushError);
-				}
-				
 				e.preventDefault();
-				e.returnValue = "Uploading recording data, please wait... Data will be recovered on page reload.";
+				e.returnValue = "Recording is in progress. Leaving will pause the upload but data will be preserved.";
 				return e.returnValue;
 			}
 		};
 
 		window.addEventListener("beforeunload", handleBeforeUnload);
 		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-	}, [state.isRecording, state.isUploading, state.pendingParts, consultationId, tryFlushFullParts]);
+	}, [state.isRecording, state.isUploading, state.pendingParts]);
 
 	const start = useCallback(async (opts?: StartOptions) => {
 		if (state.isRecording || state.isInitializing) return;
@@ -754,43 +622,6 @@ export function usePersistentScreenRecording(consultationId: string) {
 			// 5) Start recording with timeslices
 			recorder.start(timeslice);
 			setState((s) => ({ ...s, isRecording: true, isInitializing: false }));
-
-			// 6) Start frequent upload interval (10-20s) for chunk recovery
-			const uploadInterval = setInterval(async () => {
-				try {
-					if (!sessionIdRef.current || !state.isRecording) {
-						clearInterval(uploadInterval);
-						return;
-					}
-
-					console.log("â° [UPLOAD_INTERVAL] Starting 15s upload flush...");
-					
-					// Get all unuploaded chunks for current session
-					const sessionChunks = await recordingStorage.getSessionChunks(sessionIdRef.current);
-					const unuploadedChunks = sessionChunks.filter(chunk => !chunk.isUploaded);
-					
-					if (unuploadedChunks.length > 0) {
-						console.log(`ðŸ“¤ [UPLOAD_INTERVAL] Found ${unuploadedChunks.length} unuploaded chunks, flushing...`);
-						
-						// Force process any pending blobs into uploadable parts
-						await tryFlushFullParts();
-						
-						// Process any pending uploads in queue
-						if (queueRef.current.length > 0) {
-							console.log(`ðŸš€ [UPLOAD_INTERVAL] Processing ${queueRef.current.length} queued uploads...`);
-						}
-						
-						setState((s) => ({ ...s, uploadedParts: uploadedPartsRef.current.length }));
-					} else {
-						console.log("âœ… [UPLOAD_INTERVAL] All chunks uploaded, no action needed");
-					}
-				} catch (error) {
-					console.error("âŒ [UPLOAD_INTERVAL] Error during periodic upload:", error);
-				}
-			}, 15000); // 15 seconds - good balance between frequency and performance
-
-			// Store interval ID for cleanup
-			(recorder as any)._uploadInterval = uploadInterval;
 		} catch (err) {
 			console.error("Failed to start screen recording:", err);
 			setState((s) => ({ ...s, isInitializing: false, error: (err as Error).message }));
@@ -832,11 +663,6 @@ export function usePersistentScreenRecording(consultationId: string) {
 			try {
 				if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
 					mediaRecorderRef.current.stop();
-				}
-				// Clean up upload interval
-				if ((mediaRecorderRef.current as any)?._uploadInterval) {
-					clearInterval((mediaRecorderRef.current as any)._uploadInterval);
-					console.log("ðŸ§¹ [STOP] Cleared upload interval");
 				}
 			} catch {}
 			mediaRecorderRef.current = null;
