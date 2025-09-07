@@ -262,6 +262,25 @@ export default function ConsultationLayout({
                         <>Finalizing... ({recordingState.uploadedParts} parts)</>
                       ) : null}
                     </span>
+                    {/* Download Local Recording Button */}
+                    <button
+                      onClick={async () => {
+                        try {
+                          const { recordingStorage } = await import('@/utils/recording-storage');
+                          const sessionId = recordingState.sessionId;
+                          if (sessionId) {
+                            await recordingStorage.downloadRecordingLocally(sessionId);
+                          }
+                        } catch (error) {
+                          console.error('Failed to download recording locally:', error);
+                          alert('Failed to download recording. Check console for details.');
+                        }
+                      }}
+                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                      title="Download current recording locally (from IndexedDB chunks)"
+                    >
+                      📥 Download Local
+                    </button>
                   </div>
                 )}
 
@@ -285,14 +304,37 @@ export default function ConsultationLayout({
                   )
                 ) : (
                   (externalPlaybackUrl || recordingState.playbackUrl) && (
-                    <a
-                      href={externalPlaybackUrl || recordingState.playbackUrl!}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                    >
-                      View recording
-                    </a>
+                    <div className="flex gap-2">
+                      <a
+                        href={externalPlaybackUrl || recordingState.playbackUrl!}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                      >
+                        View recording
+                      </a>
+                      {/* Download Local Recording Button for completed recordings */}
+                      <button
+                        onClick={async () => {
+                          try {
+                            const { recordingStorage } = await import('@/utils/recording-storage');
+                            const sessionId = recordingState.sessionId;
+                            if (sessionId) {
+                              await recordingStorage.downloadRecordingLocally(sessionId);
+                            } else {
+                              alert('No session ID available for local download');
+                            }
+                          } catch (error) {
+                            console.error('Failed to download recording locally:', error);
+                            alert('Failed to download recording. Check console for details.');
+                          }
+                        }}
+                        className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                        title="Download recording locally (from IndexedDB chunks)"
+                      >
+                        📥 Download Local
+                      </button>
+                    </div>
                   )
                 )}
 

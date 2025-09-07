@@ -57,7 +57,14 @@ export default async function completeRecordingUpload(
   console.log("📋 [RECORDINGS_COMPLETE] Parsed data:", data);
   console.log("🔑 [RECORDINGS_COMPLETE] Available keys:", Object.keys(data || {}));
 
-  const key = data?.key ?? data?.Key ?? data?.s3Key ?? data?.Location ?? data?.location ?? null;
+  // If backend reports failure, surface the message clearly
+  if (data && typeof data === 'object' && data.success === false) {
+    const msg = data?.message || 'Completion failed';
+    throw new Error(String(msg));
+  }
+
+  let key = data?.key ?? data?.Key ?? data?.s3Key ?? data?.Location ?? data?.location ?? null;
+  if (key === 'key') key = null; // avoid literal field-name mishit
   const playbackUrl = data?.playbackUrl ?? data?.playback_url ?? data?.url ?? undefined;
 
   console.log("🎯 [RECORDINGS_COMPLETE] Extracted values:", { key, playbackUrl });

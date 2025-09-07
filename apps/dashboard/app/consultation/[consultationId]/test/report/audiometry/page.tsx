@@ -763,24 +763,70 @@ export default function ReportPage() {
   };
 
   const handleShareReport = async () => {
-    if (!reportRef.current) return;
+    console.log('🚀 Share report button clicked');
+    
+    if (!reportRef.current) {
+      console.log('❌ No report ref available');
+      toast.error('Report not ready');
+      return;
+    }
+    
+    // Get patient contact number and name
+    const patientContact = consultationData?.patient?.contactNumber;
+    const patientName = consultationData?.patient?.name;
+    
+    console.log('📋 Patient data:', { patientContact, patientName });
+    
+    if (!patientName) {
+      console.log('❌ No patient name available');
+      toast.error('Patient name not available');
+      return;
+    }
+    
+    if (!patientContact) {
+      console.log('❌ No patient contact number available');
+      toast.error('Patient contact number not available');
+      return;
+    }
+
     try {
+      console.log('📄 Generating PDF...');
+      // Generate PDF blob
       const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true });
       const filename = `audiometry-report-${consultationData?.patient?.code || "unknown"}.pdf`;
-      const form = new FormData();
-      form.append("file", new File([blob], filename, { type: "application/pdf" }));
-      form.append("filename", filename);
-
-      const res = await fetch('/api/whatsapp/send-report', { method: 'POST', body: form });
-      const json = await res.json();
-      if (!res.ok) {
-        console.error('WhatsApp send error:', json);
-        toast.error('Failed to share via WhatsApp');
-        return;
+      
+      console.log('📄 PDF generated:', { size: blob.size, filename });
+      
+      // For testing, use the working URL from your curl example
+      const testReportUrl = "https://fpu.branding-element.com/prod/61017/BROADCAST_TEMPLATE_ATTACHMENT/67563-04092025_062434-V2.SENDTEXTMEDIAMESSAGE.pdf";
+      
+      console.log('📤 Sending WhatsApp message...');
+      
+      // Import and use the new WhatsApp Dialog API
+      const { sendReportDialog } = await import('@/actions/whatsapp/send-report-dialog');
+      
+      // Ensure phone number has country code (add 91 if not present)
+      const phoneNumber = patientContact || "9058075653"; // Use patient contact or fallback for testing
+      const formattedPhoneNumber = phoneNumber.startsWith("91") ? phoneNumber : `91${phoneNumber}`;
+      
+      console.log('📞 Phone number formatting:', { original: phoneNumber, formatted: formattedPhoneNumber });
+      
+      const result = await sendReportDialog({
+        to: formattedPhoneNumber,
+        patientName: patientName,
+        reportUrl: testReportUrl
+      });
+      
+      console.log('📱 WhatsApp API result:', result);
+      
+      if (result.success) {
+        toast.success('Report shared to patient via WhatsApp');
+      } else {
+        console.error('WhatsApp send error:', result.error);
+        toast.error(`Failed to share via WhatsApp: ${result.error}`);
       }
-      toast.success('Report shared to patient via WhatsApp');
     } catch (err) {
-      console.error(err);
+      console.error('❌ Share report error:', err);
       toast.error('Failed to share report');
     }
   };
