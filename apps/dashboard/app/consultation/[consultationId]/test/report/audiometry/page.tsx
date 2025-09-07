@@ -802,22 +802,61 @@ export default function ReportPage() {
       
       console.log('📤 Sending WhatsApp message...');
       
-      // Import and use the new WhatsApp Dialog API
-      const { sendReportDialog } = await import('@/actions/whatsapp/send-report-dialog');
-      
-      // Ensure phone number has country code (add 91 if not present)
+      // Format phone number properly - remove + and ensure it starts with 91
       const phoneNumber = patientContact || "9058075653"; // Use patient contact or fallback for testing
-      const formattedPhoneNumber = phoneNumber.startsWith("91") ? phoneNumber : `91${phoneNumber}`;
+      let formattedPhoneNumber = phoneNumber.replace(/^\+/, ''); // Remove + if present
+      if (!formattedPhoneNumber.startsWith("91")) {
+        formattedPhoneNumber = `91${formattedPhoneNumber}`;
+      }
       
       console.log('📞 Phone number formatting:', { original: phoneNumber, formatted: formattedPhoneNumber });
       
-      const result = await sendReportDialog({
+      console.log('🔄 Calling WhatsApp API route...');
+      console.log('📤 API parameters:', {
         to: formattedPhoneNumber,
         patientName: patientName,
         reportUrl: testReportUrl
       });
       
-      console.log('📱 WhatsApp API result:', result);
+      // Test API routing first
+      console.log('🧪 Testing API routing...');
+      try {
+        const testResponse = await fetch('/api/test-whatsapp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ test: 'data' })
+        });
+        const testResult = await testResponse.json();
+        console.log('🧪 Test API result:', testResult);
+      } catch (testError) {
+        console.error('❌ Test API failed:', testError);
+      }
+      
+      let result;
+      try {
+        console.log('🌐 Making fetch request to /api/whatsapp/send-report-dialog');
+        const response = await fetch('/api/whatsapp/send-report-dialog', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: formattedPhoneNumber,
+            patientName: patientName,
+            reportUrl: testReportUrl
+          })
+        });
+        
+        console.log('📡 Fetch response status:', response.status, response.statusText);
+        console.log('📡 Fetch response ok:', response.ok);
+        
+        result = await response.json();
+        console.log('📱 WhatsApp API result:', result);
+      } catch (apiError) {
+        console.error('❌ API call failed:', apiError);
+        toast.error(`API call failed: ${apiError}`);
+        return;
+      }
       
       if (result.success) {
         toast.success('Report shared to patient via WhatsApp');

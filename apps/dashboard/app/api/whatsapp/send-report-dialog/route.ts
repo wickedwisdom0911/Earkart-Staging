@@ -1,4 +1,4 @@
-"use server";
+import { NextResponse } from "next/server";
 
 interface SendReportDialogRequest {
   to: string;
@@ -6,19 +6,11 @@ interface SendReportDialogRequest {
   reportUrl: string;
 }
 
-interface SendReportDialogResponse {
-  success: boolean;
-  message?: string;
-  error?: string;
-}
-
-export async function sendReportDialog({
-  to,
-  patientName,
-  reportUrl,
-}: SendReportDialogRequest): Promise<SendReportDialogResponse> {
+export async function POST(request: Request) {
   try {
-    console.log('📱 WhatsApp API - Action function called');
+    const { to, patientName, reportUrl }: SendReportDialogRequest = await request.json();
+    
+    console.log('📱 WhatsApp API - API route called');
     console.log('📱 WhatsApp API - Sending request:', { to, patientName, reportUrl });
     
     const requestBody = {
@@ -75,25 +67,25 @@ export async function sendReportDialog({
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error('❌ WhatsApp Dialog API error:', errorData);
-      return {
+      return NextResponse.json({
         success: false,
         error: `WhatsApp API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
-      };
+      }, { status: 500 });
     }
 
     const result = await response.json();
     console.log('✅ WhatsApp Dialog API success:', result);
 
-    return {
+    return NextResponse.json({
       success: true,
       message: 'Report sent successfully via WhatsApp'
-    };
+    });
 
   } catch (error) {
     console.error('Failed to send report via WhatsApp Dialog API:', error);
-    return {
+    return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
-    };
+    }, { status: 500 });
   }
 }

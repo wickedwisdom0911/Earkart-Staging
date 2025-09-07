@@ -13,12 +13,12 @@ import { useParams, useRouter } from "next/navigation";
 import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording";
 import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
 import { recordingStorage } from "@/utils/recording-storage";
+import { SessionStatus } from "@/models/enums";
 
 // Import debug utilities in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   import("@/utils/recording-debug");
 }
-import { SessionStatus } from "@/models/enums";
 
 export default function ConsultationLayout({
   children,
@@ -29,11 +29,13 @@ export default function ConsultationLayout({
   const router = useRouter();
   const socket = useSocket();
 
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC
   const {
     data: consultation,
     isLoading,
     error,
   } = useGetConsultation(consultationId);
+  
   const { deviceState } = useDevice();
   const { r15c, revo2, tablet } = deviceState;
 
@@ -47,6 +49,30 @@ export default function ConsultationLayout({
     resumeUploads,
     recoverSession 
   } = usePersistentScreenRecording(consultationId);
+
+  // Create a single Agora client instance shared across this layout
+  const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
+
+  // State for managing recovery banner visibility
+  const [showRecoveryBanner, setShowRecoveryBanner] = useState(true);
+  
+  // State to prevent infinite recording loops and double prompts
+  const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(() => {
+    // Check sessionStorage to prevent multiple auto-starts across refreshes
+    if (typeof window !== 'undefined') {
+      const lastAttempt = sessionStorage.getItem(`lastAutoStart_${consultationId}`);
+      const now = Date.now();
+      // If last attempt was less than 30 seconds ago, consider it already attempted
+      if (lastAttempt && (now - parseInt(lastAttempt)) < 30000) {
+        return true;
+      }
+    }
+    return false;
+  });
+  
+  const [isStartingRecording, setIsStartingRecording] = useState(false);
+  const [externalPlaybackUrl, setExternalPlaybackUrl] = useState<string | null>(null);
+  const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
 
   // Wrap startRecording to prevent automatic calls
   const startRecording = useCallback(async (...args: any[]) => {
@@ -70,6 +96,64 @@ export default function ConsultationLayout({
     
     return result;
   }, [originalStartRecording, consultationId]);
+
+  // Function to save recording URLs for viewing later
+  const saveRecordingForLater = useCallback((playbackUrl: string, type: string = 'screen') => {
+    if (!playbackUrl || typeof window === 'undefined') return;
+    
+    try {
+      const storageKey = `recordings_${consultationId}`;
+      const savedRecordings = localStorage.getItem(storageKey) || '[]';
+      const recordings = JSON.parse(savedRecordings);
+      
+      // Check if this URL already exists to prevent duplicates
+      const urlExists = recordings.some((r: any) => r.url === playbackUrl);
+      if (urlExists) {
+        console.log("⚠️ Recording URL already exists, skipping:", playbackUrl);
+        return;
+      }
+      
+      const newRecording = {
+        id: `recording_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        url: playbackUrl,
+        timestamp: new Date().toISOString(),
+        type,
+        name: `${type === 'screen' ? 'Screen' : 'Audio'} Recording ${recordings.length + 1}`,
+        source: 'normal_completion'
+      };
+      
+      recordings.push(newRecording);
+      localStorage.setItem(storageKey, JSON.stringify(recordings));
+      
+      console.log("💾 ✅ Successfully saved recording:", playbackUrl);
+      console.log("📋 Total recordings now:", recordings.length);
+      console.log("📋 All recordings:", recordings.map((r: any) => ({ name: r.name, url: r.url.substring(0, 50) + '...' })));
+    } catch (error) {
+      console.error("❌ Failed to save recording:", error);
+    }
+  }, [consultationId]);
+
+  // Expose a finalize helper that child components can await before navigating
+  const finalizeBeforeNavigate = useCallback(async () => {
+    try {
+      if (recordingState.isRecording || recordingState.isInitializing) {
+        await stopRecording();
+      } else {
+        await completeRecording();
+      }
+    } catch {}
+  }, [recordingState.isRecording, recordingState.isInitializing, stopRecording, completeRecording]);
+
+  // Get saved recordings from localStorage (from before refresh)
+  const savedRecordings = useMemo(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem(`recordings_${consultationId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  }, [consultationId]);
 
   // TIME-BASED RECORDING COMPLETION - Complete every 1 minute with fresh URLs
   useEffect(() => {
@@ -239,24 +323,6 @@ export default function ConsultationLayout({
     };
   }, [recordingState.isRecording, recordingState.sessionId, completeRecording, originalStartRecording, consultationId]);
 
-  // State for managing recovery banner visibility
-  const [showRecoveryBanner, setShowRecoveryBanner] = useState(true);
-  
-  // State to prevent infinite recording loops and double prompts
-  const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(() => {
-    // Check sessionStorage to prevent multiple auto-starts across refreshes
-    if (typeof window !== 'undefined') {
-      const lastAttempt = sessionStorage.getItem(`lastAutoStart_${consultationId}`);
-      const now = Date.now();
-      // If last attempt was less than 30 seconds ago, consider it already attempted
-      if (lastAttempt && (now - parseInt(lastAttempt)) < 30000) {
-        return true;
-      }
-    }
-    return false;
-  });
-  const [isStartingRecording, setIsStartingRecording] = useState(false);
-
   // Handle beforeunload - DISABLE for now to prevent loops and give recording time to complete
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -359,8 +425,11 @@ export default function ConsultationLayout({
 
   // Auto-stop and auto-complete when consultation ends.
   useEffect(() => {
-    const status = ((consultation as any)?.data as ConsultationModelData | undefined)?.status;
+    if (!consultation?.data) return;
+    
+    const status = (consultation.data as ConsultationModelData)?.status;
     if (!status) return;
+    
     if (
       status === SessionStatus.COMPLETED ||
       status === SessionStatus.CANCELLED ||
@@ -381,9 +450,10 @@ export default function ConsultationLayout({
   }, [consultation, stopRecording, recordingState.isRecording, recordingState.isUploading, consultationId]);
 
   // Prefer playback from consultation's new recording fields via callback
-  const [externalPlaybackUrl, setExternalPlaybackUrl] = useState<string | null>(null);
   useEffect(() => {
-    const data = ((consultation as any)?.data as any) || {};
+    if (!consultation?.data) return;
+    
+    const data = (consultation.data as any) || {};
     const status = data?.status;
     const recordingName = data?.recordingName ?? data?.recordingsName ?? data?.recording?.name ?? null;
     const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
@@ -401,94 +471,6 @@ export default function ConsultationLayout({
       })();
     }
   }, [consultation]);
-
-  // Create a single Agora client instance shared across this layout (must be called every render before conditional returns)
-  const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
-
-  // Expose a finalize helper that child components can await before navigating
-  const finalizeBeforeNavigate = useCallback(async () => {
-    try {
-      if (recordingState.isRecording || recordingState.isInitializing) {
-        await stopRecording();
-      } else {
-        await completeRecording();
-      }
-    } catch {}
-  }, [recordingState.isRecording, recordingState.isInitializing, stopRecording, completeRecording]);
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-  if (!((consultation as any)?.data)) return <div>No data</div>;
-
-  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
-  const isCompleted = consultationData.status === SessionStatus.COMPLETED;
-  const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
-  
-  // Get regular recordings from backend
-  const rawRecordingNames: string[] = [
-    ...((Array.isArray((consultationData as any)?.recordingsName) ? (consultationData as any)?.recordingsName : []) as string[]),
-    ...(((consultationData as any)?.recordingName ? [(consultationData as any)?.recordingName] : []) as string[]),
-    ...((Array.isArray((consultationData as any)?.recordings) ? (consultationData as any)?.recordings.map((r: any) => r?.name).filter(Boolean) : []) as string[]),
-    ...(((consultationData as any)?.recording?.name ? [(consultationData as any)?.recording?.name] : []) as string[]),
-  ].filter(Boolean);
-  const uniqueRecordingNames = Array.from(new Set(rawRecordingNames));
-  const backendRecordingLinks = (callbackBase ? uniqueRecordingNames.map((name) => ({ name, url: `${callbackBase}?name=${encodeURIComponent(name)}` })) : []) as { name: string; url: string }[];
-  
-  // Get saved recordings from localStorage (from before refresh)
-  const savedRecordings = useMemo(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const saved = localStorage.getItem(`recordings_${consultationId}`);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  }, [consultationId]);
-  
-  // Combine all recordings
-  const allRecordingLinks = [
-    ...backendRecordingLinks,
-    ...savedRecordings.map((r: any) => ({
-      name: r.name || `Screen Recording ${r.id}`,
-      url: r.url
-    }))
-  ];
-  
-  // Function to save recording URLs for viewing later
-  const saveRecordingForLater = useCallback((playbackUrl: string, type: string = 'screen') => {
-    if (!playbackUrl || typeof window === 'undefined') return;
-    
-    try {
-      const storageKey = `recordings_${consultationId}`;
-      const savedRecordings = localStorage.getItem(storageKey) || '[]';
-      const recordings = JSON.parse(savedRecordings);
-      
-      // Check if this URL already exists to prevent duplicates
-      const urlExists = recordings.some((r: any) => r.url === playbackUrl);
-      if (urlExists) {
-        console.log("⚠️ Recording URL already exists, skipping:", playbackUrl);
-        return;
-      }
-      
-      const newRecording = {
-        id: `recording_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        url: playbackUrl,
-        timestamp: new Date().toISOString(),
-        type,
-        name: `${type === 'screen' ? 'Screen' : 'Audio'} Recording ${recordings.length + 1}`,
-        source: 'normal_completion'
-      };
-      
-      recordings.push(newRecording);
-      localStorage.setItem(storageKey, JSON.stringify(recordings));
-      
-      console.log("💾 ✅ Successfully saved recording:", playbackUrl);
-      console.log("📋 Total recordings now:", recordings.length);
-      console.log("📋 All recordings:", recordings.map((r: any) => ({ name: r.name, url: r.url.substring(0, 50) + '...' })));
-    } catch (error) {
-      console.error("❌ Failed to save recording:", error);
-    }
-  }, [consultationId]);
 
   // Debug function for testing (available in browser console)
   useEffect(() => {
@@ -550,10 +532,7 @@ export default function ConsultationLayout({
         }
       };
     }
-  }, [consultationId, saveRecordingForLater]);
-
-  // Track saved URLs to prevent duplicates
-  const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
+  }, [consultationId, saveRecordingForLater, recordingState]);
 
   // Save recording URL when it becomes available (normal completion) - SIMPLIFIED
   useEffect(() => {
@@ -573,6 +552,34 @@ export default function ConsultationLayout({
       }
     }
   }, [recordingState.playbackUrl, recordingState.isRecording, recordingState.isUploading, consultationId, saveRecordingForLater]);
+
+  // NOW HANDLE CONDITIONAL RENDERING AFTER ALL HOOKS
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+  if (!consultation?.data) return <div>No data</div>;
+
+  const consultationData = consultation.data as ConsultationModelData;
+  const isCompleted = consultationData.status === SessionStatus.COMPLETED;
+  const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
+  
+  // Get regular recordings from backend
+  const rawRecordingNames: string[] = [
+    ...((Array.isArray((consultationData as any)?.recordingsName) ? (consultationData as any)?.recordingsName : []) as string[]),
+    ...(((consultationData as any)?.recordingName ? [(consultationData as any)?.recordingName] : []) as string[]),
+    ...((Array.isArray((consultationData as any)?.recordings) ? (consultationData as any)?.recordings.map((r: any) => r?.name).filter(Boolean) : []) as string[]),
+    ...(((consultationData as any)?.recording?.name ? [(consultationData as any)?.recording?.name] : []) as string[]),
+  ].filter(Boolean);
+  const uniqueRecordingNames = Array.from(new Set(rawRecordingNames));
+  const backendRecordingLinks = (callbackBase ? uniqueRecordingNames.map((name) => ({ name, url: `${callbackBase}?name=${encodeURIComponent(name)}` })) : []) as { name: string; url: string }[];
+  
+  // Combine all recordings
+  const allRecordingLinks = [
+    ...backendRecordingLinks,
+    ...savedRecordings.map((r: any) => ({
+      name: r.name || `Screen Recording ${r.id}`,
+      url: r.url
+    }))
+  ];
 
   return (
     <OtoscopyProvider consultationId={consultationId}>
@@ -718,12 +725,12 @@ export default function ConsultationLayout({
                     <div className="flex gap-2">
                       {/* Backend recording (priority) */}
                       {(externalPlaybackUrl || recordingState.playbackUrl) && (
-                    <a
-                      href={externalPlaybackUrl || recordingState.playbackUrl!}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                    >
+                        <a
+                          href={externalPlaybackUrl || recordingState.playbackUrl!}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
                           View recording (Cloud)
                         </a>
                       )}
