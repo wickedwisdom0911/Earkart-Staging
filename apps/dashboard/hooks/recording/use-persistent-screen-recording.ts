@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { 
@@ -121,6 +121,25 @@ export function usePersistentScreenRecording(consultationId: string) {
 			});
 	}, [state.isRecording]);
 
+	// Normalize and strictly order parts for completion
+	const buildOrderedParts = useCallback((): UploadedPart[] => {
+		const normalized = uploadedPartsRef.current
+			.filter((p) => p && (p as any).partNumber != null && (p as any).etag != null)
+			.map((p) => ({
+				partNumber: Number((p as any).partNumber),
+				etag: String((p as any).etag).replace(/"/g, ""),
+			}))
+			.filter((p) => Number.isFinite(p.partNumber) && p.partNumber > 0 && p.etag.length > 0);
+
+		// Deduplicate by part number (keep last occurrence)
+		const byNumber = new Map<number, UploadedPart>();
+		for (const p of normalized) {
+			byNumber.set(p.partNumber, p);
+		}
+
+		return Array.from(byNumber.values()).sort((a, b) => a.partNumber - b.partNumber);
+	}, []);
+
 	const enqueueUpload = useCallback((fn: () => Promise<void>) => {
 		queueRef.current.push(fn);
 		setState((s) => ({ ...s, pendingParts: s.pendingParts + 1 }));
@@ -155,8 +174,8 @@ export function usePersistentScreenRecording(consultationId: string) {
 			const eTag = putRes.headers.get("ETag") || putRes.headers.get("Etag") || putRes.headers.get("etag");
 			if (!eTag) throw new Error("Missing ETag from S3 response; ensure CORS exposes ETag");
 			
-			// Strip quotes to satisfy S3 CompleteMultipartUpload XML
-			const uploadedPart = { partNumber, etag: eTag.replace(/"/g, "") };
+			// Store ETag exactly as returned by S3 (including quotes if present)
+			const uploadedPart = { partNumber, etag: eTag };
 			uploadedPartsRef.current.push(uploadedPart);
 			
 			// Mark chunk as uploaded in storage
@@ -175,7 +194,33 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 			setState((s) => ({ ...s, uploadedParts: s.uploadedParts + 1, uploadedBytes: s.uploadedBytes + blob.size }));
 		} catch (error) {
-			// If upload fails, the chunk remains in storage for retry
+			// Check if this is a presign error indicating invalid session
+			const errorMsg = error?.message || '';
+			const isSessionInvalid = errorMsg.includes('Unexpected presign response shape') || 
+									errorMsg.includes('Failed to presign part') ||
+									errorMsg.includes('Unauthorized') ||
+									errorMsg.includes('expired') ||
+									errorMsg.includes('invalid');
+			
+			if (isSessionInvalid) {
+				console.error("❌ [UPLOAD] Upload session appears to be invalid, marking for recovery:", errorMsg);
+				// Mark the current session as failed so recovery can start fresh
+				setState((s) => ({ 
+					...s, 
+					error: `Upload session invalid: ${errorMsg}`,
+					hasActiveSession: false 
+				}));
+				
+				// Clear the invalid session data
+				uploadIdRef.current = null;
+				sessionIdRef.current = null;
+				uploadedPartsRef.current = [];
+				
+				// Don't throw the error, let the recovery system handle it
+				return;
+			}
+			
+			// For other errors, the chunk remains in storage for retry
 			console.error("Upload failed for chunk:", chunkId, error);
 			throw error;
 		}
@@ -206,7 +251,10 @@ export function usePersistentScreenRecording(consultationId: string) {
 	}, []);
 
 	const saveChunkToStorage = useCallback(async (chunk: Blob): Promise<string> => {
-		if (!sessionIdRef.current) throw new Error("No active session");
+		if (!sessionIdRef.current) {
+			console.error("❌ [STORAGE] No active session when trying to save chunk");
+			throw new Error("No active session");
+		}
 		
 		const chunkId = generateChunkId();
 		const partNumber = nextPartNumberRef.current;
@@ -225,21 +273,127 @@ export function usePersistentScreenRecording(consultationId: string) {
 	}, []);
 
 	const tryFlushFullParts = useCallback(async () => {
+		// Don't try to flush if there's no active session
+		if (!sessionIdRef.current || !uploadIdRef.current) {
+			console.warn("⚠️ [FLUSH] No active session, skipping chunk flush");
+			return;
+		}
+
 		const partSize = partSizeRef.current;
 		while (pendingSizeRef.current >= partSize) {
 			const partBlob = takeExactBytesFromBuffer(partSize);
-			const chunkId = await saveChunkToStorage(partBlob);
-			const pn = nextPartNumberRef.current;
-			enqueueUpload(() => uploadBlobPart(partBlob, pn, chunkId));
-			nextPartNumberRef.current = pn + 1;
+			try {
+				const chunkId = await saveChunkToStorage(partBlob);
+				const pn = nextPartNumberRef.current;
+				enqueueUpload(() => uploadBlobPart(partBlob, pn, chunkId));
+				nextPartNumberRef.current = pn + 1;
+			} catch (error) {
+				console.error("❌ [FLUSH] Failed to save chunk to storage:", error);
+				// If we can't save to storage, we can't continue
+				break;
+			}
 		}
 	}, [enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
 
 	const handleChunk = useCallback(async (chunk: Blob) => {
+		// Don't process chunks if there's no active session
+		if (!sessionIdRef.current || !uploadIdRef.current) {
+			console.warn("⚠️ [HANDLE_CHUNK] No active session, discarding chunk");
+			return;
+		}
+
 		pendingBlobsRef.current.push(chunk);
 		pendingSizeRef.current += chunk.size;
 		await tryFlushFullParts();
 	}, [tryFlushFullParts]);
+
+	// Helper functions for recording finalization - defined early to avoid TDZ
+	const resumeUploads = useCallback(async () => {
+		const sessionId = sessionIdRef.current;
+		if (!sessionId) return;
+		
+		const pendingChunks = await recordingStorage.getPendingChunks(sessionId);
+		
+		for (const chunk of pendingChunks) {
+			enqueueUpload(() => uploadBlobPart(chunk.blob, chunk.partNumber, chunk.id));
+		}
+	}, [enqueueUpload, uploadBlobPart]);
+
+	// Wait for queue drain and optional extra settle time
+	const waitUntilUploadsSettled = useCallback(async (extraMs: number = 0) => {
+		await new Promise<void>((resolve) => {
+			const check = () => {
+				if (queueRef.current.length === 0 && activeUploadsRef.current === 0) return resolve();
+				setTimeout(check, 250);
+			};
+			check();
+		});
+		if (extraMs > 0) await new Promise((r) => setTimeout(r, extraMs));
+	}, []);
+
+	// Build longest contiguous prefix [1..N] with normalized ETags
+	const buildContiguousParts = useCallback((): Array<{ partNumber: number; etag: string }> => {
+		const normalized = uploadedPartsRef.current
+			.filter((p) => p && (p as any).partNumber != null && (p as any).etag != null)
+			.map((p) => {
+				const pn = Number((p as any).partNumber);
+				let et = String((p as any).etag);
+				// Ensure ETag is quoted once (as S3 typically returns)
+				if (!/^".*"$/.test(et)) et = `"${et.replace(/\"/g, "")}"`;
+				return { partNumber: pn, etag: et };
+			})
+			.filter((p) => Number.isFinite(p.partNumber) && p.partNumber > 0 && p.etag.length > 0)
+			.sort((a, b) => a.partNumber - b.partNumber);
+		let expected = 1;
+		const parts: { partNumber: number; etag: string }[] = [];
+		for (const p of normalized) {
+			if (p.partNumber === expected) {
+				parts.push(p);
+				expected += 1;
+			} else {
+				break;
+			}
+		}
+		return parts;
+	}, []);
+
+	// Refresh-safe finalizer with retries
+	const finalizeNow = useCallback(async (uploadId: string): Promise<{ key: string; playbackUrl?: string } | undefined> => {
+		const maxAttempts = 3;
+		for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+			// Wait for uploads to drain a bit
+			await new Promise((r) => setTimeout(r, 500));
+			// Build longest contiguous prefix [1..N] with quoted ETags
+			const normalized = uploadedPartsRef.current
+				.filter((p) => p && (p as any).partNumber != null && (p as any).etag != null)
+				.map((p) => {
+					const pn = Number((p as any).partNumber);
+					let et = String((p as any).etag);
+					if (!/^".*"$/.test(et)) et = `"${et.replace(/\"/g, "")}"`;
+					return { partNumber: pn, etag: et };
+				})
+				.filter((p) => Number.isFinite(p.partNumber) && p.partNumber > 0 && p.etag.length > 0)
+				.sort((a, b) => a.partNumber - b.partNumber);
+			let expected = 1;
+			const parts: { partNumber: number; etag: string }[] = [];
+			for (const p of normalized) {
+				if (p.partNumber === expected) { parts.push(p); expected += 1; } else { break; }
+			}
+			if (parts.length === 0 || parts[0].partNumber !== 1) {
+				try { await resumeUploads(); } catch {}
+				await new Promise((r) => setTimeout(r, 1500));
+				continue;
+			}
+			try {
+				return await completeMultipart(uploadId, parts);
+			} catch (e) {
+				const msg = String((e as any)?.message || e || "");
+				if (attempt === maxAttempts || !/(not found|etag|ascending|order)/i.test(msg)) throw e;
+				try { await resumeUploads(); } catch {}
+				await new Promise((r) => setTimeout(r, 2000));
+			}
+		}
+	}, [completeMultipart, resumeUploads]);
 
 	// Recovery function to restore session from storage
 	const recoverSession = useCallback(async (): Promise<boolean> => {
@@ -252,56 +406,92 @@ export function usePersistentScreenRecording(consultationId: string) {
 				return false;
 			}
 
-			console.log("🔄 Recovering recording session:", activeSession.sessionId);
+			console.log("🔄 Found existing recording session:", activeSession.sessionId);
 
-			// Restore session state
-			sessionIdRef.current = activeSession.sessionId;
-			uploadIdRef.current = activeSession.uploadId;
-			partSizeRef.current = activeSession.partSize;
-			nextPartNumberRef.current = activeSession.nextPartNumber;
-			uploadedPartsRef.current = [...activeSession.uploadedParts];
+			// Check if we can safely recover by testing the upload
+			try {
+				// Try to test the upload session by attempting to presign a part
+				// This is a lighter test than finalizing the entire upload
+				console.log("🧪 [RECOVERY] Testing upload session validity...");
+				await presignPart(activeSession.uploadId, 1);
+				console.log("✅ [RECOVERY] Upload session is valid, proceeding with recovery");
+				
+				// Restore session state
+				sessionIdRef.current = activeSession.sessionId;
+				uploadIdRef.current = activeSession.uploadId;
+				partSizeRef.current = activeSession.partSize;
+				nextPartNumberRef.current = activeSession.nextPartNumber;
+				uploadedPartsRef.current = [...activeSession.uploadedParts];
 
-			setState((s) => ({
-				...s,
-				sessionId: activeSession.sessionId,
-				uploadId: activeSession.uploadId,
-				s3Key: activeSession.s3Key,
-				uploadedParts: activeSession.uploadedParts.length,
-				hasActiveSession: true,
-				isRecovering: false,
-			}));
+				setState((s) => ({
+					...s,
+					sessionId: activeSession.sessionId,
+					uploadId: activeSession.uploadId,
+					s3Key: activeSession.s3Key,
+					uploadedParts: activeSession.uploadedParts.length,
+					hasActiveSession: true,
+					isRecovering: false,
+					error: null,
+				}));
 
-			// Resume uploading pending chunks
-			const pendingChunks = await recordingStorage.getPendingChunks(activeSession.sessionId);
-			if (pendingChunks.length > 0) {
-				console.log(`📤 Resuming upload of ${pendingChunks.length} pending chunks`);
-				setState((s) => ({ ...s, isUploading: true }));
+				// Resume uploading pending chunks
+				const pendingChunks = await recordingStorage.getPendingChunks(activeSession.sessionId);
+				if (pendingChunks.length > 0) {
+					console.log(`📤 [RECOVERY] Resuming upload of ${pendingChunks.length} pending chunks`);
+					setState((s) => ({ ...s, isUploading: true }));
 
-				for (const chunk of pendingChunks) {
-					enqueueUpload(() => uploadBlobPart(chunk.blob, chunk.partNumber, chunk.id));
+					for (const chunk of pendingChunks) {
+						enqueueUpload(() => uploadBlobPart(chunk.blob, chunk.partNumber, chunk.id));
+					}
+				}
+
+				return true;
+			} catch (error) {
+				console.log("⚠️ [RECOVERY] Cannot recover existing session, starting fresh:", error);
+				
+				// Clean up the invalid session from storage
+				try {
+					await recordingStorage.deleteSession(activeSession.sessionId);
+					console.log("🧹 [RECOVERY] Cleaned up invalid session from storage");
+				} catch (cleanupError) {
+					console.error("❌ [RECOVERY] Failed to clean up invalid session:", cleanupError);
 				}
 			}
 
-			return true;
+			// If recovery failed, clean up old session and indicate need for fresh start
+			console.log("🧹 Cleaning up broken session and starting fresh");
+			await recordingStorage.deactivateSession(activeSession.sessionId);
+			await recordingStorage.deleteSessionChunks(activeSession.sessionId);
+			
+			setState((s) => ({ ...s, isRecovering: false, hasActiveSession: false }));
+			return false;
+
 		} catch (error) {
 			console.error("Failed to recover session:", error);
 			setState((s) => ({ ...s, isRecovering: false, error: "Failed to recover recording session" }));
 			return false;
 		}
-	}, [consultationId, enqueueUpload, uploadBlobPart]);
+	}, [consultationId, enqueueUpload, uploadBlobPart, finalizeNow]);
 
 	// Initialize and check for existing sessions on mount
 	useEffect(() => {
 		const initialize = async () => {
 			try {
+				console.log("🔄 Initializing recording system...");
 				// Clean up old sessions first
 				await recordingStorage.cleanupOldSessions();
 				
 				// Check for active session
 				const hasActive = await recoverSession();
+				console.log("📋 Recovery result:", { hasActive });
 				setState((s) => ({ ...s, hasActiveSession: hasActive }));
+				
+				if (!hasActive) {
+					console.log("💻 No existing recording session - ready for new recording");
+				}
 			} catch (error) {
-				console.error("Failed to initialize recording storage:", error);
+				console.error("❌ Failed to initialize recording storage:", error);
+				setState((s) => ({ ...s, hasActiveSession: false }));
 			}
 		};
 
@@ -327,6 +517,27 @@ export function usePersistentScreenRecording(consultationId: string) {
 		setState((s) => ({ ...s, isInitializing: true, error: null }));
 
 		try {
+			// Clean up any existing invalid session first
+			if (sessionIdRef.current) {
+				console.log("🧹 [START] Cleaning up existing session before starting new one");
+				try {
+					await recordingStorage.deactivateSession(sessionIdRef.current);
+					await recordingStorage.deleteSessionChunks(sessionIdRef.current);
+				} catch (cleanupError) {
+					console.warn("⚠️ [START] Failed to clean up existing session:", cleanupError);
+				}
+			}
+
+			// Reset all refs to ensure clean state
+			uploadIdRef.current = null;
+			sessionIdRef.current = null;
+			uploadedPartsRef.current = [];
+			queueRef.current = [];
+			activeUploadsRef.current = 0;
+			nextPartNumberRef.current = 1;
+			pendingBlobsRef.current = [];
+			pendingSizeRef.current = 0;
+
 			const filename = opts?.filename || `consultation-${consultationId}-${Date.now()}.webm`;
 			const mimeTypeCandidates = [
 				"video/webm;codecs=vp9,opus",
@@ -560,10 +771,12 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 			const uploadId = uploadIdRef.current;
 			if (uploadId) {
-				const parts = [...uploadedPartsRef.current].sort((a, b) => a.partNumber - b.partNumber);
-				const { key, playbackUrl } = await completeMultipart(uploadId, parts);
-				try { console.log("[RECORDING_COMPLETE]", { key, playbackUrl }); } catch {}
-				setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null }));
+				const result = await finalizeNow(uploadId);
+				if (result) {
+					const { key, playbackUrl } = result;
+					try { console.log("[RECORDING_COMPLETE]", { key, playbackUrl }); } catch {}
+					setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null }));
+				}
 
 				// Mark session as completed and clean up storage
 				if (sessionIdRef.current) {
@@ -586,7 +799,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 			isStoppingRef.current = false;
 			setState((s) => ({ ...s, isUploading: false, hasActiveSession: false }));
 		}
-	}, [completeMultipart, enqueueUpload, state.isInitializing, state.isRecording, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
+	}, [finalizeNow, state.isInitializing, state.isRecording, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
 
 	const complete = useCallback(async () => {
 		const uploadId = uploadIdRef.current;
@@ -619,9 +832,31 @@ export function usePersistentScreenRecording(consultationId: string) {
 			}
 			return;
 		}
-		const parts = [...uploadedPartsRef.current].sort((a, b) => a.partNumber - b.partNumber);
-		const result = await completeMultipart(uploadId, parts);
-
+		// Normalize, sort, and enforce contiguous prefix starting at 1
+		const normalized = uploadedPartsRef.current
+			.filter((p) => p && (p as any).partNumber != null && (p as any).etag != null)
+			.map((p) => {
+				const pn = Number((p as any).partNumber);
+				let et = String((p as any).etag);
+				if (!/^".*"$/.test(et)) et = `"${et.replace(/\"/g, "")}"`;
+				return { partNumber: pn, etag: et };
+			})
+			.filter((p) => Number.isFinite(p.partNumber) && p.partNumber > 0 && p.etag.length > 0)
+			.sort((a, b) => a.partNumber - b.partNumber);
+		let expected = 1;
+		const parts: { partNumber: number; etag: string }[] = [];
+		for (const p of normalized) {
+			if (p.partNumber === expected) {
+				parts.push(p);
+				expected += 1;
+			} else {
+				break; // stop at first gap
+			}
+		}
+		if (parts.length === 0 || parts[0].partNumber !== 1) {
+			throw new Error("Cannot complete: no contiguous parts starting at 1");
+		}
+		const result = await finalizeNow(uploadId);
 		// Clean up storage after successful completion
 		if (sessionIdRef.current) {
 			await recordingStorage.deactivateSession(sessionIdRef.current);
@@ -630,7 +865,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 		setState((s) => ({ ...s, hasActiveSession: false }));
 		return result;
-	}, [completeMultipart, enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
+	}, [finalizeNow, enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
 
 	const abort = useCallback(async () => {
 		const uploadId = uploadIdRef.current;
@@ -656,19 +891,6 @@ export function usePersistentScreenRecording(consultationId: string) {
 		}
 	}, []);
 
-	// Resume uploading pending chunks manually
-	const resumeUploads = useCallback(async () => {
-		if (!sessionIdRef.current) return;
-		
-		const pendingChunks = await recordingStorage.getPendingChunks(sessionIdRef.current);
-		if (pendingChunks.length === 0) return;
-
-		setState((s) => ({ ...s, isUploading: true }));
-		
-		for (const chunk of pendingChunks) {
-			enqueueUpload(() => uploadBlobPart(chunk.blob, chunk.partNumber, chunk.id));
-		}
-	}, [enqueueUpload, uploadBlobPart]);
 
 	// Cleanup on unmount
 	useEffect(() => {

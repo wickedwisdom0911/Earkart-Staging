@@ -439,6 +439,8 @@ export default function ReportPage() {
   const reportRef = useRef<HTMLDivElement>(null);
   
   // Screen sharing functionality (shared with video call client)
+
+  console.log("Consultation data:", consultationData);
   const { 
     isSharing: isScreenSharing, 
     isConnecting: isScreenConnecting, 
@@ -550,7 +552,6 @@ export default function ReportPage() {
   useEffect(() => {
     if (!socket) return;
     const handler = (data: any) => {
-      console.log("Consultation ended via socket:", data);
       toast.info("Consultation has ended. Redirecting to dashboard...");
       if (process.env.NODE_ENV === "development") {
         try { (window as any).location.href = "http://localhost:3001/dashboard"; } catch {}
@@ -763,24 +764,109 @@ export default function ReportPage() {
   };
 
   const handleShareReport = async () => {
-    if (!reportRef.current) return;
+    console.log('🚀 Share report button clicked');
+    
+    if (!reportRef.current) {
+      console.log('❌ No report ref available');
+      toast.error('Report not ready');
+      return;
+    }
+    
+    // Get patient contact number and name
+    const patientContact = consultationData?.patient?.contactNumber;
+    const patientName = consultationData?.patient?.name;
+    
+    console.log('📋 Patient data:', { patientContact, patientName });
+    
+    if (!patientName) {
+      console.log('❌ No patient name available');
+      toast.error('Patient name not available');
+      return;
+    }
+    
+    if (!patientContact) {
+      console.log('❌ No patient contact number available');
+      toast.error('Patient contact number not available');
+      return;
+    }
+
     try {
+      console.log('📄 Generating PDF...');
+      // Generate PDF blob
       const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true });
       const filename = `audiometry-report-${consultationData?.patient?.code || "unknown"}.pdf`;
-      const form = new FormData();
-      form.append("file", new File([blob], filename, { type: "application/pdf" }));
-      form.append("filename", filename);
-
-      const res = await fetch('/api/whatsapp/send-report', { method: 'POST', body: form });
-      const json = await res.json();
-      if (!res.ok) {
-        console.error('WhatsApp send error:', json);
-        toast.error('Failed to share via WhatsApp');
+      
+      console.log('📄 PDF generated:', { size: blob.size, filename });
+      
+      // For testing, use the working URL from your curl example
+      const testReportUrl = "https://fpu.branding-element.com/prod/61017/BROADCAST_TEMPLATE_ATTACHMENT/67563-04092025_062434-V2.SENDTEXTMEDIAMESSAGE.pdf";
+      
+      console.log('📤 Sending WhatsApp message...');
+      
+      // Format phone number properly - remove + and ensure it starts with 91
+      const phoneNumber = patientContact || "9058075653"; // Use patient contact or fallback for testing
+      let formattedPhoneNumber = phoneNumber.replace(/^\+/, ''); // Remove + if present
+      if (!formattedPhoneNumber.startsWith("91")) {
+        formattedPhoneNumber = `91${formattedPhoneNumber}`;
+      }
+      
+      console.log('📞 Phone number formatting:', { original: phoneNumber, formatted: formattedPhoneNumber });
+      
+      console.log('🔄 Calling WhatsApp API route...');
+      console.log('📤 API parameters:', {
+        to: formattedPhoneNumber,
+        patientName: patientName,
+        reportUrl: testReportUrl
+      });
+      
+      // Test API routing first
+      console.log('🧪 Testing API routing...');
+      try {
+        const testResponse = await fetch('/api/test-whatsapp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ test: 'data' })
+        });
+        const testResult = await testResponse.json();
+        console.log('🧪 Test API result:', testResult);
+      } catch (testError) {
+        console.error('❌ Test API failed:', testError);
+      }
+      
+      let result;
+      try {
+        console.log('🌐 Making fetch request to /api/whatsapp/send-report-dialog');
+        const response = await fetch('/api/whatsapp/send-report-dialog', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: formattedPhoneNumber,
+            patientName: patientName,
+            reportUrl: testReportUrl
+          })
+        });
+        
+        console.log('📡 Fetch response status:', response.status, response.statusText);
+        console.log('📡 Fetch response ok:', response.ok);
+        
+        result = await response.json();
+        console.log('📱 WhatsApp API result:', result);
+      } catch (apiError) {
+        console.error('❌ API call failed:', apiError);
+        toast.error(`API call failed: ${apiError}`);
         return;
       }
-      toast.success('Report shared to patient via WhatsApp');
+      
+      if (result.success) {
+        toast.success('Report shared to patient via WhatsApp');
+      } else {
+        console.error('WhatsApp send error:', result.error);
+        toast.error(`Failed to share via WhatsApp: ${result.error}`);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('❌ Share report error:', err);
       toast.error('Failed to share report');
     }
   };

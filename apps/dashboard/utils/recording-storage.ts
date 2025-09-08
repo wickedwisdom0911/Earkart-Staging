@@ -243,6 +243,85 @@ class RecordingStorage {
     };
   }
 
+  // Download recording locally by combining chunks
+  async downloadRecordingLocally(sessionId: string, filename?: string): Promise<void> {
+    try {
+      console.log(`💾 [DOWNLOAD] Starting local download for session ${sessionId}`);
+      
+      // Get all chunks for this session, sorted by timestamp
+      const chunks = await this.getSessionChunks(sessionId);
+      if (chunks.length === 0) {
+        throw new Error('No chunks found for this session');
+      }
+
+      // Sort chunks by timestamp to ensure correct order
+      chunks.sort((a, b) => a.timestamp - b.timestamp);
+      
+      console.log(`💾 [DOWNLOAD] Found ${chunks.length} chunks, total size: ${(chunks.reduce((sum, chunk) => sum + chunk.blob.size, 0) / 1024 / 1024).toFixed(2)}MB`);
+
+      // Combine all chunks into a single blob
+      const combinedBlob = new Blob(
+        chunks.map(chunk => chunk.blob),
+        { type: chunks[0]?.blob.type || 'video/webm' }
+      );
+
+      // Create download link
+      const url = URL.createObjectURL(combinedBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || `recording-${sessionId}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      URL.revokeObjectURL(url);
+      
+      console.log(`✅ [DOWNLOAD] Successfully downloaded recording: ${link.download}`);
+    } catch (error) {
+      console.error('❌ [DOWNLOAD] Failed to download recording locally:', error);
+      throw error;
+    }
+  }
+
+  // Check if a session has chunks available for local download
+  async hasLocalRecording(sessionId: string): Promise<boolean> {
+    try {
+      const chunks = await this.getSessionChunks(sessionId);
+      return chunks.length > 0;
+    } catch (error) {
+      console.error('❌ [CHECK] Failed to check for local recording:', error);
+      return false;
+    }
+  }
+
+  // Get all sessions with local recordings available
+  async getSessionsWithLocalRecordings(): Promise<{ sessionId: string; chunkCount: number; totalSize: number }[]> {
+    try {
+      const sessions = await this.getAllSessions();
+      const results = [];
+      
+      for (const session of sessions) {
+        const chunks = await this.getSessionChunks(session.sessionId);
+        if (chunks.length > 0) {
+          const totalSize = chunks.reduce((sum, chunk) => sum + chunk.blob.size, 0);
+          results.push({
+            sessionId: session.sessionId,
+            chunkCount: chunks.length,
+            totalSize
+          });
+        }
+      }
+      
+      return results;
+    } catch (error) {
+      console.error('❌ [CHECK] Failed to get sessions with local recordings:', error);
+      return [];
+    }
+  }
+
   private async getAllSessions(): Promise<StoredRecordingSession[]> {
     const store = await this.getStore(SESSIONS_STORE);
     return new Promise((resolve, reject) => {

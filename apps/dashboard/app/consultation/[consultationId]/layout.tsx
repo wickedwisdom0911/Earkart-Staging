@@ -12,12 +12,13 @@ import AgoraRTC, { AgoraRTCProvider } from "agora-rtc-react";
 import { useParams, useRouter } from "next/navigation";
 import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording";
 import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
+import { recordingStorage } from "@/utils/recording-storage";
+import { SessionStatus } from "@/models/enums";
 
 // Import debug utilities in development
-if (process.env.NODE_ENV === 'development') {
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   import("@/utils/recording-debug");
 }
-import { SessionStatus } from "@/models/enums";
 
 export default function ConsultationLayout({
   children,
@@ -28,18 +29,20 @@ export default function ConsultationLayout({
   const router = useRouter();
   const socket = useSocket();
 
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC
   const {
     data: consultation,
     isLoading,
     error,
   } = useGetConsultation(consultationId);
+  
   const { deviceState } = useDevice();
   const { r15c, revo2, tablet } = deviceState;
 
   // Screen recording uploader – expose manual controls with persistence
   const { 
     state: recordingState, 
-    start: startRecording, 
+    start: originalStartRecording, 
     stop: stopRecording, 
     complete: completeRecording, 
     abort: abortRecording,
@@ -47,8 +50,296 @@ export default function ConsultationLayout({
     recoverSession 
   } = usePersistentScreenRecording(consultationId);
 
+  // Create a single Agora client instance shared across this layout
+  const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
+
   // State for managing recovery banner visibility
   const [showRecoveryBanner, setShowRecoveryBanner] = useState(true);
+  
+  // State to prevent infinite recording loops and double prompts
+  const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(() => {
+    // Check sessionStorage to prevent multiple auto-starts across refreshes
+    if (typeof window !== 'undefined') {
+      const lastAttempt = sessionStorage.getItem(`lastAutoStart_${consultationId}`);
+      const now = Date.now();
+      // If last attempt was less than 30 seconds ago, consider it already attempted
+      if (lastAttempt && (now - parseInt(lastAttempt)) < 30000) {
+        return true;
+      }
+    }
+    return false;
+  });
+  
+  const [isStartingRecording, setIsStartingRecording] = useState(false);
+  const [externalPlaybackUrl, setExternalPlaybackUrl] = useState<string | null>(null);
+  const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
+
+  // Wrap startRecording to prevent automatic calls
+  const startRecording = useCallback(async (...args: any[]) => {
+    console.log("🎯 Manual recording start initiated");
+    const result = await originalStartRecording(...args);
+    
+    // Immediately save recording session to localStorage when started
+    if (result) {
+      const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+      const newRecording = {
+        id: `session-${Date.now()}`,
+        name: `Screen Recording - ${new Date().toLocaleString()}`,
+        url: 'Processing...', // Will be updated by intervals
+        timestamp: new Date().toISOString(),
+        status: 'recording'
+      };
+      savedRecordings.push(newRecording);
+      localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+      console.log("💾 [START] Recording session saved to localStorage:", newRecording);
+    }
+    
+    return result;
+  }, [originalStartRecording, consultationId]);
+
+  // Function to save recording URLs for viewing later
+  const saveRecordingForLater = useCallback((playbackUrl: string, type: string = 'screen') => {
+    if (!playbackUrl || typeof window === 'undefined') return;
+    
+    try {
+      const storageKey = `recordings_${consultationId}`;
+      const savedRecordings = localStorage.getItem(storageKey) || '[]';
+      const recordings = JSON.parse(savedRecordings);
+      
+      // Check if this URL already exists to prevent duplicates
+      const urlExists = recordings.some((r: any) => r.url === playbackUrl);
+      if (urlExists) {
+        console.log("⚠️ Recording URL already exists, skipping:", playbackUrl);
+        return;
+      }
+      
+      const newRecording = {
+        id: `recording_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        url: playbackUrl,
+        timestamp: new Date().toISOString(),
+        type,
+        name: `${type === 'screen' ? 'Screen' : 'Audio'} Recording ${recordings.length + 1}`,
+        source: 'normal_completion'
+      };
+      
+      recordings.push(newRecording);
+      localStorage.setItem(storageKey, JSON.stringify(recordings));
+      
+      console.log("💾 ✅ Successfully saved recording:", playbackUrl);
+      console.log("📋 Total recordings now:", recordings.length);
+      console.log("📋 All recordings:", recordings.map((r: any) => ({ name: r.name, url: r.url.substring(0, 50) + '...' })));
+    } catch (error) {
+      console.error("❌ Failed to save recording:", error);
+    }
+  }, [consultationId]);
+
+  // Expose a finalize helper that child components can await before navigating
+  const finalizeBeforeNavigate = useCallback(async () => {
+    try {
+      if (recordingState.isRecording || recordingState.isInitializing) {
+        await stopRecording();
+      } else {
+        await completeRecording();
+      }
+    } catch {}
+  }, [recordingState.isRecording, recordingState.isInitializing, stopRecording, completeRecording]);
+
+  // Get saved recordings from localStorage (from before refresh)
+  const savedRecordings = useMemo(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem(`recordings_${consultationId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  }, [consultationId]);
+
+  // TIME-BASED RECORDING COMPLETION - Complete every 1 minute with fresh URLs
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+    
+    if (recordingState.isRecording && recordingState.sessionId) {
+      console.log("⏰ Starting 1-minute recording completion interval");
+      
+      intervalId = setInterval(async () => {
+        try {
+          // Get current recording data
+          const storedChunks = await recordingStorage.getSessionChunks(recordingState.sessionId || '');
+          const chunks = storedChunks.map(chunk => chunk.blob);
+          
+          if (chunks && chunks.length > 0) {
+            const totalSize = chunks.reduce((total, chunk) => total + chunk.size, 0);
+            const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+            
+            console.log(`📊 [1MIN_CHECK] Current recording size: ${sizeInMB}MB (${chunks.length} chunks)`);
+            
+            // Complete every minute regardless of size
+            try {
+              // Complete current recording - this gives us a final URL
+              const completedResult = await completeRecording();
+              
+              if (completedResult?.playbackUrl) {
+                console.log("✅ [1MIN_COMPLETE] Got URL for 1-minute segment:", completedResult.playbackUrl);
+                
+                // Save this 1-minute segment URL immediately
+                const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+                
+                const newSegment = {
+                  id: `segment-${Date.now()}`,
+                  name: `Recording Segment - ${new Date().toLocaleString()}`,
+                  url: completedResult.playbackUrl,
+                  size: `${sizeInMB}MB`,
+                  chunks: chunks.length,
+                  duration: '1min',
+                  timestamp: new Date().toISOString(),
+                  status: 'completed',
+                  segmentType: 'time_based'
+                };
+                
+                savedRecordings.push(newSegment);
+                localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+                
+                console.log("💾 [1MIN_COMPLETE] Saved 1-minute segment:", newSegment.name);
+                console.log("📊 [1MIN_COMPLETE] Total segments now:", savedRecordings.length);
+                
+                // Start a completely NEW recording for the next minute
+                console.log("🚀 [1MIN_START] Starting NEW recording for next minute...");
+                
+                setTimeout(async () => {
+                  try {
+                    if (recordingState.isRecording) {
+                      // This creates a brand new S3 session with fresh uploadId
+                      const newRecordingResult = await originalStartRecording();
+                      console.log("✅ [1MIN_START] New 1-minute recording started:", newRecordingResult);
+                    }
+                  } catch (startError) {
+                    console.error("❌ [1MIN_START] Failed to start new recording:", startError);
+                  }
+                }, 2000);
+              }
+            } catch (completeError) {
+              console.error("❌ [1MIN_COMPLETE] Failed to complete recording:", completeError);
+              
+              // Check if error indicates session failure
+              const errorMsg = completeError?.message || '';
+              const isSesssionFailed = errorMsg.includes('failed and cannot be completed') || 
+                                      errorMsg.includes('expired') || 
+                                      errorMsg.includes('URL') || 
+                                      errorMsg.includes('presigned') ||
+                                      errorMsg.includes('Unexpected');
+              
+              if (isSesssionFailed) {
+                console.log("🔄 [1MIN_COMPLETE] S3 session failed - forcing complete restart");
+                
+                // Save current recording as local backup before restart
+                try {
+                  const storedChunks = await recordingStorage.getSessionChunks(recordingState.sessionId || '');
+                  const chunks = storedChunks.map(chunk => chunk.blob);
+                  
+                  if (chunks && chunks.length > 0) {
+                    const totalSize = chunks.reduce((total, chunk) => total + chunk.size, 0);
+                    const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+                    const recordingBlob = new Blob(chunks, { type: 'video/webm' });
+                    const blobUrl = URL.createObjectURL(recordingBlob);
+                    
+                    const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+                    savedRecordings.push({
+                      id: `failed-${Date.now()}`,
+                      name: `Failed Segment (Backup) - ${new Date().toLocaleString()}`,
+                      url: blobUrl,
+                      size: `${sizeInMB}MB`,
+                      chunks: chunks.length,
+                      timestamp: new Date().toISOString(),
+                      status: 'backup',
+                      reason: 'S3 session failed'
+                    });
+                    localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+                    console.log(`💾 [RECOVERY] Saved failed session as backup: ${sizeInMB}MB`);
+                  }
+                } catch (backupError) {
+                  console.error("❌ [RECOVERY] Failed to save backup:", backupError);
+                }
+                
+                // Force complete restart with fresh session
+                setTimeout(async () => {
+                  try {
+                    if (recordingState.isRecording) {
+                      console.log("🚀 [RECOVERY] Starting completely fresh recording session...");
+                      await originalStartRecording();
+                      console.log("✅ [RECOVERY] Fresh session started successfully");
+                    }
+                  } catch (recoveryError) {
+                    console.error("❌ [RECOVERY] Failed to start fresh session:", recoveryError);
+                  }
+                }, 2000); // Longer delay for backend recovery
+              } else {
+                console.log("🔄 [1MIN_COMPLETE] Non-critical error - will continue accumulating");
+              }
+            }
+          } else {
+            // Create local backup every 30s even if not completing S3
+            const totalSize = chunks.reduce((total, chunk) => total + chunk.size, 0);
+            const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+            const recordingBlob = new Blob(chunks, { type: 'video/webm' });
+            const blobUrl = URL.createObjectURL(recordingBlob);
+            
+            const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+            const recordingIndex = savedRecordings.findLastIndex((r: any) => r.status === 'recording');
+            
+            if (recordingIndex >= 0) {
+              savedRecordings[recordingIndex] = {
+                ...savedRecordings[recordingIndex],
+                backupUrl: blobUrl,
+                currentSize: `${sizeInMB}MB`,
+                chunkCount: chunks.length,
+                lastBackup: new Date().toISOString()
+              };
+            } else {
+              savedRecordings.push({
+                id: `accumulating-${Date.now()}`,
+                name: `Recording (Accumulating) - ${new Date().toLocaleString()}`,
+                url: 'Accumulating...',
+                backupUrl: blobUrl,
+                currentSize: `${sizeInMB}MB`,
+                chunkCount: chunks.length,
+                timestamp: new Date().toISOString(),
+                status: 'recording'
+              });
+            }
+            
+            localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+            console.log(`💾 [BACKUP] Saved local backup: ${sizeInMB}MB (need ${(5 - totalSize/(1024*1024)).toFixed(2)}MB more for S3)`);
+          }
+        } catch (error) {
+          console.error("❌ [SIZE_CHECK] Failed to check recording size:", error);
+        }
+      }, 60000); // Complete every 60 seconds (1 minute)
+    }
+    
+    return () => {
+      if (intervalId) {
+        console.log("⏰ Clearing size-based completion interval");
+        clearInterval(intervalId);
+      }
+    };
+  }, [recordingState.isRecording, recordingState.sessionId, completeRecording, originalStartRecording, consultationId]);
+
+  // Handle beforeunload - DISABLE for now to prevent loops and give recording time to complete
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Only warn if actively recording, don't try to save (causes loops)
+      if (recordingState.isRecording || recordingState.hasActiveSession) {
+        console.log("⚠️ Page unloading with active recording - will be lost");
+        e.preventDefault();
+        e.returnValue = 'You have an active recording. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [recordingState.isRecording, recordingState.hasActiveSession]);
 
   // Add socket connection handling
   useEffect(() => {
@@ -120,11 +411,27 @@ export default function ConsultationLayout({
     return () => { socket.off("end:consultation", handleEnd); };
   }, [socket, stopRecording, completeRecording, recordingState.isRecording, recordingState.isInitializing, recordingState.isUploading, router]);
 
-  // Do NOT auto-start: require explicit user click due to browser security.
+  // COMPLETELY DISABLE AUTO-START - No recording prompts at all
+  useEffect(() => {
+    // Force disable auto-start permanently
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('disable_auto_recording', 'true');
+      sessionStorage.setItem(`autoStartAttempted_${consultationId}`, 'true');
+      sessionStorage.setItem(`lastAutoStart_${consultationId}`, Date.now().toString());
+    }
+    
+    console.log("🛑 ALL AUTO-START DISABLED - No automatic recording prompts");
+    console.log("📋 Recording is MANUAL ONLY via button");
+    setHasAttemptedAutoStart(true);
+  }, [consultationId]);
+
   // Auto-stop and auto-complete when consultation ends.
   useEffect(() => {
-    const status = ((consultation as any)?.data as ConsultationModelData | undefined)?.status;
+    if (!consultation?.data) return;
+    
+    const status = (consultation.data as ConsultationModelData)?.status;
     if (!status) return;
+    
     if (
       status === SessionStatus.COMPLETED ||
       status === SessionStatus.CANCELLED ||
@@ -134,13 +441,21 @@ export default function ConsultationLayout({
       if (recordingState.isRecording || recordingState.isUploading) {
         stopRecording();
       }
+      
+      // Clean up saved recordings from localStorage when consultation ends
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`recordings_${consultationId}`);
+        sessionStorage.removeItem(`autoStartAttempted_${consultationId}`);
+        console.log("🧹 Cleaned up saved recordings and session flags for ended consultation");
+      }
     }
-  }, [consultation, stopRecording, recordingState.isRecording, recordingState.isUploading]);
+  }, [consultation, stopRecording, recordingState.isRecording, recordingState.isUploading, consultationId]);
 
   // Prefer playback from consultation's new recording fields via callback
-  const [externalPlaybackUrl, setExternalPlaybackUrl] = useState<string | null>(null);
   useEffect(() => {
-    const data = ((consultation as any)?.data as any) || {};
+    if (!consultation?.data) return;
+    
+    const data = (consultation.data as any) || {};
     const status = data?.status;
     const recordingName = data?.recordingName ?? data?.recordingsName ?? data?.recording?.name ?? null;
     const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
@@ -159,24 +474,114 @@ export default function ConsultationLayout({
     }
   }, [consultation]);
 
-  // Create a single Agora client instance shared across this layout (must be called every render before conditional returns)
-  const agoraClient = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
+  // Debug function for testing (available in browser console)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      (window as any).debugRecordings = {
+        viewSaved: () => {
+          const saved = localStorage.getItem(`recordings_${consultationId}`);
+          const recordings = saved ? JSON.parse(saved) : [];
+          console.log('📋 Saved recordings for consultation:', consultationId);
+          console.log('📋 Count:', recordings.length);
+          console.log('📋 Full data:', recordings);
+          return recordings;
+        },
+        clearSaved: () => {
+          localStorage.removeItem(`recordings_${consultationId}`);
+          sessionStorage.removeItem(`autoStartAttempted_${consultationId}`);
+          console.log('🧹 Cleared saved recordings and session flags');
+        },
+        downloadLatest: () => {
+          const saved = localStorage.getItem(`recordings_${consultationId}`);
+          const recordings = saved ? JSON.parse(saved) : [];
+          if (recordings.length === 0) {
+            console.log('❌ No recordings found');
+            return;
+          }
+          const latest = recordings[recordings.length - 1];
+          console.log('⬇️ Downloading latest recording:', latest.name);
+          const a = document.createElement('a');
+          a.href = latest.url;
+          a.download = `${latest.name}.webm`;
+          a.click();
+        },
+        playLatest: () => {
+          const saved = localStorage.getItem(`recordings_${consultationId}`);
+          const recordings = saved ? JSON.parse(saved) : [];
+          if (recordings.length === 0) {
+            console.log('❌ No recordings found');
+            return;
+          }
+          const latest = recordings[recordings.length - 1];
+          console.log('▶️ Opening latest recording:', latest.name);
+          window.open(latest.url, '_blank');
+        },
+        testSave: (url: string) => {
+          saveRecordingForLater(url, 'test');
+          console.log('✅ Test recording saved');
+        },
+        viewAllKeys: () => {
+          const keys = Object.keys(localStorage).filter(k => k.startsWith('recordings_'));
+          console.log('🔍 All recording keys in localStorage:', keys);
+          keys.forEach(key => {
+            const data = localStorage.getItem(key);
+            console.log(`📋 ${key}:`, data ? JSON.parse(data).length : 0, 'recordings');
+          });
+        },
+        currentConsultation: () => {
+          console.log('🎯 Current consultation ID:', consultationId);
+          console.log('🎯 Current recording state:', recordingState);
+        }
+      };
+    }
+  }, [consultationId, saveRecordingForLater, recordingState]);
 
-  // Expose a finalize helper that child components can await before navigating
-  const finalizeBeforeNavigate = useCallback(async () => {
-    try {
-      if (recordingState.isRecording || recordingState.isInitializing) {
-        await stopRecording();
-      } else {
-        await completeRecording();
+  // Save recording URL when it becomes available (normal completion) - SIMPLIFIED
+  useEffect(() => {
+    if (recordingState.playbackUrl && 
+        !recordingState.isRecording && 
+        !recordingState.isUploading) {
+      
+      // Simple check if not already saved
+      const storageKey = `recordings_${consultationId}`;
+      const existing = localStorage.getItem(storageKey) || '[]';
+      const recordings = JSON.parse(existing);
+      const alreadyExists = recordings.some((r: any) => r.url === recordingState.playbackUrl);
+      
+      if (!alreadyExists) {
+        console.log("💾 Normal completion - saving recording:", recordingState.playbackUrl);
+        saveRecordingForLater(recordingState.playbackUrl, 'screen');
       }
-    } catch {}
-  }, [recordingState.isRecording, recordingState.isInitializing, stopRecording, completeRecording]);
+    }
+  }, [recordingState.playbackUrl, recordingState.isRecording, recordingState.isUploading, consultationId, saveRecordingForLater]);
 
+  // NOW HANDLE CONDITIONAL RENDERING AFTER ALL HOOKS
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
-  if (!((consultation as any)?.data)) return <div>No data</div>;
+  if (!consultation?.data) return <div>No data</div>;
 
+  const consultationData = consultation.data as ConsultationModelData;
+  const isCompleted = consultationData.status === SessionStatus.COMPLETED;
+  const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
+  
+  // Get regular recordings from backend
+  const rawRecordingNames: string[] = [
+    ...((Array.isArray((consultationData as any)?.recordingsName) ? (consultationData as any)?.recordingsName : []) as string[]),
+    ...(((consultationData as any)?.recordingName ? [(consultationData as any)?.recordingName] : []) as string[]),
+    ...((Array.isArray((consultationData as any)?.recordings) ? (consultationData as any)?.recordings.map((r: any) => r?.name).filter(Boolean) : []) as string[]),
+    ...(((consultationData as any)?.recording?.name ? [(consultationData as any)?.recording?.name] : []) as string[]),
+  ].filter(Boolean);
+  const uniqueRecordingNames = Array.from(new Set(rawRecordingNames));
+  const backendRecordingLinks = (callbackBase ? uniqueRecordingNames.map((name) => ({ name, url: `${callbackBase}?name=${encodeURIComponent(name)}` })) : []) as { name: string; url: string }[];
+  
+  // Combine all recordings
+  const allRecordingLinks = [
+    ...backendRecordingLinks,
+    ...savedRecordings.map((r: any) => ({
+      name: r.name || `Screen Recording ${r.id}`,
+      url: r.url
+    }))
+  ];
   const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   try {
     console.log("[layout] consultation.data:", consultationData);
@@ -265,6 +670,118 @@ export default function ConsultationLayout({
                   </div>
                 )}
 
+                {/* View recordings: during active session show latest only; when completed show all */}
+                {isCompleted ? (
+                  (allRecordingLinks.length > 0 || savedRecordings.length > 0) && (
+                    <div className="flex flex-wrap gap-2">
+                      {/* Backend recordings */}
+                      {allRecordingLinks.map((r) => (
+                        <a
+                          key={r.name}
+                          href={r.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                          title={r.name}
+                        >
+                          {r.name}
+                        </a>
+                      ))}
+                      {/* 30-Second Recording Segments */}
+                      {savedRecordings.map((r: any, index: number) => (
+                        <div key={r.id || r.url} className="flex items-center gap-1">
+                          <a
+                            href={r.url !== 'Processing...' && r.url !== 'Recording...' && r.url !== 'Accumulating...' ? r.url : (r.backupUrl || '#')}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`px-3 py-1 rounded text-white hover:opacity-90 ${
+                              r.status === 'completed' ? 'bg-emerald-600' : 
+                              r.status === 'recording' ? 'bg-blue-600' :
+                              r.status === 'backup' ? 'bg-orange-600' : 'bg-gray-600'
+                            }`}
+                            title={`${r.name} (${r.size || r.currentSize || r.duration || 'Variable'} - ${r.status})`}
+                            onClick={(r.url === 'Recording...' || r.url === 'Accumulating...') ? (e: any) => e.preventDefault() : undefined}
+                          >
+                            {r.status === 'completed' ? '☁️' : 
+                             r.status === 'recording' ? '🔴' :
+                             r.status === 'backup' ? '💾' : '⏳'} 
+                            {r.url === 'Accumulating...' ? 'Accumulating' : `Segment ${index + 1}`}
+                            {(r.size || r.currentSize || r.duration) && (
+                              <span className="ml-1 text-xs bg-white bg-opacity-20 px-1 rounded">
+                                {r.size || r.currentSize || r.duration}
+                              </span>
+                            )}
+                          </a>
+                          
+                          {/* Download segment */}
+                          {(r.status === 'completed' || r.status === 'backup') && r.url !== 'Processing...' && r.url !== 'Recording...' && (
+                            <button
+                              onClick={() => {
+                                const a = document.createElement('a');
+                                a.href = r.url;
+                                a.download = `segment-${index + 1}-${r.duration || '30s'}.webm`;
+                                a.click();
+                              }}
+                              className="px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 text-xs"
+                              title={`Download segment ${index + 1}`}
+                            >
+                              ⬇️
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  /* Active session: show external/backend recording OR latest local recording */
+                  (externalPlaybackUrl || recordingState.playbackUrl || savedRecordings.length > 0) && (
+                    <div className="flex gap-2">
+                      {/* Backend recording (priority) */}
+                      {(externalPlaybackUrl || recordingState.playbackUrl) && (
+                        <a
+                          href={externalPlaybackUrl || recordingState.playbackUrl!}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                          View recording (Cloud)
+                        </a>
+                      )}
+                      {/* Local recordings (if any) */}
+                      {savedRecordings.length > 0 && (
+                        <>
+                          <span className="text-sm text-gray-600 self-center">Local recordings ({savedRecordings.length}):</span>
+                          {savedRecordings.slice(-2).map((r: any) => (
+                            <div key={r.id || r.url} className="flex items-center gap-1">
+                              <a
+                                href={r.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm"
+                                title={`${r.name} (${r.localBlob ? 'Local' : 'Cloud'})`}
+                              >
+                                📹 {r.localBlob ? 'Local' : 'Cloud'}
+                              </a>
+                              {r.localBlob && (
+                                <button
+                                  onClick={() => {
+                                    const a = document.createElement('a');
+                                    a.href = r.url;
+                                    a.download = `${r.name}.webm`;
+                                    a.click();
+                                  }}
+                                  className="px-1 py-1 rounded bg-green-500 text-white hover:bg-green-600 text-xs"
+                                  title="Download"
+                                >
+                                  ⬇️
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )
                 {/* View recording when available (prefer external callback) */}
                 {(externalPlaybackUrl || recordingState.playbackUrl) && (
                   <a
@@ -307,6 +824,16 @@ export default function ConsultationLayout({
                 {recordingState.error?.includes("Entire Screen") && (
                   <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">
                     Please select "Entire Screen" in the picker and try again.
+                  </div>
+                )}
+                {recordingState.isUploading && (
+                  <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
+                    Finalizing previous recording… You can start a new one as soon as it completes.
+                  </div>
+                )}
+                {hasAttemptedAutoStart && (
+                  <div className="mb-4 text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-gray-200">
+                    Auto-start attempted. If you need to start again, click the button below.
                   </div>
                 )}
                 <button

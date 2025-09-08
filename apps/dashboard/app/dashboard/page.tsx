@@ -451,29 +451,7 @@ export default function DashboardPage() {
               const allRecordings = [...regularRecordings, ...screenRecordings];
               
               // 🐛 DEBUG: Console log recordings data
-              console.log(`[RECORDINGS] Consultation ${consultation.id.substring(0, 8)}...:`, {
-                totalRecordings: allRecordings.length,
-                regularRecordings: regularRecordings.length,
-                screenRecordings: screenRecordings.length,
-                withUrls: allRecordings.filter(r => r.recordingUrl).length,
-                recordings: allRecordings.map(r => {
-                  const detailedInfo = r.id ? detailedRecordings[r.id] : null;
-                  return {
-                    id: r.id,
-                    fileName: detailedInfo?.fileName || (r as any).fileName,
-                    mimeType: detailedInfo?.mimeType || (r as any).mimeType,
-                    status: detailedInfo?.status || 'unknown',
-                    hasUrl: !!r.recordingUrl,
-                    createdAt: r.createdAt,
-                    type: (r as any).type,
-                    // 🐛 Show ALL fields to debug what's available
-                    allFields: Object.keys(r),
-                    detailedFields: detailedInfo ? Object.keys(detailedInfo) : [],
-                    rawObject: r,
-                    detailedInfo
-                  }
-                })
-              });
+         
               
               return allRecordings.length > 0 && (
                 <div className="mt-3 space-y-2">

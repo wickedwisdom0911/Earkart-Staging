@@ -41,9 +41,9 @@ export default function CountrySelector({
   }, [data]);
 
   useEffect(() => {
-    if (initialValue) {
+    if (initialValue && countries.length > 0) {
       setSelectedCountry(countries.find((c) => c.id === initialValue) || null);
-    } else {
+    } else if (!initialValue) {
       setSelectedCountry(null);
     }
   }, [initialValue, countries]);

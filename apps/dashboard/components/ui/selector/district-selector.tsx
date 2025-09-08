@@ -43,9 +43,9 @@ export default function DistrictSelector({
   }, [data]);
 
   useEffect(() => {
-    if (initialValue) {
+    if (initialValue && districts.length > 0) {
       setSelectedDistrict(districts.find((d) => d.id === initialValue) || null);
-    } else {
+    } else if (!initialValue) {
       setSelectedDistrict(null);
     }
   }, [initialValue, districts]);
