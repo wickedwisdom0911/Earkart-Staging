@@ -78,9 +78,9 @@ class DeviceAdminReceiver : DeviceAdminReceiver() {
         try {
             Log.d(TAG, "Applying device policies")
             
-            // 1. Disable camera for other apps (medical device security)
-            devicePolicyManager.setCameraDisabled(componentName, true)
-            Log.d(TAG, "Camera disabled for other apps")
+            // 1. Enable camera for this app (medical device needs camera)
+            devicePolicyManager.setCameraDisabled(componentName, false)
+            Log.d(TAG, "Camera enabled for this app")
             
             // 2. Set password quality (if needed)
             devicePolicyManager.setPasswordQuality(componentName, DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED)
@@ -93,9 +93,9 @@ class DeviceAdminReceiver : DeviceAdminReceiver() {
             // 4. Set global HTTP proxy (if needed for medical data)
             // devicePolicyManager.setGlobalHttpProxy(componentName, Proxy.NO_PROXY)
             
-            // 5. Disable screen capture (security)
-            devicePolicyManager.setScreenCaptureDisabled(componentName, true)
-            Log.d(TAG, "Screen capture disabled")
+            // 5. Enable screen capture for our app (needed for screen sharing)
+            devicePolicyManager.setScreenCaptureDisabled(componentName, false)
+            Log.d(TAG, "Screen capture enabled for our app")
             
             // 6. Set maximum time to lock (keep device awake for medical procedures)
             devicePolicyManager.setMaximumTimeToLock(componentName, 0) // Never lock

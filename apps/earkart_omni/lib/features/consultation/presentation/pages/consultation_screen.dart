@@ -5,6 +5,7 @@ import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
@@ -12,7 +13,6 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/consultati
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/video_call_widget.dart';
-import 'package:earkart_omni/features/consultation/presentation/widgets/report_pta.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/uvc_camera_widget.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
@@ -25,6 +25,9 @@ import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:earkart_omni/config/utils/error_handler.dart';
+import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
+import 'package:earkart_omni/utils/device_owner_helper.dart';
 import 'dart:async';
 
 class ConsultationScreen extends StatefulWidget {
@@ -44,36 +47,143 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   UsbDevice? r15cDevice;
   UsbDevice? revo2Device;
   TestType? testType;
-  // Only track status, not data
   dynamic _lastImpedanceStatus;
-  // Track if report should be shown (for split screen)
   bool _showReport = false;
-  // Track if camera should be shown (for split screen)
   bool _showCamera = false;
-  // Track if socket reconnection has failed
   bool _socketReconnectFailed = false;
-  // Global key to maintain video widget state
   final GlobalKey _videoWidgetKey = GlobalKey();
-  // Keep video widget instance to prevent rebuilding
   VideoCallWidget? _videoWidget;
 
-  // Device event debouncing
   Timer? _deviceEventDebounceTimer;
   CommunicationState? _lastEmittedDeviceState;
   bool _isCameraOpen = false;
+  bool _lastEmittedR15cConnected = false;
+  bool _lastEmittedRevo2Connected = false;
 
-  // Debounce duration for device events
   static const Duration _deviceEventDebounceDuration = Duration(
     milliseconds: 500,
   );
   @override
   void initState() {
     super.initState();
+
+    // Set up global error handler for camera and USB-related crashes
+    FlutterError.onError = (FlutterErrorDetails details) {
+      final exceptionString = details.exception.toString();
+
+      // Handle UVC camera related errors gracefully
+      if (exceptionString.contains('UVCCamera') ||
+          exceptionString.contains('flutter_uvc_camera') ||
+          exceptionString.contains('cameraView has not been initialized') ||
+          exceptionString.contains('SIGSEGV') ||
+          exceptionString.contains('native method')) {
+        di<ILogger>().error(
+          '🚨 Caught camera-related error, handling gracefully: ${details.exception}',
+        );
+
+        // Try to safely reset camera state
+        if (mounted) {
+          try {
+            setState(() {
+              _showCamera = false;
+              _isCameraOpen = false;
+            });
+            _updateCameraState(false);
+          } catch (e) {
+            di<ILogger>().error('Error resetting camera state: $e');
+          }
+        }
+        return; // Don't crash the app
+      }
+
+      // Handle USB-related errors gracefully
+      if (exceptionString.contains('SecurityException') ||
+          exceptionString.contains('USB') ||
+          exceptionString.contains('UsbManager') ||
+          exceptionString.contains('device /dev/bus/usb') ||
+          exceptionString.contains('permission to access device')) {
+        di<ILogger>().error(
+          '🚨 Caught USB-related error, handling gracefully: ${details.exception}',
+        );
+
+        // Try to safely reset device state
+        if (mounted) {
+          try {
+            // Force a device check to refresh device state
+            di<DeviceCubit>().forceDeviceCheck();
+            di<ILogger>().info('Device state refreshed after USB error');
+          } catch (e) {
+            di<ILogger>().error('Error refreshing device state: $e');
+          }
+        }
+        return; // Don't crash the app
+      }
+
+      // For other errors, use default handling
+      di<ILogger>().error('Flutter error: ${details.exception}');
+      FlutterError.presentError(details);
+    };
+
     _initializeScreen();
   }
 
   void _initializeScreen() {
     context.read<ConsultationCubit>().getCurrentConsultation();
+    // Force device state check to ensure proper device detection
+    try {
+      di<DeviceCubit>().forceDeviceCheck();
+      di<ILogger>().debug(
+        'Force device check triggered on consultation screen init',
+      );
+
+      // Add a delayed check as well to handle timing issues
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          try {
+            di<DeviceCubit>().forceDeviceCheck();
+            di<ILogger>().debug('Delayed force device check triggered');
+          } catch (e) {
+            di<ILogger>().error('Error in delayed force device check: $e');
+          }
+        }
+      });
+
+      // Add USB permission handling for device owner
+      _handleUSBPermissionsForDeviceOwner();
+    } catch (e) {
+      di<ILogger>().error('Error forcing device check: $e');
+    }
+  }
+
+  Future<void> _handleUSBPermissionsForDeviceOwner() async {
+    try {
+      final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
+      if (isDeviceOwner) {
+        di<ILogger>().info(
+          'Device owner detected - ensuring USB permissions are granted',
+        );
+        await DeviceOwnerHelper.grantAllPermissions();
+
+        // Add a small delay to ensure permissions are properly applied
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Force another device check after permissions are granted
+        if (mounted) {
+          try {
+            di<DeviceCubit>().forceDeviceCheck();
+            di<ILogger>().debug('Device check after USB permission grant');
+          } catch (e) {
+            di<ILogger>().error(
+              'Error in device check after permission grant: $e',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      di<ILogger>().error(
+        'Error handling USB permissions for device owner: $e',
+      );
+    }
   }
 
   Future<void> _initializeDeviceWithRetry(UsbDevice device) async {
@@ -86,12 +196,33 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     while (retryCount < maxRetries) {
       if (!mounted) return;
 
-      final success = await context.read<CommunicationCubit>().initializePort(
-        device,
-      );
-      if (success) {
-        di<ILogger>().info('Device initialized successfully');
-        return;
+      try {
+        final success = await context.read<CommunicationCubit>().initializePort(
+          device,
+        );
+        if (success) {
+          di<ILogger>().info('Device initialized successfully');
+          return;
+        }
+      } catch (e) {
+        di<ILogger>().error('Error initializing device: $e');
+
+        // If it's a USB permission error, try to grant permissions
+        if (e.toString().contains('SecurityException') ||
+            e.toString().contains('permission') ||
+            e.toString().contains('USB')) {
+          di<ILogger>().info(
+            'USB permission error detected, attempting to grant permissions',
+          );
+          try {
+            await DeviceOwnerHelper.grantAllPermissions();
+            await Future.delayed(const Duration(milliseconds: 500));
+          } catch (permissionError) {
+            di<ILogger>().error(
+              'Error granting USB permissions: $permissionError',
+            );
+          }
+        }
       }
 
       retryCount++;
@@ -133,6 +264,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     super.didChangeDependencies();
     if (!_isInitialized) {
       context.read<AuthCubit>().getCurrentUser();
+      // Also trigger a device state refresh to ensure proper sync
+      try {
+        di<DeviceCubit>().forceDeviceCheck();
+        di<ILogger>().debug(
+          'Force device check triggered in didChangeDependencies',
+        );
+      } catch (e) {
+        di<ILogger>().error(
+          'Error forcing device check in didChangeDependencies: $e',
+        );
+      }
       _isInitialized = true;
     }
   }
@@ -238,6 +380,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       }
     });
 
+    // Handle consultation join errors
+    socket.on("error", (data) {
+      ErrorHandler.handleSocketErrorData(context, data);
+    });
+
     socket.onConnectError((error) {
       di<ILogger>().error('Socket connection error: $error');
       if (mounted) {
@@ -292,7 +439,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       if (!mounted) return;
 
       di<ILogger>().info('👥 User joined consultation, sending device status');
-      _scheduleDeviceEventEmission(context.read<CommunicationCubit>().state);
+      // Force emit device event immediately when user joins, regardless of state changes
+      _forceEmitDeviceEvent(context.read<CommunicationCubit>().state);
       _handleBeginPacket(testType);
 
       if (data == null) {
@@ -306,6 +454,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
             setState(() {
               consultation = consultationData;
             });
+
+            _storeConsultationDataInHive(consultationData);
           } else {
             di<ILogger>().error('Failed to parse consultation data');
           }
@@ -428,6 +578,55 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         di<ILogger>().error('Error handling generate-report:stop event: $e');
       }
     });
+
+    socket.on("otoscopy-started", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('Otoscopy started: $data');
+      if (revo2Device != null) {
+        setState(() {
+          _showCamera = true;
+        });
+        _updateCameraState(true);
+      } else {
+        _showErrorSnackBar('Please Connect Video Otoscope');
+      }
+    });
+
+    socket.on("otoscopy-stopped", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('Otoscopy stopped: $data');
+      setState(() {
+        _showCamera = false;
+      });
+      _updateCameraState(false);
+
+      // Add a safety delay and then switch back to built-in camera
+      // This handles the transition from UVC camera to built-in camera properly
+      Future.delayed(const Duration(milliseconds: 5000), () {
+        if (mounted) {
+          try {
+            // Wrap in a zone to catch any unhandled exceptions
+            runZonedGuarded(
+              () {
+                final agoraCubit = context.read<AgoraCubit>();
+                di<ILogger>().info(
+                  '📷 Switching from UVC to built-in camera after otoscopy stop',
+                );
+                agoraCubit.switchToBuiltInCamera();
+              },
+              (error, stackTrace) {
+                di<ILogger>().error(
+                  '❌ Unhandled exception during camera switch: $error',
+                );
+                di<ILogger>().error('Stack trace: $stackTrace');
+              },
+            );
+          } catch (e) {
+            di<ILogger>().error('❌ Error switching to built-in camera: $e');
+          }
+        }
+      });
+    });
   }
 
   void _tryJoinConsultation() {
@@ -489,6 +688,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         'Creating new VideoCallWidget with consultationId: "$consultationId"',
       );
 
+      // Add delay for release mode to ensure proper widget initialization
+      if (ReleaseConfig.isReleaseMode) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            di<ILogger>().debug(
+              'Delayed video widget initialization for release mode',
+            );
+          }
+        });
+      }
+
       _videoWidget = VideoCallWidget(
         key: _videoWidgetKey,
         channelName: channelName,
@@ -540,72 +750,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               },
             ),
 
-          // Camera toggle button
-          BlocBuilder<DeviceCubit, DeviceState>(
-            builder: (context, deviceState) {
-              final hasRevo2Device = deviceState.maybeWhen(
-                success:
-                    (devices, r15cDevice, revo2Device) => revo2Device != null,
-                orElse: () => false,
-              );
-
-              di<ILogger>().debug(
-                'Camera toggle button: hasRevo2Device = $hasRevo2Device, _showCamera = $_showCamera',
-              );
-
-              if (hasRevo2Device) {
-                return IconButton(
-                  icon: Icon(
-                    _showCamera ? Icons.videocam : Icons.videocam_off,
-                    color: _showCamera ? Colors.blue : Colors.grey,
-                  ),
-                  tooltip: _showCamera ? 'Hide Camera' : 'Show Camera',
-                  onPressed: () {
-                    di<ILogger>().debug(
-                      'Camera toggle button pressed - toggling _showCamera from $_showCamera',
-                    );
-
-                    // Add delay before toggling to prevent rapid state changes
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      if (mounted) {
-                        setState(() {
-                          _showCamera = !_showCamera;
-                          // Hide report if showing camera
-                          if (_showCamera) {
-                            _showReport = false;
-                          }
-                          // Update camera state when toggling
-                          _updateCameraState(_showCamera);
-                        });
-                      }
-                    });
-                  },
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-
-          // Report toggle button
-          IconButton(
-            icon: Icon(
-              _showReport ? Icons.assessment : Icons.assessment_outlined,
-              color: _showReport ? Colors.blue : Colors.grey,
-            ),
-            tooltip: _showReport ? 'Hide Report' : 'Show Report',
-            onPressed: () {
-              setState(() {
-                _showReport = !_showReport;
-                // Hide camera if showing report
-                if (_showReport) {
-                  _showCamera = false;
-                  // Update camera state when hiding camera
-                  _updateCameraState(false);
-                }
-              });
-            },
-          ),
-
           // Device status is now shown globally in the main app overlay
           const SizedBox.shrink(),
         ],
@@ -636,10 +780,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   di<ILogger>().debug('Auth state: centre success');
                 },
                 centreError: (error) {
-                  di<ILogger>().error('Auth state: centre error - $error');
+                  ErrorHandler.handleCentreError(context, error);
                 },
                 error: (error) {
-                  di<ILogger>().error('Auth state: error - $error');
+                  ErrorHandler.handleAuthError(context, error);
+                },
+                loggedOut: () {
+                  di<ILogger>().debug('Auth state: logged out');
+                  // User has been logged out, should navigate away from consultation
+                  if (mounted) {
+                    Navigator.pushReplacementNamed(context, '/');
+                  }
                 },
               );
             },
@@ -685,9 +836,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               }
               // Handle consultation update error
               if (state is ConsultationError) {
-                di<ILogger>().debug(
-                  'ConsultationScreen: Consultation error - ${state.message}',
-                );
+                ErrorHandler.handleConsultationError(context, state.message);
               }
             },
           ),
@@ -700,6 +849,13 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   final isNowConnected = r15cDevice != null;
                   final wasRevo2Connected = this.revo2Device != null;
                   final isNowRevo2Connected = revo2Device != null;
+
+                  di<ILogger>().debug(
+                    '🔍 Device state update - R15C: $wasConnected -> $isNowConnected, Revo2: $wasRevo2Connected -> $isNowRevo2Connected',
+                  );
+                  di<ILogger>().debug(
+                    '📋 Total devices: ${devices.length}, R15C device: ${r15cDevice?.toString() ?? 'null'}, Revo2 device: ${revo2Device?.toString() ?? 'null'}',
+                  );
 
                   // Update device references
                   this.r15cDevice = r15cDevice;
@@ -728,12 +884,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     );
 
                     // Auto-show camera when Revo2 is connected with delay
-                    if (isNowRevo2Connected && !_showCamera) {
+                    if (isNowRevo2Connected && _showCamera) {
                       // Add delay before showing camera to ensure device is stable
-                      Future.delayed(const Duration(seconds: 2), () {
+                      Future.delayed(const Duration(seconds: 1), () {
                         if (mounted) {
                           setState(() {
-                            _showCamera = true;
                             _showReport =
                                 false; // Hide report when showing camera
                           });
@@ -743,6 +898,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                       });
                     } else if (!isNowRevo2Connected && _showCamera) {
                       // Hide camera immediately when device is disconnected
+                      di<ILogger>().info(
+                        '📷 Revo2 device disconnected, hiding camera and reverting to full screen',
+                      );
                       setState(() {
                         _showCamera = false;
                       });
@@ -794,14 +952,28 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
               // Enhanced device event emission for all communication state changes
               if (r15cDevice != null || revo2Device != null) {
-                // Handle connection state
+                // Handle connection state - only try to initialize if device is actually connected
                 if (!state.isConnected) {
                   di<ILogger>().debug(
-                    'Device not connected, initializing port...',
+                    'Device not connected, checking if device is still physically present...',
                   );
-                  if (r15cDevice != null) {
+                  // Only attempt to reinitialize if the R15C device is actually still connected
+                  // This prevents infinite loops when device is physically disconnected
+                  if (r15cDevice != null &&
+                      di<DeviceCubit>().state.maybeWhen(
+                        success:
+                            (devices, r15cDev, revo2Dev) => r15cDev != null,
+                        orElse: () => false,
+                      )) {
+                    di<ILogger>().debug(
+                      'R15C device still physically connected, initializing port...',
+                    );
                     context.read<CommunicationCubit>().initializePort(
                       r15cDevice!,
+                    );
+                  } else {
+                    di<ILogger>().debug(
+                      'R15C device no longer physically connected, skipping port initialization',
                     );
                   }
                   _scheduleDeviceEventEmission(state);
@@ -833,6 +1005,16 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               // Handle error states
               if (state.error != null) {
                 di<ILogger>().error('Device error: ${state.error}');
+
+                // If error indicates device not found, clear the device reference to prevent loops
+                if (state.error!.contains('No such device') &&
+                    r15cDevice != null) {
+                  di<ILogger>().info(
+                    'Clearing R15C device reference due to device not found error',
+                  );
+                  r15cDevice = null;
+                }
+
                 _scheduleDeviceEventEmission(state);
               }
 
@@ -864,89 +1046,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               );
               final videoWidget = _getVideoWidget(state.consultation.id ?? "");
 
-              if (_showReport) {
-                // Split screen: video call on left, report on right
-                return Row(
-                  children: [
-                    // Left half - Video call
-                    Expanded(
-                      flex: 1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            right: BorderSide(
-                              color: Colors.grey[300]!,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        child: videoWidget,
-                      ),
-                    ),
-                    // Right half - PTA Report
-                    Expanded(
-                      flex: 1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          border: Border(
-                            left: BorderSide(
-                              color: Colors.grey[300]!,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            // Report header with close button
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[900],
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: Colors.grey[300]!,
-                                    width: 1,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'Pure Tone Audiometry Report',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.close,
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _showReport = false;
-                                      });
-                                    },
-                                    tooltip: 'Close Report',
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Report content
-                            const Expanded(child: ReportPTAWidget()),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              } else if (_showCamera) {
+              if (_showCamera) {
                 // Split screen: video call on left, camera on right
                 return Row(
                   children: [
@@ -965,13 +1065,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                         child: videoWidget,
                       ),
                     ),
-                    // Right half - UVC Camera (disabled in release mode)
                     Expanded(
                       flex: 1,
                       child:
                           ReleaseConfig.enableUVCCamera
                               ? UVCCameraWidget(
-                                socket: socket,
+                                consultationId: consultation?.id ?? "",
                                 onCameraStateChanged: _updateCameraState,
                               )
                               : Container(
@@ -1031,28 +1130,90 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       );
       setState(() {
         _isCameraOpen = isOpen;
+        // If camera is closed, also hide the camera view to revert to full screen
+        if (!isOpen) {
+          _showCamera = false;
+          di<ILogger>().info(
+            '📷 Camera closed, hiding camera view and reverting to full screen',
+          );
+        }
       });
+
+      // Handle automatic screen sharing based on camera state
+      _handleAutomaticScreenSharing(isOpen);
+
       // Trigger device event emission with camera state change
       _scheduleDeviceEventEmission(context.read<CommunicationCubit>().state);
     }
   }
 
+  // Handle automatic screen sharing based on UVC camera state
+  void _handleAutomaticScreenSharing(bool cameraIsOpen) {
+    if (!mounted) return;
+
+    try {
+      final agoraCubit = context.read<AgoraCubit>();
+
+      if (cameraIsOpen) {
+        // Start screen sharing when UVC camera opens
+        if (!agoraCubit.isScreenSharing) {
+          di<ILogger>().info(
+            '📷🖥️ UVC camera opened - starting automatic screen sharing',
+          );
+          agoraCubit.toggleScreenSharing();
+        }
+      } else {
+        // Stop screen sharing when UVC camera closes
+        if (agoraCubit.isScreenSharing) {
+          di<ILogger>().info(
+            '📷🖥️ UVC camera closed - stopping automatic screen sharing',
+          );
+          agoraCubit.toggleScreenSharing();
+        }
+      }
+    } catch (e) {
+      di<ILogger>().error('❌ Error handling automatic screen sharing: $e');
+    }
+  }
+
   // Check if device state has meaningful changes
   bool _hasDeviceStateChanged(CommunicationState newState) {
-    if (_lastEmittedDeviceState == null) return true;
+    if (_lastEmittedDeviceState == null) {
+      di<ILogger>().debug('First device state check - emitting');
+      return true;
+    }
 
     final last = _lastEmittedDeviceState!;
+    final currentR15cConnected = r15cDevice != null;
+    final currentRevo2Connected = revo2Device != null;
 
-    return last.isConnected != newState.isConnected ||
+    final hasChanges =
+        last.isConnected != newState.isConnected ||
         last.isSynced != newState.isSynced ||
         last.isReleased != newState.isReleased ||
         last.isInBeginMode != newState.isInBeginMode ||
         last.batteryLevel != newState.batteryLevel ||
         last.isCharging != newState.isCharging ||
+        last.tabletBatteryLevel != newState.tabletBatteryLevel ||
+        last.isTabletBatteryCharging != newState.isTabletBatteryCharging ||
         last.connectionStatus != newState.connectionStatus ||
         last.transducerResponse != newState.transducerResponse ||
         last.error != newState.error ||
-        _isCameraOpen != newState.isCameraOpen;
+        _isCameraOpen != newState.isCameraOpen ||
+        _lastEmittedR15cConnected != currentR15cConnected ||
+        _lastEmittedRevo2Connected != currentRevo2Connected;
+
+    if (!hasChanges) {
+      di<ILogger>().debug(
+        'Device state check - no changes detected (R15C: ${_lastEmittedR15cConnected} -> $currentR15cConnected, Revo2: ${_lastEmittedRevo2Connected} -> $currentRevo2Connected, Camera: ${_isCameraOpen})',
+      );
+    } else {
+      di<ILogger>().debug(
+        'Device state check - changes detected (R15C: ${_lastEmittedR15cConnected} -> $currentR15cConnected, Revo2: ${_lastEmittedRevo2Connected} -> $currentRevo2Connected, Camera: ${_isCameraOpen})',
+      );
+    }
+
+    return hasChanges;
   }
 
   // Force device event emission for any USB device-related event
@@ -1062,6 +1223,20 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         '🔧 Force triggering device event emission for USB event',
       );
       _scheduleDeviceEventEmission(context.read<CommunicationCubit>().state);
+    }
+  }
+
+  // Force emit device event immediately without state change checks
+  void _forceEmitDeviceEvent(CommunicationState state) {
+    if (_isSocketInitialized) {
+      di<ILogger>().info(
+        '🚀 Force emitting device event immediately (bypassing state change checks)',
+      );
+      _emitDeviceEvent(state);
+    } else {
+      di<ILogger>().error(
+        '❌ Cannot force emit device event - socket not initialized',
+      );
     }
   }
 
@@ -1114,7 +1289,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       '⏰ Scheduling device event emission (debounced for ${_deviceEventDebounceDuration.inMilliseconds}ms)',
     );
     di<ILogger>().debug(
-      '📋 State changes detected - Connected: ${state.isConnected}, Synced: ${state.isSynced}, Camera: $_isCameraOpen',
+      '📋 State changes detected - Connected: ${state.isConnected}, Synced: ${state.isSynced}, Camera: $_isCameraOpen, R15C: ${r15cDevice != null}, Revo2: ${revo2Device != null}',
     );
 
     // Schedule new emission with debounce
@@ -1128,7 +1303,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void _emitDeviceEvent(CommunicationState state) {
     if (_isSocketInitialized) {
       String connectionStatus = "Disconnected";
-      di<ILogger>().debug('Emitting device event: ${state}');
       if (state.isInBeginMode) {
         connectionStatus = "begin";
       } else if (state.transducerResponse != null) {
@@ -1145,6 +1319,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "connectionStatus": connectionStatus,
         "transducerResponse": state.transducerResponse,
         "isCameraOpen": _isCameraOpen,
+        "showingCamera": _showCamera,
+        "showingReport": _showReport,
         "deviceState": {
           "isConnected": state.isConnected,
           "isSynced": state.isSynced,
@@ -1155,6 +1331,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           "connectionStatus": state.connectionStatus,
           "error": state.error,
         },
+        "tabletState": {
+          "batterylevel": state.tabletBatteryLevel.toString(),
+          "isCharging": state.isTabletBatteryCharging,
+        },
         "timestamp": DateTime.now().toIso8601String(),
       };
 
@@ -1162,6 +1342,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
       // Update last emitted state
       _lastEmittedDeviceState = state.copyWith(isCameraOpen: _isCameraOpen);
+      _lastEmittedR15cConnected = r15cDevice != null;
+      _lastEmittedRevo2Connected = revo2Device != null;
 
       di<ILogger>().info('🚀 DEVICE EVENT EMITTED: $deviceEventData');
       di<ILogger>().info(
@@ -1252,6 +1434,50 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
         );
       }
+    }
+  }
+
+  /// Stores the updated consultation data in the local Hive box for persistence
+  void _storeConsultationDataInHive(
+    ConsultationModelData consultationData,
+  ) async {
+    try {
+      final consultationEntityDataSource = di<ConsultationEntityDataSource>();
+
+      // Convert ConsultationModelData to ConsultationEntity for storage
+      final consultationEntity = ConsultationEntity(
+        id: consultationData.id,
+        patientId: consultationData.patientId,
+        audiologistId: consultationData.audiologistId,
+        centreId: consultationData.centreId,
+        patientStatus: consultationData.patientStatus,
+        audiologistStatus: consultationData.audiologistStatus,
+        audiometry: consultationData.audiometry,
+        tympanometry: consultationData.tympanometry,
+        oae: consultationData.oae,
+        otoscopy: consultationData.otoscopy,
+        notes: consultationData.notes,
+        status: consultationData.status,
+        createdAt: consultationData.createdAt,
+        updatedAt: consultationData.updatedAt,
+        patient: consultationData.patient,
+        audiologist: consultationData.audiologist,
+        centre: consultationData.centre,
+        recordings: consultationData.recordings,
+        consultationPricing: consultationData.consultationPricing,
+      );
+
+      // Store in Hive box
+      await consultationEntityDataSource.addConsultationEntity(
+        consultationEntity,
+      );
+
+      di<ILogger>().info(
+        '💾 Consultation data stored in Hive box successfully',
+      );
+      di<ILogger>().debug('Stored consultation ID: ${consultationData.id}');
+    } catch (e) {
+      di<ILogger>().error('❌ Error storing consultation data in Hive: $e');
     }
   }
 }

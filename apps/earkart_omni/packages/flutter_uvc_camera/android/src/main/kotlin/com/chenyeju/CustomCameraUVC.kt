@@ -82,11 +82,22 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     private val I_FRAME_INTERVAL = 1
     private val COLOR_FORMAT = android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar
     private val PREVIEW_FORMAT = UVCCamera.PIXEL_FORMAT_YUV420SP
+    
+    // MediaCodec state management
+    private var isMediaCodecActive = false
+    private var isMediaCodecReleased = false
+    private val mediaCodecLock = Object()
 
     companion object {
         private const val TAG = "CameraUVC"
         private var methodChannel: MethodChannel? = null
         private val mainHandler = Handler(Looper.getMainLooper())
+        
+        // Optimized constants for better stability
+        private const val MAX_FRAME_SIZE = 2000000 // 2MB max frame size
+        private const val MIN_FRAME_INTERVAL_MS = 100 // Minimum 100ms between frames (10 FPS max)
+        private const val MAX_QUEUE_SIZE = 2 // Reduce queue size to prevent memory buildup
+        private const val FRAME_TIMEOUT_MS = 500L // Shorter timeout for frame operations
 
         fun setMethodChannel(channel: MethodChannel) {
             methodChannel = channel
@@ -107,15 +118,134 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         Log.i(TAG, "CustomCameraUVC initialized")
     }
 
+    /**
+     * Safely release MediaCodec buffers to prevent PipelineWatcher errors
+     */
+    private fun safeReleaseMediaCodecBuffers() {
+        synchronized(mediaCodecLock) {
+            if (isMediaCodecReleased || mediaCodec == null) {
+                Log.d(TAG, "MediaCodec already released or null, skipping buffer cleanup")
+                return
+            }
+            
+            mediaCodec?.let { codec ->
+                try {
+                    // Use a timeout to prevent infinite loops
+                    val startTime = System.currentTimeMillis()
+                    val timeout = 1000L // 1 second timeout
+                    
+                    // Release any remaining input buffers
+                    var inputBufferIndex = codec.dequeueInputBuffer(0)
+                    var inputBufferCount = 0
+                    while (inputBufferIndex >= 0 && 
+                           (System.currentTimeMillis() - startTime) < timeout && 
+                           inputBufferCount < 10) { // Limit to 10 buffers max
+                        try {
+                            // For input buffers, we just skip them by not queuing data
+                            // No need to "release" them explicitly
+                            inputBufferCount++
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error processing input buffer $inputBufferIndex", e)
+                        }
+                        inputBufferIndex = codec.dequeueInputBuffer(0)
+                    }
+
+                    // Release any remaining output buffers
+                    val bufferInfo = MediaCodec.BufferInfo()
+                    var outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0)
+                    var outputBufferCount = 0
+                    while (outputBufferIndex >= 0 && 
+                           (System.currentTimeMillis() - startTime) < timeout && 
+                           outputBufferCount < 10) { // Limit to 10 buffers max
+                        try {
+                            codec.releaseOutputBuffer(outputBufferIndex, false)
+                            outputBufferCount++
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error releasing output buffer $outputBufferIndex", e)
+                        }
+                        outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0)
+                    }
+                    
+                    Log.i(TAG, "Buffer cleanup completed: input=$inputBufferCount, output=$outputBufferCount")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in safeReleaseMediaCodecBuffers", e)
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if MediaCodec is in error state and handle it gracefully
+     */
+    private fun handleMediaCodecError() {
+        synchronized(mediaCodecLock) {
+            if (isMediaCodecReleased || mediaCodec == null) {
+                Log.d(TAG, "MediaCodec already released or null, skipping error handling")
+                return
+            }
+            
+            mediaCodec?.let { codec ->
+                try {
+                    // Check if codec is in error state
+                    val bufferInfo = MediaCodec.BufferInfo()
+                    val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0)
+                    if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        Log.i(TAG, "MediaCodec output format changed")
+                    } else if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                        // This is normal, not an error
+                    } else if (outputBufferIndex < 0) {
+                        Log.w(TAG, "MediaCodec error detected, attempting recovery")
+                        // Try to reset the codec
+                        try {
+                            safeReleaseMediaCodecBuffers()
+                            codec.flush()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error recovering MediaCodec", e)
+                        }
+                    } else {
+                        // outputBufferIndex >= 0, this is normal operation
+                        Log.d(TAG, "MediaCodec operating normally")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error checking MediaCodec state", e)
+                }
+            }
+        }
+    }
+
+    /**
+     * Safely execute MediaCodec operations with state checking
+     */
+    private fun <T> safeMediaCodecOperation(operation: () -> T): T? {
+        synchronized(mediaCodecLock) {
+            if (isMediaCodecReleased || mediaCodec == null || !isMediaCodecActive) {
+                Log.d(TAG, "MediaCodec not available for operation: released=$isMediaCodecReleased, null=${mediaCodec == null}, active=$isMediaCodecActive")
+                return null
+            }
+            
+            return try {
+                operation()
+            } catch (e: Exception) {
+                Log.e(TAG, "MediaCodec operation failed", e)
+                null
+            }
+        }
+    }
+
     private val frameCallBack = IFrameCallback { frame ->
         frame?.apply {
             try {
+                // Check frame size to prevent memory issues
+                if (capacity() > MAX_FRAME_SIZE) {
+                    return@apply
+                }
+                
                 frame.position(0)
                 val data = ByteArray(capacity())
                 get(data)
+                
                 mCameraRequest?.apply {
-                    // Skip size check as it might be different for MJPEG
-                    // for preview callback - ensure continuous delivery
+                    // for preview callback - ensure continuous delivery with error handling
                     mPreviewDataCbList.forEach { cb ->
                         try {
                             cb?.onPreviewData(data, previewWidth, previewHeight, IPreviewDataCallBack.DataFormat.NV21)
@@ -123,17 +253,39 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                             Log.e(TAG, "Error in preview callback", e)
                         }
                     }
-                    // for video frame queue
-                    if (mNV21DataQueue.size >= MAX_NV21_DATA) {
-                        mNV21DataQueue.clear() // Clear old frames to prevent lag
+                    
+                    // Optimized queue management - use smaller queue size and more aggressive cleanup
+                    synchronized(mNV21DataQueue) {
+                        if (mNV21DataQueue.size >= MAX_QUEUE_SIZE) {
+                            mNV21DataQueue.clear() // Clear all frames to prevent memory buildup
+                        }
+                        mNV21DataQueue.offerFirst(data)
                     }
-                    mNV21DataQueue.offerFirst(data)
-                    // Update frame immediately
-                    putVideoData(data)
+                    
+                    // Update frame with memory management
+                    try {
+                        putVideoData(data)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error updating video data", e)
+                        // Clear queue on error to prevent memory accumulation
+                        synchronized(mNV21DataQueue) {
+                            mNV21DataQueue.clear()
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing frame", e)
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "Out of memory processing frame", oom)
+                // Force garbage collection
+                System.gc()
+                // Clear queue to free memory
+                synchronized(mNV21DataQueue) {
+                    mNV21DataQueue.clear()
+                }
             }
+        } ?: run {
+            Log.w(TAG, "Frame callback received null frame")
         }
     }
 
@@ -180,8 +332,105 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error capturing frame", e)
+            // Clear queue on critical error to prevent memory issues
+            if (e is OutOfMemoryError || e.message?.contains("memory", ignoreCase = true) == true) {
+                synchronized(mNV21DataQueue) {
+                    mNV21DataQueue.clear()
+                }
+                System.gc()
+            }
             // Return last valid frame on error
             callback?.invoke(lastValidFrame ?: "")
+        }
+    }
+
+    // Direct binary frame capture for otoscopy streaming (no base64 conversion)
+    private var lastValidBinaryFrame: ByteArray? = null
+    private var frameProcessingInProgress = false
+    private val maxBinaryFrameSize = 300 * 1024 // 300KB max frame size - balanced for quality and stability
+    
+    fun captureFrameAsBinary(callback: ((ByteArray) -> Unit)?) {
+        if (!isFrameCaptureActive) {
+            Log.w(TAG, "Frame capture not active, returning empty array")
+            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
+            return
+        }
+
+        // Prevent overlapping frame processing to avoid memory pressure
+        if (frameProcessingInProgress) {
+            Log.d(TAG, "Frame processing already in progress, returning cached frame")
+            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
+            return
+        }
+
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastFrameCaptureTime < MIN_FRAME_INTERVAL_MS) {
+            // Return last valid binary frame if too soon
+            Log.d(TAG, "Frame interval too short (${currentTime - lastFrameCaptureTime}ms), returning cached frame")
+            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
+            return
+        }
+
+        frameProcessingInProgress = true
+        try {
+            // Log queue status for debugging
+            Log.d(TAG, "Frame queue status: size=${mNV21DataQueue.size}, capture_active=$isFrameCaptureActive")
+            
+            // Get current frame data from the queue with thread safety
+            val frameData = synchronized(mNV21DataQueue) {
+                mNV21DataQueue.pollFirst()
+            }
+            
+            if (frameData != null && frameData.isNotEmpty()) {
+                Log.d(TAG, "Retrieved frame data from queue: ${frameData.size} bytes")
+                // Convert NV21/YUV to JPEG binary directly (no base64)
+                convertFrameToJpegBinary(frameData) { jpegBinaryData ->
+                    frameProcessingInProgress = false
+                    if (jpegBinaryData != null && jpegBinaryData.isNotEmpty() && jpegBinaryData.size <= maxBinaryFrameSize) {
+                        // Clear old frame to prevent memory accumulation
+                        lastValidBinaryFrame?.let { 
+                            // Help GC by nullifying reference
+                            lastValidBinaryFrame = null
+                        }
+                        lastValidBinaryFrame = jpegBinaryData
+                        lastFrameCaptureTime = currentTime
+                        Log.d(TAG, "Direct binary frame captured: ${jpegBinaryData.size} bytes")
+                        callback?.invoke(jpegBinaryData)
+                    } else {
+                        // Return last valid binary frame if current frame is invalid or too large
+                        if (jpegBinaryData != null && jpegBinaryData.size > maxBinaryFrameSize) {
+                            Log.w(TAG, "Frame too large (${jpegBinaryData.size} bytes), skipping to prevent memory issues")
+                        }
+                        callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
+                    }
+                }
+            } else {
+                Log.w(TAG, "No frame data available in queue (queue size: ${mNV21DataQueue.size})")
+                // Return last valid binary frame if no new frame available
+                callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
+            }
+        } catch (e: Exception) {
+            frameProcessingInProgress = false
+            Log.e(TAG, "Error capturing binary frame", e)
+            
+            // Handle memory-related errors more aggressively
+            if (e is OutOfMemoryError || e.message?.contains("memory", ignoreCase = true) == true) {
+                Log.e(TAG, "Memory error detected, clearing all cached data", e)
+                // Clear all cached data and force garbage collection
+                lastValidBinaryFrame = null
+                lastValidFrame = null
+                synchronized(mNV21DataQueue) {
+                    mNV21DataQueue.clear()
+                }
+                System.gc()
+                
+                // Return empty array to indicate error state
+                callback?.invoke(ByteArray(0))
+                return
+            }
+            
+            // Return last valid binary frame on error
+            callback?.invoke(lastValidBinaryFrame ?: ByteArray(0))
         }
     }
 
@@ -281,16 +530,97 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         }
     }
 
+    // Direct JPEG binary conversion (no base64 encoding)
+    private fun convertFrameToJpegBinary(frameData: ByteArray, callback: ((ByteArray?) -> Unit)?) {
+        try {
+            frameCounter++
+            
+            // Validate frame data
+            if (frameData.isEmpty()) {
+                Log.w(TAG, "uvc_stream_binary: Empty frame data received")
+                callback?.invoke(null)
+                return
+            }
+            
+            // Convert NV21 to JPEG binary directly
+            val width = mCameraRequest?.previewWidth ?: 640
+            val height = mCameraRequest?.previewHeight ?: 480
+            
+            // Validate dimensions
+            if (width <= 0 || height <= 0) {
+                Log.w(TAG, "uvc_stream_binary: Invalid dimensions: ${width}x${height}")
+                callback?.invoke(null)
+                return
+            }
+            
+            // Create a YuvImage from the frame data
+            val yuvImage = android.graphics.YuvImage(
+                frameData,
+                android.graphics.ImageFormat.NV21,
+                width,
+                height,
+                null
+            )
+            
+            // Convert to JPEG with lower quality to reduce memory usage
+            val outputStream = java.io.ByteArrayOutputStream()
+            val success = yuvImage.compressToJpeg(
+                android.graphics.Rect(0, 0, width, height),
+                60, // Reduced quality to prevent memory issues (was 80)
+                outputStream
+            )
+            
+            if (!success) {
+                Log.w(TAG, "uvc_stream_binary: Failed to compress frame to JPEG")
+                callback?.invoke(null)
+                return
+            }
+            
+            // Get the raw JPEG binary data (no base64 conversion)
+            val jpegBinaryData = outputStream.toByteArray()
+            outputStream.close()
+            
+            // Validate JPEG binary data
+            if (jpegBinaryData.isEmpty() || jpegBinaryData.size < 100) {
+                Log.w(TAG, "uvc_stream_binary: Invalid JPEG binary data size: ${jpegBinaryData.size}")
+                callback?.invoke(null)
+                return
+            }
+            
+            Log.d(TAG, "uvc_stream_binary: Frame #$frameCounter converted to JPEG binary (${jpegBinaryData.size} bytes)")
+            callback?.invoke(jpegBinaryData)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error converting frame to JPEG binary", e)
+            callback?.invoke(null)
+        }
+    }
+
     // Add methods to control frame capture
     fun startFrameCapture() {
         isFrameCaptureActive = true
+        frameProcessingInProgress = false // Reset processing flag
         lastFrameCaptureTime = 0 // Reset timer
         Log.d(TAG, "uvc_stream: Frame capture started")
     }
 
     fun stopFrameCapture() {
         isFrameCaptureActive = false
-        Log.d(TAG, "uvc_stream: Frame capture stopped")
+        frameProcessingInProgress = false // Reset processing flag
+        
+        // Clear cached frames and force memory cleanup
+        lastValidFrame = null
+        lastValidBinaryFrame = null
+        
+        // Clear frame queue with synchronization
+        synchronized(mNV21DataQueue) {
+            mNV21DataQueue.clear()
+        }
+        
+        // Force garbage collection to free memory immediately
+        System.gc()
+        
+        Log.d(TAG, "uvc_stream: Frame capture stopped and memory cleared")
     }
 
     override fun getAllPreviewSizes(aspectRatio: Double?): MutableList<PreviewSize> {
@@ -428,6 +758,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         }
 
         // Set frame callback for preview
+        Log.d(TAG, "Setting frame callback for preview")
         mUvcCamera?.setFrameCallback(frameCallBack, UVCCamera.PIXEL_FORMAT_YUV420SP)
 
         // 3. start preview
@@ -470,19 +801,114 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     }
 
     override fun closeCameraInternal() {
-        if (isRecording) {
-            stopVideoRecording()
-        }
-        
-        postStateEvent(ICameraStateCallBack.State.CLOSED)
-        isPreviewed = false
-        isRecording = false
-        currentVideoPath = null
-        releaseEncodeProcessor()
-        mUvcCamera?.destroy()
-        mUvcCamera = null
-        if (Utils.debugCamera) {
-            Log.i(TAG, " stop preview, name = ${device.deviceName}")
+        try {
+            Log.i(TAG, "Closing UVC camera...")
+            
+            // First, stop preview to prevent new frames
+            try {
+                mUvcCamera?.stopPreview()
+                Log.i(TAG, "Preview stopped successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping preview", e)
+            }
+            
+            // Stop recording if active
+            if (isRecording) {
+                Log.i(TAG, "Stopping active recording before closing camera...")
+                stopVideoRecording()
+            }
+            
+            // Wait a bit to allow pending operations to complete
+            try {
+                Thread.sleep(100) // 100ms delay to allow cleanup
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+            
+            // Ensure MediaCodec is properly cleaned up
+            synchronized(mediaCodecLock) {
+                mediaCodec?.let { codec ->
+                    try {
+                        // Mark as inactive first
+                        isMediaCodecActive = false
+                        
+                        safeReleaseMediaCodecBuffers()
+                        codec.flush()
+                        codec.stop()
+                        codec.release()
+                        
+                        // Mark as released
+                        isMediaCodecReleased = true
+                        
+                        Log.i(TAG, "MediaCodec cleaned up during camera close")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error cleaning up MediaCodec during camera close", e)
+                        // Try to release even if cleanup fails
+                        try {
+                            codec.release()
+                            isMediaCodecReleased = true
+                        } catch (releaseException: Exception) {
+                            Log.e(TAG, "Error releasing MediaCodec during camera close", releaseException)
+                        }
+                    }
+                }
+                mediaCodec = null
+            }
+            
+            // Clean up MediaMuxer
+            mediaMuxer?.let { muxer ->
+                try {
+                    if (videoTrackIndex >= 0) {
+                        muxer.stop()
+                    }
+                    muxer.release()
+                    Log.i(TAG, "MediaMuxer cleaned up during camera close")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error cleaning up MediaMuxer during camera close", e)
+                }
+            }
+            mediaMuxer = null
+            
+            // Clear frame callback to prevent further processing
+            try {
+                mUvcCamera?.setFrameCallback(null, UVCCamera.PIXEL_FORMAT_YUV420SP)
+                Log.i(TAG, "Frame callback cleared")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error clearing frame callback", e)
+            }
+            
+            // Destroy UVC camera on main thread to ensure proper cleanup
+            mainHandler.post {
+                try {
+                    mUvcCamera?.destroy()
+                    mUvcCamera = null
+                    Log.i(TAG, "UVC camera destroyed on main thread")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error destroying UVC camera on main thread", e)
+                }
+            }
+            
+            // Post state change on main thread
+            mainHandler.post {
+                postStateEvent(ICameraStateCallBack.State.CLOSED)
+            }
+            
+            isPreviewed = false
+            isRecording = false
+            currentVideoPath = null
+            videoTrackIndex = -1
+            presentationTimeUs = 0
+            releaseEncodeProcessor()
+            
+            if (Utils.debugCamera) {
+                Log.i(TAG, " stop preview, name = ${device.deviceName}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during camera close", e)
+            // Ensure we still post the closed state even if there's an error
+            mainHandler.post {
+                postStateEvent(ICameraStateCallBack.State.CLOSED)
+            }
         }
     }
 
@@ -751,17 +1177,34 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
             mUvcCamera?.let { camera ->
                 // Configure MediaCodec
                 try {
-                    mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
-                        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, videoWidth, videoHeight).apply {
-                            setInteger(MediaFormat.KEY_BIT_RATE, videoBitrate)
-                            setInteger(MediaFormat.KEY_FRAME_RATE, videoFps)
-                            setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar)
-                            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-                            setInteger(MediaFormat.KEY_COMPLEXITY, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
-                            setInteger(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 1000000 / videoFps)
+                    synchronized(mediaCodecLock) {
+                        // Reset state
+                        isMediaCodecReleased = false
+                        isMediaCodecActive = false
+                        
+                        mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
+                            val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, videoWidth, videoHeight).apply {
+                                setInteger(MediaFormat.KEY_BIT_RATE, videoBitrate)
+                                setInteger(MediaFormat.KEY_FRAME_RATE, videoFps)
+                                setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar)
+                                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+                                setInteger(MediaFormat.KEY_COMPLEXITY, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
+                                setInteger(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 1000000 / videoFps)
+                            }
+                            configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                            
+                            // Start the codec with error handling
+                            try {
+                                start()
+                                isMediaCodecActive = true
+                                Log.i(TAG, "MediaCodec started successfully")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error starting MediaCodec", e)
+                                isMediaCodecReleased = true
+                                release()
+                                throw e
+                            }
                         }
-                        configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-                        start()
                     }
 
                     // Create MediaMuxer
@@ -779,43 +1222,104 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                                     val data = ByteArray(capacity())
                                     get(data)
                                     
-                                    // Process input buffer
-                                    val inputBufferIndex = mediaCodec?.dequeueInputBuffer(0)
-                                    if (inputBufferIndex != null && inputBufferIndex >= 0) {
-                                        val inputBuffer = mediaCodec?.getInputBuffer(inputBufferIndex)
-                                        inputBuffer?.clear()
-                                        inputBuffer?.put(data)
-                                        mediaCodec?.queueInputBuffer(inputBufferIndex, 0, data.size, presentationTimeUs, 0)
-                                        presentationTimeUs += 1000000L / videoFps
+                                    // Process input buffer with better error handling
+                                    try {
+                                        val inputBufferIndex = safeMediaCodecOperation { 
+                                            mediaCodec?.dequeueInputBuffer(1000) // 1 second timeout
+                                        }
+                                        
+                                        if (inputBufferIndex != null && inputBufferIndex >= 0) {
+                                            val inputBuffer = safeMediaCodecOperation { 
+                                                mediaCodec?.getInputBuffer(inputBufferIndex)
+                                            }
+                                            if (inputBuffer != null) {
+                                                inputBuffer.clear()
+                                                if (data.size <= inputBuffer.capacity()) {
+                                                    inputBuffer.put(data)
+                                                    safeMediaCodecOperation {
+                                                        mediaCodec?.queueInputBuffer(inputBufferIndex, 0, data.size, presentationTimeUs, 0)
+                                                    }
+                                                    presentationTimeUs += 1000000L / videoFps
+                                                } else {
+                                                    // Buffer too small, skip this frame
+                                                    Log.w(TAG, "Input buffer too small for frame data")
+                                                }
+                                            } else {
+                                                // Skip buffer if we can't get it
+                                                Log.w(TAG, "Could not get input buffer")
+                                            }
+                                        } else if (inputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                                            // No input buffer available, skip this frame
+                                            Log.d(TAG, "No input buffer available, skipping frame")
+                                        } else {
+                                            // Handle other negative values
+                                            Log.d(TAG, "Input buffer not available: $inputBufferIndex")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error processing input buffer", e)
                                     }
 
-                                    // Process output buffer
-                                    val bufferInfo = MediaCodec.BufferInfo()
-                                    var outputBufferIndex = mediaCodec?.dequeueOutputBuffer(bufferInfo, 0)
-                                    while (outputBufferIndex != null && outputBufferIndex >= 0) {
-                                        val outputBuffer = mediaCodec?.getOutputBuffer(outputBufferIndex)
-                                        if (videoTrackIndex == -1) {
-                                            val newFormat = mediaCodec?.getOutputFormat()
-                                            if (newFormat != null) {
-                                                videoTrackIndex = mediaMuxer?.addTrack(newFormat) ?: -1
-                                                if (videoTrackIndex >= 0) {
-                                                    mediaMuxer?.start()
-                                                    mainHandler.post {
-                                                        callback.onBegin()
+                                    // Process output buffer with better error handling
+                                    try {
+                                        val bufferInfo = MediaCodec.BufferInfo()
+                                        var outputBufferIndex = safeMediaCodecOperation { 
+                                            mediaCodec?.dequeueOutputBuffer(bufferInfo, 1000) // 1 second timeout
+                                        }
+                                        
+                                        while (outputBufferIndex != null && outputBufferIndex >= 0) {
+                                            // Create a local copy to avoid smart cast issues
+                                            val currentBufferIndex = outputBufferIndex
+                                            try {
+                                                val outputBuffer = safeMediaCodecOperation { 
+                                                    mediaCodec?.getOutputBuffer(currentBufferIndex)
+                                                }
+                                                if (videoTrackIndex == -1) {
+                                                    val newFormat = safeMediaCodecOperation { 
+                                                        mediaCodec?.getOutputFormat()
                                                     }
-                                                    Log.i(TAG, "MediaMuxer started successfully")
+                                                    if (newFormat != null) {
+                                                        videoTrackIndex = mediaMuxer?.addTrack(newFormat) ?: -1
+                                                        if (videoTrackIndex >= 0) {
+                                                            mediaMuxer?.start()
+                                                            mainHandler.post {
+                                                                callback.onBegin()
+                                                            }
+                                                            Log.i(TAG, "MediaMuxer started successfully")
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                if (outputBuffer != null && bufferInfo.size > 0 && videoTrackIndex >= 0) {
+                                                    outputBuffer.position(bufferInfo.offset)
+                                                    outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
+                                                    mediaMuxer?.writeSampleData(videoTrackIndex, outputBuffer, bufferInfo)
+                                                }
+                                                
+                                                // Always release output buffer
+                                                safeMediaCodecOperation {
+                                                    mediaCodec?.releaseOutputBuffer(currentBufferIndex, false)
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e(TAG, "Error processing output buffer $currentBufferIndex", e)
+                                                // Try to release the buffer even if processing failed
+                                                try {
+                                                    safeMediaCodecOperation {
+                                                        mediaCodec?.releaseOutputBuffer(currentBufferIndex, false)
+                                                    }
+                                                } catch (releaseException: Exception) {
+                                                    Log.e(TAG, "Error releasing output buffer $currentBufferIndex", releaseException)
                                                 }
                                             }
+                                            
+                                            // Get next output buffer
+                                            outputBufferIndex = safeMediaCodecOperation { 
+                                                mediaCodec?.dequeueOutputBuffer(bufferInfo, 0)
+                                            }
                                         }
-                                        
-                                        if (outputBuffer != null && bufferInfo.size > 0 && videoTrackIndex >= 0) {
-                                            outputBuffer.position(bufferInfo.offset)
-                                            outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
-                                            mediaMuxer?.writeSampleData(videoTrackIndex, outputBuffer, bufferInfo)
-                                            mediaCodec?.releaseOutputBuffer(outputBufferIndex, false)
-                                        }
-                                        
-                                        outputBufferIndex = mediaCodec?.dequeueOutputBuffer(bufferInfo, 0)
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error processing output buffers", e)
+                                        // Try to handle MediaCodec error state
+                                        handleMediaCodecError()
                                     }
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Error processing frame for recording", e)
@@ -855,6 +1359,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
             return
         }
 
+        Log.i(TAG, "Stopping video recording...")
         val path = currentVideoPath
         var success = false
 
@@ -863,16 +1368,42 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                 // First stop the frame callback
                 camera.setFrameCallback(null, UVCCamera.PIXEL_FORMAT_YUV420SP)
                 
-                // Stop MediaCodec
-                mediaCodec?.apply {
-                    try {
-                        stop()
-                        release()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error stopping MediaCodec", e)
+                // Stop MediaCodec with proper cleanup
+                synchronized(mediaCodecLock) {
+                    mediaCodec?.apply {
+                        try {
+                            // Mark as inactive first
+                            isMediaCodecActive = false
+                            
+                            // Safely release any remaining buffers first
+                            safeReleaseMediaCodecBuffers()
+                            
+                            // Flush any remaining buffers before stopping
+                            flush()
+                            
+                            // Stop the codec
+                            stop()
+                            
+                            // Release the codec
+                            release()
+                            
+                            // Mark as released
+                            isMediaCodecReleased = true
+                            
+                            Log.i(TAG, "MediaCodec stopped and released successfully")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error stopping MediaCodec", e)
+                            // Try to release even if stop fails
+                            try {
+                                release()
+                                isMediaCodecReleased = true
+                            } catch (releaseException: Exception) {
+                                Log.e(TAG, "Error releasing MediaCodec", releaseException)
+                            }
+                        }
                     }
+                    mediaCodec = null
                 }
-                mediaCodec = null
                 
                 // Stop MediaMuxer if we have a valid track
                 if (videoTrackIndex >= 0) {

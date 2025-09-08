@@ -2,6 +2,8 @@ import 'package:earkart_omni/features/auth/domain/usecases/get.centre.usecase.da
 import 'package:earkart_omni/features/auth/domain/usecases/get.centre.data.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/get.current.user.usecase.dart';
 import 'package:earkart_omni/features/auth/domain/usecases/login.usecase.dart';
+import 'package:earkart_omni/features/auth/domain/usecases/clear.centre.data.usecase.dart';
+import 'package:earkart_omni/features/auth/domain/usecases/logout.usecase.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,15 +13,23 @@ class AuthCubit extends Cubit<AuthState> {
   final GetCentreUsecase getCentreUsecase;
   final GetCentreDataUsecase getCentreDataUsecase;
   final GetCurrentUserUsecase getCurrentUserUsecase;
+  final ClearCentreDataUsecase clearCentreDataUsecase;
+  final LogoutUsecase logoutUsecase;
   AuthCubit({
     required this.loginUseCase,
     required this.getCentreUsecase,
     required this.getCentreDataUsecase,
     required this.getCurrentUserUsecase,
+    required this.clearCentreDataUsecase,
+    required this.logoutUsecase,
   }) : super(AuthInitial());
 
   void login(String email, String password) async {
     if (!isClosed) emit(AuthLoading());
+
+    // Clear any existing centre data to prevent stale data issues
+    await clearCentreDataUsecase();
+
     final user = await loginUseCase(email, password);
     user.fold(
       (failure) {
@@ -28,7 +38,10 @@ class AuthCubit extends Cubit<AuthState> {
         if (!isClosed) emit(AuthError(message: failure.message));
       },
       (user) {
-        if (!isClosed) emit(AuthSuccess(user: user));
+        if (!isClosed) {
+          emit(AuthSuccess(user: user));
+          // Note: getCentre() will be called by root_screen after this AuthSuccess state
+        }
       },
     );
   }
@@ -67,7 +80,29 @@ class AuthCubit extends Cubit<AuthState> {
         emit(AuthError(message: failure.message));
       },
       (currentUser) {
-        emit(AuthSuccess(user: currentUser));
+        if (currentUser != null) {
+          emit(AuthSuccess(user: currentUser));
+        } else {
+          // If no user is found, emit logged out state
+          print('No user found in storage - emitting logged out state');
+          emit(AuthLoggedOut());
+        }
+      },
+    );
+  }
+
+  void logout() async {
+    if (!isClosed) emit(AuthLoading());
+    final result = await logoutUsecase();
+    result.fold(
+      (failure) {
+        print('Logout error: ${failure.message}');
+        Fluttertoast.showToast(msg: 'Logout failed: ${failure.message}');
+        if (!isClosed) emit(AuthError(message: failure.message));
+      },
+      (_) {
+        print('Logout successful - all data cleared');
+        if (!isClosed) emit(AuthLoggedOut());
       },
     );
   }

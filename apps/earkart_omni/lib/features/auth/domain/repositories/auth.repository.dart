@@ -8,4 +8,6 @@ abstract class AuthRepository {
   Future<Either<Failure, CentreEntity>> getCentre();
   Future<Either<Failure, CentreEntity?>> getCentreData();
   Future<Either<Failure, UserEntity?>> getCurrentUser();
+  Future<Either<Failure, void>> clearCentreData();
+  Future<Either<Failure, void>> logout();
 }

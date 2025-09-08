@@ -32,6 +32,12 @@ class DeviceOwnerHelper {
     try {
       await platform.invokeMethod('grantAllPermissions');
       print('✅ ALL permissions granted for device owner');
+
+      // Wait a moment for permissions to be applied
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Check and print permission status after granting
+      await printPermissionSummary();
     } on PlatformException catch (e) {
       print('Error granting all permissions: ${e.message}');
     }
@@ -51,15 +57,24 @@ class DeviceOwnerHelper {
     }
   }
 
-  /// Auto-grant all permissions if device owner
+  /// Auto-grant all permissions (app is always device owner)
   static Future<void> autoGrantPermissionsIfDeviceOwner() async {
     try {
+      // Since app is always device owner, proceed with granting permissions
+      print(
+        '🎯 App is device owner - auto-granting all permissions by default',
+      );
+      await grantAllPermissions();
+
+      // Print final permission status
+      await printPermissionSummary();
+
+      // Fallback: If somehow not device owner, log warning
       final bool isOwner = await isDeviceOwner();
-      if (isOwner) {
-        print('🎯 App is device owner - auto-granting all permissions');
-        await grantAllPermissions();
-      } else {
-        print('⚠️ App is NOT device owner - cannot auto-grant permissions');
+      if (!isOwner) {
+        print(
+          '⚠️ Unexpected: App is NOT device owner - permissions may not work correctly',
+        );
       }
     } catch (e) {
       print('Error in auto-grant: $e');
@@ -102,5 +117,80 @@ class DeviceOwnerHelper {
     });
 
     print('=' * 50);
+  }
+
+  /// Request screen sharing permission (standard method)
+  static Future<Map<String, dynamic>?> requestScreenShare() async {
+    try {
+      final result = await platform.invokeMethod('requestScreenShare');
+      print('Screen share request result: $result');
+      return Map<String, dynamic>.from(result);
+    } on PlatformException catch (e) {
+      print('Error requesting screen share: ${e.message}');
+      return null;
+    }
+  }
+
+  /// Bypass screen sharing dialog for device owner apps
+  static Future<Map<String, dynamic>?> bypassScreenShareDialog() async {
+    try {
+      final result = await platform.invokeMethod('bypassScreenShareDialog');
+      print('Screen share bypass result: $result');
+      return Map<String, dynamic>.from(result);
+    } on PlatformException catch (e) {
+      print('Error bypassing screen share dialog: ${e.message}');
+      return null;
+    }
+  }
+
+  /// Grant PROJECT_MEDIA AppOps permission for screen capture without dialog
+  static Future<bool> grantProjectMediaPermission() async {
+    try {
+      await platform.invokeMethod('grantProjectMediaPermission');
+      print('✅ PROJECT_MEDIA permission granted successfully');
+      return true;
+    } on PlatformException catch (e) {
+      print('Error granting PROJECT_MEDIA permission: ${e.message}');
+      return false;
+    }
+  }
+
+  static Future<bool> grantUSBPermissions() async {
+    try {
+      final bool isOwner = await isDeviceOwner();
+      if (isOwner) {
+        await platform.invokeMethod('grantUSBPermissions');
+        print('✅ USB permissions granted for device owner');
+        return true;
+      } else {
+        print('⚠️ Not device owner - cannot grant USB permissions');
+        return false;
+      }
+    } catch (e) {
+      print('Error granting USB permissions: $e');
+      return false;
+    }
+  }
+
+  /// Smart screen sharing method that bypasses dialog if device owner
+  static Future<Map<String, dynamic>?> smartScreenShare() async {
+    try {
+      final bool isOwner = await isDeviceOwner();
+
+      if (isOwner) {
+        print('🎯 Device owner detected - bypassing screen share dialog');
+
+        // First, grant PROJECT_MEDIA permission
+        await grantProjectMediaPermission();
+
+        return await bypassScreenShareDialog();
+      } else {
+        print('📱 Not device owner - using standard screen share request');
+        return await requestScreenShare();
+      }
+    } catch (e) {
+      print('Error in smart screen share: $e');
+      return null;
+    }
   }
 }

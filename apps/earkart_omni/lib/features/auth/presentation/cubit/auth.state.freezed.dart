@@ -24,6 +24,7 @@ mixin _$AuthState {
     required TResult Function(CentreEntity? centre) centreSuccess,
     required TResult Function(String message) centreError,
     required TResult Function(String message) error,
+    required TResult Function() loggedOut,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -34,6 +35,7 @@ mixin _$AuthState {
     TResult? Function(CentreEntity? centre)? centreSuccess,
     TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
+    TResult? Function()? loggedOut,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -44,6 +46,7 @@ mixin _$AuthState {
     TResult Function(CentreEntity? centre)? centreSuccess,
     TResult Function(String message)? centreError,
     TResult Function(String message)? error,
+    TResult Function()? loggedOut,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -55,6 +58,7 @@ mixin _$AuthState {
     required TResult Function(AuthCentreSuccess value) centreSuccess,
     required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
+    required TResult Function(AuthLoggedOut value) loggedOut,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -65,6 +69,7 @@ mixin _$AuthState {
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
     TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
+    TResult? Function(AuthLoggedOut value)? loggedOut,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -75,6 +80,7 @@ mixin _$AuthState {
     TResult Function(AuthCentreSuccess value)? centreSuccess,
     TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
+    TResult Function(AuthLoggedOut value)? loggedOut,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -147,6 +153,7 @@ class _$AuthInitialImpl implements AuthInitial {
     required TResult Function(CentreEntity? centre) centreSuccess,
     required TResult Function(String message) centreError,
     required TResult Function(String message) error,
+    required TResult Function() loggedOut,
   }) {
     return initial();
   }
@@ -160,6 +167,7 @@ class _$AuthInitialImpl implements AuthInitial {
     TResult? Function(CentreEntity? centre)? centreSuccess,
     TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
+    TResult? Function()? loggedOut,
   }) {
     return initial?.call();
   }
@@ -173,6 +181,7 @@ class _$AuthInitialImpl implements AuthInitial {
     TResult Function(CentreEntity? centre)? centreSuccess,
     TResult Function(String message)? centreError,
     TResult Function(String message)? error,
+    TResult Function()? loggedOut,
     required TResult orElse(),
   }) {
     if (initial != null) {
@@ -190,6 +199,7 @@ class _$AuthInitialImpl implements AuthInitial {
     required TResult Function(AuthCentreSuccess value) centreSuccess,
     required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
+    required TResult Function(AuthLoggedOut value) loggedOut,
   }) {
     return initial(this);
   }
@@ -203,6 +213,7 @@ class _$AuthInitialImpl implements AuthInitial {
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
     TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
+    TResult? Function(AuthLoggedOut value)? loggedOut,
   }) {
     return initial?.call(this);
   }
@@ -216,6 +227,7 @@ class _$AuthInitialImpl implements AuthInitial {
     TResult Function(AuthCentreSuccess value)? centreSuccess,
     TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
+    TResult Function(AuthLoggedOut value)? loggedOut,
     required TResult orElse(),
   }) {
     if (initial != null) {
@@ -276,6 +288,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     required TResult Function(CentreEntity? centre) centreSuccess,
     required TResult Function(String message) centreError,
     required TResult Function(String message) error,
+    required TResult Function() loggedOut,
   }) {
     return loading();
   }
@@ -289,6 +302,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     TResult? Function(CentreEntity? centre)? centreSuccess,
     TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
+    TResult? Function()? loggedOut,
   }) {
     return loading?.call();
   }
@@ -302,6 +316,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     TResult Function(CentreEntity? centre)? centreSuccess,
     TResult Function(String message)? centreError,
     TResult Function(String message)? error,
+    TResult Function()? loggedOut,
     required TResult orElse(),
   }) {
     if (loading != null) {
@@ -319,6 +334,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     required TResult Function(AuthCentreSuccess value) centreSuccess,
     required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
+    required TResult Function(AuthLoggedOut value) loggedOut,
   }) {
     return loading(this);
   }
@@ -332,6 +348,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
     TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
+    TResult? Function(AuthLoggedOut value)? loggedOut,
   }) {
     return loading?.call(this);
   }
@@ -345,6 +362,7 @@ class _$AuthLoadingImpl implements AuthLoading {
     TResult Function(AuthCentreSuccess value)? centreSuccess,
     TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
+    TResult Function(AuthLoggedOut value)? loggedOut,
     required TResult orElse(),
   }) {
     if (loading != null) {
@@ -432,6 +450,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     required TResult Function(CentreEntity? centre) centreSuccess,
     required TResult Function(String message) centreError,
     required TResult Function(String message) error,
+    required TResult Function() loggedOut,
   }) {
     return success(user);
   }
@@ -445,6 +464,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     TResult? Function(CentreEntity? centre)? centreSuccess,
     TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
+    TResult? Function()? loggedOut,
   }) {
     return success?.call(user);
   }
@@ -458,6 +478,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     TResult Function(CentreEntity? centre)? centreSuccess,
     TResult Function(String message)? centreError,
     TResult Function(String message)? error,
+    TResult Function()? loggedOut,
     required TResult orElse(),
   }) {
     if (success != null) {
@@ -475,6 +496,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     required TResult Function(AuthCentreSuccess value) centreSuccess,
     required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
+    required TResult Function(AuthLoggedOut value) loggedOut,
   }) {
     return success(this);
   }
@@ -488,6 +510,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
     TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
+    TResult? Function(AuthLoggedOut value)? loggedOut,
   }) {
     return success?.call(this);
   }
@@ -501,6 +524,7 @@ class _$AuthSuccessImpl implements AuthSuccess {
     TResult Function(AuthCentreSuccess value)? centreSuccess,
     TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
+    TResult Function(AuthLoggedOut value)? loggedOut,
     required TResult orElse(),
   }) {
     if (success != null) {
@@ -597,6 +621,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     required TResult Function(CentreEntity? centre) centreSuccess,
     required TResult Function(String message) centreError,
     required TResult Function(String message) error,
+    required TResult Function() loggedOut,
   }) {
     return centreSuccess(centre);
   }
@@ -610,6 +635,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     TResult? Function(CentreEntity? centre)? centreSuccess,
     TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
+    TResult? Function()? loggedOut,
   }) {
     return centreSuccess?.call(centre);
   }
@@ -623,6 +649,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     TResult Function(CentreEntity? centre)? centreSuccess,
     TResult Function(String message)? centreError,
     TResult Function(String message)? error,
+    TResult Function()? loggedOut,
     required TResult orElse(),
   }) {
     if (centreSuccess != null) {
@@ -640,6 +667,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     required TResult Function(AuthCentreSuccess value) centreSuccess,
     required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
+    required TResult Function(AuthLoggedOut value) loggedOut,
   }) {
     return centreSuccess(this);
   }
@@ -653,6 +681,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
     TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
+    TResult? Function(AuthLoggedOut value)? loggedOut,
   }) {
     return centreSuccess?.call(this);
   }
@@ -666,6 +695,7 @@ class _$AuthCentreSuccessImpl implements AuthCentreSuccess {
     TResult Function(AuthCentreSuccess value)? centreSuccess,
     TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
+    TResult Function(AuthLoggedOut value)? loggedOut,
     required TResult orElse(),
   }) {
     if (centreSuccess != null) {
@@ -763,6 +793,7 @@ class _$AuthCentreErrorImpl implements AuthCentreError {
     required TResult Function(CentreEntity? centre) centreSuccess,
     required TResult Function(String message) centreError,
     required TResult Function(String message) error,
+    required TResult Function() loggedOut,
   }) {
     return centreError(message);
   }
@@ -776,6 +807,7 @@ class _$AuthCentreErrorImpl implements AuthCentreError {
     TResult? Function(CentreEntity? centre)? centreSuccess,
     TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
+    TResult? Function()? loggedOut,
   }) {
     return centreError?.call(message);
   }
@@ -789,6 +821,7 @@ class _$AuthCentreErrorImpl implements AuthCentreError {
     TResult Function(CentreEntity? centre)? centreSuccess,
     TResult Function(String message)? centreError,
     TResult Function(String message)? error,
+    TResult Function()? loggedOut,
     required TResult orElse(),
   }) {
     if (centreError != null) {
@@ -806,6 +839,7 @@ class _$AuthCentreErrorImpl implements AuthCentreError {
     required TResult Function(AuthCentreSuccess value) centreSuccess,
     required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
+    required TResult Function(AuthLoggedOut value) loggedOut,
   }) {
     return centreError(this);
   }
@@ -819,6 +853,7 @@ class _$AuthCentreErrorImpl implements AuthCentreError {
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
     TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
+    TResult? Function(AuthLoggedOut value)? loggedOut,
   }) {
     return centreError?.call(this);
   }
@@ -832,6 +867,7 @@ class _$AuthCentreErrorImpl implements AuthCentreError {
     TResult Function(AuthCentreSuccess value)? centreSuccess,
     TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
+    TResult Function(AuthLoggedOut value)? loggedOut,
     required TResult orElse(),
   }) {
     if (centreError != null) {
@@ -928,6 +964,7 @@ class _$AuthErrorImpl implements AuthError {
     required TResult Function(CentreEntity? centre) centreSuccess,
     required TResult Function(String message) centreError,
     required TResult Function(String message) error,
+    required TResult Function() loggedOut,
   }) {
     return error(message);
   }
@@ -941,6 +978,7 @@ class _$AuthErrorImpl implements AuthError {
     TResult? Function(CentreEntity? centre)? centreSuccess,
     TResult? Function(String message)? centreError,
     TResult? Function(String message)? error,
+    TResult? Function()? loggedOut,
   }) {
     return error?.call(message);
   }
@@ -954,6 +992,7 @@ class _$AuthErrorImpl implements AuthError {
     TResult Function(CentreEntity? centre)? centreSuccess,
     TResult Function(String message)? centreError,
     TResult Function(String message)? error,
+    TResult Function()? loggedOut,
     required TResult orElse(),
   }) {
     if (error != null) {
@@ -971,6 +1010,7 @@ class _$AuthErrorImpl implements AuthError {
     required TResult Function(AuthCentreSuccess value) centreSuccess,
     required TResult Function(AuthCentreError value) centreError,
     required TResult Function(AuthError value) error,
+    required TResult Function(AuthLoggedOut value) loggedOut,
   }) {
     return error(this);
   }
@@ -984,6 +1024,7 @@ class _$AuthErrorImpl implements AuthError {
     TResult? Function(AuthCentreSuccess value)? centreSuccess,
     TResult? Function(AuthCentreError value)? centreError,
     TResult? Function(AuthError value)? error,
+    TResult? Function(AuthLoggedOut value)? loggedOut,
   }) {
     return error?.call(this);
   }
@@ -997,6 +1038,7 @@ class _$AuthErrorImpl implements AuthError {
     TResult Function(AuthCentreSuccess value)? centreSuccess,
     TResult Function(AuthCentreError value)? centreError,
     TResult Function(AuthError value)? error,
+    TResult Function(AuthLoggedOut value)? loggedOut,
     required TResult orElse(),
   }) {
     if (error != null) {
@@ -1016,4 +1058,139 @@ abstract class AuthError implements AuthState {
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$AuthErrorImplCopyWith<_$AuthErrorImpl> get copyWith =>
       throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$AuthLoggedOutImplCopyWith<$Res> {
+  factory _$$AuthLoggedOutImplCopyWith(
+          _$AuthLoggedOutImpl value, $Res Function(_$AuthLoggedOutImpl) then) =
+      __$$AuthLoggedOutImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$AuthLoggedOutImplCopyWithImpl<$Res>
+    extends _$AuthStateCopyWithImpl<$Res, _$AuthLoggedOutImpl>
+    implements _$$AuthLoggedOutImplCopyWith<$Res> {
+  __$$AuthLoggedOutImplCopyWithImpl(
+      _$AuthLoggedOutImpl _value, $Res Function(_$AuthLoggedOutImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of AuthState
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+
+class _$AuthLoggedOutImpl implements AuthLoggedOut {
+  const _$AuthLoggedOutImpl();
+
+  @override
+  String toString() {
+    return 'AuthState.loggedOut()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType && other is _$AuthLoggedOutImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() initial,
+    required TResult Function() loading,
+    required TResult Function(UserEntity? user) success,
+    required TResult Function(CentreEntity? centre) centreSuccess,
+    required TResult Function(String message) centreError,
+    required TResult Function(String message) error,
+    required TResult Function() loggedOut,
+  }) {
+    return loggedOut();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? initial,
+    TResult? Function()? loading,
+    TResult? Function(UserEntity? user)? success,
+    TResult? Function(CentreEntity? centre)? centreSuccess,
+    TResult? Function(String message)? centreError,
+    TResult? Function(String message)? error,
+    TResult? Function()? loggedOut,
+  }) {
+    return loggedOut?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? initial,
+    TResult Function()? loading,
+    TResult Function(UserEntity? user)? success,
+    TResult Function(CentreEntity? centre)? centreSuccess,
+    TResult Function(String message)? centreError,
+    TResult Function(String message)? error,
+    TResult Function()? loggedOut,
+    required TResult orElse(),
+  }) {
+    if (loggedOut != null) {
+      return loggedOut();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AuthInitial value) initial,
+    required TResult Function(AuthLoading value) loading,
+    required TResult Function(AuthSuccess value) success,
+    required TResult Function(AuthCentreSuccess value) centreSuccess,
+    required TResult Function(AuthCentreError value) centreError,
+    required TResult Function(AuthError value) error,
+    required TResult Function(AuthLoggedOut value) loggedOut,
+  }) {
+    return loggedOut(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AuthInitial value)? initial,
+    TResult? Function(AuthLoading value)? loading,
+    TResult? Function(AuthSuccess value)? success,
+    TResult? Function(AuthCentreSuccess value)? centreSuccess,
+    TResult? Function(AuthCentreError value)? centreError,
+    TResult? Function(AuthError value)? error,
+    TResult? Function(AuthLoggedOut value)? loggedOut,
+  }) {
+    return loggedOut?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(AuthInitial value)? initial,
+    TResult Function(AuthLoading value)? loading,
+    TResult Function(AuthSuccess value)? success,
+    TResult Function(AuthCentreSuccess value)? centreSuccess,
+    TResult Function(AuthCentreError value)? centreError,
+    TResult Function(AuthError value)? error,
+    TResult Function(AuthLoggedOut value)? loggedOut,
+    required TResult orElse(),
+  }) {
+    if (loggedOut != null) {
+      return loggedOut(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class AuthLoggedOut implements AuthState {
+  const factory AuthLoggedOut() = _$AuthLoggedOutImpl;
 }

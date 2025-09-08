@@ -30,4 +30,14 @@ class AuthRepositoryImpl extends AuthRepository {
   Future<Either<Failure, UserEntity?>> getCurrentUser() async {
     return await remoteSource.getCurrentUser();
   }
+
+  @override
+  Future<Either<Failure, void>> clearCentreData() async {
+    return await remoteSource.clearCentreData();
+  }
+
+  @override
+  Future<Either<Failure, void>> logout() async {
+    return await remoteSource.logout();
+  }
 }

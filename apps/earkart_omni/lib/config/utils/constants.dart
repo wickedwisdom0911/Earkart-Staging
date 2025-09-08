@@ -25,6 +25,10 @@ class Constants {
       isProduction
           ? dotenv.env['SOCKET_URL']
           : dotenv.env['BASE_SOCKET_URL_DEV'];
+  static final webrtcUrl =
+      isProduction
+          ? dotenv.env['WEBRTC_URL']
+          : dotenv.env['BASE_WEBRTC_URL_DEV'];
   static final loginUrl = "${baseUrl}auth/login";
   static final deviceUrl = "${baseUrl}device/find-by-value";
   static final setupDeviceUrl = "${baseUrl}device/setup";
