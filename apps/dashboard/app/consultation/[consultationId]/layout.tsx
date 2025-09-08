@@ -279,6 +279,8 @@ export default function ConsultationLayout({
             }
           } else {
             // Create local backup every 30s even if not completing S3
+            const totalSize = chunks.reduce((total, chunk) => total + chunk.size, 0);
+            const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
             const recordingBlob = new Blob(chunks, { type: 'video/webm' });
             const blobUrl = URL.createObjectURL(recordingBlob);
             

@@ -439,6 +439,8 @@ export default function ReportPage() {
   const reportRef = useRef<HTMLDivElement>(null);
   
   // Screen sharing functionality (shared with video call client)
+
+  console.log("Consultation data:", consultationData);
   const { 
     isSharing: isScreenSharing, 
     isConnecting: isScreenConnecting, 
@@ -550,7 +552,6 @@ export default function ReportPage() {
   useEffect(() => {
     if (!socket) return;
     const handler = (data: any) => {
-      console.log("Consultation ended via socket:", data);
       toast.info("Consultation has ended. Redirecting to dashboard...");
       if (process.env.NODE_ENV === "development") {
         try { (window as any).location.href = "http://localhost:3001/dashboard"; } catch {}
