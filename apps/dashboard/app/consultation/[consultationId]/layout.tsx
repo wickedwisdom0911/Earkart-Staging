@@ -279,8 +279,6 @@ export default function ConsultationLayout({
             }
           } else {
             // Create local backup every 30s even if not completing S3
-            const totalSize = chunks.reduce((total, chunk) => total + chunk.size, 0);
-            const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
             const recordingBlob = new Blob(chunks, { type: 'video/webm' });
             const blobUrl = URL.createObjectURL(recordingBlob);
             
@@ -582,17 +580,6 @@ export default function ConsultationLayout({
       url: r.url
     }))
   ];
-  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
-  try {
-    console.log("[layout] consultation.data:", consultationData);
-    console.log("[layout] recordings:", (consultationData as any)?.recordings);
-    console.log(
-      "[layout] recordingName(s):",
-      (consultationData as any)?.recordingName,
-      (consultationData as any)?.recordingsName,
-      (consultationData as any)?.recording?.name
-    );
-  } catch {}
 
   return (
     <OtoscopyProvider consultationId={consultationId}>
@@ -782,16 +769,6 @@ export default function ConsultationLayout({
                       )}
                     </div>
                   )
-                {/* View recording when available (prefer external callback) */}
-                {(externalPlaybackUrl || recordingState.playbackUrl) && (
-                  <a
-                    href={externalPlaybackUrl || recordingState.playbackUrl!}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                  >
-                    View recording
-                  </a>
                 )}
 
                 {/* Testing complete button removed */}
@@ -806,8 +783,9 @@ export default function ConsultationLayout({
               {children}
             </ConsultationContent>
           </DashboardBodyWrapper>
-          {/* Blocking overlay to require Start before proceeding (only while session not ended) */}
-          {!recordingState.isRecording && !recordingState.hasActiveSession &&
+          {/* Blocking overlay to require Start before proceeding (only while session not ended)
+              Show even if a previous session is finalizing, but disable the start button while uploading */}
+          {!recordingState.isRecording &&
             (consultationData.status !== SessionStatus.COMPLETED &&
               consultationData.status !== SessionStatus.CANCELLED &&
               consultationData.status !== SessionStatus.FAILED) && (
@@ -846,13 +824,15 @@ export default function ConsultationLayout({
                       requireEntireScreen: true,
                     })
                   }
-                  disabled={recordingState.isInitializing || recordingState.isRecovering}
+                  disabled={recordingState.isInitializing || recordingState.isRecovering || recordingState.isUploading}
                 >
                   {recordingState.isRecovering 
                     ? "Recovering session..." 
-                    : recordingState.isInitializing 
-                      ? "Starting..." 
-                      : "Start Recording"}
+                    : recordingState.isUploading
+                      ? "Finalizing previous recording…" 
+                      : recordingState.isInitializing 
+                        ? "Starting..." 
+                        : "Start Recording"}
                 </button>
               </div>
             </div>
