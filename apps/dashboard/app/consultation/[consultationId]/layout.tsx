@@ -80,7 +80,7 @@ export default function ConsultationLayout({
     const result = await originalStartRecording(...args);
     
     // Immediately save recording session to localStorage when started
-    if (result) {
+    try {
       const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
       const newRecording = {
         id: `session-${Date.now()}`,
@@ -92,6 +92,8 @@ export default function ConsultationLayout({
       savedRecordings.push(newRecording);
       localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
       console.log("💾 [START] Recording session saved to localStorage:", newRecording);
+    } catch (error) {
+      console.error("Failed to save recording session:", error);
     }
     
     return result;
@@ -155,12 +157,12 @@ export default function ConsultationLayout({
     }
   }, [consultationId]);
 
-  // TIME-BASED RECORDING COMPLETION - Complete every 1 minute with fresh URLs
+  // SIZE-BASED RECORDING COMPLETION - Complete when reaching 50MB with fresh URLs
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
     
     if (recordingState.isRecording && recordingState.sessionId) {
-      console.log("⏰ Starting 1-minute recording completion interval");
+      console.log("⏰ Starting frequent recording completion (every 1 minute to prevent session expiry)");
       
       intervalId = setInterval(async () => {
         try {
@@ -172,12 +174,12 @@ export default function ConsultationLayout({
             const totalSize = chunks.reduce((total, chunk) => total + chunk.size, 0);
             const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
             
-            console.log(`📊 [1MIN_CHECK] Current recording size: ${sizeInMB}MB (${chunks.length} chunks)`);
+            console.log(`⏰ [1MIN_CHECK] Completing recording segment: ${sizeInMB}MB (${chunks.length} chunks)`);
             
-            // Complete every minute regardless of size
+            // Complete every minute regardless of size to prevent session expiry
             try {
-              // Complete current recording - this gives us a final URL
-              const completedResult = await completeRecording();
+                // Complete current recording - this gives us a final URL
+                const completedResult = await completeRecording();
               
               if (completedResult?.playbackUrl) {
                 console.log("✅ [1MIN_COMPLETE] Got URL for 1-minute segment:", completedResult.playbackUrl);
@@ -218,11 +220,11 @@ export default function ConsultationLayout({
                   }
                 }, 2000);
               }
-            } catch (completeError) {
-              console.error("❌ [1MIN_COMPLETE] Failed to complete recording:", completeError);
+              } catch (completeError) {
+                console.error("❌ [1MIN_COMPLETE] Failed to complete recording:", completeError);
               
               // Check if error indicates session failure
-              const errorMsg = completeError?.message || '';
+              const errorMsg = (completeError as any)?.message || '';
               const isSesssionFailed = errorMsg.includes('failed and cannot be completed') || 
                                       errorMsg.includes('expired') || 
                                       errorMsg.includes('URL') || 
@@ -277,44 +279,14 @@ export default function ConsultationLayout({
                 console.log("🔄 [1MIN_COMPLETE] Non-critical error - will continue accumulating");
               }
             }
+            // Note: We complete every minute regardless of size now to prevent session expiry
           } else {
-            // Create local backup every 30s even if not completing S3
-            const totalSize = chunks.reduce((total, chunk) => total + chunk.size, 0);
-            const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
-            const recordingBlob = new Blob(chunks, { type: 'video/webm' });
-            const blobUrl = URL.createObjectURL(recordingBlob);
-            
-            const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
-            const recordingIndex = savedRecordings.findLastIndex((r: any) => r.status === 'recording');
-            
-            if (recordingIndex >= 0) {
-              savedRecordings[recordingIndex] = {
-                ...savedRecordings[recordingIndex],
-                backupUrl: blobUrl,
-                currentSize: `${sizeInMB}MB`,
-                chunkCount: chunks.length,
-                lastBackup: new Date().toISOString()
-              };
-            } else {
-              savedRecordings.push({
-                id: `accumulating-${Date.now()}`,
-                name: `Recording (Accumulating) - ${new Date().toLocaleString()}`,
-                url: 'Accumulating...',
-                backupUrl: blobUrl,
-                currentSize: `${sizeInMB}MB`,
-                chunkCount: chunks.length,
-                timestamp: new Date().toISOString(),
-                status: 'recording'
-              });
-            }
-            
-            localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
-            console.log(`💾 [BACKUP] Saved local backup: ${sizeInMB}MB (need ${(5 - totalSize/(1024*1024)).toFixed(2)}MB more for S3)`);
+            console.log("⏰ [1MIN_CHECK] No chunks yet - recording just started");
           }
         } catch (error) {
           console.error("❌ [SIZE_CHECK] Failed to check recording size:", error);
         }
-      }, 60000); // Complete every 60 seconds (1 minute)
+      }, 60000); // Check every 1 minute to prevent session expiry
     }
     
     return () => {
@@ -427,9 +399,9 @@ export default function ConsultationLayout({
 
   // Auto-stop and auto-complete when consultation ends.
   useEffect(() => {
-    if (!consultation?.data) return;
+    if (!(consultation as any)?.data) return;
     
-    const status = (consultation.data as ConsultationModelData)?.status;
+    const status = ((consultation as any).data as ConsultationModelData)?.status;
     if (!status) return;
     
     if (
@@ -453,9 +425,9 @@ export default function ConsultationLayout({
 
   // Prefer playback from consultation's new recording fields via callback
   useEffect(() => {
-    if (!consultation?.data) return;
+    if (!(consultation as any)?.data) return;
     
-    const data = (consultation.data as any) || {};
+    const data = ((consultation as any).data as any) || {};
     const status = data?.status;
     const recordingName = data?.recordingName ?? data?.recordingsName ?? data?.recording?.name ?? null;
     const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
@@ -558,9 +530,9 @@ export default function ConsultationLayout({
   // NOW HANDLE CONDITIONAL RENDERING AFTER ALL HOOKS
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
-  if (!consultation?.data) return <div>No data</div>;
+  if (!(consultation as any)?.data) return <div>No data</div>;
 
-  const consultationData = consultation.data as ConsultationModelData;
+  const consultationData = (consultation as any).data as ConsultationModelData;
   const isCompleted = consultationData.status === SessionStatus.COMPLETED;
   const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
   
@@ -582,17 +554,6 @@ export default function ConsultationLayout({
       url: r.url
     }))
   ];
-  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
-  try {
-    console.log("[layout] consultation.data:", consultationData);
-    console.log("[layout] recordings:", (consultationData as any)?.recordings);
-    console.log(
-      "[layout] recordingName(s):",
-      (consultationData as any)?.recordingName,
-      (consultationData as any)?.recordingsName,
-      (consultationData as any)?.recording?.name
-    );
-  } catch {}
 
   return (
     <OtoscopyProvider consultationId={consultationId}>
@@ -782,16 +743,6 @@ export default function ConsultationLayout({
                       )}
                     </div>
                   )
-                {/* View recording when available (prefer external callback) */}
-                {(externalPlaybackUrl || recordingState.playbackUrl) && (
-                  <a
-                    href={externalPlaybackUrl || recordingState.playbackUrl!}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                  >
-                    View recording
-                  </a>
                 )}
 
                 {/* Testing complete button removed */}
@@ -806,8 +757,9 @@ export default function ConsultationLayout({
               {children}
             </ConsultationContent>
           </DashboardBodyWrapper>
-          {/* Blocking overlay to require Start before proceeding (only while session not ended) */}
-          {!recordingState.isRecording && !recordingState.hasActiveSession &&
+          {/* Blocking overlay to require Start before proceeding (only while session not ended)
+              Show even if a previous session is finalizing, but disable the start button while uploading */}
+          {!recordingState.isRecording &&
             (consultationData.status !== SessionStatus.COMPLETED &&
               consultationData.status !== SessionStatus.CANCELLED &&
               consultationData.status !== SessionStatus.FAILED) && (
@@ -846,13 +798,15 @@ export default function ConsultationLayout({
                       requireEntireScreen: true,
                     })
                   }
-                  disabled={recordingState.isInitializing || recordingState.isRecovering}
+                  disabled={recordingState.isInitializing || recordingState.isRecovering || recordingState.isUploading}
                 >
                   {recordingState.isRecovering 
                     ? "Recovering session..." 
-                    : recordingState.isInitializing 
-                      ? "Starting..." 
-                      : "Start Recording"}
+                    : recordingState.isUploading
+                      ? "Finalizing previous recording…" 
+                      : recordingState.isInitializing 
+                        ? "Starting..." 
+                        : "Start Recording"}
                 </button>
               </div>
             </div>
