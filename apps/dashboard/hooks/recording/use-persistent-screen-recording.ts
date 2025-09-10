@@ -447,7 +447,52 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 				return true;
 			} catch (error) {
-				console.log("⚠️ [RECOVERY] Cannot recover existing session, starting fresh:", error);
+				console.log("⚠️ [RECOVERY] Cannot recover existing session, attempting final completion:", error);
+				
+				// Before abandoning, try to complete the session and save as backup
+				try {
+					console.log("🎯 [RECOVERY] Attempting final completion of pre-refresh session...");
+					
+					// Get any chunks from the failed session
+					const pendingChunks = await recordingStorage.getPendingChunks(activeSession.sessionId);
+					if (pendingChunks.length > 0) {
+						console.log(`📦 [RECOVERY] Found ${pendingChunks.length} chunks from pre-refresh session`);
+						
+						// Create a combined blob from all chunks
+						const allChunks = pendingChunks.map(chunk => chunk.blob);
+						const totalSize = allChunks.reduce((total, chunk) => total + chunk.size, 0);
+						const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+						const recordingBlob = new Blob(allChunks, { type: 'video/webm' });
+						const blobUrl = URL.createObjectURL(recordingBlob);
+						
+						// Save as local backup in localStorage
+						const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+						const recoveredRecording = {
+							id: `recovered-${Date.now()}`,
+							name: `Pre-Refresh Recording - ${new Date().toLocaleString()}`,
+							url: blobUrl,
+							size: `${sizeInMB}MB`,
+							chunks: allChunks.length,
+							timestamp: new Date().toISOString(),
+							status: 'recovered',
+							reason: 'Session invalid, saved as backup',
+							segmentType: 'pre_refresh_backup'
+						};
+						
+						savedRecordings.push(recoveredRecording);
+						localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+						
+						console.log(`💾 [RECOVERY] Saved pre-refresh recording as backup: ${sizeInMB}MB`);
+						console.log("✅ [RECOVERY] Pre-refresh video preserved!");
+						
+						// TODO: Could also save blob URLs to backend, but they're temporary
+						// For now, only S3 URLs are saved to backend in the layout
+					} else {
+						console.log("ℹ️ [RECOVERY] No chunks found in failed session");
+					}
+				} catch (backupError) {
+					console.error("❌ [RECOVERY] Failed to save pre-refresh backup:", backupError);
+				}
 				
 				// Clean up the invalid session from storage
 				try {
@@ -497,6 +542,72 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 		initialize();
 	}, [consultationId, recoverSession]);
+
+	// Aggressive pre-refresh recovery - try to save any abandoned chunks immediately
+	useEffect(() => {
+		const saveAbandonedChunks = async () => {
+			try {
+				console.log("🔍 [ABANDONED] Checking for abandoned chunks from previous sessions...");
+				
+				// Look for any sessions that might have chunks but failed to complete
+				const allSessions = await recordingStorage.getAllSessions();
+				const abandonedSessions = allSessions.filter(session => 
+					session.consultationId === consultationId && 
+					!session.isActive && 
+					session.sessionId !== sessionIdRef.current
+				);
+				
+				console.log(`📦 [ABANDONED] Found ${abandonedSessions.length} abandoned sessions`);
+				
+				for (const session of abandonedSessions) {
+					try {
+						const chunks = await recordingStorage.getPendingChunks(session.sessionId);
+						if (chunks.length > 0) {
+							console.log(`📦 [ABANDONED] Session ${session.sessionId} has ${chunks.length} unsaved chunks`);
+							
+							// Create combined blob from abandoned chunks
+							const allChunks = chunks.map(chunk => chunk.blob);
+							const totalSize = allChunks.reduce((total, chunk) => total + chunk.size, 0);
+							const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+							const recordingBlob = new Blob(allChunks, { type: 'video/webm' });
+							const blobUrl = URL.createObjectURL(recordingBlob);
+							
+							// Save as recovered recording
+							const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+							const recoveredRecording = {
+								id: `abandoned-${session.sessionId}-${Date.now()}`,
+								name: `Recovered Recording - ${new Date(session.createdAt).toLocaleString()}`,
+								url: blobUrl,
+								size: `${sizeInMB}MB`,
+								chunks: allChunks.length,
+								timestamp: new Date().toISOString(),
+								status: 'recovered',
+								reason: 'Abandoned session recovered',
+								segmentType: 'abandoned_recovery'
+							};
+							
+							savedRecordings.push(recoveredRecording);
+							localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+							
+							console.log(`💾 [ABANDONED] Recovered abandoned recording: ${sizeInMB}MB`);
+							
+							// Clean up the abandoned session
+							await recordingStorage.deleteSession(session.sessionId);
+							await recordingStorage.deleteSessionChunks(session.sessionId);
+						}
+					} catch (error) {
+						console.error(`❌ [ABANDONED] Failed to recover session ${session.sessionId}:`, error);
+					}
+				}
+			} catch (error) {
+				console.error("❌ [ABANDONED] Failed to check for abandoned chunks:", error);
+			}
+		};
+
+		// Run recovery check after a short delay to ensure recording system is initialized
+		const timeoutId = setTimeout(saveAbandonedChunks, 3000);
+		return () => clearTimeout(timeoutId);
+	}, [consultationId]);
 
 	// Add beforeunload warning
 	useEffect(() => {

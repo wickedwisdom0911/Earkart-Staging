@@ -13,6 +13,7 @@ import { useParams, useRouter } from "next/navigation";
 import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording";
 import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
 import { recordingStorage } from "@/utils/recording-storage";
+import { updateConsultation } from "@/actions/consultations/update-consultation";
 import { SessionStatus } from "@/models/enums";
 
 // Import debug utilities in development
@@ -133,6 +134,39 @@ export default function ConsultationLayout({
     }
   }, [consultationId]);
 
+  // Function to save recording URL to backend consultation
+  const saveRecordingToBackend = useCallback(async (playbackUrl: string, segmentType: string = 'screen') => {
+    if (!playbackUrl || !consultation || !(consultation as any).data) return;
+    
+    try {
+      console.log("🔄 [BACKEND] Saving recording URL to consultation:", playbackUrl);
+      
+      const consultationData = (consultation as any).data;
+      const currentRecordings = consultationData.recordings || [];
+      
+      // Add new recording to the array
+      const newRecording = {
+        id: `recording-${Date.now()}`,
+        sessionId: consultationId,
+        recordingUrl: playbackUrl,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      const updatedConsultationData = {
+        ...consultationData,
+        recordings: [...currentRecordings, newRecording],
+        updatedAt: new Date().toISOString()
+      };
+      
+      await updateConsultation(updatedConsultationData);
+      console.log("✅ [BACKEND] Recording URL saved to consultation successfully");
+      
+    } catch (error) {
+      console.error("❌ [BACKEND] Failed to save recording URL to consultation:", error);
+    }
+  }, [consultation, consultationId]);
+
   // Expose a finalize helper that child components can await before navigating
   const finalizeBeforeNavigate = useCallback(async () => {
     try {
@@ -200,8 +234,11 @@ export default function ConsultationLayout({
                 savedRecordings.push(newSegment);
                 localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
                 
-                console.log("💾 [1MIN_COMPLETE] Saved 1-minute segment:", newSegment.name);
-                console.log("📊 [1MIN_COMPLETE] Total segments now:", savedRecordings.length);
+                 console.log("💾 [1MIN_COMPLETE] Saved 1-minute segment:", newSegment.name);
+                 console.log("📊 [1MIN_COMPLETE] Total segments now:", savedRecordings.length);
+                 
+                 // Also save to backend consultation
+                 await saveRecordingToBackend(completedResult.playbackUrl, 'time_based');
                 
                 // Start a completely NEW recording for the next minute
                 console.log("🚀 [1MIN_START] Starting NEW recording for next minute...");
@@ -323,7 +360,7 @@ export default function ConsultationLayout({
         clearInterval(intervalId);
       }
     };
-  }, [recordingState.isRecording, recordingState.sessionId, completeRecording, originalStartRecording, consultationId]);
+  }, [recordingState.isRecording, recordingState.sessionId, completeRecording, originalStartRecording, consultationId, saveRecordingToBackend]);
 
   // FINAL COMPLETION when recording stops - capture any remaining video
   useEffect(() => {
@@ -369,6 +406,9 @@ export default function ConsultationLayout({
                 
                 console.log("💾 [FINAL] Final segment saved:", finalSegment.name);
                 console.log("📊 [FINAL] Total recordings:", savedRecordings.length);
+                
+                // Also save to backend consultation
+                await saveRecordingToBackend(finalResult.playbackUrl, 'final');
               }
             } catch (finalError) {
               console.log("⚠️ [FINAL] Final S3 completion failed, saving as local backup:", finalError);
@@ -402,7 +442,7 @@ export default function ConsultationLayout({
       // Give a small delay to ensure recording has fully stopped
       setTimeout(finalizeRemaining, 2000);
     }
-  }, [recordingState.isRecording, recordingState.sessionId, recordingState.hasActiveSession, completeRecording, consultationId]);
+  }, [recordingState.isRecording, recordingState.sessionId, recordingState.hasActiveSession, completeRecording, consultationId, saveRecordingToBackend]);
 
   // Handle beforeunload - DISABLE for now to prevent loops and give recording time to complete
   useEffect(() => {
@@ -628,6 +668,8 @@ export default function ConsultationLayout({
             console.log(`   📏 Size: ${r.size || r.currentSize || 'Unknown'}`);
             console.log(`   🕒 Duration: ${r.duration || 'Unknown'}`);
             console.log(`   📊 Status: ${r.status}`);
+            console.log(`   🔧 Type: ${r.segmentType || 'Unknown'}`);
+            if (r.reason) console.log(`   💡 Reason: ${r.reason}`);
             console.log(`   📅 Time: ${new Date(r.timestamp).toLocaleString()}`);
             
             // Try to estimate total duration (90 seconds per regular segment)
@@ -640,10 +682,32 @@ export default function ConsultationLayout({
           console.log(`📊 Expected for 5min video: ~4 segments (3 regular + 1 final)`);
           
           return { recordings, totalSegments: recordings.length, estimatedDuration: totalDuration };
+        },
+        getBackendRecordings: () => {
+          if (!consultation || !(consultation as any).data) {
+            console.log('❌ No consultation data available');
+            return [];
+          }
+          
+          const consultationData = (consultation as any).data;
+          const backendRecordings = consultationData.recordings || [];
+          
+          console.log('🗄️ BACKEND RECORDINGS:');
+          console.log(`🗄️ Total backend recordings: ${backendRecordings.length}`);
+          
+          backendRecordings.forEach((r: any, i: number) => {
+            console.log(`🗄️ Backend Recording ${i + 1}:`);
+            console.log(`   📄 URL: ${r.recordingUrl || 'No URL'}`);
+            console.log(`   🆔 ID: ${r.id || 'No ID'}`);
+            console.log(`   📅 Created: ${r.createdAt ? new Date(r.createdAt).toLocaleString() : 'Unknown'}`);
+            console.log(`   🔧 Session: ${r.sessionId || 'Unknown'}`);
+          });
+          
+          return backendRecordings;
         }
       };
     }
-  }, [consultationId, saveRecordingForLater, recordingState]);
+  }, [consultationId, saveRecordingForLater, recordingState, consultation]);
 
   // Save recording URL when it becomes available (normal completion) - SIMPLIFIED
   useEffect(() => {
@@ -660,9 +724,12 @@ export default function ConsultationLayout({
       if (!alreadyExists) {
         console.log("💾 Normal completion - saving recording:", recordingState.playbackUrl);
         saveRecordingForLater(recordingState.playbackUrl, 'screen');
+        
+        // Also save to backend consultation
+        saveRecordingToBackend(recordingState.playbackUrl, 'normal_completion');
       }
     }
-  }, [recordingState.playbackUrl, recordingState.isRecording, recordingState.isUploading, consultationId, saveRecordingForLater]);
+  }, [recordingState.playbackUrl, recordingState.isRecording, recordingState.isUploading, consultationId, saveRecordingForLater, saveRecordingToBackend]);
 
   // NOW HANDLE CONDITIONAL RENDERING AFTER ALL HOOKS
   if (isLoading) return <div>Loading...</div>;
