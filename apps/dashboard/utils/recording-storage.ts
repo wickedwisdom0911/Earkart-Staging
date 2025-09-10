@@ -322,7 +322,7 @@ class RecordingStorage {
     }
   }
 
-  private async getAllSessions(): Promise<StoredRecordingSession[]> {
+  public async getAllSessions(): Promise<StoredRecordingSession[]> {
     const store = await this.getStore(SESSIONS_STORE);
     return new Promise((resolve, reject) => {
       const request = store.getAll();
