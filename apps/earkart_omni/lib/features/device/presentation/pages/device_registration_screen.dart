@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/services.dart';
 
 class DeviceRegistrationScreen extends StatefulWidget {
   const DeviceRegistrationScreen({super.key});
@@ -28,6 +29,11 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
   String? tabletAndroidVersion;
   String? tabletAppVersion;
 
+  // Platform channel for device owner operations
+  static const platform = MethodChannel(
+    'com.example.earkart_omni/device_owner',
+  );
+
   @override
   void initState() {
     super.initState();
@@ -38,9 +44,12 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
   void getPackageInfo() async {
     packageInfo = await PackageInfo.fromPlatform();
     androidInfo = await deviceInfo.androidInfo;
-    di<ILogger>().info("AndoidInfo: ${androidInfo}");
+
+    // Get device serial number using DevicePolicyManager for device owner apps
+    String? deviceId = await _getDeviceSerialNumber();
+
     setState(() {
-      tabletID = androidInfo?.serialNumber;
+      tabletID = deviceId;
       tabletAndroidVersion = androidInfo?.version.release;
       tabletAppVersion = packageInfo?.version;
     });
@@ -48,6 +57,50 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
       context.read<DeviceRegistrationCubit>().getDeviceByValue(
         device!.deviceCode,
       );
+    }
+  }
+
+  Future<String?> _getDeviceSerialNumber() async {
+    try {
+      di<ILogger>().info(
+        "Attempting to get device serial number via DevicePolicyManager...",
+      );
+
+      // Call the platform channel method to get serial number via DevicePolicyManager
+      final String? serialNumber = await platform.invokeMethod(
+        'getDeviceSerialNumber',
+      );
+
+      if (serialNumber != null && serialNumber.isNotEmpty) {
+        di<ILogger>().info("Device serial number obtained: $serialNumber");
+        return serialNumber;
+      } else {
+        di<ILogger>().warning(
+          "DevicePolicyManager returned null/empty serial number",
+        );
+        return "unknown_serial";
+      }
+    } catch (e) {
+      di<ILogger>().error(
+        "Error getting device serial number via DevicePolicyManager: $e",
+      );
+
+      // Fallback to device_info_plus as last resort
+      try {
+        String? fallbackSerial = androidInfo?.serialNumber;
+        if (fallbackSerial != null &&
+            fallbackSerial != "unknown" &&
+            fallbackSerial.isNotEmpty) {
+          di<ILogger>().info(
+            "Using fallback serial number from device_info_plus: $fallbackSerial",
+          );
+          return fallbackSerial;
+        }
+      } catch (fallbackError) {
+        di<ILogger>().error("Fallback method also failed: $fallbackError");
+      }
+
+      return "error_getting_serial";
     }
   }
 
