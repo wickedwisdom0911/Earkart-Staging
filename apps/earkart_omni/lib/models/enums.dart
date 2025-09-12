@@ -267,22 +267,22 @@ PatientConsultationStatus patientConsultationStatusFromApi(String? value) {
   );
 }
 
-@HiveType(typeId: HiveTypes.patientSoldStatusEnum)
-enum PatientSoldStatus {
+@HiveType(typeId: HiveTypes.leadStatusEnum)
+enum LeadStatus {
   @HiveField(0)
-  unknown,
+  LEAD_GENERATED,
   @HiveField(1)
-  sold,
+  LEAD_CONVERTED,
   @HiveField(2)
-  inProgress,
+  LEAD_QUALIFIED,
   @HiveField(3)
-  notInterested,
+  LEAD_UNQUALIFIED,
 }
 
-patienSoldStatusFromApi(String? value) {
-  if (value == null) return PatientSoldStatus.unknown;
-  return PatientSoldStatus.values.firstWhere(
+leadStatusFromApi(String? value) {
+  if (value == null) return LeadStatus.LEAD_GENERATED;
+  return LeadStatus.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
-    orElse: () => PatientSoldStatus.unknown,
+    orElse: () => LeadStatus.LEAD_GENERATED,
   );
 }

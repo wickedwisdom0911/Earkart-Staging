@@ -547,39 +547,39 @@ class TympTypeAdapter extends TypeAdapter<TympType> {
           typeId == other.typeId;
 }
 
-class PatientSoldStatusAdapter extends TypeAdapter<PatientSoldStatus> {
+class LeadStatusAdapter extends TypeAdapter<LeadStatus> {
   @override
   final int typeId = 34;
 
   @override
-  PatientSoldStatus read(BinaryReader reader) {
+  LeadStatus read(BinaryReader reader) {
     switch (reader.readByte()) {
       case 0:
-        return PatientSoldStatus.unknown;
+        return LeadStatus.LEAD_GENERATED;
       case 1:
-        return PatientSoldStatus.sold;
+        return LeadStatus.LEAD_CONVERTED;
       case 2:
-        return PatientSoldStatus.inProgress;
+        return LeadStatus.LEAD_QUALIFIED;
       case 3:
-        return PatientSoldStatus.notInterested;
+        return LeadStatus.LEAD_UNQUALIFIED;
       default:
-        return PatientSoldStatus.unknown;
+        return LeadStatus.LEAD_GENERATED;
     }
   }
 
   @override
-  void write(BinaryWriter writer, PatientSoldStatus obj) {
+  void write(BinaryWriter writer, LeadStatus obj) {
     switch (obj) {
-      case PatientSoldStatus.unknown:
+      case LeadStatus.LEAD_GENERATED:
         writer.writeByte(0);
         break;
-      case PatientSoldStatus.sold:
+      case LeadStatus.LEAD_CONVERTED:
         writer.writeByte(1);
         break;
-      case PatientSoldStatus.inProgress:
+      case LeadStatus.LEAD_QUALIFIED:
         writer.writeByte(2);
         break;
-      case PatientSoldStatus.notInterested:
+      case LeadStatus.LEAD_UNQUALIFIED:
         writer.writeByte(3);
         break;
     }
@@ -591,7 +591,7 @@ class PatientSoldStatusAdapter extends TypeAdapter<PatientSoldStatus> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is PatientSoldStatusAdapter &&
+      other is LeadStatusAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

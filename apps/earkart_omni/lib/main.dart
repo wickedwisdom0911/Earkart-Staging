@@ -293,7 +293,7 @@ void _registerHiveAdapters() {
   Hive.registerAdapter(PaymentCycleAdapter());
   Hive.registerAdapter(WeekDaysAdapter());
   Hive.registerAdapter(EarAdapter());
-  Hive.registerAdapter(PatientSoldStatusAdapter());
+  Hive.registerAdapter(LeadStatusAdapter());
   Hive.registerAdapter(TympTypeAdapter());
   // Audiologist
   Hive.registerAdapter(AudiologistEntityAdapter());

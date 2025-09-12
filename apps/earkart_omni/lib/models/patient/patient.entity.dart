@@ -53,7 +53,7 @@ class PatientEntity extends Equatable {
   @HiveField(20)
   final Status? status;
   @HiveField(21)
-  final PatientSoldStatus? soldStatus;
+  final LeadStatus? leadStatus;
   @HiveField(22)
   final String? handledBy;
 
@@ -92,7 +92,7 @@ class PatientEntity extends Equatable {
     this.creator,
     this.updater,
     this.language,
-    this.soldStatus,
+    this.leadStatus,
     this.handledBy,
     this.districtId,
     this.stateId,
@@ -137,7 +137,7 @@ class PatientEntity extends Equatable {
           json['language'] != null
               ? LanguageEntity.fromJson(json['language'])
               : null,
-      soldStatus: patienSoldStatusFromApi(json['soldStatus']),
+      leadStatus: leadStatusFromApi(json['leadStatus']),
       handledBy: json['handledBy'],
       districtId: json['districtId'],
       stateId: json['stateId'],
@@ -170,7 +170,7 @@ class PatientEntity extends Equatable {
       'creator': creator?.toJson(),
       'updater': updater?.toJson(),
       'language': language?.toJson(),
-      'soldStatus': toUpperSnakeCase(soldStatus?.name ?? ''),
+      'leadStatus': toUpperSnakeCase(leadStatus?.name ?? ''),
       'handledBy': handledBy,
       'districtId': districtId,
       'stateId': stateId,
@@ -201,7 +201,7 @@ class PatientEntity extends Equatable {
     UserEntity? creator,
     UserEntity? updater,
     LanguageEntity? language,
-    PatientSoldStatus? soldStatus,
+    LeadStatus? leadStatus,
     String? handledBy,
     String? districtId,
     String? stateId,
@@ -231,7 +231,7 @@ class PatientEntity extends Equatable {
       creator: creator ?? this.creator,
       updater: updater ?? this.updater,
       language: language ?? this.language,
-      soldStatus: soldStatus ?? this.soldStatus,
+      leadStatus: leadStatus ?? this.leadStatus,
       handledBy: handledBy ?? this.handledBy,
       districtId: districtId ?? this.districtId,
       stateId: stateId ?? this.stateId,
@@ -264,7 +264,7 @@ class PatientEntity extends Equatable {
     creator,
     updater,
     language,
-    soldStatus,
+    leadStatus,
     handledBy,
     city,
   ];
