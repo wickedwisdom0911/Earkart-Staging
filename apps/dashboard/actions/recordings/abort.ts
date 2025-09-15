@@ -10,6 +10,12 @@ export type AbortMultipartRequest = {
 export default async function abortRecordingUpload(
   params: AbortMultipartRequest
 ): Promise<void> {
+  // Check if this is a mock uploadId (created by initiate action in mock mode)
+  if (params.uploadId.startsWith('mock-upload-')) {
+    console.log("🧪 [ABORT] Mock uploadId detected, simulating abort");
+    return; // No-op for mock uploads
+  }
+
   const baseUrl = await getBaseUrl();
   const user = await verifySession();
   if (!user?.token) throw new Error("Unauthorized");
