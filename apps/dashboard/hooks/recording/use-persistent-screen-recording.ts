@@ -159,9 +159,12 @@ export function usePersistentScreenRecording(consultationId: string) {
 		return await completeRecordingUpload({ uploadId, parts });
 	}, []);
 
-	const uploadBlobPart = useCallback(async (blob: Blob, partNumber: number, chunkId?: string) => {
+	const uploadBlobPart = useCallback(async (blob: Blob, partNumber: number, chunkId?: string, retryCount = 0) => {
 		const uploadId = uploadIdRef.current;
 		if (!uploadId) throw new Error("No upload in progress");
+		
+		const maxRetries = 3;
+		const baseDelay = 1000; // 1 second base delay
 
 		try {
 			const { url } = await presignPart(uploadId, partNumber);
@@ -194,13 +197,15 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 			setState((s) => ({ ...s, uploadedParts: s.uploadedParts + 1, uploadedBytes: s.uploadedBytes + blob.size }));
 		} catch (error) {
-			// Check if this is a presign error indicating invalid session
 			const errorMsg = (error as any)?.message || '';
+			
+			// Check if this is a session invalidation error (don't retry these)
 			const isSessionInvalid = errorMsg.includes('Unexpected presign response shape') || 
 									errorMsg.includes('Failed to presign part') ||
 									errorMsg.includes('Unauthorized') ||
 									errorMsg.includes('expired') ||
-									errorMsg.includes('invalid');
+									errorMsg.includes('invalid') ||
+									errorMsg.includes('not found');
 			
 			if (isSessionInvalid) {
 				console.error("❌ [UPLOAD] Upload session appears to be invalid, marking for recovery:", errorMsg);
@@ -220,8 +225,27 @@ export function usePersistentScreenRecording(consultationId: string) {
 				return;
 			}
 			
-			// For other errors, the chunk remains in storage for retry
-			console.error("Upload failed for chunk:", chunkId, error);
+			// Check if this is a network error that we can retry
+			const isNetworkError = errorMsg.includes('fetch failed') || 
+								  errorMsg.includes('NetworkError') ||
+								  errorMsg.includes('timeout') ||
+								  errorMsg.includes('500') ||
+								  errorMsg.includes('502') ||
+								  errorMsg.includes('503') ||
+								  errorMsg.includes('504') ||
+								  errorMsg.includes('Internal Server Error');
+			
+			if (isNetworkError && retryCount < maxRetries) {
+				const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
+				console.log(`🔄 [UPLOAD] Network error, retrying in ${delay}ms... (attempt ${retryCount + 1}/${maxRetries + 1})`);
+				console.log(`🔄 [UPLOAD] Error was: ${errorMsg}`);
+				
+				await new Promise(resolve => setTimeout(resolve, delay));
+				return uploadBlobPart(blob, partNumber, chunkId, retryCount + 1);
+			}
+			
+			// Non-recoverable error or max retries exceeded
+			console.error(`Upload failed for chunk: ${chunkId} (final attempt ${retryCount + 1}/${maxRetries + 1})`, errorMsg);
 			throw error;
 		}
 	}, [presignPart]);
@@ -298,14 +322,19 @@ export function usePersistentScreenRecording(consultationId: string) {
 	const handleChunk = useCallback(async (chunk: Blob) => {
 		// Don't process chunks if there's no active session
 		if (!sessionIdRef.current || !uploadIdRef.current) {
-			console.warn("⚠️ [HANDLE_CHUNK] No active session, discarding chunk");
+			console.warn("⚠️ [HANDLE_CHUNK] No active session, discarding chunk", {
+				sessionId: sessionIdRef.current ? 'exists' : 'null',
+				uploadId: uploadIdRef.current ? 'exists' : 'null',
+				hasActiveSession: state.hasActiveSession,
+				isRecording: state.isRecording
+			});
 			return;
 		}
 
 		pendingBlobsRef.current.push(chunk);
 		pendingSizeRef.current += chunk.size;
 		await tryFlushFullParts();
-	}, [tryFlushFullParts]);
+	}, [tryFlushFullParts, state.hasActiveSession, state.isRecording]);
 
 	// Helper functions for recording finalization - defined early to avoid TDZ
 	const resumeUploads = useCallback(async () => {
@@ -974,7 +1003,23 @@ export function usePersistentScreenRecording(consultationId: string) {
 			await recordingStorage.deleteSessionChunks(sessionIdRef.current);
 		}
 
-		setState((s) => ({ ...s, hasActiveSession: false }));
+		// Reset session refs after completion
+		uploadIdRef.current = null;
+		sessionIdRef.current = null;
+		uploadedPartsRef.current = [];
+		nextPartNumberRef.current = 1;
+		pendingBlobsRef.current = [];
+		pendingSizeRef.current = 0;
+		
+		setState((s) => ({ 
+			...s, 
+			hasActiveSession: false, 
+			uploadId: null, 
+			sessionId: null,
+			isRecording: false,
+			isUploading: false,
+			isInitializing: false
+		}));
 		return result;
 	}, [finalizeNow, enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
 

@@ -10,9 +10,9 @@ import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
 import { ConsultationContent } from "./_components/consultation-content";
 import AgoraRTC, { AgoraRTCProvider } from "agora-rtc-react";
 import { useParams, useRouter } from "next/navigation";
-import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording";
+import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording-adapter";
 import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
-import { recordingStorage } from "@/utils/recording-storage";
+import { chunkStorage } from "@/lib/indexeddb-chunks";
 import { updateConsultation } from "@/actions/consultations/update-consultation";
 import { SessionStatus } from "@/models/enums";
 
@@ -56,6 +56,7 @@ export default function ConsultationLayout({
 
   // State for managing recovery banner visibility
   const [showRecoveryBanner, setShowRecoveryBanner] = useState(true);
+  const [networkIssues, setNetworkIssues] = useState(false);
   
   // State to prevent infinite recording loops and double prompts
   const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(() => {
@@ -80,7 +81,8 @@ export default function ConsultationLayout({
     console.log("🎯 Manual recording start initiated");
     const result = await originalStartRecording(...args);
     
-    // Immediately save recording session to localStorage when started
+    // Recording session is automatically saved to IndexedDB by the hook
+    // Keep localStorage for UI display compatibility
     if (result !== undefined) {
       const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
       const newRecording = {
@@ -92,7 +94,7 @@ export default function ConsultationLayout({
       };
       savedRecordings.push(newRecording);
       localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
-      console.log("💾 [START] Recording session saved to localStorage:", newRecording);
+      console.log("💾 [START] Recording session saved to localStorage for UI:", newRecording);
     }
     
     return result;
@@ -198,15 +200,14 @@ export default function ConsultationLayout({
       
       intervalId = setInterval(async () => {
         try {
-          // Get current recording data
-          const storedChunks = await recordingStorage.getSessionChunks(recordingState.sessionId || '');
-          const chunks = storedChunks.map(chunk => chunk.blob);
+          // Get current recording data from IndexedDB
+          const stats = await chunkStorage.getStorageStats();
+          console.log(`📊 [1MIN_CHECK] Current recording stats:`, stats);
           
-          if (chunks && chunks.length > 0) {
-            const totalSize = chunks.reduce((total, chunk) => total + chunk.size, 0);
-            const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+          if (stats.chunks > 0) {
+            const sizeInMB = stats.totalSizeMB.toFixed(2);
             
-            console.log(`📊 [1MIN_CHECK] Current recording size: ${sizeInMB}MB (${chunks.length} chunks)`);
+            console.log(`📊 [1MIN_CHECK] Current recording size: ${sizeInMB}MB (${stats.chunks} chunks)`);
             
             // Complete every minute regardless of size
             try {
@@ -224,7 +225,7 @@ export default function ConsultationLayout({
                   name: `Recording Segment - ${new Date().toLocaleString()}`,
                   url: completedResult.playbackUrl,
                   size: `${sizeInMB}MB`,
-                  chunks: chunks.length,
+                  chunks: stats.chunks,
                   duration: '1min',
                   timestamp: new Date().toISOString(),
                   status: 'completed',
@@ -245,13 +246,53 @@ export default function ConsultationLayout({
                 
                 setTimeout(async () => {
                   try {
-                    if (recordingState.isRecording) {
-                      // This creates a brand new S3 session with fresh uploadId
-                      const newRecordingResult = await originalStartRecording();
-                      console.log("✅ [1MIN_START] New 1-minute recording started:", newRecordingResult);
+                    // Ensure recording is properly stopped before starting new one
+                    console.log("🔄 [1MIN_START] Force starting new recording session...");
+                    console.log("🔍 [1MIN_START] Current state before start:", {
+                      isRecording: recordingState.isRecording,
+                      hasActiveSession: recordingState.hasActiveSession,
+                      sessionId: recordingState.sessionId || 'null'
+                    });
+                    
+                    // If state shows recording is still active, stop it first
+                    if (recordingState.isRecording || recordingState.isInitializing) {
+                      console.log("⚠️ [1MIN_START] State shows recording active, stopping first...");
+                      await stopRecording();
+                      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for stop to complete
                     }
+                    
+                    const newRecordingResult = await startRecording();
+                    console.log("✅ [1MIN_START] New recording started successfully");
+                    
+                    // Give a moment for state to update, then verify
+                    setTimeout(() => {
+                      console.log("🔍 [1MIN_START] State after start:", {
+                        isRecording: recordingState.isRecording,
+                        hasActiveSession: recordingState.hasActiveSession,
+                        sessionId: recordingState.sessionId || 'null'
+                      });
+                    }, 500);
+                    
                   } catch (startError) {
                     console.error("❌ [1MIN_START] Failed to start new recording:", startError);
+                    
+                    // If starting fails, try to recover by stopping and restarting
+                    try {
+                      console.log("🔄 [1MIN_START] Attempting recovery: stop and restart...");
+                      await stopRecording();
+                      
+                      // Wait a moment then restart
+                      setTimeout(async () => {
+                        try {
+                          const recoveryResult = await startRecording();
+                          console.log("✅ [1MIN_START] Recovery successful");
+                        } catch (recoveryError) {
+                          console.error("❌ [1MIN_START] Recovery failed:", recoveryError);
+                        }
+                      }, 1000);
+                    } catch (recoveryError) {
+                      console.error("❌ [1MIN_START] Recovery attempt failed:", recoveryError);
+                    }
                   }
                 }, 2000);
               }
@@ -460,11 +501,38 @@ export default function ConsultationLayout({
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [recordingState.isRecording, recordingState.hasActiveSession]);
 
+  // Monitor recording errors for network issues
+  useEffect(() => {
+    if (recordingState.error) {
+      const errorMsg = recordingState.error.toLowerCase();
+      const hasNetworkError = errorMsg.includes('fetch failed') || 
+                            errorMsg.includes('500') || 
+                            errorMsg.includes('timeout') ||
+                            errorMsg.includes('network') ||
+                            errorMsg.includes('internal server error');
+      
+      if (hasNetworkError) {
+        setNetworkIssues(true);
+        // Clear network issue flag after 30 seconds
+        setTimeout(() => setNetworkIssues(false), 30000);
+      }
+    }
+  }, [recordingState.error]);
+
   // Add socket connection handling
   useEffect(() => {
     if (!socket || !consultationId) return;
 
     const handleConnect = () => {
+      // Check if consultation has already ended
+      if (typeof window !== 'undefined') {
+        const consultationEnded = sessionStorage.getItem(`consultation_ended_${consultationId}`);
+        if (consultationEnded === 'true') {
+          console.log("🚫 [CONNECT] Consultation already ended, not joining");
+          return;
+        }
+      }
+      
       console.log("Socket connected, joining consultation...");
       // Emit join_consultation event when socket connects
       socket.emit("join_consultation", {
@@ -490,45 +558,215 @@ export default function ConsultationLayout({
 
     const handleEnd = async () => {
       try {
-        // Ensure current recording is properly completed before ending
-        if (recordingState.isRecording || recordingState.isInitializing) {
-          console.log("🔴 [END] Stopping active recording...");
-          await stopRecording(); // flush and complete current recording
-        } else if (recordingState.isUploading) {
-          console.log("🔄 [END] Waiting for upload to complete...");
-          // Wait for current upload to finish
-          await new Promise((resolve) => {
-            const checkUpload = () => {
-              if (!recordingState.isUploading) {
-                resolve(void 0);
-              } else {
-                setTimeout(checkUpload, 250);
-              }
-            };
-            checkUpload();
-          });
-        } else {
-          console.log("💾 [END] Completing any pending recordings...");
-          await completeRecording(); // finalize if parts exist
+        console.log("🏁 [END] Consultation ending - saving video before navigation");
+        
+        // IMMEDIATE socket disconnect to prevent rejoin
+        socket.disconnect();
+        
+        // Mark consultation as ended
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(`consultation_ended_${consultationId}`, 'true');
+          console.log("🚫 [END] Marked consultation as ended");
         }
+        
+        // FIRST: Ensure recording is captured before navigation
+        console.log("🎥 [END] Saving recording data before leaving...");
+        
+        try {
+          // FIRST: Try to capture current recording data before stopping
+          console.log("🎬 [END] Current recording state:", {
+            isRecording: recordingState.isRecording,
+            sessionId: recordingState.sessionId,
+            isUploading: recordingState.isUploading,
+            hasActiveSession: recordingState.hasActiveSession
+          });
+          
+          // ALWAYS try to stop recording regardless of state (in case state is wrong)
+          console.log("🔴 [END] Force stopping any active recording...");
+          try {
+            // Force stop recording to ensure all data is flushed
+            await Promise.race([
+              stopRecording(),
+              new Promise(resolve => setTimeout(resolve, 4000)) // Even more time
+            ]);
+            
+            console.log("⏱️ [END] Recording force stopped, waiting for data to settle...");
+            // Give even more time for data to be processed into IndexedDB
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          } catch (stopError) {
+            console.warn("⚠️ [END] Failed to stop recording:", stopError);
+          }
+          
+          // ALSO: Try to force complete any pending upload
+          if (recordingState.sessionId) {
+            console.log("💾 [END] Attempting to complete any pending session...");
+            try {
+              await Promise.race([
+                completeRecording(),
+                new Promise(resolve => setTimeout(resolve, 2000))
+              ]);
+            } catch (completeError) {
+              console.warn("⚠️ [END] Complete recording failed (will capture chunks anyway):", completeError);
+            }
+          }
+          
+          // COMPREHENSIVE SEARCH: Get chunks from ALL sessions for this consultation
+          console.log("🔍 [END] Searching ALL sessions for unsaved chunks...");
+          let finalCaptured = false;
+          
+          try {
+            const allSessions = await recordingStorage.getAllSessions();
+            console.log(`🔍 [END] Found ${allSessions.length} total sessions in storage`);
+            
+            // Filter sessions for this consultation that have any chunks
+            const relevantSessions = allSessions.filter(session => 
+              session.consultationId === consultationId
+            );
+            
+            console.log(`🎯 [END] Found ${relevantSessions.length} sessions for this consultation`);
+            
+            for (const session of relevantSessions) {
+              console.log(`📦 [END] Checking session ${session.sessionId.substring(0, 8)}... for chunks`);
+              const storedChunks = await recordingStorage.getSessionChunks(session.sessionId);
+              
+              if (storedChunks && storedChunks.length > 0) {
+                console.log(`🎯 [END] Found ${storedChunks.length} chunks in session ${session.sessionId.substring(0, 8)}...`);
+                
+                // Combine all chunks into a single blob
+                const allChunks = storedChunks.map(chunk => chunk.blob);
+                const combinedBlob = new Blob(allChunks, { type: 'video/webm' });
+                const totalSize = combinedBlob.size;
+                const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+                
+                // Skip very small recordings (< 1MB, likely just metadata)
+                if (totalSize < 1024 * 1024) {
+                  console.log(`⚠️ [END] Skipping small recording: ${sizeInMB}MB`);
+                  continue;
+                }
+                
+                // Create blob URL for download
+                const blobUrl = URL.createObjectURL(combinedBlob);
+                
+                // Save to localStorage as emergency backup
+                const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+                
+                // Determine if this is current session or abandoned
+                const isCurrentSession = session.sessionId === recordingState.sessionId;
+                const recordingName = isCurrentSession ? 
+                  `Final Recording - ${new Date().toLocaleString()}` : 
+                  `Recovered Session - ${new Date().toLocaleString()}`;
+                
+                const emergencyRecording = {
+                  id: `${isCurrentSession ? 'final' : 'recovered'}-${Date.now()}`,
+                  name: recordingName,
+                  url: blobUrl,
+                  size: `${sizeInMB}MB`,
+                  chunks: allChunks.length,
+                  timestamp: new Date().toISOString(),
+                  status: isCurrentSession ? 'final_capture' : 'recovered',
+                  reason: `Consultation ended - ${isCurrentSession ? 'current session' : 'abandoned session'} captured`,
+                  segmentType: isCurrentSession ? 'final_capture' : 'recovered_session'
+                };
+                
+                savedRecordings.push(emergencyRecording);
+                localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+                
+                console.log(`✅ [END] ${recordingName} saved: ${sizeInMB}MB with ${allChunks.length} chunks`);
+                finalCaptured = true;
+                
+                // Clean up this session from storage
+                await recordingStorage.deleteSession(session.sessionId);
+                await recordingStorage.deleteSessionChunks(session.sessionId);
+              } else {
+                console.log(`ℹ️ [END] No chunks found in session ${session.sessionId.substring(0, 8)}...`);
+              }
+            }
+            
+            if (!finalCaptured) {
+              console.log("⚠️ [END] No recording data found in any session!");
+              
+              // FALLBACK: Try to capture from current recording state if available
+              if (recordingState.playbackUrl) {
+                console.log("🔄 [END] FALLBACK: Found playback URL in recording state, saving as final recording");
+                const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+                
+                // Check if this URL is already saved
+                const alreadyExists = savedRecordings.some((r: any) => r.url === recordingState.playbackUrl);
+                
+                if (!alreadyExists) {
+                  const fallbackRecording = {
+                    id: `fallback-${Date.now()}`,
+                    name: `Final Recording (S3) - ${new Date().toLocaleString()}`,
+                    url: recordingState.playbackUrl,
+                    size: 'Unknown',
+                    chunks: 'S3',
+                    timestamp: new Date().toISOString(),
+                    status: 'completed_s3',
+                    reason: 'Fallback capture from recording state',
+                    segmentType: 'fallback_s3'
+                  };
+                  
+                  savedRecordings.push(fallbackRecording);
+                  localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+                  
+                  console.log("✅ [END] FALLBACK: Saved final recording from S3 URL");
+                  finalCaptured = true;
+                } else {
+                  console.log("ℹ️ [END] FALLBACK: S3 URL already saved");
+                }
+              }
+              
+              if (!finalCaptured) {
+                console.log("❌ [END] FINAL: No recording data could be captured at all!");
+              }
+            } else {
+              console.log("✅ [END] Successfully captured final recording data");
+            }
+            
+          } catch (searchError) {
+            console.error("❌ [END] Error during comprehensive session search:", searchError);
+          }
+          
+          // Try final S3 completion if there's still a session (as bonus)
+          if (recordingState.sessionId && !recordingState.isRecording && !recordingState.isUploading) {
+            console.log("💾 [END] Attempting final S3 completion as bonus...");
+            try {
+              await Promise.race([
+                completeRecording(),
+                new Promise(resolve => setTimeout(resolve, 2000))
+              ]);
+            } catch (completionError) {
+              console.warn("⚠️ [END] S3 completion failed (but emergency backup already saved):", completionError);
+            }
+          }
+          
+        } catch (saveError) {
+          console.error("❌ [END] Error saving video before navigation:", saveError);
+          // Continue with navigation even if save fails
+        }
+        
+        // Navigate after recording is handled
+        console.log("🏠 [END] Recording handled, navigating to dashboard");
+        if (process.env.NODE_ENV === "development") {
+          window.location.href = "http://localhost:3001/dashboard";
+        } else {
+          router.push("/dashboard");
+        }
+        
       } catch (err) {
-        console.error("❌ [END] Error finalizing recording:", err);
-      }
-      
-      // Extra delay to ensure backend processes everything
-      console.log("⏳ [END] Waiting for backend finalization...");
-      await new Promise((r) => setTimeout(r, 2000));
-      
+        console.error("❌ [END] Critical error during consultation end:", err);
+        // Force navigation even on error
       if (process.env.NODE_ENV === "development") {
-        try { window.location.href = "http://localhost:3001/dashboard"; } catch {}
+          window.location.href = "http://localhost:3001/dashboard";
       } else {
         router.push("/dashboard");
+        }
       }
     };
 
     socket.on("end:consultation", handleEnd);
     return () => { socket.off("end:consultation", handleEnd); };
-  }, [socket, stopRecording, completeRecording, recordingState.isRecording, recordingState.isInitializing, recordingState.isUploading, router]);
+  }, [socket, stopRecording, completeRecording, recordingState.isRecording, recordingState.isInitializing, recordingState.isUploading, recordingState.sessionId, router, consultationId]);
 
   // COMPLETELY DISABLE AUTO-START - No recording prompts at all
   useEffect(() => {
@@ -704,6 +942,38 @@ export default function ConsultationLayout({
           });
           
           return backendRecordings;
+        },
+        debugAll: async () => {
+          console.log('🔍 COMPLETE DEBUG INFORMATION:');
+          console.log('🎯 Consultation ID:', consultationId);
+          console.log('🎬 Recording State:', recordingState);
+          
+          // Check localStorage
+          const saved = localStorage.getItem(`recordings_${consultationId}`);
+          const recordings = saved ? JSON.parse(saved) : [];
+          console.log(`💾 localStorage recordings (${recordings.length}):`, recordings);
+          
+          // Check IndexedDB sessions
+          try {
+            const allSessions = await recordingStorage.getAllSessions();
+            console.log(`🗄️ IndexedDB sessions (${allSessions.length}):`, allSessions);
+            
+            const consultationSessions = allSessions.filter(s => s.consultationId === consultationId);
+            console.log(`🎯 This consultation sessions (${consultationSessions.length}):`, consultationSessions);
+            
+            for (const session of consultationSessions) {
+              const chunks = await recordingStorage.getSessionChunks(session.sessionId);
+              console.log(`📦 Session ${session.sessionId.substring(0, 8)}... has ${chunks.length} chunks:`, chunks.map(c => ({ id: c.id, size: c.blob.size })));
+            }
+          } catch (error) {
+            console.error('❌ Error checking IndexedDB:', error);
+          }
+          
+          // Check backend
+          if (consultation) {
+            const consultationData = (consultation as any).data;
+            console.log('🗄️ Backend consultation data:', consultationData);
+          }
         }
       };
     }
@@ -821,19 +1091,31 @@ export default function ConsultationLayout({
                   </div>
                 )}
 
-                {/* Recording Status Indicator */}
-                {(recordingState.isRecording || recordingState.isUploading) && (
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${recordingState.isRecording ? "bg-red-500 animate-pulse" : "bg-blue-500"}`} />
-                    <span className="text-sm font-medium">
-                      {recordingState.isRecording ? (
-                        <>Recording... ({recordingState.uploadedParts} chunks uploaded)</>
-                      ) : recordingState.isUploading ? (
-                        <>Finalizing... ({recordingState.uploadedParts} parts)</>
-                      ) : null}
-                    </span>
-                  </div>
-                )}
+                {/* Network Status */}
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      networkIssues ? "bg-orange-500" : "bg-green-500"
+                    }`}
+                  />
+                  <span className="text-sm font-medium">
+                    Network: {networkIssues ? "Issues Detected" : "Stable"}
+                  </span>
+                </div>
+
+                 {/* Recording Status Indicator */}
+                 {(recordingState.isRecording || recordingState.isUploading) && (
+                   <div className="flex items-center gap-2">
+                     <div className={`w-3 h-3 rounded-full ${recordingState.isRecording ? "bg-red-500 animate-pulse" : "bg-blue-500"}`} />
+                     <span className="text-sm font-medium">
+                       {recordingState.isRecording ? (
+                         <>Recording... ({recordingState.uploadedParts} chunks)</>
+                       ) : recordingState.isUploading ? (
+                         <>Finalizing... ({recordingState.uploadedParts} parts)</>
+                       ) : null}
+                     </span>
+                   </div>
+                 )}
 
                 {/* View recordings: during active session show latest only; when completed show all */}
                 {isCompleted ? (
@@ -902,15 +1184,28 @@ export default function ConsultationLayout({
                   (externalPlaybackUrl || recordingState.playbackUrl || savedRecordings.length > 0) && (
                     <div className="flex gap-2">
                       {/* Backend recording (priority) */}
-                      {(externalPlaybackUrl || recordingState.playbackUrl) && (
-                        <a
-                          href={externalPlaybackUrl || recordingState.playbackUrl!}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                        >
-                          View recording (Cloud)
-                        </a>
+                {(externalPlaybackUrl || recordingState.playbackUrl) && (
+                        <>
+                          {(externalPlaybackUrl || recordingState.playbackUrl)?.startsWith('mock://') ? (
+                            <button
+                              onClick={() => {
+                                alert('🧪 Mock Recording!\n\nThis is a test recording.\nIn real mode, this would be a playable video link.');
+                              }}
+                              className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                            >
+                              View mock recording
+                            </button>
+                          ) : (
+                  <a
+                    href={externalPlaybackUrl || recordingState.playbackUrl!}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                              View recording (Cloud)
+                            </a>
+                          )}
+                        </>
                       )}
                       {/* Local recordings (if any) */}
                       {savedRecordings.length > 0 && (

@@ -20,7 +20,7 @@ export const patientModeldataSchema = z.object({
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   languageId: z.string(),
-  status: z.string().optional(),
+  leanedStatus: z.string().optional(),
   creator: userModelDataSchema.optional().nullable(),
   updater: userModelDataSchema.optional().nullable(),
   language: LanguageModelDataSchema.optional().nullable(),
