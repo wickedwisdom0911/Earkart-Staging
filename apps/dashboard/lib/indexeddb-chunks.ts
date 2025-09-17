@@ -315,6 +315,11 @@ class ChunkStorage {
       session.uploadedParts.sort((a, b) => a.partNumber - b.partNumber);
     }
 
+    // Bump nextPartNumber to maintain ascending, non-duplicate sequence across refresh/recovery
+    if (session.nextPartNumber <= partNumber) {
+      session.nextPartNumber = partNumber + 1;
+    }
+
     session.lastActivity = Date.now();
     await this.saveSession(session);
 

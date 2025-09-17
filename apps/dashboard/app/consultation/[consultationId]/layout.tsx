@@ -13,7 +13,6 @@ import { useParams, useRouter } from "next/navigation";
 import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording-adapter";
 import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
 import { chunkStorage } from "@/lib/indexeddb-chunks";
-import { updateConsultation } from "@/actions/consultations/update-consultation";
 import { SessionStatus } from "@/models/enums";
 
 // Import debug utilities in development
@@ -154,15 +153,9 @@ export default function ConsultationLayout({
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      
-      const updatedConsultationData = {
-        ...consultationData,
-        recordings: [...currentRecordings, newRecording],
-        updatedAt: new Date().toISOString()
-      };
-      
-      await updateConsultation(updatedConsultationData);
-      console.log("✅ [BACKEND] Recording URL saved to consultation successfully");
+      // NOTE: Per request, do not call updateConsultation here.
+      // If saving to backend is needed later, re-enable with proper status handling.
+      console.log("ℹ️ [BACKEND] Skipping backend update of consultation (no status change). Recordings kept client-side.");
       
     } catch (error) {
       console.error("❌ [BACKEND] Failed to save recording URL to consultation:", error);
@@ -173,12 +166,20 @@ export default function ConsultationLayout({
   const finalizeBeforeNavigate = useCallback(async () => {
     try {
       if (recordingState.isRecording || recordingState.isInitializing) {
+        console.log("🛑 [FINALIZE] Stopping active recording before navigation");
         await stopRecording();
-      } else {
+        // Give time for the stop effect to complete the recording
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else if (recordingState.hasActiveSession && !recordingState.isUploading) {
+        console.log("🏁 [FINALIZE] Completing inactive session before navigation");
         await completeRecording();
+      } else {
+        console.log("ℹ️ [FINALIZE] No active recording to finalize");
       }
-    } catch {}
-  }, [recordingState.isRecording, recordingState.isInitializing, stopRecording, completeRecording]);
+    } catch (err) {
+      console.warn("⚠️ [FINALIZE] Error during finalization:", err);
+    }
+  }, [recordingState.isRecording, recordingState.isInitializing, recordingState.hasActiveSession, recordingState.isUploading, stopRecording, completeRecording]);
 
   // Get saved recordings from localStorage (from before refresh)
   const savedRecordings = useMemo(() => {
@@ -191,215 +192,12 @@ export default function ConsultationLayout({
     }
   }, [consultationId]);
 
-  // TIME-BASED RECORDING COMPLETION - Complete every 1 minute with fresh URLs
+  // TIME-BASED RECORDING COMPLETION - Disabled per requirement
   useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
-    
-    if (recordingState.isRecording && recordingState.sessionId) {
-        console.log("⏰ Starting 1.5-minute recording completion interval");
-      
-      intervalId = setInterval(async () => {
-        try {
-          // Get current recording data from IndexedDB
-          const stats = await chunkStorage.getStorageStats();
-          console.log(`📊 [1MIN_CHECK] Current recording stats:`, stats);
-          
-          if (stats.chunks > 0) {
-            const sizeInMB = stats.totalSizeMB.toFixed(2);
-            
-            console.log(`📊 [1MIN_CHECK] Current recording size: ${sizeInMB}MB (${stats.chunks} chunks)`);
-            
-            // Complete every minute regardless of size
-            try {
-              // Complete current recording - this gives us a final URL
-              const completedResult = await completeRecording();
-              
-              if (completedResult?.playbackUrl) {
-                console.log("✅ [1MIN_COMPLETE] Got URL for 1-minute segment:", completedResult.playbackUrl);
-                
-                // Save this 1-minute segment URL immediately
-                const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
-                
-                const newSegment = {
-                  id: `segment-${Date.now()}`,
-                  name: `Recording Segment - ${new Date().toLocaleString()}`,
-                  url: completedResult.playbackUrl,
-                  size: `${sizeInMB}MB`,
-                  chunks: stats.chunks,
-                  duration: '1min',
-                  timestamp: new Date().toISOString(),
-                  status: 'completed',
-                  segmentType: 'time_based'
-                };
-                
-                savedRecordings.push(newSegment);
-                localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
-                
-                 console.log("💾 [1MIN_COMPLETE] Saved 1-minute segment:", newSegment.name);
-                 console.log("📊 [1MIN_COMPLETE] Total segments now:", savedRecordings.length);
-                 
-                 // Also save to backend consultation
-                 await saveRecordingToBackend(completedResult.playbackUrl, 'time_based');
-                
-                // Start a completely NEW recording for the next minute
-                console.log("🚀 [1MIN_START] Starting NEW recording for next minute...");
-                
-                setTimeout(async () => {
-                  try {
-                    // Ensure recording is properly stopped before starting new one
-                    console.log("🔄 [1MIN_START] Force starting new recording session...");
-                    console.log("🔍 [1MIN_START] Current state before start:", {
-                      isRecording: recordingState.isRecording,
-                      hasActiveSession: recordingState.hasActiveSession,
-                      sessionId: recordingState.sessionId || 'null'
-                    });
-                    
-                    // If state shows recording is still active, stop it first
-                    if (recordingState.isRecording || recordingState.isInitializing) {
-                      console.log("⚠️ [1MIN_START] State shows recording active, stopping first...");
-                      await stopRecording();
-                      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for stop to complete
-                    }
-                    
-                    const newRecordingResult = await startRecording();
-                    console.log("✅ [1MIN_START] New recording started successfully");
-                    
-                    // Give a moment for state to update, then verify
-                    setTimeout(() => {
-                      console.log("🔍 [1MIN_START] State after start:", {
-                        isRecording: recordingState.isRecording,
-                        hasActiveSession: recordingState.hasActiveSession,
-                        sessionId: recordingState.sessionId || 'null'
-                      });
-                    }, 500);
-                    
-                  } catch (startError) {
-                    console.error("❌ [1MIN_START] Failed to start new recording:", startError);
-                    
-                    // If starting fails, try to recover by stopping and restarting
-                    try {
-                      console.log("🔄 [1MIN_START] Attempting recovery: stop and restart...");
-                      await stopRecording();
-                      
-                      // Wait a moment then restart
-                      setTimeout(async () => {
-                        try {
-                          const recoveryResult = await startRecording();
-                          console.log("✅ [1MIN_START] Recovery successful");
-                        } catch (recoveryError) {
-                          console.error("❌ [1MIN_START] Recovery failed:", recoveryError);
-                        }
-                      }, 1000);
-                    } catch (recoveryError) {
-                      console.error("❌ [1MIN_START] Recovery attempt failed:", recoveryError);
-                    }
-                  }
-                }, 2000);
-              }
-            } catch (completeError) {
-              console.error("❌ [1MIN_COMPLETE] Failed to complete recording:", completeError);
-              
-              // Check if error indicates session failure
-               const errorMsg = (completeError as any)?.message || '';
-              const isSesssionFailed = errorMsg.includes('failed and cannot be completed') || 
-                                      errorMsg.includes('expired') || 
-                                      errorMsg.includes('URL') || 
-                                      errorMsg.includes('presigned') ||
-                                      errorMsg.includes('Unexpected');
-              
-              if (isSesssionFailed) {
-                console.log("🔄 [1MIN_COMPLETE] S3 session failed - forcing complete restart");
-                
-                // Save current recording as local backup before restart
-                try {
-                  const storedChunks = await recordingStorage.getSessionChunks(recordingState.sessionId || '');
-                  const chunks = storedChunks.map(chunk => chunk.blob);
-                  
-                  if (chunks && chunks.length > 0) {
-                    const totalSize = chunks.reduce((total, chunk) => total + chunk.size, 0);
-                    const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
-                    const recordingBlob = new Blob(chunks, { type: 'video/webm' });
-                    const blobUrl = URL.createObjectURL(recordingBlob);
-                    
-                    const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
-                    savedRecordings.push({
-                      id: `failed-${Date.now()}`,
-                      name: `Failed Segment (Backup) - ${new Date().toLocaleString()}`,
-                      url: blobUrl,
-                      size: `${sizeInMB}MB`,
-                      chunks: chunks.length,
-                      timestamp: new Date().toISOString(),
-                      status: 'backup',
-                      reason: 'S3 session failed'
-                    });
-                    localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
-                    console.log(`💾 [RECOVERY] Saved failed session as backup: ${sizeInMB}MB`);
-                  }
-                } catch (backupError) {
-                  console.error("❌ [RECOVERY] Failed to save backup:", backupError);
-                }
-                
-                // Force complete restart with fresh session
-                setTimeout(async () => {
-                  try {
-                    if (recordingState.isRecording) {
-                      console.log("🚀 [RECOVERY] Starting completely fresh recording session...");
-                      await originalStartRecording();
-                      console.log("✅ [RECOVERY] Fresh session started successfully");
-                    }
-                  } catch (recoveryError) {
-                    console.error("❌ [RECOVERY] Failed to start fresh session:", recoveryError);
-                  }
-                }, 2000); // Longer delay for backend recovery
-              } else {
-                console.log("🔄 [1MIN_COMPLETE] Non-critical error - will continue accumulating");
-              }
-            }
-          } else {
-            // Create local backup every 30s even if not completing S3
-            const totalSize = chunks.reduce((total, chunk) => total + chunk.size, 0);
-            const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
-            const recordingBlob = new Blob(chunks, { type: 'video/webm' });
-            const blobUrl = URL.createObjectURL(recordingBlob);
-            
-            const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
-            const recordingIndex = savedRecordings.findLastIndex((r: any) => r.status === 'recording');
-            
-            if (recordingIndex >= 0) {
-              savedRecordings[recordingIndex] = {
-                ...savedRecordings[recordingIndex],
-                backupUrl: blobUrl,
-                currentSize: `${sizeInMB}MB`,
-                chunkCount: chunks.length,
-                lastBackup: new Date().toISOString()
-              };
-            } else {
-              savedRecordings.push({
-                id: `accumulating-${Date.now()}`,
-                name: `Recording (Accumulating) - ${new Date().toLocaleString()}`,
-                url: 'Accumulating...',
-                backupUrl: blobUrl,
-                currentSize: `${sizeInMB}MB`,
-                chunkCount: chunks.length,
-                timestamp: new Date().toISOString(),
-                status: 'recording'
-              });
-            }
-            
-            localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
-            console.log(`💾 [BACKUP] Saved local backup: ${sizeInMB}MB (need ${(5 - totalSize/(1024*1024)).toFixed(2)}MB more for S3)`);
-          }
-        } catch (error) {
-          console.error("❌ [SIZE_CHECK] Failed to check recording size:", error);
-        }
-           }, 90000); // Complete every 90 seconds (1.5 minutes) for better data accumulation
-    }
-    
+    // Intentionally disabled: do not auto-complete every 90s
+    // Completion will only happen on consultation end or recovery flows
     return () => {
-      if (intervalId) {
-        console.log("⏰ Clearing size-based completion interval");
-        clearInterval(intervalId);
-      }
+      // no-op
     };
   }, [recordingState.isRecording, recordingState.sessionId, completeRecording, originalStartRecording, consultationId, saveRecordingToBackend]);
 
@@ -412,7 +210,7 @@ export default function ConsultationLayout({
           console.log("🏁 [FINAL] Recording stopped, completing any remaining video...");
           
           // Get any remaining chunks
-          const storedChunks = await recordingStorage.getSessionChunks(recordingState.sessionId || '');
+          const storedChunks = await chunkStorage.getAllChunksForSession(recordingState.sessionId || '');
           const chunks = storedChunks.map(chunk => chunk.blob);
           
           if (chunks && chunks.length > 0) {
@@ -421,7 +219,7 @@ export default function ConsultationLayout({
             
             console.log(`📊 [FINAL] Final segment size: ${sizeInMB}MB (${chunks.length} chunks)`);
             
-            // Try to complete the final recording
+            // Try to complete the final recording (idempotent - will skip if already completed)
             try {
               const finalResult = await completeRecording();
               
@@ -597,89 +395,44 @@ export default function ConsultationLayout({
             console.warn("⚠️ [END] Failed to stop recording:", stopError);
           }
           
-          // ALSO: Try to force complete any pending upload
-          if (recordingState.sessionId) {
-            console.log("💾 [END] Attempting to complete any pending session...");
-            try {
-              await Promise.race([
-                completeRecording(),
-                new Promise(resolve => setTimeout(resolve, 2000))
-              ]);
-            } catch (completeError) {
-              console.warn("⚠️ [END] Complete recording failed (will capture chunks anyway):", completeError);
-            }
-          }
+          // Do not call complete here; stop-effect will handle a single completion
           
           // COMPREHENSIVE SEARCH: Get chunks from ALL sessions for this consultation
           console.log("🔍 [END] Searching ALL sessions for unsaved chunks...");
           let finalCaptured = false;
           
           try {
-            const allSessions = await recordingStorage.getAllSessions();
-            console.log(`🔍 [END] Found ${allSessions.length} total sessions in storage`);
-            
-            // Filter sessions for this consultation that have any chunks
-            const relevantSessions = allSessions.filter(session => 
-              session.consultationId === consultationId
-            );
-            
-            console.log(`🎯 [END] Found ${relevantSessions.length} sessions for this consultation`);
-            
-            for (const session of relevantSessions) {
-              console.log(`📦 [END] Checking session ${session.sessionId.substring(0, 8)}... for chunks`);
-              const storedChunks = await recordingStorage.getSessionChunks(session.sessionId);
-              
-              if (storedChunks && storedChunks.length > 0) {
-                console.log(`🎯 [END] Found ${storedChunks.length} chunks in session ${session.sessionId.substring(0, 8)}...`);
-                
-                // Combine all chunks into a single blob
-                const allChunks = storedChunks.map(chunk => chunk.blob);
-                const combinedBlob = new Blob(allChunks, { type: 'video/webm' });
-                const totalSize = combinedBlob.size;
-                const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
-                
-                // Skip very small recordings (< 1MB, likely just metadata)
-                if (totalSize < 1024 * 1024) {
-                  console.log(`⚠️ [END] Skipping small recording: ${sizeInMB}MB`);
-                  continue;
-                }
-                
-                // Create blob URL for download
+            // In new storage, we use consultationId as the session key
+            const storedChunksEnd = await chunkStorage.getAllChunksForSession(consultationId);
+            if (storedChunksEnd && storedChunksEnd.length > 0) {
+              console.log(`🎯 [END] Found ${storedChunksEnd.length} chunks for consultation ${consultationId}`);
+              const allChunks = storedChunksEnd.map((c) => c.blob);
+              const combinedBlob = new Blob(allChunks, { type: 'video/webm' });
+              const totalSize = combinedBlob.size;
+              const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+              if (totalSize >= 1024 * 1024) {
                 const blobUrl = URL.createObjectURL(combinedBlob);
-                
-                // Save to localStorage as emergency backup
                 const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
-                
-                // Determine if this is current session or abandoned
-                const isCurrentSession = session.sessionId === recordingState.sessionId;
-                const recordingName = isCurrentSession ? 
-                  `Final Recording - ${new Date().toLocaleString()}` : 
-                  `Recovered Session - ${new Date().toLocaleString()}`;
-                
                 const emergencyRecording = {
-                  id: `${isCurrentSession ? 'final' : 'recovered'}-${Date.now()}`,
-                  name: recordingName,
+                  id: `final-${Date.now()}`,
+                  name: `Final Recording - ${new Date().toLocaleString()}`,
                   url: blobUrl,
                   size: `${sizeInMB}MB`,
                   chunks: allChunks.length,
                   timestamp: new Date().toISOString(),
-                  status: isCurrentSession ? 'final_capture' : 'recovered',
-                  reason: `Consultation ended - ${isCurrentSession ? 'current session' : 'abandoned session'} captured`,
-                  segmentType: isCurrentSession ? 'final_capture' : 'recovered_session'
+                  status: 'final_capture',
+                  reason: 'Consultation ended - captured remaining chunks',
+                  segmentType: 'final_capture'
                 };
-                
                 savedRecordings.push(emergencyRecording);
                 localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
-                
-                console.log(`✅ [END] ${recordingName} saved: ${sizeInMB}MB with ${allChunks.length} chunks`);
+                console.log(`✅ [END] Final recording saved: ${sizeInMB}MB with ${allChunks.length} chunks`);
                 finalCaptured = true;
-                
-                // Clean up this session from storage
-                await recordingStorage.deleteSession(session.sessionId);
-                await recordingStorage.deleteSessionChunks(session.sessionId);
               } else {
-                console.log(`ℹ️ [END] No chunks found in session ${session.sessionId.substring(0, 8)}...`);
+                console.log(`⚠️ [END] Skipping small recording: ${sizeInMB}MB`);
               }
+            } else {
+              console.log(`ℹ️ [END] No chunks found for consultation ${consultationId}`);
             }
             
             if (!finalCaptured) {
@@ -727,18 +480,7 @@ export default function ConsultationLayout({
             console.error("❌ [END] Error during comprehensive session search:", searchError);
           }
           
-          // Try final S3 completion if there's still a session (as bonus)
-          if (recordingState.sessionId && !recordingState.isRecording && !recordingState.isUploading) {
-            console.log("💾 [END] Attempting final S3 completion as bonus...");
-            try {
-              await Promise.race([
-                completeRecording(),
-                new Promise(resolve => setTimeout(resolve, 2000))
-              ]);
-            } catch (completionError) {
-              console.warn("⚠️ [END] S3 completion failed (but emergency backup already saved):", completionError);
-            }
-          }
+          // Skip bonus completion; rely on single completion path
           
         } catch (saveError) {
           console.error("❌ [END] Error saving video before navigation:", saveError);
@@ -955,16 +697,10 @@ export default function ConsultationLayout({
           
           // Check IndexedDB sessions
           try {
-            const allSessions = await recordingStorage.getAllSessions();
-            console.log(`🗄️ IndexedDB sessions (${allSessions.length}):`, allSessions);
-            
-            const consultationSessions = allSessions.filter(s => s.consultationId === consultationId);
-            console.log(`🎯 This consultation sessions (${consultationSessions.length}):`, consultationSessions);
-            
-            for (const session of consultationSessions) {
-              const chunks = await recordingStorage.getSessionChunks(session.sessionId);
-              console.log(`📦 Session ${session.sessionId.substring(0, 8)}... has ${chunks.length} chunks:`, chunks.map(c => ({ id: c.id, size: c.blob.size })));
-            }
+            const activeSessions = await chunkStorage.getActiveSessions();
+            console.log(`🗄️ Active IndexedDB sessions (${activeSessions.length}):`, activeSessions);
+            const chunks = await chunkStorage.getAllChunksForSession(consultationId);
+            console.log(`📦 Consultation ${consultationId} has ${chunks.length} chunks:`, chunks.map(c => ({ id: c.id, size: c.blob.size })));
           } catch (error) {
             console.error('❌ Error checking IndexedDB:', error);
           }

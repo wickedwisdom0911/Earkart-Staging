@@ -428,9 +428,12 @@ export default function RecordingTestPage() {
             <p><strong>Step 4:</strong> Wait for recording to complete (or stop manually)</p>
             <p><strong>Step 5:</strong> Click "Create Download" then "Download Video File" to get your .webm</p>
             <p><strong>Step 6:</strong> Open the .webm file to verify it's a complete, playable video!</p>
+            <p><strong>Step 7:</strong> To test NEW recording after refresh: Click "Clear Session Data" then "Start Screen Recording"</p>
           </div>
           <div className="mt-3 p-3 bg-blue-100 rounded border border-blue-300">
             <p className="text-blue-900 font-medium">💡 Pro Tip: Watch the console logs to see the recovery system in action!</p>
+            <p className="text-blue-900 font-medium mt-1">🆕 New: After refresh, new recordings get fresh uploadId automatically!</p>
+            <p className="text-blue-900 font-medium mt-1">🔒 Fixed: Complete function is now idempotent - no more duplicate completion errors!</p>
           </div>
         </div>
 
@@ -472,6 +475,29 @@ export default function RecordingTestPage() {
               >
                 Abort Recording
               </button>
+            </div>
+            
+            {/* Clear Session Button */}
+            <div className="mt-4">
+              <button
+                onClick={async () => {
+                  try {
+                    await chunkStorage.clearSession(consultationId);
+                    console.log(`🧹 [TEST_PAGE] Cleared session data for ${consultationId}`);
+                    await refreshStats();
+                    alert('Session data cleared! You can now start a fresh recording.');
+                  } catch (err) {
+                    console.error('Failed to clear session:', err);
+                    alert('Failed to clear session data');
+                  }
+                }}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                🧹 Clear Session Data
+              </button>
+              <p className="text-xs text-gray-600 mt-1">
+                Clears all IndexedDB data for this consultation. Use before starting a new recording after refresh.
+              </p>
             </div>
           </div>
 

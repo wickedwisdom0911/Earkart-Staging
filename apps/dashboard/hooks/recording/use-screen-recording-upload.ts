@@ -87,7 +87,10 @@ export function useScreenRecordingUpload(consultationId: string) {
 	// Track uploaded parts for multipart upload completion
 	const uploadedPartsRef = useRef<UploadedPart[]>([]);
 
-	// Removed old queue system - using immediate chunk uploads instead
+	// Aggregation buffer to meet S3 minimum part size (5MB for all but last part)
+	const pendingBlobsRef = useRef<Blob[]>([]);
+	const pendingChunkIdsRef = useRef<string[]>([]);
+	const pendingSizeRef = useRef<number>(0);
 
 	const initiateMultipart = useCallback(async (fileName: string, mimeType: string): Promise<InitiateResponse> => {
 		const { uploadId, partSize, key } = await initiateRecordingUpload({ fileName, sessionId: consultationId, mimeType });
@@ -103,78 +106,71 @@ export function useScreenRecordingUpload(consultationId: string) {
 	}, []);
 
 	// Resume chunk upload from IndexedDB
-	const resumeChunkUpload = useCallback(async (chunk: ChunkData) => {
+	const resumeChunkUpload = useCallback(async (chunksToResume: ChunkData[]) => {
 		const uploadId = uploadIdRef.current;
-		if (!uploadId) {
-			console.warn(`⚠️ [CHUNK_RESUME] No uploadId for chunk ${chunk.chunkIndex}`);
+		if (!uploadId || chunksToResume.length === 0) {
+			console.warn(`⚠️ [CHUNK_RESUME] No uploadId or chunks to resume`);
 			return;
 		}
 		
-		console.log(`🔄 [CHUNK_RESUME] Resuming upload for chunk ${chunk.chunkIndex}`);
+		const partNumber = nextPartNumberRef.current++;
+		const combinedBlob = new Blob(chunksToResume.map(c => c.blob), { type: "video/webm" });
 		
-		try {
-			const { url } = await presignPart(uploadId, chunk.partNumber);
-			
-			// Check if this is a mock URL for testing
+		console.log(`🔄 [CHUNK_RESUME] Resuming upload for ${chunksToResume.length} chunks as part ${partNumber}`);
+		
+		const attemptOnce = async (): Promise<string> => {
+			const { url } = await presignPart(uploadIdRef.current as string, partNumber);
 			const isMockUrl = url.includes('mock-s3-bucket') || url.includes('mock=true');
-			
-			let putRes: Response;
-			let eTag: string;
-			
 			if (isMockUrl) {
-				// Simulate S3 upload for testing
-				console.log(`🧪 [MOCK_RESUME] Simulating S3 resume upload for chunk ${chunk.chunkIndex}`);
-				await new Promise(resolve => setTimeout(resolve, Math.random() * 800 + 200)); // Simulate network delay
-				
-				putRes = new Response(null, { 
-					status: 200, 
-					headers: new Headers({ 'ETag': `"resume-etag-${chunk.partNumber}-${Date.now()}"` })
-				});
-				eTag = `"resume-etag-${chunk.partNumber}-${Date.now()}"`;
-			} else {
-				// Real S3 upload
-				putRes = await fetch(url, {
-					method: "PUT", 
-					body: chunk.blob,
-					headers: { "Content-Type": "application/octet-stream" },
-				});
-				
-				if (!putRes.ok) {
-					throw new Error(`S3 PUT failed with ${putRes.status}`);
-				}
-				
-				eTag = putRes.headers.get("ETag") || putRes.headers.get("Etag") || putRes.headers.get("etag") || `"resume-fallback-etag-${chunk.partNumber}"`;
+				console.log(`🧪 [MOCK_RESUME] Simulating S3 resume upload for part ${partNumber}`);
+				await new Promise(resolve => setTimeout(resolve, Math.random() * 800 + 200));
+				return `resume-etag-${partNumber}-${Date.now()}`;
 			}
-			
-			if (!eTag) {
-				throw new Error("Missing ETag from S3 response");
+			const putRes = await fetch(url, { method: "PUT", body: combinedBlob, headers: { "Content-Type": "application/octet-stream" } });
+			if (!putRes.ok) throw new Error(`S3 PUT failed with ${putRes.status}`);
+			const h = putRes.headers.get("ETag") || putRes.headers.get("Etag") || putRes.headers.get("etag");
+			if (!h) throw new Error("Missing ETag from S3 response");
+			return h.replace(/\"/g, "");
+		};
+
+		try {
+			let cleanETag = await attemptOnce();
+			for (const chunk of chunksToResume) {
+				await chunkStorage.markChunkUploaded(chunk.id, cleanETag);
 			}
-			
-			const cleanETag = eTag.replace(/"/g, "");
-			
-			// Update IndexedDB and session metadata
-			await chunkStorage.markChunkUploaded(chunk.id, cleanETag);
-			await chunkStorage.addUploadedPart(consultationId, chunk.partNumber, cleanETag);
-			
-			// Track uploaded part
-			uploadedPartsRef.current.push({ 
-				partNumber: chunk.partNumber, 
-				etag: cleanETag 
-			});
-			
-			setState((s) => ({ 
-				...s, 
-				uploadedParts: s.uploadedParts + 1, 
-				uploadedBytes: s.uploadedBytes + chunk.blob.size 
-			}));
-			
-			console.log(`✅ [CHUNK_RESUME] Chunk ${chunk.chunkIndex} resumed and uploaded successfully`);
-			
+			await chunkStorage.addUploadedPart(consultationId, partNumber, cleanETag);
+			uploadedPartsRef.current.push({ partNumber, etag: cleanETag });
+			setState((s) => ({ ...s, uploadedParts: uploadedPartsRef.current.length, uploadedBytes: s.uploadedBytes + combinedBlob.size }));
+			console.log(`✅ [CHUNK_RESUME] Resumed part ${partNumber} uploaded successfully`);
 		} catch (err) {
-			console.error(`❌ [CHUNK_RESUME] Chunk ${chunk.chunkIndex} resume failed:`, err);
-			throw err;
+			const msg = String((err as Error)?.message || err);
+			const isSessionInvalid = msg.includes('Upload session invalid') || msg.includes('not found');
+			if (isSessionInvalid) {
+				console.warn('[CHUNK_RESUME] UploadId invalid. Re-initiating upload session and retrying once...');
+				const filename = currentSessionRef.current?.filename || `consultation-${consultationId}-${Date.now()}.webm`;
+				const mime = currentSessionRef.current?.mimeType || 'video/webm';
+				const { uploadId: newId, partSize, key } = await initiateMultipart(filename, mime);
+				uploadIdRef.current = newId;
+				partSizeRef.current = Math.max(5 * 1024 * 1024, partSize || partSizeRef.current);
+				await chunkStorage.saveSession({ ...(currentSessionRef.current as any), sessionId: consultationId, uploadId: newId, s3Key: key, partSize: partSizeRef.current, lastActivity: Date.now() });
+				try {
+					let cleanETag = await attemptOnce();
+					for (const chunk of chunksToResume) {
+						await chunkStorage.markChunkUploaded(chunk.id, cleanETag);
+					}
+					await chunkStorage.addUploadedPart(consultationId, partNumber, cleanETag);
+					uploadedPartsRef.current.push({ partNumber, etag: cleanETag });
+					setState((s) => ({ ...s, uploadedParts: uploadedPartsRef.current.length, uploadedBytes: s.uploadedBytes + combinedBlob.size }));
+					console.log(`✅ [CHUNK_RESUME] Resumed part ${partNumber} uploaded successfully after re-init`);
+				} catch (e2) {
+					console.error('❌ [CHUNK_RESUME] Retry after re-init failed:', e2);
+				}
+			} else {
+				console.error(`❌ [CHUNK_RESUME] Resumed part ${partNumber} upload failed:`, err);
+				throw err;
+			}
 		}
-	}, [consultationId, presignPart]);
+	}, [consultationId, presignPart, initiateMultipart]);
 	
 	// Finalize recording from resumed session
 	const finalizeRecording = useCallback(async () => {
@@ -223,80 +219,88 @@ export function useScreenRecordingUpload(consultationId: string) {
 		}
 	}, [consultationId, completeMultipart]);
 
-	const uploadChunkImmediately = useCallback(async (chunk: Blob, chunkIndex: number, chunkId: string, partNumber: number) => {
+	const flushAggregatedPart = useCallback(async (forceFinal: boolean = false) => {
 		const uploadId = uploadIdRef.current;
 		if (!uploadId) {
-			console.warn(`⚠️ [CHUNK_UPLOAD] No uploadId for chunk ${chunkIndex}`);
+			console.warn(`[FLUSH] No uploadId, cannot flush part.`);
 			return;
 		}
-		
-		// Use provided part number
-		
-		console.log(`🚀 [CHUNK_UPLOAD] Uploading chunk ${chunkIndex} as part ${partNumber}`);
-		
-		try {
-		const { url } = await presignPart(uploadId, partNumber);
-			
-			// Check if this is a mock URL for testing
-			const isMockUrl = url.includes('mock-s3-bucket') || url.includes('mock=true');
-			
-			let putRes: Response;
-			let eTag: string;
-			
-			if (isMockUrl) {
-				// Simulate S3 upload for testing
-				console.log(`🧪 [MOCK_UPLOAD] Simulating S3 upload for chunk ${chunkIndex}`);
-				await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500)); // Simulate network delay
-				
-				putRes = new Response(null, { 
-					status: 200, 
-					headers: new Headers({ 'ETag': `"mock-etag-${partNumber}-${Date.now()}"` })
-				});
-				eTag = `"mock-etag-${partNumber}-${Date.now()}"`;
-			} else {
-				// Real S3 upload
-				putRes = await fetch(url, {
-			method: "PUT",
-					body: chunk,
-			headers: { "Content-Type": "application/octet-stream" },
-		});
-				
-				if (!putRes.ok) {
-					throw new Error(`S3 PUT failed with ${putRes.status}`);
-				}
-				
-				eTag = putRes.headers.get("ETag") || putRes.headers.get("Etag") || putRes.headers.get("etag") || `"fallback-etag-${partNumber}"`;
-			}
-			
-			if (!eTag) {
-				throw new Error("Missing ETag from S3 response");
-			}
-			
-			// Track uploaded part
-			uploadedPartsRef.current.push({ 
-				partNumber, 
-				etag: eTag.replace(/"/g, "") 
-			});
-			
-			// Mark as uploaded in IndexedDB and update session
-			await chunkStorage.markChunkUploaded(chunkId, eTag.replace(/"/g, ""));
-			await chunkStorage.addUploadedPart(consultationId, partNumber, eTag.replace(/"/g, ""));
-			
-			setState((s) => ({ 
-				...s, 
-				uploadedParts: s.uploadedParts + 1, 
-				uploadedBytes: s.uploadedBytes + chunk.size 
-			}));
-			
-			console.log(`✅ [CHUNK_UPLOAD] Chunk ${chunkIndex} uploaded successfully`);
-			
-		} catch (err) {
-			console.error(`❌ [CHUNK_UPLOAD] Chunk ${chunkIndex} upload failed:`, err);
-			throw err;
-		}
-		}, [consultationId, presignPart]);
 
-	// Removed old buffer/queue chunking system - using immediate uploads
+		// Use server-provided part size, but enforce S3 minimum of 5MB for non-final parts
+		const requiredSize = partSizeRef.current || 5 * 1024 * 1024;
+		const hasData = pendingSizeRef.current > 0;
+
+		const isReadyToFlush = pendingSizeRef.current >= requiredSize || (forceFinal && hasData);
+		if (!isReadyToFlush) {
+			return;
+		}
+
+		const partNumber = nextPartNumberRef.current++;
+		const combinedBlob = new Blob(pendingBlobsRef.current, { type: "video/webm" });
+		const chunkIdsToMark = [...pendingChunkIdsRef.current];
+
+		console.log(`[FLUSH] Flushing part ${partNumber}. Size: ${(combinedBlob.size / (1024 * 1024)).toFixed(2)}MB. Final: ${forceFinal}`);
+		
+		// Reset buffers immediately
+		pendingBlobsRef.current = [];
+		pendingChunkIdsRef.current = [];
+		pendingSizeRef.current = 0;
+
+		const attemptOnce = async (): Promise<string> => {
+			const uid = uploadIdRef.current as string;
+			const { url } = await presignPart(uid, partNumber);
+			const isMockUrl = url.includes('mock-s3-bucket');
+			if (isMockUrl) {
+				console.log(`\u{1F9EA} [MOCK_FLUSH] Simulating S3 flush for part ${partNumber}`);
+				await new Promise(resolve => setTimeout(resolve, 1000));
+				return `mock-etag-${partNumber}-${Date.now()}`;
+			}
+			const putRes = await fetch(url, { method: "PUT", body: combinedBlob });
+			if (!putRes.ok) throw new Error(`S3 PUT failed with ${putRes.status}`);
+			const et = putRes.headers.get("ETag") || putRes.headers.get("etag");
+			if (!et) throw new Error("Missing ETag from S3 response");
+			return et.replace(/\"/g, "");
+		};
+
+		try {
+			let cleanETag = await attemptOnce();
+			for (const chunkId of chunkIdsToMark) {
+				try { await chunkStorage.markChunkUploaded(chunkId, cleanETag); } catch {}
+			}
+			await chunkStorage.addUploadedPart(consultationId, partNumber, cleanETag);
+			uploadedPartsRef.current.push({ partNumber, etag: cleanETag });
+			setState(s => ({ ...s, uploadedParts: uploadedPartsRef.current.length, uploadedBytes: s.uploadedBytes + combinedBlob.size }));
+			console.log(`\u2705 [FLUSH] Part ${partNumber} uploaded successfully.`);
+		} catch (err) {
+			const msg = String((err as Error)?.message || err);
+			const isSessionInvalid = msg.includes('Upload session invalid') || msg.includes('not found');
+			if (isSessionInvalid) {
+				console.warn('[FLUSH] UploadId invalid. Re-initiating upload session and retrying once...');
+				// Re-initiate
+				const filename = currentSessionRef.current?.filename || `consultation-${consultationId}-${Date.now()}.webm`;
+				const mime = currentSessionRef.current?.mimeType || 'video/webm';
+				const { uploadId: newId, partSize, key } = await initiateMultipart(filename, mime);
+				uploadIdRef.current = newId;
+				partSizeRef.current = Math.max(5 * 1024 * 1024, partSize || partSizeRef.current);
+				await chunkStorage.saveSession({ ...(currentSessionRef.current as any), sessionId: consultationId, uploadId: newId, s3Key: key, partSize: partSizeRef.current, lastActivity: Date.now() });
+				// Retry once
+				try {
+					let cleanETag = await attemptOnce();
+					for (const chunkId of chunkIdsToMark) {
+						try { await chunkStorage.markChunkUploaded(chunkId, cleanETag); } catch {}
+					}
+					await chunkStorage.addUploadedPart(consultationId, partNumber, cleanETag);
+					uploadedPartsRef.current.push({ partNumber, etag: cleanETag });
+					setState(s => ({ ...s, uploadedParts: uploadedPartsRef.current.length, uploadedBytes: s.uploadedBytes + combinedBlob.size }));
+					console.log(`\u2705 [FLUSH] Part ${partNumber} uploaded successfully after re-init.`);
+				} catch (e2) {
+					console.error('❌ [FLUSH] Retry after re-init failed:', e2);
+				}
+			} else {
+				console.error(`❌ [FLUSH] Part ${partNumber} upload failed:`, err);
+			}
+		}
+	}, [consultationId, presignPart, initiateMultipart]);
 
 	const handleChunk = useCallback(async (chunk: Blob) => {
 		const chunkIndex = chunkCounterRef.current++;
@@ -304,37 +308,31 @@ export function useScreenRecordingUpload(consultationId: string) {
 		
 		console.log(`📊 [RECORDING_CHUNK] Received chunk ${chunkIndex}: ${(chunk.size / 1024).toFixed(1)}KB`);
 		
-		// Generate part number for this chunk
-		const partNumber = nextPartNumberRef.current++;
-		
-		// Save to IndexedDB immediately for persistence
 		try {
 			await chunkStorage.saveChunk({
 				id: chunkId,
 				sessionId: consultationId,
 				uploadId: uploadIdRef.current || '',
 				chunkIndex,
-				partNumber,
+				partNumber: -1, // Part number is for aggregated blob
 				timestamp: Date.now(),
 				blob: chunk,
 				uploaded: false
 			});
-			console.log(`💾 [CHUNK_STORAGE] Saved chunk ${chunkIndex} (part ${partNumber}) to IndexedDB`);
 		} catch (err) {
 			console.error(`❌ [CHUNK_STORAGE] Failed to save chunk ${chunkIndex}:`, err);
 		}
-		
-		// Try immediate upload
+
+		pendingBlobsRef.current.push(chunk);
+		pendingChunkIdsRef.current.push(chunkId);
+		pendingSizeRef.current += chunk.size;
+
 		try {
-			await uploadChunkImmediately(chunk, chunkIndex, chunkId, partNumber);
+			await flushAggregatedPart(false);
 		} catch (err) {
-			console.error(`⚠️ [CHUNK_UPLOAD] Failed to upload chunk ${chunkIndex} immediately:`, err);
-			// Chunk is safely stored in IndexedDB, will retry on recovery
-			await chunkStorage.incrementUploadAttempts(chunkId);
+			console.error(`⚠️ [CHUNK_UPLOAD] Aggregated upload failed at chunk ${chunkIndex}:`, err);
 		}
-		
-		// Each chunk uploads immediately instead of batching
-	}, [consultationId, uploadChunkImmediately]);
+	}, [consultationId, flushAggregatedPart]);
 
 	const start = useCallback(async (opts?: StartOptions) => {
 		if (state.isRecording || state.isInitializing) {
@@ -348,8 +346,27 @@ export function useScreenRecordingUpload(consultationId: string) {
 		console.log("🎬 [RECORDING] Starting new screen recording...");
 		setState((s) => ({ ...s, isInitializing: true, error: null }));
 		
-		// Reset counters for new recording session
+		// Clear any previous session data before starting new recording
+		uploadIdRef.current = null;
+		uploadedPartsRef.current = [];
 		chunkCounterRef.current = 0;
+		currentSessionRef.current = null;
+		nextPartNumberRef.current = 1;
+		pendingBlobsRef.current = [];
+		pendingChunkIdsRef.current = [];
+		pendingSizeRef.current = 0;
+		
+		// Reset completion flags for new recording
+		isCompletingRef.current = false;
+		hasCompletedRef.current = false;
+		
+		// Clear any existing session from IndexedDB to prevent conflicts
+		try {
+			await chunkStorage.clearSession(consultationId);
+			console.log(`🧹 [RECORDING_START] Cleared existing session data for new recording`);
+		} catch (err) {
+			console.warn(`⚠️ [RECORDING_START] Failed to clear existing session:`, err);
+		}
 
 		try {
 			// Generate unique filename with session ID to prevent overwrites
@@ -550,9 +567,17 @@ export function useScreenRecordingUpload(consultationId: string) {
 			trackedVideoRef.current = null;
 			trackedStreamRef.current = null;
 
+			// Flush any remaining aggregated data as the final (small) part
+			console.log("⏳ [RECORDING_STOP] Flushing final data part...");
+			try { 
+				await flushAggregatedPart(true); 
+			} catch (e) { 
+				console.warn('⚠️ [RECORDING_STOP] Final flush failed:', e); 
+			}
+
 			// Wait a moment for any final chunks to upload
-			console.log("⏳ [RECORDING_STOP] Waiting for final chunks to upload...");
-			await new Promise(resolve => setTimeout(resolve, 2000));
+			console.log("⏳ [RECORDING_STOP] Waiting for final upload to complete...");
+			await new Promise(resolve => setTimeout(resolve, 3000));
 
 			const uploadId = uploadIdRef.current;
 			if (uploadId) {
@@ -589,34 +614,57 @@ export function useScreenRecordingUpload(consultationId: string) {
 			chunkCounterRef.current = 0;
 			currentSessionRef.current = null;
 			isStoppingRef.current = false;
+			// Reset completion flags when stopping
+			isCompletingRef.current = false;
+			hasCompletedRef.current = false;
 			setState((s) => ({ ...s, isUploading: false }));
 		}
-	}, [completeMultipart, consultationId, state.isInitializing, state.isRecording]);
+	}, [completeMultipart, consultationId, state.isInitializing, state.isRecording, flushAggregatedPart]);
+
+	// Add completion guard to prevent multiple calls
+	const isCompletingRef = useRef<boolean>(false);
+	const hasCompletedRef = useRef<boolean>(false);
 
 	const complete = useCallback(async () => {
 		const uploadId = uploadIdRef.current;
 		if (!uploadId) {
 			console.log("ℹ️ [RECORDING_COMPLETE] No uploadId to complete");
-			return;
+			return null;
 		}
 
+		// Prevent multiple completion calls
+		if (isCompletingRef.current) {
+			console.log("⏳ [RECORDING_COMPLETE] Already completing, skipping duplicate call");
+			return null;
+		}
+
+		if (hasCompletedRef.current) {
+			console.log("✅ [RECORDING_COMPLETE] Already completed, skipping duplicate call");
+			return null;
+		}
+
+		isCompletingRef.current = true;
 		console.log("🏁 [RECORDING_COMPLETE] Completing upload with parts:", uploadedPartsRef.current.length);
 		
 		setState(s => ({ ...s, isUploading: true }));
 
 		try {
-		if (uploadedPartsRef.current.length === 0) {
+			if (uploadedPartsRef.current.length === 0) {
 				console.log("⚠️ [RECORDING_COMPLETE] No parts uploaded, aborting");
-			await abortRecordingUpload({ uploadId });
+				await abortRecordingUpload({ uploadId });
 				await chunkStorage.clearSession(consultationId);
-			return;
-		}
+				hasCompletedRef.current = true;
+				return null;
+			}
 			
-		const parts = [...uploadedPartsRef.current].sort((a, b) => a.partNumber - b.partNumber);
+			const parts = [...uploadedPartsRef.current].sort((a, b) => a.partNumber - b.partNumber);
 			console.log("📋 [RECORDING_COMPLETE] Parts to complete:", parts.map(p => ({ part: p.partNumber, etag: p.etag.substring(0, 8) + '...' })));
 			
 			const { key, playbackUrl } = await completeMultipart(uploadId, parts);
 			console.log("✅ [RECORDING_COMPLETE] Successfully completed:", { key, playbackUrl });
+			
+			// Mark as completed to prevent duplicate calls
+			hasCompletedRef.current = true;
 			
 			// Update session as completed
 			await chunkStorage.updateSessionStatus(consultationId, 'completed');
@@ -627,10 +675,15 @@ export function useScreenRecordingUpload(consultationId: string) {
 			setTimeout(() => {
 				chunkStorage.clearSession(consultationId).catch(console.error);
 			}, 5000);
+
+			return { key, playbackUrl };
 			
 		} catch (err) {
 			console.error("❌ [RECORDING_COMPLETE] Completion failed:", err);
 			setState((s) => ({ ...s, error: (err as Error).message, isUploading: false }));
+			throw err;
+		} finally {
+			isCompletingRef.current = false;
 		}
 	}, [completeMultipart, consultationId]);
 
@@ -653,6 +706,9 @@ export function useScreenRecordingUpload(consultationId: string) {
 			uploadedPartsRef.current = [];
 			chunkCounterRef.current = 0;
 			currentSessionRef.current = null;
+			// Reset completion flags when aborting
+			isCompletingRef.current = false;
+			hasCompletedRef.current = false;
 			setState((s) => ({ ...s, isRecording: false, isUploading: false, uploadId: null, error: null }));
 			
 			// Clear session from IndexedDB
@@ -780,12 +836,16 @@ export function useScreenRecordingUpload(consultationId: string) {
 				if (existingSession && (existingSession.status === 'recording' || existingSession.status === 'stopping')) {
 					console.log(`🔄 [RECOVERY] Found active session:`, existingSession);
 					
-					// Restore session state
+					// Restore session state for recovery
 					currentSessionRef.current = existingSession;
 					uploadIdRef.current = existingSession.uploadId;
 					partSizeRef.current = existingSession.partSize;
 					nextPartNumberRef.current = existingSession.nextPartNumber;
 					uploadedPartsRef.current = [...existingSession.uploadedParts];
+					
+					// Reset completion flags for recovery
+					isCompletingRef.current = false;
+					hasCompletedRef.current = false;
 					
 					setState(s => ({
 						...s,
@@ -801,16 +861,34 @@ export function useScreenRecordingUpload(consultationId: string) {
 					if (unuploadedChunks.length > 0) {
 						console.log(`📦 [RECOVERY] Found ${unuploadedChunks.length} unuploaded chunks, resuming uploads...`);
 						
-						// Resume chunk uploads
+						// Aggregate unuploaded chunks into parts of >= 5MB
+						const partSize = partSizeRef.current || 5 * 1024 * 1024;
+						let currentBatch: ChunkData[] = [];
+						let currentSize = 0;
+
 						for (const chunk of unuploadedChunks) {
-							try {
-								await resumeChunkUpload(chunk);
-							} catch (err) {
-								console.error(`❌ [RECOVERY] Failed to resume chunk ${chunk.chunkIndex}:`, err);
-								// Increment retry counter but continue with other chunks
-								await chunkStorage.incrementUploadAttempts(chunk.id);
+							currentBatch.push(chunk);
+							currentSize += chunk.blob.size;
+							if (currentSize >= partSize) {
+								try {
+									await resumeChunkUpload(currentBatch);
+								} catch (err) {
+									console.error(`❌ [RECOVERY] Failed to resume a batch of chunks:`, err);
+								}
+								currentBatch = [];
+								currentSize = 0;
 							}
 						}
+
+						// Upload any remaining chunks as the final part
+						if (currentBatch.length > 0) {
+							try {
+								await resumeChunkUpload(currentBatch);
+							} catch (err) {
+								console.error(`❌ [RECOVERY] Failed to resume final batch of chunks:`, err);
+							}
+						}
+
 					} else if (existingSession.status === 'stopping') {
 						// All chunks uploaded, finalize the recording
 						console.log(`🏁 [RECOVERY] All chunks uploaded, finalizing recording...`);
