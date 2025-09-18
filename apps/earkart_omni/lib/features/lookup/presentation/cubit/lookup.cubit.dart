@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:earkart_omni/features/lookup/domain/usecases/get_cities.usecase.dart';
 import 'package:earkart_omni/features/lookup/domain/usecases/get_countries.usecase.dart';
 import 'package:earkart_omni/features/lookup/domain/usecases/get_districts.usecase.dart';
@@ -36,20 +37,44 @@ class LookupCubit extends Cubit<LookupState> {
     }
 
     if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
-    final result = await getLanguagesUsecase.call();
-    result.fold(
-      (failure) {
-        if (!isClosed) {
-          emit(state.copyWith(isLoading: false, error: failure.message));
-        }
-      },
-      (languages) {
-        if (!isClosed) {
-          _languagesLoaded = true;
-          emit(state.copyWith(isLoading: false, languages: languages));
-        }
-      },
-    );
+
+    try {
+      final result = await getLanguagesUsecase.call().timeout(
+        const Duration(seconds: 10),
+        onTimeout:
+            () =>
+                throw TimeoutException(
+                  'Languages fetch timed out',
+                  const Duration(seconds: 10),
+                ),
+      );
+
+      result.fold(
+        (failure) {
+          if (!isClosed) {
+            print('⚠️ Languages fetch failed: ${failure.message}');
+            emit(state.copyWith(isLoading: false, error: failure.message));
+          }
+        },
+        (languages) {
+          if (!isClosed) {
+            _languagesLoaded = true;
+            print('✅ Languages loaded successfully: ${languages.length} items');
+            emit(state.copyWith(isLoading: false, languages: languages));
+          }
+        },
+      );
+    } catch (e) {
+      if (!isClosed) {
+        print('❌ Languages fetch error: $e');
+        emit(
+          state.copyWith(
+            isLoading: false,
+            error: 'Failed to load languages: $e',
+          ),
+        );
+      }
+    }
   }
 
   Future<void> getCountries() async {
@@ -59,20 +84,44 @@ class LookupCubit extends Cubit<LookupState> {
     }
 
     if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
-    final result = await getCountriesUsecase.call();
-    result.fold(
-      (failure) {
-        if (!isClosed) {
-          emit(state.copyWith(isLoading: false, error: failure.message));
-        }
-      },
-      (countries) {
-        if (!isClosed) {
-          _countriesLoaded = true;
-          emit(state.copyWith(isLoading: false, countries: countries));
-        }
-      },
-    );
+
+    try {
+      final result = await getCountriesUsecase.call().timeout(
+        const Duration(seconds: 10),
+        onTimeout:
+            () =>
+                throw TimeoutException(
+                  'Countries fetch timed out',
+                  const Duration(seconds: 10),
+                ),
+      );
+
+      result.fold(
+        (failure) {
+          if (!isClosed) {
+            print('⚠️ Countries fetch failed: ${failure.message}');
+            emit(state.copyWith(isLoading: false, error: failure.message));
+          }
+        },
+        (countries) {
+          if (!isClosed) {
+            _countriesLoaded = true;
+            print('✅ Countries loaded successfully: ${countries.length} items');
+            emit(state.copyWith(isLoading: false, countries: countries));
+          }
+        },
+      );
+    } catch (e) {
+      if (!isClosed) {
+        print('❌ Countries fetch error: $e');
+        emit(
+          state.copyWith(
+            isLoading: false,
+            error: 'Failed to load countries: $e',
+          ),
+        );
+      }
+    }
   }
 
   Future<void> getStates(String countryId) async {

@@ -69,7 +69,7 @@ class _RootScreenState extends State<RootScreen> {
   }
 
   void _setupLoadingTimeout() {
-    _loadingTimeoutTimer = Timer(const Duration(seconds: 5), () {
+    _loadingTimeoutTimer = Timer(const Duration(seconds: 8), () {
       if (mounted && !checkedDevice) {
         print('⏰ Loading timeout reached! Force completing device check');
         print('   checkedDevice: $checkedDevice');
@@ -78,97 +78,112 @@ class _RootScreenState extends State<RootScreen> {
           // Force complete device check only
           checkedDevice = true;
           device = null;
-          print('   ⚠️ Forced checkedDevice to true');
+          print('   ⚠️ Forced checkedDevice to true due to timeout');
         });
       }
     });
   }
 
   Future<void> _checkAndRequestPermissions() async {
-    // First check if app is device owner and auto-grant permissions
-    final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
-    print('🔍 Device owner check result: $isDeviceOwner');
+    try {
+      // First check if app is device owner and auto-grant permissions with timeout
+      final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner()
+          .timeout(const Duration(seconds: 3), onTimeout: () => false);
+      print('🔍 Device owner check result: $isDeviceOwner');
 
-    if (isDeviceOwner) {
-      print('🎯 App is device owner - auto-granting permissions');
-      await DeviceOwnerHelper.grantAllPermissions();
+      if (isDeviceOwner) {
+        print('🎯 App is device owner - auto-granting permissions');
+        await DeviceOwnerHelper.grantAllPermissions().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            print('⚠️ Permission granting timed out');
+          },
+        );
 
-      // Add a small delay to ensure permissions are properly applied
-      await Future.delayed(const Duration(milliseconds: 500));
+        // Reduced delay for faster startup
+        await Future.delayed(const Duration(milliseconds: 200));
 
-      // For device owner, use DeviceOwnerHelper to check permissions
-      // instead of permission_handler which doesn't work properly for device owners
-      final permissionStatus = await DeviceOwnerHelper.checkCommonPermissions();
-
-      print('🔍 Permission status after device owner grant:');
-      permissionStatus.forEach((permission, granted) {
-        print('   $permission: ${granted ? "✅ GRANTED" : "❌ DENIED"}');
-      });
-
-      // Print detailed permission summary for debugging
-      await DeviceOwnerHelper.printPermissionSummary();
-
-      // For device owner, we should trust that permissions are granted
-      // Check if any critical permissions are explicitly denied
-      final criticalPermissions = [
-        'android.permission.CAMERA',
-        'android.permission.RECORD_AUDIO',
-        'android.permission.READ_EXTERNAL_STORAGE',
-        'android.permission.WRITE_EXTERNAL_STORAGE',
-        'android.permission.BLUETOOTH',
-        'android.permission.BLUETOOTH_CONNECT',
-      ];
-
-      bool hasDeniedCriticalPermissions = false;
-      for (final permission in criticalPermissions) {
-        if (permissionStatus[permission] == false) {
-          print('⚠️ Critical permission denied: $permission');
-          hasDeniedCriticalPermissions = true;
-        }
-      }
-
-      if (hasDeniedCriticalPermissions) {
-        print('⚠️ Some critical permissions denied for device owner');
-        // Try one more time with a longer delay
-        await Future.delayed(const Duration(seconds: 1));
-        await DeviceOwnerHelper.grantAllPermissions();
-
-        // Check permissions again
-        final retryPermissionStatus =
-            await DeviceOwnerHelper.checkCommonPermissions();
-        bool stillHasDeniedPermissions = false;
-
-        for (final permission in criticalPermissions) {
-          if (retryPermissionStatus[permission] == false) {
-            print(
-              '⚠️ Critical permission still denied after retry: $permission',
+        // For device owner, use DeviceOwnerHelper to check permissions
+        // instead of permission_handler which doesn't work properly for device owners
+        final permissionStatus =
+            await DeviceOwnerHelper.checkCommonPermissions().timeout(
+              const Duration(seconds: 3),
+              onTimeout: () => <String, bool>{},
             );
-            stillHasDeniedPermissions = true;
+
+        print('🔍 Permission status after device owner grant:');
+        permissionStatus.forEach((permission, granted) {
+          print('   $permission: ${granted ? "✅ GRANTED" : "❌ DENIED"}');
+        });
+
+        // Skip detailed permission summary for faster startup
+        // await DeviceOwnerHelper.printPermissionSummary();
+
+        // For device owner, we should trust that permissions are granted
+        // Check if any critical permissions are explicitly denied
+        final criticalPermissions = [
+          'android.permission.CAMERA',
+          'android.permission.RECORD_AUDIO',
+          'android.permission.READ_EXTERNAL_STORAGE',
+          'android.permission.WRITE_EXTERNAL_STORAGE',
+          'android.permission.BLUETOOTH',
+          'android.permission.BLUETOOTH_CONNECT',
+        ];
+
+        bool hasDeniedCriticalPermissions = false;
+        for (final permission in criticalPermissions) {
+          if (permissionStatus[permission] == false) {
+            print('⚠️ Critical permission denied: $permission');
+            hasDeniedCriticalPermissions = true;
           }
         }
 
-        if (stillHasDeniedPermissions) {
-          print(
-            '⚠️ Some permissions still denied after retry - using fallback',
-          );
-          await _requestPermissionsAsFallback();
+        if (hasDeniedCriticalPermissions) {
+          print('⚠️ Some critical permissions denied for device owner');
+          // Try one more time with a longer delay
+          await Future.delayed(const Duration(seconds: 1));
+          await DeviceOwnerHelper.grantAllPermissions();
+
+          // Check permissions again
+          final retryPermissionStatus =
+              await DeviceOwnerHelper.checkCommonPermissions();
+          bool stillHasDeniedPermissions = false;
+
+          for (final permission in criticalPermissions) {
+            if (retryPermissionStatus[permission] == false) {
+              print(
+                '⚠️ Critical permission still denied after retry: $permission',
+              );
+              stillHasDeniedPermissions = true;
+            }
+          }
+
+          if (stillHasDeniedPermissions) {
+            print(
+              '⚠️ Some permissions still denied after retry - using fallback',
+            );
+            await _requestPermissionsAsFallback();
+          } else {
+            print('✅ All critical permissions granted after retry');
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _startGlobalDeviceMonitoring();
+            });
+            return;
+          }
         } else {
-          print('✅ All critical permissions granted after retry');
+          print('✅ All critical permissions granted for device owner');
+          // Delay the start to ensure BlocProvider is set up
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _startGlobalDeviceMonitoring();
           });
           return;
         }
       } else {
-        print('✅ All critical permissions granted for device owner');
-        // Delay the start to ensure BlocProvider is set up
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _startGlobalDeviceMonitoring();
-        });
-        return;
+        print('📱 App is not device owner - requesting permissions normally');
+        await _requestPermissionsAsFallback();
       }
-    } else {
-      print('📱 App is not device owner - requesting permissions normally');
+    } catch (e) {
+      print('❌ Error during permission check: $e - continuing with fallback');
       await _requestPermissionsAsFallback();
     }
   }
@@ -418,7 +433,7 @@ class _RootScreenState extends State<RootScreen> {
 
             if (state is CurrentConsultationSuccess) {
               print(
-                '✅ CurrentConsultationSuccess - Consultation: ${state.consultation != null ? state.consultation!.id : 'null'}',
+                '✅ CurrentConsultationSuccess - Consultation: ${state.consultation.id}',
               );
               setState(() {
                 checkedConsultation = true;

@@ -63,13 +63,15 @@ Future<void> main() async {
   await setupDI();
   await _initHive();
   await _initDataSources();
-  await _initLookupData(); // Add lookup data initialization
 
   // Initialize battery service
   await _initializeBatteryService();
 
   // Auto-grant device owner permissions if app is device owner
   await _initializeDeviceOwnerPermissions();
+
+  // Start lookup data initialization in background (non-blocking)
+  unawaited(_initLookupDataAsync());
 
   runApp(const MyApp());
 }
@@ -94,7 +96,7 @@ Future<void> _initializeBatteryService() async {
   }
 }
 
-/// Initialize device owner permissions automatically
+/// Initialize device owner permissions automatically with timeout
 Future<void> _initializeDeviceOwnerPermissions() async {
   try {
     developer.log(
@@ -102,11 +104,23 @@ Future<void> _initializeDeviceOwnerPermissions() async {
       name: 'DeviceOwner',
     );
 
-    // Check if app is device owner and auto-grant permissions
-    await DeviceOwnerHelper.autoGrantPermissionsIfDeviceOwner();
-
-    // Print permission status summary for debugging
-    await DeviceOwnerHelper.printPermissionSummary();
+    // Add timeout to prevent hanging during startup
+    await Future.wait([
+      DeviceOwnerHelper.autoGrantPermissionsIfDeviceOwner(),
+      // Run permission summary in parallel but don't wait for it
+      DeviceOwnerHelper.printPermissionSummary().catchError((e) {
+        developer.log('Permission summary failed: $e', name: 'DeviceOwner');
+      }),
+    ]).timeout(
+      const Duration(seconds: 8),
+      onTimeout: () {
+        developer.log(
+          'Device owner permissions initialization timed out - continuing startup',
+          name: 'DeviceOwner',
+        );
+        return [];
+      },
+    );
 
     developer.log(
       'Device owner permissions initialization complete',
@@ -114,7 +128,7 @@ Future<void> _initializeDeviceOwnerPermissions() async {
     );
   } catch (e) {
     developer.log(
-      'Error initializing device owner permissions: $e',
+      'Error initializing device owner permissions: $e - continuing startup',
       name: 'DeviceOwner',
     );
   }
@@ -312,9 +326,36 @@ Future<void> _initDataSources() async {
   await di<LanguageEntityDataSource>().init();
 }
 
-Future<void> _initLookupData() async {
-  await di<LookupCubit>().getLanguages();
-  await di<LookupCubit>().getCountries();
+/// Initialize lookup data asynchronously with error handling and timeout
+Future<void> _initLookupDataAsync() async {
+  try {
+    developer.log(
+      'Starting async lookup data initialization...',
+      name: 'LookupData',
+    );
+
+    // Use timeout to prevent hanging during startup
+    await Future.wait([
+      di<LookupCubit>().getLanguages(),
+      di<LookupCubit>().getCountries(),
+    ]).timeout(
+      const Duration(seconds: 15),
+      onTimeout: () {
+        developer.log(
+          'Lookup data initialization timed out - app will continue',
+          name: 'LookupData',
+        );
+        return [];
+      },
+    );
+
+    developer.log('Lookup data initialization completed', name: 'LookupData');
+  } catch (e) {
+    developer.log(
+      'Lookup data initialization failed: $e - app will continue',
+      name: 'LookupData',
+    );
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -338,11 +379,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Future<void> _completeInitialization() async {
-    // Wait for lookup data to be loaded and ensure smooth transition
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    // Additional delay to ensure all data is ready
-    await Future.delayed(const Duration(milliseconds: 200));
+    // Reduced delay for faster startup - lookup data loads asynchronously
+    await Future.delayed(const Duration(milliseconds: 300));
 
     if (mounted) {
       setState(() {

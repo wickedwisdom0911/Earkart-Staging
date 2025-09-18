@@ -16,6 +16,11 @@ class API {
     _dio = Dio();
     _dio.options.baseUrl = Constants.baseUrl ?? "";
 
+    // Configure timeout settings to prevent indefinite hanging
+    _dio.options.connectTimeout = const Duration(seconds: 10);
+    _dio.options.receiveTimeout = const Duration(seconds: 15);
+    _dio.options.sendTimeout = const Duration(seconds: 10);
+
     // Add interceptors in the correct order
     // Session interceptor should be first to catch all errors
     _dio.interceptors.add(SessionInterceptor());
