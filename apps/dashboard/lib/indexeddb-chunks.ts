@@ -38,6 +38,26 @@ class ChunkStorage {
   private version = 1;
   private db: IDBDatabase | null = null;
 
+  private requiredStores: Array<{ name: string; indexes?: Array<{ name: string; keyPath: string; options?: IDBIndexParameters }> }> = [
+    {
+      name: 'chunks',
+      indexes: [
+        { name: 'sessionId', keyPath: 'sessionId' },
+        { name: 'uploadId', keyPath: 'uploadId' },
+        { name: 'uploaded', keyPath: 'uploaded' },
+        { name: 'timestamp', keyPath: 'timestamp' },
+      ],
+    },
+    {
+      name: 'sessions',
+      indexes: [
+        { name: 'uploadId', keyPath: 'uploadId' },
+        { name: 'status', keyPath: 'status' },
+        { name: 'lastActivity', keyPath: 'lastActivity' },
+      ],
+    },
+  ];
+
   async init(): Promise<void> {
     if (this.db) return;
 
@@ -52,22 +72,24 @@ class ChunkStorage {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
-
-        // Chunks store
-        if (!db.objectStoreNames.contains('chunks')) {
-          const chunksStore = db.createObjectStore('chunks', { keyPath: 'id' });
-          chunksStore.createIndex('sessionId', 'sessionId', { unique: false });
-          chunksStore.createIndex('uploadId', 'uploadId', { unique: false });
-          chunksStore.createIndex('uploaded', 'uploaded', { unique: false });
-          chunksStore.createIndex('timestamp', 'timestamp', { unique: false });
-        }
-
-        // Sessions metadata store
-        if (!db.objectStoreNames.contains('sessions')) {
-          const sessionsStore = db.createObjectStore('sessions', { keyPath: 'sessionId' });
-          sessionsStore.createIndex('uploadId', 'uploadId', { unique: false });
-          sessionsStore.createIndex('status', 'status', { unique: false });
-          sessionsStore.createIndex('lastActivity', 'lastActivity', { unique: false });
+        // Ensure all required stores and indexes exist
+        for (const storeDef of this.requiredStores) {
+          let store: IDBObjectStore;
+          if (!db.objectStoreNames.contains(storeDef.name)) {
+            store = db.createObjectStore(
+              storeDef.name,
+              storeDef.name === 'chunks' ? { keyPath: 'id' } : { keyPath: 'sessionId' }
+            );
+          } else {
+            store = (request.transaction as IDBTransaction).objectStore(storeDef.name);
+          }
+          if (storeDef.indexes) {
+            for (const idx of storeDef.indexes) {
+              if (!store.indexNames.contains(idx.name)) {
+                store.createIndex(idx.name, idx.keyPath, idx.options || { unique: false });
+              }
+            }
+          }
         }
       };
     });
@@ -76,7 +98,27 @@ class ChunkStorage {
   private async ensureDb(): Promise<IDBDatabase> {
     if (!this.db) await this.init();
     if (!this.db) throw new Error('Failed to initialize IndexedDB');
-    return this.db;
+
+    // Validate stores; if any missing (old schema), recreate DB safely
+    const missing = this.requiredStores.some(({ name }) => !this.db!.objectStoreNames.contains(name));
+    if (missing) {
+      await this.recreateDatabase();
+    }
+    return this.db!;
+  }
+
+  private async recreateDatabase(): Promise<void> {
+    // Close existing
+    try { this.db?.close(); } catch {}
+    this.db = null;
+    this.version += 1; // bump version to trigger upgrade
+    await new Promise<void>((resolve, reject) => {
+      const deleteReq = indexedDB.deleteDatabase(this.dbName);
+      deleteReq.onsuccess = () => resolve();
+      deleteReq.onerror = () => resolve(); // ignore delete errors; we'll try open anyway
+      deleteReq.onblocked = () => resolve();
+    });
+    await this.init();
   }
 
   // Chunk management
