@@ -1118,6 +1118,10 @@ export default function ReportPage() {
                   <div className="text-center">
                     <p className="font-bold text-sm mb-2">{consultationData.centre?.user?.name || "Clinic Name"}</p>
                     <div className="flex items-center justify-center mb-1">
+                      <span className="text-xs mr-1">👨‍⚕️</span>
+                      <span className="text-xs">Dr. {consultationData.centre?.entName || "ENT Name"}</span>
+                    </div>
+                    <div className="flex items-center justify-center mb-1">
                       <span className="text-xs mr-1">📞</span>
                       <span className="text-xs">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
                     </div>
@@ -1194,7 +1198,7 @@ export default function ReportPage() {
               </div>
               <div className="flex items-center">
                 <span className="font-medium mr-2">Referred by :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1"></span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.centre?.entName || "ENT Name"}</span>
               </div>
             </div>
           </div>

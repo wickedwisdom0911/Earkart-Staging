@@ -17,6 +17,9 @@ import { exportElementToPdfBlob } from "@/lib/pdf";
 import ReportTopActions from "@/components/ui/ReportTopActions";
 import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
 import { useSocket } from "@/providers/socket-provider";
+import initiateReportUpload from "@/actions/consultations/initiate-report-upload";
+import completeReportUpload from "@/actions/consultations/complete-report-upload";
+import { ReportType } from "@/models/enums";
 import {
   LineChart,
   Line,
@@ -144,7 +147,7 @@ export default function TympanometryReportPage() {
     isLoading,
     error,
   } = useGetConsultation(consultationId as string);
-  const consultationData = consultation?.data as ConsultationModelData;
+  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const reportRef = useRef<HTMLDivElement>(null);
   const updateConsultationMutation = useUpdateConsultation();
   const [comments, setComments] = useState<string>("");
@@ -262,7 +265,7 @@ export default function TympanometryReportPage() {
       await exportElementToPdf(
         reportRef.current,
         `tympanometry-report-${consultationData?.patient?.code || "unknown"}.pdf`,
-        { singlePage: true }
+        { singlePage: true, fullPage: true }
       );
       toast.success("PDF downloaded successfully!");
       cleanup.forEach(fn => fn());
@@ -304,70 +307,112 @@ export default function TympanometryReportPage() {
   };
 
   const handleShareReport = async () => {
-    if (!reportRef.current) return;
+    if (!reportRef.current || !consultationData) return;
+    
     try {
-      // As with download, rasterize Recharts surfaces before capture to ensure fidelity
-      const svgs = Array.from(reportRef.current.querySelectorAll("svg.recharts-surface")) as SVGSVGElement[];
-      const cleanup: Array<() => void> = [];
-      for (const svg of svgs) {
-        try {
-          const rect = svg.getBoundingClientRect();
-          const width = Math.max(1, Math.floor(rect.width));
-          const height = Math.max(1, Math.floor(rect.height));
-          const xml = new XMLSerializer().serializeToString(svg);
-          const svgBlob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
-          const svgUrl = URL.createObjectURL(svgBlob);
-          const img = document.createElement("img");
-          img.width = width;
-          img.height = height;
-          img.style.width = `${width}px`;
-          img.style.height = `${height}px`;
-          await new Promise<void>((res) => { img.onload = () => res(); img.onerror = () => res(); img.src = svgUrl; });
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (ctx) ctx.drawImage(img, 0, 0, width, height);
-          const pngUrl = canvas.toDataURL("image/png");
-          const pngImg = document.createElement("img");
-          pngImg.src = pngUrl;
-          pngImg.width = width;
-          pngImg.height = height;
-          pngImg.style.width = `${width}px`;
-          pngImg.style.height = `${height}px`;
-          svg.style.display = "none";
-          svg.parentNode?.insertBefore(pngImg, svg);
-          cleanup.push(() => {
-            if (pngImg.parentNode) pngImg.parentNode.removeChild(pngImg);
-            svg.style.display = "";
-            URL.revokeObjectURL(svgUrl);
-          });
-        } catch {}
+      toast.info("Preparing report for sharing...");
+      
+      // Generate fresh PDF
+      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true, fullPage: true });
+      const file = new File([blob], `tympanometry-report-${consultationData.patient?.code || "unknown"}.pdf`, { type: "application/pdf" });
+      
+      // Get pre-signed URL
+      const initiateResult = await initiateReportUpload({
+        consultationId: consultationId as string,
+        reportType: ReportType.TYMPANOMETRY,
+        fileName: file.name,
+        contentType: file.type,
+      });
+      
+      if (!initiateResult.success || !initiateResult.data) {
+        throw new Error(initiateResult.message || "Failed to initiate upload");
       }
-
-      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true });
-      cleanup.forEach(fn => fn());
-      const file = new File([blob], `tympanometry-report-${consultationData?.patient?.code || "unknown"}.pdf`, { type: "application/pdf" });
-      if ((navigator as any).share && (navigator as any).canShare?.({ files: [file] })) {
-        await (navigator as any).share({
-          title: "Tympanometry Report",
-          text: `Report for ${consultationData.patient?.name || "patient"}`,
-          files: [file],
+      
+      const { presignedUrl, uploadId } = initiateResult.data;
+      
+      // Upload to S3
+      try {
+        const uploadResponse = await fetch(presignedUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type,
+          },
         });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `tympanometry-report-${consultationData?.patient?.code || "unknown"}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        toast.info("Sharing not supported. Downloaded instead.");
+        
+        if (!uploadResponse.ok) {
+          throw new Error(`S3 upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+        }
+        
+        // Complete the upload
+        const completeResult = await completeReportUpload({
+          uploadId,
+          consultationId: consultationId as string,
+          reportType: ReportType.TYMPANOMETRY,
+        });
+        
+        if (!completeResult.success || !completeResult.data) {
+          throw new Error(completeResult.message || "Failed to complete upload");
+        }
+        
+        const finalReportUrl = completeResult.data.fileUrl;
+        
+        // Send WhatsApp message
+        const patientName = consultationData.patient?.name || "Patient";
+        const patientContact = consultationData.patient?.contactNumber || "9058075653";
+        const formattedPhoneNumber = patientContact.startsWith('+') ? patientContact.substring(1) : 
+                                   patientContact.startsWith('91') ? patientContact : `91${patientContact}`;
+        
+        const response = await fetch('/api/whatsapp/send-report-dialog', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: formattedPhoneNumber,
+            patientName: patientName,
+            reportUrl: finalReportUrl
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          toast.success("Report shared successfully via WhatsApp!");
+        } else {
+          toast.error(`Failed to send WhatsApp: ${result.error}`);
+        }
+        
+      } catch (s3Error) {
+        console.error("S3 upload failed, using fallback:", s3Error);
+        toast.warning("Using fallback URL for sharing");
+        
+        // Fallback to hardcoded URL
+        const patientName = consultationData.patient?.name || "Patient";
+        const patientContact = consultationData.patient?.contactNumber || "9058075653";
+        const formattedPhoneNumber = patientContact.startsWith('+') ? patientContact.substring(1) : 
+                                   patientContact.startsWith('91') ? patientContact : `91${patientContact}`;
+        
+        const response = await fetch('/api/whatsapp/send-report-dialog', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: formattedPhoneNumber,
+            patientName: patientName,
+            reportUrl: "https://omni-two.s3.ap-south-1.amazonaws.com/reports/test-tympanometry-report.pdf"
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          toast.success("Report shared successfully via WhatsApp!");
+        } else {
+          toast.error(`Failed to send WhatsApp: ${result.error}`);
+        }
       }
+      
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to share report");
+      console.error("Error sharing report:", err);
+      toast.error(`Failed to share report: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
 
@@ -399,7 +444,7 @@ export default function TympanometryReportPage() {
         Error loading report: {error.message}
       </div>
     );
-  if (!consultation?.data)
+  if (!consultationData)
     return <div className="p-6">No consultation data found</div>;
 
   const tympanometryData = consultationData.tympanometry;
@@ -435,6 +480,10 @@ export default function TympanometryReportPage() {
                 <div className="text-blue-900 px-6 py-4 rounded-lg shadow-md" style={{ backgroundColor: '#8bdaef' }}>
                   <div className="text-center">
                     <p className="font-bold text-sm mb-2">{consultationData.centre?.user?.name || "Clinic Name"}</p>
+                    <div className="flex items-center justify-center mb-1">
+                      <span className="text-xs mr-1">👨‍⚕️</span>
+                      <span className="text-xs">Dr. {consultationData.centre?.entName || "ENT Name"}</span>
+                    </div>
                     <div className="flex items-center justify-center mb-1">
                       <span className="text-xs mr-1">📞</span>
                       <span className="text-xs">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
@@ -479,7 +528,10 @@ export default function TympanometryReportPage() {
               <div className="col-span-2 flex items-center">
                 <span className="font-medium mr-2">Age :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
-                  {consultationData.patient?.dob ? Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : ""}
+                  {consultationData.patient?.age || 
+                   (consultationData.patient?.dob ? 
+                     Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) 
+                     : "")}
                 </span>
                 </div>
               <div className="col-span-2 flex items-center">
@@ -495,7 +547,7 @@ export default function TympanometryReportPage() {
                 </div>
               <div className="flex items-center">
                 <span className="font-medium mr-2">Referred by :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1"></span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.centre?.entName || "ENT Name"}</span>
               </div>
             </div>
           </div>
@@ -641,6 +693,7 @@ export default function TympanometryReportPage() {
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}
         onToggleShowReport={handleShowReport}
+        onShare={handleShareReport}
         onDoAnotherTest={() => router.push(`/consultation/${consultationId}/test-selection`)}
         onEndConsultation={() => router.push(`/consultation/${consultationId}/end-consultation`)}
       />

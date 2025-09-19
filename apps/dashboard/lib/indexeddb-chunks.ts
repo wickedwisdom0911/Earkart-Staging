@@ -35,7 +35,7 @@ export interface SessionMetadata {
 
 class ChunkStorage {
   private dbName = 'RecordingChunks';
-  private version = 1;
+  private version = 2; // Updated to match the current schema
   private db: IDBDatabase | null = null;
 
   private requiredStores: Array<{ name: string; indexes?: Array<{ name: string; keyPath: string; options?: IDBIndexParameters }> }> = [
@@ -64,18 +64,29 @@ class ChunkStorage {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
 
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        console.error('❌ [CHUNK_STORAGE] IndexedDB open failed:', request.error);
+        reject(request.error);
+      };
+      
       request.onsuccess = () => {
         this.db = request.result;
+        console.log('✅ [CHUNK_STORAGE] IndexedDB opened successfully, version:', this.db.version);
         resolve();
       };
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
+        const oldVersion = event.oldVersion;
+        const newVersion = event.newVersion;
+        
+        console.log(`🔄 [CHUNK_STORAGE] Upgrading database from version ${oldVersion} to ${newVersion}`);
+        
         // Ensure all required stores and indexes exist
         for (const storeDef of this.requiredStores) {
           let store: IDBObjectStore;
           if (!db.objectStoreNames.contains(storeDef.name)) {
+            console.log(`📦 [CHUNK_STORAGE] Creating object store: ${storeDef.name}`);
             store = db.createObjectStore(
               storeDef.name,
               storeDef.name === 'chunks' ? { keyPath: 'id' } : { keyPath: 'sessionId' }
@@ -86,22 +97,42 @@ class ChunkStorage {
           if (storeDef.indexes) {
             for (const idx of storeDef.indexes) {
               if (!store.indexNames.contains(idx.name)) {
+                console.log(`📇 [CHUNK_STORAGE] Creating index: ${idx.name} on ${storeDef.name}`);
                 store.createIndex(idx.name, idx.keyPath, idx.options || { unique: false });
               }
             }
           }
         }
       };
+      
+      request.onblocked = () => {
+        console.warn('⚠️ [CHUNK_STORAGE] IndexedDB upgrade blocked by another tab');
+        // Don't reject, just wait - the other tab will complete the upgrade
+      };
     });
   }
 
   private async ensureDb(): Promise<IDBDatabase> {
-    if (!this.db) await this.init();
+    if (!this.db) {
+      try {
+        await this.init();
+      } catch (error) {
+        // If version conflict, try to recreate the database
+        if (error instanceof Error && error.name === 'VersionError') {
+          console.warn('⚠️ [CHUNK_STORAGE] Version conflict detected, recreating database');
+          await this.recreateDatabase();
+        } else {
+          throw error;
+        }
+      }
+    }
+    
     if (!this.db) throw new Error('Failed to initialize IndexedDB');
 
     // Validate stores; if any missing (old schema), recreate DB safely
     const missing = this.requiredStores.some(({ name }) => !this.db!.objectStoreNames.contains(name));
     if (missing) {
+      console.warn('⚠️ [CHUNK_STORAGE] Missing required stores, recreating database');
       await this.recreateDatabase();
     }
     return this.db!;
@@ -111,13 +142,26 @@ class ChunkStorage {
     // Close existing
     try { this.db?.close(); } catch {}
     this.db = null;
-    this.version += 1; // bump version to trigger upgrade
-    await new Promise<void>((resolve, reject) => {
+    
+    // Try to delete the existing database
+    await new Promise<void>((resolve) => {
       const deleteReq = indexedDB.deleteDatabase(this.dbName);
-      deleteReq.onsuccess = () => resolve();
-      deleteReq.onerror = () => resolve(); // ignore delete errors; we'll try open anyway
-      deleteReq.onblocked = () => resolve();
+      deleteReq.onsuccess = () => {
+        console.log('🗑️ [CHUNK_STORAGE] Database deleted successfully');
+        resolve();
+      };
+      deleteReq.onerror = () => {
+        console.warn('⚠️ [CHUNK_STORAGE] Database deletion failed, continuing anyway');
+        resolve();
+      };
+      deleteReq.onblocked = () => {
+        console.warn('⚠️ [CHUNK_STORAGE] Database deletion blocked, continuing anyway');
+        resolve();
+      };
     });
+    
+    // Reset version to current and reinitialize
+    this.version = 2;
     await this.init();
   }
 
@@ -523,10 +567,31 @@ class ChunkStorage {
       request.onerror = () => reject(request.error);
     });
   }
+
+  // Clear all data (for debugging/reset purposes)
+  async clearAllData(): Promise<void> {
+    try {
+      await this.clearOldChunks(0); // Clear all chunks (0 hours = everything)
+      console.log('🧹 [CHUNK_STORAGE] All data cleared successfully');
+    } catch (error) {
+      console.error('❌ [CHUNK_STORAGE] Failed to clear data:', error);
+      throw error;
+    }
+  }
 }
 
 // Singleton instance
 export const chunkStorage = new ChunkStorage();
 
-// Initialize on import
-chunkStorage.init().catch(console.error);
+// Initialize on import with error handling
+chunkStorage.init().catch((error) => {
+  console.error('❌ [CHUNK_STORAGE] Initialization failed:', error);
+  // If it's a version error, try to clear and recreate
+  if (error instanceof Error && error.name === 'VersionError') {
+    console.log('🔄 [CHUNK_STORAGE] Attempting to recover from version error...');
+    chunkStorage.clearAllData().then(() => {
+      console.log('✅ [CHUNK_STORAGE] Recovery completed, retrying initialization...');
+      chunkStorage.init().catch(console.error);
+    }).catch(console.error);
+  }
+});
