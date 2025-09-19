@@ -2,6 +2,7 @@
 
 import { getBaseUrl } from "@/lib/environment";
 import { verifySession } from "@/lib/session";
+import { normalizePlaybackUrl } from "@/lib/url-utils";
 
 export type CompleteMultipartRequest = {
   uploadId: string;
@@ -85,7 +86,13 @@ export default async function completeRecordingUpload(
 
   let key = data?.key ?? data?.Key ?? data?.s3Key ?? data?.Location ?? data?.location ?? null;
   if (key === 'key') key = null; // avoid literal field-name mishit
-  const playbackUrl = data?.playbackUrl ?? data?.playback_url ?? data?.url ?? undefined;
+  const rawPlaybackUrl = data?.playbackUrl ?? data?.playback_url ?? data?.url ?? undefined;
+  
+  // Normalize playback URL to ensure it has proper protocol
+  const playbackUrl = normalizePlaybackUrl(rawPlaybackUrl);
+  if (rawPlaybackUrl && playbackUrl !== rawPlaybackUrl) {
+    console.log("🔧 [RECORDINGS_COMPLETE] Normalized playback URL:", { original: rawPlaybackUrl, normalized: playbackUrl });
+  }
 
   console.log("🎯 [RECORDINGS_COMPLETE] Extracted values:", { key, playbackUrl });
 

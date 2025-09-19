@@ -13,6 +13,7 @@ import { useParams, useRouter } from "next/navigation";
 import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording-adapter";
 import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
 import { chunkStorage } from "@/lib/indexeddb-chunks";
+import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { SessionStatus } from "@/models/enums";
 
 // Import debug utilities in development
@@ -104,20 +105,23 @@ export default function ConsultationLayout({
     if (!playbackUrl || typeof window === 'undefined') return;
     
     try {
+      // Normalize the URL before saving
+      const normalizedUrl = normalizePlaybackUrl(playbackUrl) || playbackUrl;
+      
       const storageKey = `recordings_${consultationId}`;
       const savedRecordings = localStorage.getItem(storageKey) || '[]';
       const recordings = JSON.parse(savedRecordings);
       
       // Check if this URL already exists to prevent duplicates
-      const urlExists = recordings.some((r: any) => r.url === playbackUrl);
+      const urlExists = recordings.some((r: any) => r.url === normalizedUrl);
       if (urlExists) {
-        console.log("⚠️ Recording URL already exists, skipping:", playbackUrl);
+        console.log("⚠️ Recording URL already exists, skipping:", normalizedUrl);
         return;
       }
       
       const newRecording = {
         id: `recording_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        url: playbackUrl,
+        url: normalizedUrl,
         timestamp: new Date().toISOString(),
         type,
         name: `${type === 'screen' ? 'Screen' : 'Audio'} Recording ${recordings.length + 1}`,
@@ -127,7 +131,7 @@ export default function ConsultationLayout({
       recordings.push(newRecording);
       localStorage.setItem(storageKey, JSON.stringify(recordings));
       
-      console.log("💾 ✅ Successfully saved recording:", playbackUrl);
+      console.log("💾 ✅ Successfully saved recording:", normalizedUrl);
       console.log("📋 Total recordings now:", recordings.length);
       console.log("📋 All recordings:", recordings.map((r: any) => ({ name: r.name, url: r.url.substring(0, 50) + '...' })));
     } catch (error) {

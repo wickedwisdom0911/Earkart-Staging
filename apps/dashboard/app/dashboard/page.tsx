@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
+import { normalizePlaybackUrl } from "@/lib/url-utils";
 import {
   User,
   Building2,
@@ -409,9 +410,10 @@ export default function DashboardPage() {
               // From consultation.recordingName field (external callback)
               const recordingName = (consultation as any)?.recordingName ?? (consultation as any)?.recordingsName ?? (consultation as any)?.recording?.name;
               if (recordingName && process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL) {
+                const callbackUrl = `${process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL}?name=${encodeURIComponent(recordingName)}`;
                 screenRecordings.push({
                   id: `screen-${consultation.id}`,
-                  recordingUrl: `${process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL}?name=${encodeURIComponent(recordingName)}`,
+                  recordingUrl: normalizePlaybackUrl(callbackUrl) || callbackUrl,
                   createdAt: consultation.updatedAt,
                   type: 'screen'
                 });
@@ -421,7 +423,7 @@ export default function DashboardPage() {
               if ((consultation as any)?.recordingUrl) {
                 screenRecordings.push({
                   id: `screen-direct-${consultation.id}`,
-                  recordingUrl: (consultation as any).recordingUrl,
+                  recordingUrl: normalizePlaybackUrl((consultation as any).recordingUrl) || (consultation as any).recordingUrl,
                   createdAt: consultation.updatedAt,
                   type: 'screen'
                 });
@@ -474,7 +476,7 @@ export default function DashboardPage() {
                     return (
                       <a
                         key={recording.id || `recording-${index}`}
-                        href={recording.recordingUrl}
+                        href={normalizePlaybackUrl(recording.recordingUrl) || recording.recordingUrl}
                         download={`consultation-${consultation.id}-${isScreenRecording ? 'screen' : 'audio'}-${index + 1}.webm`}
                         target="_blank"
                         rel="noopener noreferrer"
