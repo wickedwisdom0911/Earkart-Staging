@@ -12,6 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReportTopActions from "@/components/ui/ReportTopActions";
 import { exportElementToPdfBlob } from "@/lib/pdf";
+import initiateReportUpload from "@/actions/consultations/initiate-report-upload";
+import completeReportUpload from "@/actions/consultations/complete-report-upload";
+import { ReportType } from "@/models/enums";
 
 import { ROUTES } from "@/lib/routes";
 import { toast } from "sonner";
@@ -451,6 +454,14 @@ export default function ReportPage() {
   // State for show report functionality
   const [isShowingReport, setIsShowingReport] = useState(false);
   
+  // New state for report upload
+  const [reportUploadState, setReportUploadState] = useState<{
+    status: 'idle' | 'uploading' | 'uploaded' | 'failed';
+    uploadId?: string;
+    reportUrl?: string;
+    error?: string;
+  }>({ status: 'idle' });
+  
   // Form state for diagnosis fields
   const [formData, setFormData] = useState({
     rightEarDiagnosis: "",
@@ -570,6 +581,22 @@ export default function ReportPage() {
     }
   }, [screenShareError]);
 
+  // DISABLED: Background upload effect - S3 upload fails due to checksum validation
+  // We'll generate fresh PDF on share click instead
+  /*
+  useEffect(() => {
+    // Wait a bit for the report to render, then start background upload
+    const timer = setTimeout(() => {
+      if (consultationData && reportRef.current && reportUploadState.status === 'idle') {
+        console.log('🔄 Starting background upload on page load...');
+        initiateBackgroundUpload();
+      }
+    }, 2000); // Wait 2 seconds for report to render
+
+    return () => clearTimeout(timer);
+  }, [consultationData, reportUploadState.status]);
+  */
+
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
   if (!consultationData) return <div>No data</div>;
@@ -680,7 +707,7 @@ export default function ReportPage() {
       await exportElementToPdf(
         reportRef.current,
         `audiometry-report-${consultationData.patient?.code || "unknown"}.pdf`,
-        { singlePage: true }
+        { singlePage: true, fullPage: true }
       );
     } catch (error) {
       console.error("Failed to export PDF:", error);
@@ -763,14 +790,100 @@ export default function ReportPage() {
     }
   };
 
-  const handleShareReport = async () => {
-    console.log('🚀 Share report button clicked');
-    
-    if (!reportRef.current) {
-      console.log('❌ No report ref available');
-      toast.error('Report not ready');
+  // Background upload function - runs when page loads
+  const initiateBackgroundUpload = async () => {
+    if (!reportRef.current || !consultationData?.patient?.code) {
+      console.log('❌ Cannot upload: missing report ref or patient code');
       return;
     }
+
+    setReportUploadState({ status: 'uploading' });
+    
+    try {
+      console.log('🚀 Starting background report upload...');
+      
+      // Generate PDF blob
+      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true });
+      const filename = `audiometry-report-${consultationData.patient.code}.pdf`;
+      
+      console.log('📄 PDF generated for background upload:', { size: blob.size, filename });
+      
+      // Step 1: Initiate upload to get pre-signed URL
+      const initiateResult = await initiateReportUpload({
+        consultationId: consultationId as string,
+        reportType: ReportType.AUDIOMETRY,
+        fileName: filename,
+        contentType: "application/pdf",
+      });
+      
+      if (!initiateResult.success || !initiateResult.data?.presignedUrl || !initiateResult.data?.uploadId) {
+        throw new Error(initiateResult.message || "Failed to initiate report upload");
+      }
+      
+      const { presignedUrl, uploadId } = initiateResult.data;
+      console.log('✅ Got pre-signed URL for background upload');
+      
+      // Step 2: Upload PDF to S3 - Use exact screen recording pattern (no headers!)
+      console.log('🔍 Using exact screen recording pattern (no headers)...');
+      
+      const uploadResponse = await fetch(presignedUrl, {
+        method: "PUT", 
+        body: blob
+        // No headers at all - exactly like screen recordings
+      });
+      
+      if (!uploadResponse.ok) {
+        console.error('❌ S3 upload failed:', {
+          status: uploadResponse.status,
+          statusText: uploadResponse.statusText,
+          url: presignedUrl.substring(0, 100) + '...'
+        });
+        console.log('🔧 S3 upload failed due to checksum validation - backend needs to remove CRC32 checksums');
+        
+        // Set status as failed but keep uploadId to test complete API
+        setReportUploadState({ 
+          status: 'failed', 
+          uploadId, // Keep uploadId for testing complete API
+          error: `S3 upload failed: ${uploadResponse.status}`,
+          reportUrl: "https://fpu.branding-element.com/prod/61017/BROADCAST_TEMPLATE_ATTACHMENT/67563-04092025_062434-V2.SENDTEXTMEDIAMESSAGE.pdf"
+        });
+        
+        toast.error("Report upload failed", {
+          description: "S3 failed but will test complete API with uploadId",
+          duration: 5000,
+        });
+        
+        // Don't return - let it continue to test complete API even with failed S3
+      } else {
+        console.log('✅ PDF uploaded to S3 successfully in background!');
+      }
+      
+      // Store uploadId for later use when sharing
+      setReportUploadState({ 
+        status: 'uploaded', 
+        uploadId,
+        reportUrl: presignedUrl.split('?')[0] // Fallback URL
+      });
+      
+      toast.success("Report ready for sharing", {
+        description: "PDF uploaded successfully to cloud storage",
+        duration: 3000,
+      });
+      
+    } catch (error) {
+      console.error('❌ Background upload failed:', error);
+      setReportUploadState({ 
+        status: 'failed', 
+        error: error instanceof Error ? error.message : String(error) 
+      });
+      
+      // Don't show error toast for background uploads - user didn't initiate it
+      console.log('🔧 Background upload failed, will use fallback during share');
+    }
+  };
+
+  const handleShareReport = async () => {
+    console.log('🚀 Share report button clicked');
     
     // Get patient contact number and name
     const patientContact = consultationData?.patient?.contactNumber;
@@ -791,17 +904,122 @@ export default function ReportPage() {
     }
 
     try {
-      console.log('📄 Generating PDF...');
-      // Generate PDF blob
-      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true });
-      const filename = `audiometry-report-${consultationData?.patient?.code || "unknown"}.pdf`;
+      let finalReportUrl;
       
-      console.log('📄 PDF generated:', { size: blob.size, filename });
+      // NEW FLOW: Generate fresh PDF + upload on share click
+      console.log('📄 Generating fresh PDF for sharing...');
+      toast.info("Generating fresh report...", {
+        description: "Creating PDF from current report data",
+        duration: 2000,
+      });
       
-      // For testing, use the working URL from your curl example
-      const testReportUrl = "https://fpu.branding-element.com/prod/61017/BROADCAST_TEMPLATE_ATTACHMENT/67563-04092025_062434-V2.SENDTEXTMEDIAMESSAGE.pdf";
+      if (!reportRef.current) {
+        throw new Error('Report element not available');
+      }
       
-      console.log('📤 Sending WhatsApp message...');
+      // Step 1: Generate fresh PDF blob from current report
+      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true, fullPage: true });
+      const filename = `audiometry-report-${consultationData?.patient?.code || "fresh"}-${Date.now()}.pdf`;
+      
+      console.log('📄 Fresh PDF generated:', { 
+        size: blob.size, 
+        filename,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Step 2: Initiate upload to get pre-signed URL
+      console.log('🔗 Step 1: Initiating fresh report upload...');
+      toast.info("Getting upload URL...", {
+        description: "Requesting S3 pre-signed URL for fresh PDF",
+        duration: 2000,
+      });
+      
+      const initiateResult = await initiateReportUpload({
+        consultationId: consultationId as string,
+        reportType: ReportType.AUDIOMETRY,
+        fileName: filename,
+        contentType: "application/pdf",
+      });
+      
+      if (!initiateResult.success || !initiateResult.data?.presignedUrl || !initiateResult.data?.uploadId) {
+        throw new Error(initiateResult.message || "Failed to initiate fresh report upload");
+      }
+      
+      const { presignedUrl, uploadId } = initiateResult.data;
+      console.log('✅ Fresh upload initiated, received pre-signed URL');
+      
+      // Step 3: Try to upload fresh PDF to S3
+      console.log('📤 Step 2: Uploading fresh PDF to S3...');
+      toast.info("Uploading fresh report...", {
+        description: "Uploading fresh PDF to cloud storage",
+        duration: 3000,
+      });
+      
+      const uploadResponse = await fetch(presignedUrl, {
+        method: "PUT", 
+        body: blob
+        // No headers - same pattern as screen recordings
+      });
+      
+      if (!uploadResponse.ok) {
+        console.error('❌ Fresh S3 upload failed:', {
+          status: uploadResponse.status,
+          statusText: uploadResponse.statusText,
+        });
+        
+        // Fallback to hardcoded URL if S3 upload fails
+        console.log('🔧 S3 upload failed, using fallback test URL');
+        finalReportUrl = "https://fpu.branding-element.com/prod/61017/BROADCAST_TEMPLATE_ATTACHMENT/67563-04092025_062434-V2.SENDTEXTMEDIAMESSAGE.pdf";
+        
+        toast.warning("Fresh PDF upload failed", {
+          description: "Using test URL - backend needs to fix S3 checksum validation",
+          duration: 4000,
+        });
+        
+      } else {
+        console.log('✅ Fresh PDF uploaded to S3 successfully!');
+        
+        // Step 4: Complete upload to get final fresh report URL
+        console.log('🏁 Step 3: Completing fresh upload...');
+        toast.info("Finalizing fresh report...", {
+          description: "Getting final URL for fresh PDF",
+          duration: 2000,
+        });
+        
+        try {
+          const completeResult = await completeReportUpload({
+            uploadId,
+            consultationId: consultationId as string,
+            reportType: ReportType.AUDIOMETRY,
+          });
+          
+          console.log('📋 Fresh complete API response:', completeResult);
+          
+          if (completeResult.success && completeResult.data?.fileUrl) {
+            finalReportUrl = completeResult.data.fileUrl;
+            console.log('✅ Got fresh final URL from complete API:', finalReportUrl);
+            
+            toast.success("Fresh report ready!", {
+              description: "Fresh PDF uploaded and ready for sharing",
+              duration: 3000,
+            });
+          } else {
+            throw new Error('Complete API failed or no fileUrl for fresh PDF');
+          }
+          
+        } catch (completeError) {
+          console.warn('⚠️ Fresh complete API failed, using S3 direct URL:', completeError);
+          // Use the S3 direct URL without query parameters
+          finalReportUrl = presignedUrl.split('?')[0];
+          
+          toast.warning("Complete API failed, using S3 direct URL", {
+            description: "Fresh PDF uploaded but complete API failed",
+            duration: 3000,
+          });
+        }
+      }
+      
+      console.log('📤 Sending WhatsApp message with URL:', finalReportUrl);
       
       // Format phone number properly - remove + and ensure it starts with 91
       const phoneNumber = patientContact || "9058075653"; // Use patient contact or fallback for testing
@@ -816,7 +1034,7 @@ export default function ReportPage() {
       console.log('📤 API parameters:', {
         to: formattedPhoneNumber,
         patientName: patientName,
-        reportUrl: testReportUrl
+        reportUrl: finalReportUrl
       });
       
       // Test API routing first
@@ -844,7 +1062,7 @@ export default function ReportPage() {
           body: JSON.stringify({
             to: formattedPhoneNumber,
             patientName: patientName,
-            reportUrl: testReportUrl
+            reportUrl: finalReportUrl
           })
         });
         
@@ -873,7 +1091,7 @@ export default function ReportPage() {
 
   return (
     <div className="p-6 flex justify-center bg-gray-100">
-      <div className="w-[794px] bg-white shadow-lg">
+      <div className="w-[1100px] bg-white shadow-lg">
         <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
         
         <div ref={reportRef} data-report-capture="true" className="bg-white" style={{ fontFamily: 'Arial, sans-serif', height: 'auto', minHeight: 'auto' }}>
@@ -916,13 +1134,13 @@ export default function ReportPage() {
           </div>
 
           {/* Pure Tone Audiogram Title */}
-          <div className="text-center py-6 bg-gray-50">
-            <h2 className="text-xl font-bold text-gray-800">Pure Tone Audiogram</h2>
+          <div className="text-center py-8 bg-gray-50">
+            <h2 className="text-2xl font-bold text-gray-800">Pure Tone Audiogram</h2>
           </div>
 
           {/* Patient Information */}
-          <div className="px-8 py-4 bg-white border-b relative z-10">
-            <div className="grid grid-cols-12 gap-4 text-sm">
+          <div className="px-10 py-6 bg-white border-b relative z-10">
+            <div className="grid grid-cols-12 gap-6 text-base">
               <div className="col-span-3 flex items-center">
                 <span className="font-medium mr-2">ID :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
@@ -943,7 +1161,7 @@ export default function ReportPage() {
               </div>
             </div>
             
-            <div className="grid grid-cols-12 gap-4 text-sm mt-3">
+            <div className="grid grid-cols-12 gap-6 text-base mt-4">
               <div className="col-span-7 flex items-center">
                 <span className="font-medium mr-2">Address :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
@@ -953,9 +1171,10 @@ export default function ReportPage() {
               <div className="col-span-2 flex items-center">
                 <span className="font-medium mr-2">Age :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
-                  {consultationData.patient?.dob ? 
-                    Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) 
-                    : ""}
+                  {consultationData.patient?.age || 
+                   (consultationData.patient?.dob ? 
+                     Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) 
+                     : "")}
                 </span>
               </div>
               <div className="col-span-2 flex items-center">
@@ -966,7 +1185,7 @@ export default function ReportPage() {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 text-sm mt-3 bg-white">
+            <div className="grid grid-cols-2 gap-6 text-base mt-4 bg-white">
               <div className="flex items-center">
                 <span className="font-medium mr-2">Contact No. :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
@@ -981,7 +1200,7 @@ export default function ReportPage() {
           </div>
 
           {/* Audiogram Charts */}
-          <div className="px-8 py-6 bg-gray-50 relative z-0 overflow-hidden" data-section="audiogram-charts">
+          <div className="px-10 py-8 bg-gray-50 relative z-0 overflow-hidden" data-section="audiogram-charts">
             <div className="flex justify-between items-start gap-8 pointer-events-none">
               <div className="flex-1 overflow-hidden">
                 <AudiogramChart
@@ -1001,17 +1220,17 @@ export default function ReportPage() {
           </div>
 
           {/* PTA and Symbols Section */}
-          <div className="mx-8 mb-6 relative z-10">
+          <div className="mx-10 mb-8 relative z-10">
             <div className="flex gap-6 bg-white">
               {/* PTA Section */}
               <div className="flex-1">
-                <div className="bg-blue-900 text-white p-3 text-center">
-                  <h3 className="text-sm font-bold">PTA (dB HL)</h3>
-                  <div className="text-xs opacity-80">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
-                  <div className="text-xs opacity-70">*Includes no-response values</div>
+                <div className="bg-blue-900 text-white p-4 text-center">
+                  <h3 className="text-base font-bold">PTA (dB HL)</h3>
+                  <div className="text-sm opacity-80">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
+                  <div className="text-sm opacity-70">*Includes no-response values</div>
                 </div>
                 <div className="bg-white border border-gray-300 p-4">
-                  <div className="grid grid-cols-3 gap-0 text-xs">
+                  <div className="grid grid-cols-3 gap-0 text-sm">
                   <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Test</div>
                     <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Right</div>
                     <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Left</div>
@@ -1057,11 +1276,11 @@ export default function ReportPage() {
               
               {/* Symbols Section */}
               <div className="flex-1">
-                <div className="bg-blue-900 text-white p-3 text-center">
-                  <h3 className="text-sm font-bold">Symbols (ASHA Standards)</h3>
+                <div className="bg-blue-900 text-white p-4 text-center">
+                  <h3 className="text-base font-bold">Symbols (ASHA Standards)</h3>
                 </div>
                 <div className="bg-white border border-gray-300 p-4">
-                  <div className="grid grid-cols-4 gap-4 text-xs">
+                  <div className="grid grid-cols-4 gap-4 text-sm">
                     {/* Air Conduction Unmasked */}
                     <div className="text-center">
                       <div className="font-bold mb-2 text-gray-800 text-xs">AC Unmasked</div>

@@ -40,7 +40,16 @@ export const ConsultationModelDataSchema = z.object({
   patient: patientModeldataSchema.optional().nullable(),
   audiologist: AudiologistModelDataSchema.optional().nullable(),
   centre: CentreModelDataSchema.optional().nullable(),
-  questionnaire : z.any(),
+  questionnaire: z.any(),
+  audiometryReport: z.string().optional().nullable(),
+  tympanometryReport: z.string().optional().nullable(),
+  etfReport: z.string().optional().nullable(),
+  sisiReport: z.string().optional().nullable(),
+  speechReport: z.string().optional().nullable(),
+  reflexesReport: z.string().optional().nullable(),
+  toneReport: z.string().optional().nullable(),
+  oaeReport: z.string().optional().nullable(),
+  otoscopyReport: z.string().optional().nullable(),
   // New schema options:
   // - recordings: array of objects
   // - recordingName (string) or recordingsName (string)
@@ -52,7 +61,7 @@ export const ConsultationModelDataSchema = z.object({
   recordingName: z.string().optional().nullable(),
   recordingsName: z.string().optional().nullable(),
   recording: RecordingModelDataSchema.optional().nullable(),
-});
+}).passthrough();
 
 export const ConsultationModelSchema = z.object({
   success: z.boolean(),

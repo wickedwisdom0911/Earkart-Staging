@@ -11,6 +11,7 @@ export const patientModeldataSchema = z.object({
   email: z.string(),
   gender: z.string(),
   dob: z.string().optional().nullable(),
+  age: z.number().optional().nullable(),
   password: z.string().optional().nullable(),
   address: z.string(),
   cityId: z.string().optional().nullable(),

@@ -149,3 +149,15 @@ export enum PatientSoldStatus {
   NOT_SOLD = "NOT_SOLD",
 }
 
+export enum ReportType {
+  AUDIOMETRY = "AUDIOMETRY",
+  TYMPANOMETRY = "TYMPANOMETRY",
+  ETF = "ETF",
+  SISI = "SISI",
+  SPEECH = "SPEECH",
+  REFLEXES = "REFLEXES",
+  TONE = "TONE",
+  OAE = "OAE",
+  OTOSCOPY = "OTOSCOPY",
+}
+

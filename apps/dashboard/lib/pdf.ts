@@ -34,9 +34,10 @@ function rasterizeSVGsInClone(container: HTMLElement, ownerDocument: Document) {
   }
 }
 
-export async function exportElementToPdf(element: HTMLElement, filename: string, options?: { singlePage?: boolean }) {
+export async function exportElementToPdf(element: HTMLElement, filename: string, options?: { singlePage?: boolean; fullPage?: boolean }) {
   const MARK_ATTR = `data-export-mark`;
   const singlePage = !!options?.singlePage;
+  const fullPage = !!options?.fullPage;
   element.setAttribute(MARK_ATTR, "1");
 
   const width = Math.max(element.scrollWidth, element.clientWidth, element.offsetWidth);
@@ -128,12 +129,27 @@ export async function exportElementToPdf(element: HTMLElement, filename: string,
     const pdfH = pdf.internal.pageSize.getHeight();
 
     if (singlePage) {
-      const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
-      const drawW = canvas.width * fitRatio;
-      const drawH = canvas.height * fitRatio;
-      const x = (pdfW - drawW) / 2;
-      const y = (pdfH - drawH) / 2;
-      pdf.addImage(imgData, "PNG", x, y, drawW, drawH);
+      if (fullPage) {
+        // Maximize size while maintaining proportions (no distortion)
+        const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
+        const drawW = canvas.width * fitRatio;
+        const drawH = canvas.height * fitRatio;
+        // Center with minimal margins (use 99.5% of available space)
+        const scaleFactor = 0.995;
+        const finalW = drawW * scaleFactor;
+        const finalH = drawH * scaleFactor;
+        const x = (pdfW - finalW) / 2;
+        const y = (pdfH - finalH) / 2;
+        pdf.addImage(imgData, "PNG", x, y, finalW, finalH);
+      } else {
+        // Center with proportional scaling (original behavior)
+        const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
+        const drawW = canvas.width * fitRatio;
+        const drawH = canvas.height * fitRatio;
+        const x = (pdfW - drawW) / 2;
+        const y = (pdfH - drawH) / 2;
+        pdf.addImage(imgData, "PNG", x, y, drawW, drawH);
+      }
       pdf.save(filename);
       return;
     }
@@ -171,9 +187,10 @@ export async function exportElementToPdf(element: HTMLElement, filename: string,
 }
 
 // NEW: Generate a PDF Blob from an element without saving, for sharing purposes
-export async function exportElementToPdfBlob(element: HTMLElement, options?: { singlePage?: boolean }): Promise<Blob> {
+export async function exportElementToPdfBlob(element: HTMLElement, options?: { singlePage?: boolean; fullPage?: boolean }): Promise<Blob> {
   const MARK_ATTR = `data-export-mark`;
   const singlePage = !!options?.singlePage;
+  const fullPage = !!options?.fullPage;
   element.setAttribute(MARK_ATTR, "1");
 
   const width = Math.max(element.scrollWidth, element.clientWidth, element.offsetWidth);
@@ -254,12 +271,27 @@ export async function exportElementToPdfBlob(element: HTMLElement, options?: { s
     const pdfH = pdf.internal.pageSize.getHeight();
 
     if (singlePage) {
-      const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
-      const drawW = canvas.width * fitRatio;
-      const drawH = canvas.height * fitRatio;
-      const x = (pdfW - drawW) / 2;
-      const y = (pdfH - drawH) / 2;
-      pdf.addImage(imgData, "PNG", x, y, drawW, drawH);
+      if (fullPage) {
+        // Maximize size while maintaining proportions (no distortion)
+        const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
+        const drawW = canvas.width * fitRatio;
+        const drawH = canvas.height * fitRatio;
+        // Center with minimal margins (use 99.5% of available space)
+        const scaleFactor = 0.995;
+        const finalW = drawW * scaleFactor;
+        const finalH = drawH * scaleFactor;
+        const x = (pdfW - finalW) / 2;
+        const y = (pdfH - finalH) / 2;
+        pdf.addImage(imgData, "PNG", x, y, finalW, finalH);
+      } else {
+        // Center with proportional scaling (original behavior)
+        const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
+        const drawW = canvas.width * fitRatio;
+        const drawH = canvas.height * fitRatio;
+        const x = (pdfW - drawW) / 2;
+        const y = (pdfH - drawH) / 2;
+        pdf.addImage(imgData, "PNG", x, y, drawW, drawH);
+      }
       return pdf.output("blob");
     }
 

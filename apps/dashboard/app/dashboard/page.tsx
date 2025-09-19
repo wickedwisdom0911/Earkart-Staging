@@ -27,7 +27,7 @@ import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import getConsultation from "@/actions/consultations/get_consultation";
 import { toast } from "sonner";
-import getRecordingById from "@/actions/recordings/get-by-id";
+
 // Removed RecordingLink component – we will use consultation.recordings provided by API
 
 export default function DashboardPage() {
@@ -37,7 +37,6 @@ export default function DashboardPage() {
     ConsultationModelData[]
   >([]);
   const [blinkingIds, setBlinkingIds] = useState<string[]>([]);
-  const [detailedRecordings, setDetailedRecordings] = useState<Record<string, any>>({});
   const { data: consultations, isLoading, isError } = useGetAllConsultations();
   const socket = useSocket();
 
@@ -76,27 +75,7 @@ export default function DashboardPage() {
       
       setAllConsulations(consultations?.data);
       
-      // 🐛 DEBUG: Fetch detailed recording info for completed consultations
-      consultations.data
-        .filter(c => c.status === SessionStatus.COMPLETED && c.recordings?.length)
-        .forEach(async (consultation) => {
-          if (consultation.recordings) {
-            for (const recording of consultation.recordings) {
-              if (recording.id && !detailedRecordings[recording.id]) {
-                try {
-                  const detailedRecording = await getRecordingById(recording.id);
-                  setDetailedRecordings(prev => ({
-                    ...prev,
-                    [recording.id!]: detailedRecording
-                  }));
-                  console.log(`[RECORDING_DETAIL] ${recording.id}:`, detailedRecording);
-                } catch (err) {
-                  console.error(`Failed to fetch recording ${recording.id}:`, err);
-                }
-              }
-            }
-          }
-        });
+      // Recording details are now included in the consultation response
       
       // NEW: Check and notify for consultations that need attention when they're displayed
       if (user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST) {
@@ -463,11 +442,10 @@ export default function DashboardPage() {
                       ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
                       : `Part ${index + 1}`;
                     
-                    // Get detailed recording info if available
-                    const detailedInfo = recording.id ? detailedRecordings[recording.id] : null;
-                    const fileName = detailedInfo?.fileName || (recording as any).fileName || (recording as any).name || '';
-                    const mimeType = detailedInfo?.mimeType || (recording as any).mimeType || '';
-                    const status = detailedInfo?.status || 'unknown';
+                    // Get recording info directly from the recording object
+                    const fileName = (recording as any).fileName || (recording as any).name || '';
+                    const mimeType = (recording as any).mimeType || '';
+                    const status = (recording as any).status || 'unknown';
                     
                     // Detect screen recording by filename pattern or mimeType
                     const isScreenRecording = fileName.includes('.webm') || 

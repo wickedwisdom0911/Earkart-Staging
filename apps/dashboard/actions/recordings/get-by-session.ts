@@ -2,7 +2,22 @@
 
 import { getBaseUrl } from "@/lib/environment";
 import { verifySession } from "@/lib/session";
-import type { RecordingDto } from "./get-by-id";
+
+export type RecordingDto = {
+  id: string;
+  sessionId: string;
+  recordingUrl: string | null;
+  s3Key: string | null;
+  uploadId: string | null;
+  status: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  durationMs: number | null;
+  totalParts: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export default async function getRecordingsBySession(sessionId: string): Promise<RecordingDto[]> {
   const baseUrl = await getBaseUrl();
