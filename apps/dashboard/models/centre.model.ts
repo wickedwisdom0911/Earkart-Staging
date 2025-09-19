@@ -52,6 +52,7 @@ export const CentreModelDataSchema = z.object({
   updatedAt: z.string().optional(),
   city: CityModelDataSchema.optional(),
   device: DeviceModelDataSchema.optional().nullable(),
+  
 });
 
 export const CreateCentreModelSchema = z.object({

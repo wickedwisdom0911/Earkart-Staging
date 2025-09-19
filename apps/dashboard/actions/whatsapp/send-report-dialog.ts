@@ -21,9 +21,23 @@ export async function sendReportDialog({
     console.log('📱 WhatsApp API - Action function called');
     console.log('📱 WhatsApp API - Sending request:', { to, patientName, reportUrl });
     
+    // Check for required environment variables
+    const whatsappApiUrl = process.env.WHATSAPP_API_URL;
+    const whatsappApiKey = process.env.WHATSAPP_API_KEY;
+    const whatsappNamespace = process.env.WHATSAPP_TEMPLATE_NAMESPACE;
+    const whatsappCookie = process.env.WHATSAPP_COOKIE;
+    
+    if (!whatsappApiUrl || !whatsappApiKey || !whatsappNamespace) {
+      console.error('❌ Missing WhatsApp API environment variables');
+      return {
+        success: false,
+        error: 'WhatsApp API configuration is missing. Please check environment variables.'
+      };
+    }
+    
     const requestBody = {
       template: {
-        namespace: "065adc48_d91a_473f_a962_c1259f818555",
+        namespace: whatsappNamespace,
         name: "final_report_copy",
         components: [
           {
@@ -60,13 +74,19 @@ export async function sendReportDialog({
     
     console.log('📱 WhatsApp API - Request body:', JSON.stringify(requestBody, null, 2));
     
-    const response = await fetch('https://orailap.azurewebsites.net/api/cloud/Dialog', {
+    const headers: Record<string, string> = {
+      'API-KEY': whatsappApiKey,
+      'Content-Type': 'application/json',
+    };
+    
+    // Add cookie if provided
+    if (whatsappCookie) {
+      headers['Cookie'] = whatsappCookie;
+    }
+    
+    const response = await fetch(whatsappApiUrl, {
       method: 'POST',
-      headers: {
-        'API-KEY': 'T1ubpczmBmxRzk37ag9jzRxvAK',
-        'Content-Type': 'application/json',
-        'Cookie': 'ARRAffinity=c0c9a2297c18e61f589a86f4a5429bbde348eef095609f221ea5dfcbbe54bb8c; ARRAffinitySameSite=c0c9a2297c18e61f589a86f4a5429bbde348eef095609f221ea5dfcbbe54bb8c'
-      },
+      headers,
       body: JSON.stringify(requestBody)
     });
 

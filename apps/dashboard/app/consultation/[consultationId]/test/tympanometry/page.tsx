@@ -223,12 +223,12 @@ export default function TympanometryPage() {
 
       // Check if both ears are completed
       if (newCompletedEars.size === 2) {
-        toast.success("Both ears completed! Proceeding to report...");
-        router.push(ROUTES.TYM_REPORT(params.consultationId as string));
+        toast.success("Both ears completed! You can now view the report.");
+        // Don't automatically navigate - let user click "View Report" button
       } else {
         const remainingEar = selectedEar === "L" ? "Right" : "Left";
         toast.success(
-          `${selectedEar === "L" ? "Left" : "Right"} ear completed! Please test the ${remainingEar} ear.`
+          `${selectedEar === "L" ? "Left" : "Right"} ear completed and saved! Please test the ${remainingEar} ear.`
         );
 
         // Switch to the other ear automatically
@@ -551,7 +551,7 @@ export default function TympanometryPage() {
                 <button
                   className={`px-3 py-1 rounded text-xs ${
                     selectedEar === "R"
-                      ? "bg-red-500 text-white"
+                      ? "bg-blue-500 text-white"
                       : completedEars.has("R")
                         ? "bg-green-500 text-white"
                         : "bg-gray-200"
@@ -739,7 +739,9 @@ export default function TympanometryPage() {
                   ? "Submitting..."
                   : completedEars.size === 1
                     ? "Save & Next Ear"
-                    : "Complete & Report"}
+                    : completedEars.size === 0
+                    ? "Save & Next Ear"
+                    : "Save Results"}
               </button>
             )}
             {completedEars.size === 2 && (
