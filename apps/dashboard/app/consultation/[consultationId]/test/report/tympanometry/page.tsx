@@ -405,7 +405,7 @@ export default function TympanometryReportPage() {
         
         if (result.success) {
           toast.success("Report shared successfully via WhatsApp!");
-        } else {
+      } else {
           toast.error(`Failed to send WhatsApp: ${result.error}`);
         }
       }
@@ -554,54 +554,75 @@ export default function TympanometryReportPage() {
 
           {/* Tympanogram Charts */}
           <div className="px-8 py-6 bg-gray-50 relative z-0">
-            <div className="flex justify-between items-start gap-8">
-              {(() => {
-                const leftReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
-                const rightReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
+            {(() => {
+              const leftReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
+              const rightReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
 
-                const buildData = (r: TympanometryReadingModelData | undefined, ear: 'L' | 'R'): TympanogramPoint[] => {
-                  if (!r) return [];
-                    const data: TympanogramPoint[] = [];
-                    for (let pressure = 200; pressure >= -400; pressure -= 25) {
-                    const distance = Math.abs(pressure - r.peakPressure);
-                    const sigma = 100;
-                    const normalized = distance / sigma;
-                    const compliance = Math.max(r.staticCompliance * Math.exp(-(normalized * normalized) / 2), 0.05);
-                    data.push({ pressure, compliance: compliance * 1.1, compensatedCompliance: compliance, ear });
-                    }
-                    return data;
-                  };
+              const buildData = (r: TympanometryReadingModelData | undefined, ear: 'L' | 'R'): TympanogramPoint[] => {
+                if (!r) return [];
+                const data: TympanogramPoint[] = [];
+                for (let pressure = 200; pressure >= -400; pressure -= 25) {
+                  const distance = Math.abs(pressure - r.peakPressure);
+                  const sigma = 100;
+                  const normalized = distance / sigma;
+                  const compliance = Math.max(r.staticCompliance * Math.exp(-(normalized * normalized) / 2), 0.05);
+                  data.push({ pressure, compliance: compliance * 1.1, compensatedCompliance: compliance, ear });
+                }
+                return data;
+              };
 
-                  return (
-                  <>
-                    <div className="flex-1">
-                        <TympanogramGraph
-                          realTimeData={[]}
-                        finalData={buildData(rightReading, 'R')}
-                          isTestCompleted={true}
-                        selectedEar={'R'}
-                          pressureMax={200}
-                          pressureMin={-400}
-                          complianceMax={2.0}
-                          complianceMin={0}
-                        />
-                      </div>
-                    <div className="flex-1">
-                  <TympanogramGraph
-                    realTimeData={[]}
-                        finalData={buildData(leftReading, 'L')}
-                    isTestCompleted={true}
-                        selectedEar={'L'}
-                    pressureMax={200}
-                    pressureMin={-400}
-                    complianceMax={2.0}
-                    complianceMin={0}
-                  />
-                </div>
-                  </>
+              // Build the list of graphs to render only for ears with data
+              const graphs: React.ReactNode[] = [];
+              if (rightReading) {
+                graphs.push(
+                  <div key="graph-right" className="flex-1 min-w-0">
+                    <TympanogramGraph
+                      realTimeData={[]}
+                      finalData={buildData(rightReading, 'R')}
+                      isTestCompleted={true}
+                      selectedEar={'R'}
+                      pressureMax={200}
+                      pressureMin={-400}
+                      complianceMax={2.0}
+                      complianceMin={0}
+                    />
+                  </div>
                 );
-              })()}
-              </div>
+              }
+              if (leftReading) {
+                graphs.push(
+                  <div key="graph-left" className="flex-1 min-w-0">
+                    <TympanogramGraph
+                      realTimeData={[]}
+                      finalData={buildData(leftReading, 'L')}
+                      isTestCompleted={true}
+                      selectedEar={'L'}
+                      pressureMax={200}
+                      pressureMin={-400}
+                      complianceMax={2.0}
+                      complianceMin={0}
+                    />
+                  </div>
+                );
+              }
+
+              // If no readings at all, show a single placeholder
+              if (graphs.length === 0) {
+                return (
+                  <div className="border rounded p-4">
+                    <div className="h-[200px] flex items-center justify-center text-gray-500">
+                      No Tympanogram Data
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div className={`flex items-start gap-8 ${graphs.length === 1 ? 'justify-center' : 'justify-between'}`}>
+                  {graphs}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Investigation: Impedance */}
