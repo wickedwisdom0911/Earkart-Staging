@@ -744,7 +744,7 @@ export default function TympanometryPage() {
                     : "Save Results"}
               </button>
             )}
-            {completedEars.size === 2 && (
+            {completedEars.size >= 1 && (
               <button
                 className="w-full mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
                 onClick={() =>
@@ -1169,7 +1169,7 @@ export default function TympanometryPage() {
                   ? "Save & Continue to Next Ear"
                   : "Complete Test & View Report"}
             </button>
-            {completedEars.size === 2 && (
+            {completedEars.size >= 1 && (
               <button
                 className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
                 onClick={() =>

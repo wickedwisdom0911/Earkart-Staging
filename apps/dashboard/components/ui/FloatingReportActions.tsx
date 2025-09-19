@@ -22,47 +22,53 @@ export const FloatingReportActions: React.FC<FloatingReportActionsProps> = ({
   onShare,
 }) => {
   return (
-    <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-10">
+    <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-50">
       {onToggleShowReport && (
         <Button
           onClick={onToggleShowReport}
           disabled={isScreenConnecting}
+          size="sm"
           className={`${(isShowingReport || isScreenSharing)
-            ? "bg-orange-600 hover:bg-orange-700"
-            : "bg-blue-600 hover:bg-blue-700"
-          } text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 disabled:opacity-50`}
+            ? "bg-orange-500 hover:bg-orange-600 shadow-orange-200"
+            : "bg-blue-500 hover:bg-blue-600 shadow-blue-200"
+          } text-white px-3 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-1.5 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
         >
-          <span>{isScreenConnecting ? "🔄" : isScreenSharing ? "🖥️" : "📊"}</span>
-          {isScreenConnecting
-            ? "Connecting..."
-            : (isShowingReport || isScreenSharing)
-              ? "Hide Report"
-              : "Show Report"
-          }
+          <span className="text-sm">{isScreenConnecting ? "🔄" : isScreenSharing ? "🖥️" : "📊"}</span>
+          <span className="hidden sm:inline">
+            {isScreenConnecting
+              ? "Connecting..."
+              : (isShowingReport || isScreenSharing)
+                ? "Hide"
+                : "Show"
+            }
+          </span>
         </Button>
       )}
       {onShare && (
         <Button
           onClick={onShare}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"
+          size="sm"
+          className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-1.5 text-xs font-medium shadow-indigo-200"
         >
-          <span>📤</span>
-          Share Report
+          <span className="text-sm">📤</span>
+          <span className="hidden sm:inline">Share</span>
         </Button>
       )}
       <Button
         onClick={onDoAnotherTest}
-        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"
+        size="sm"
+        className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-1.5 text-xs font-medium shadow-green-200"
       >
-        <span>🔄</span>
-        Do Another Test
+        <span className="text-sm">🔄</span>
+        <span className="hidden sm:inline">Another Test</span>
       </Button>
       <Button
         onClick={onEndConsultation}
-        className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"
+        size="sm"
+        className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-1.5 text-xs font-medium shadow-red-200"
       >
-        <span>✅</span>
-        End Consultation
+        <span className="text-sm">✅</span>
+        <span className="hidden sm:inline">End</span>
       </Button>
     </div>
   );
