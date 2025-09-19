@@ -43,6 +43,7 @@ import 'package:earkart_omni/models/otoscopy/otoscopy_test.entity.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/tympanometry/tympanometry_test.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -410,8 +411,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     switch (state) {
       case AppLifecycleState.resumed:
-        // App is in foreground, enable wakelock
-        WakelockManager.enable();
+        // App is in foreground, ensure wakelock is active
+        WakelockManager.ensureActive();
         // Force a device check on resume to resubscribe to USB stream if needed
         try {
           final deviceCubit = di<DeviceCubit>();
@@ -420,14 +421,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         } catch (_) {}
         break;
       case AppLifecycleState.paused:
+        // App is paused but might resume soon - keep wake lock for medical app
+        // Only disable after extended inactivity (handled by watchdog timer)
+        if (kDebugMode) {
+          print('App paused - keeping wake lock active for medical operations');
+        }
+        break;
       case AppLifecycleState.inactive:
+        // App is temporarily inactive (e.g., incoming call) - keep wake lock
+        WakelockManager.ensureActive();
+        break;
       case AppLifecycleState.detached:
-        // App is in background or being closed, disable wakelock to save battery
-        WakelockManager.disable();
+        // App is being terminated - now it's safe to disable wake lock
+        WakelockManager.cleanup();
         break;
       case AppLifecycleState.hidden:
         // App is hidden but still running, keep wakelock enabled for this medical app
-        WakelockManager.enable();
+        WakelockManager.ensureActive();
         break;
     }
   }
