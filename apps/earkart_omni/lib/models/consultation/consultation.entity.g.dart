@@ -37,13 +37,22 @@ class ConsultationEntityAdapter extends TypeAdapter<ConsultationEntity> {
       recordings: (fields[17] as List?)?.cast<ConsultationRecordingEntity>(),
       consultationPricing:
           (fields[18] as List?)?.cast<ConsultationPricingEntity>(),
+      audiometryReport: fields[19] as String?,
+      tympanometryReport: fields[20] as String?,
+      etfReport: fields[21] as String?,
+      sisiReport: fields[22] as String?,
+      speechReport: fields[23] as String?,
+      reflexesReport: fields[24] as String?,
+      toneReport: fields[25] as String?,
+      oaeReport: fields[26] as String?,
+      otoscopyReport: fields[27] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ConsultationEntity obj) {
     writer
-      ..writeByte(19)
+      ..writeByte(28)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -81,7 +90,25 @@ class ConsultationEntityAdapter extends TypeAdapter<ConsultationEntity> {
       ..writeByte(17)
       ..write(obj.recordings)
       ..writeByte(18)
-      ..write(obj.consultationPricing);
+      ..write(obj.consultationPricing)
+      ..writeByte(19)
+      ..write(obj.audiometryReport)
+      ..writeByte(20)
+      ..write(obj.tympanometryReport)
+      ..writeByte(21)
+      ..write(obj.etfReport)
+      ..writeByte(22)
+      ..write(obj.sisiReport)
+      ..writeByte(23)
+      ..write(obj.speechReport)
+      ..writeByte(24)
+      ..write(obj.reflexesReport)
+      ..writeByte(25)
+      ..write(obj.toneReport)
+      ..writeByte(26)
+      ..write(obj.oaeReport)
+      ..writeByte(27)
+      ..write(obj.otoscopyReport);
   }
 
   @override
