@@ -16,7 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { loginUser } from "@/actions/auth/login-user";
+import loginUser from "@/actions/auth/login-user";
 import { toast } from "sonner";
 import { 
   Dialog, 
