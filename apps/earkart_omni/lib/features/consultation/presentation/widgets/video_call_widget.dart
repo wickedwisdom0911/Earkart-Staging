@@ -186,13 +186,17 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                 '[VIDEO_CALL] Consultation error - ${state.message}',
               );
               if (!mounted || _isDisposed) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Failed to end consultation: ${state.message}'),
-                  backgroundColor: Colors.red,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
+              if (state.message != 'No consultation found') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Failed to end consultation: ${state.message}',
+                    ),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
             }
           },
         ),

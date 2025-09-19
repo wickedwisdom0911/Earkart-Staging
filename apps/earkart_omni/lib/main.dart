@@ -27,7 +27,7 @@ import 'package:earkart_omni/features/lookup/data/source/local/state.entity.sour
 import 'package:earkart_omni/features/lookup/data/source/local/city.entity.source.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/district.entty.source.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/language.entity.source.dart';
-import 'package:earkart_omni/services/battery_service.dart';
+import 'package:earkart_omni/config/services/battery_service.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';

@@ -13,36 +13,21 @@ class SessionManager {
       GlobalKey<NavigatorState>();
 
   static void setContext(BuildContext context) {
-    print('🔍 [SESSION_MANAGER] Setting context');
     _currentContext = context;
   }
 
   static void clearContext() {
-    print('🔍 [SESSION_MANAGER] Clearing context');
     _currentContext = null;
   }
 
   static void handleSessionExpired() {
-    print('🔍 [SESSION_MANAGER] handleSessionExpired called');
-    print('🔍 [SESSION_MANAGER] _isShowingDialog: $_isShowingDialog');
-    print(
-      '🔍 [SESSION_MANAGER] _isHandlingSessionExpired: $_isHandlingSessionExpired',
-    );
-    print(
-      '🔍 [SESSION_MANAGER] _currentContext: ${_currentContext != null ? 'set' : 'null'}',
-    );
-
     // Prevent multiple simultaneous session expiration handling
     if (_isShowingDialog ||
         _isHandlingSessionExpired ||
         _currentContext == null) {
-      print(
-        '🔍 [SESSION_MANAGER] Skipping session expired handling - dialog showing: $_isShowingDialog, handling: $_isHandlingSessionExpired, context: ${_currentContext != null}',
-      );
       return;
     }
 
-    print('🔍 [SESSION_MANAGER] Showing session expired dialog');
     _isShowingDialog = true;
     _isHandlingSessionExpired = true;
 
@@ -52,9 +37,6 @@ class SessionManager {
       if (ctx != null && _isShowingDialog) {
         // Show the session expired dialog with a context that includes a Navigator
         SessionExpiredDialog.show(ctx, () {
-          print(
-            '🔍 [SESSION_MANAGER] Session expired dialog callback triggered',
-          );
           _performLogout();
         });
       }
@@ -62,27 +44,23 @@ class SessionManager {
   }
 
   static void _performLogout() {
-    print('🔍 [SESSION_MANAGER] _performLogout called');
     final navState = navigatorKey.currentState;
     if (navState == null) {
-      print('🔍 [SESSION_MANAGER] No navigator available for logout');
       _resetState();
       return;
     }
 
     try {
-      print('🔍 [SESSION_MANAGER] Calling AuthCubit logout');
       // Use AuthCubit to logout which will clear all data including Hive boxes
       (navigatorKey.currentContext ?? _currentContext)!
           .read<AuthCubit>()
           .logout();
 
-      print('🔍 [SESSION_MANAGER] Navigating to login screen');
       // Navigate to login screen and clear all routes
       navState.pushNamedAndRemoveUntil(LoginScreen.routeName, (route) => false);
     } catch (e) {
       // If navigation fails, try to restart the app
-      print('🔍 [SESSION_MANAGER] Error during logout: $e');
+
       debugPrint('Error during logout: $e');
     } finally {
       _resetState();
@@ -90,13 +68,11 @@ class SessionManager {
   }
 
   static void _resetState() {
-    print('🔍 [SESSION_MANAGER] Resetting state');
     _isShowingDialog = false;
     _isHandlingSessionExpired = false;
   }
 
   static void resetDialogState() {
-    print('🔍 [SESSION_MANAGER] resetDialogState called');
     _isShowingDialog = false;
   }
 }

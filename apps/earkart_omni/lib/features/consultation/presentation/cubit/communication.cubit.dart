@@ -13,7 +13,7 @@ import 'package:earkart_omni/models/communication/audiometer_core_state.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/communication/impedance_data.dart';
 import 'package:earkart_omni/models/communication/impedance_status.dart';
-import 'package:earkart_omni/services/battery_service.dart';
+import 'package:earkart_omni/config/services/battery_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 
@@ -32,7 +32,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   bool _processing = false;
   // Removed single global command timeout in favor of per-command timers
   Timer? _syncRetryTimer;
-  Timer? _tabletBatteryUpdateTimer;
+  StreamSubscription<dynamic>? _batteryStreamSubscription;
   UsbDevice? _lastDevice;
 
   static const int MAX_CONSECUTIVE_ERRORS = 15;
@@ -43,8 +43,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   int _errorCount = 0;
 
   CommunicationCubit() : super(const CommunicationState()) {
-    // Start periodic tablet battery updates
-    _startTabletBatteryUpdates();
+    // Start stream-based tablet battery monitoring
+    _startTabletBatteryMonitoring();
   }
 
   Future<bool> initializePort(UsbDevice device) async {
@@ -260,7 +260,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         case 19: // Battery Status
           di<ILogger>().debug('Received battery status');
           final isCharging = json['Battery']['Powered'];
-          final batteryLevel = json['Battery']['Level'];
+          final batteryLevel = json['Battery']['Level'] as int?;
           emit(
             state.copyWith(isCharging: isCharging, batteryLevel: batteryLevel),
           );
@@ -618,20 +618,37 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   Future<void> sendDeviceStatusPacket() async {
     try {
-      di<ILogger>().info(
-        'Sending device status packet with tablet battery info: ${state.tabletBatteryLevel}%, charging: ${state.isTabletBatteryCharging}',
-      );
+      final batteryLevel = state.tabletBatteryLevel;
+      final isCharging = state.isTabletBatteryCharging ?? false;
+      final isLoading = state.isTabletBatteryLoading;
 
-      final packet = _packetInterpreter.constructPacket({
-        "PacketType": 18,
-        "Notify": true,
-        "TabletBattery": {
-          "level": state.tabletBatteryLevel,
-          "isCharging": state.isTabletBatteryCharging,
-          "timestamp": DateTime.now().toIso8601String(),
-        },
-      });
-      await sendCommand(packet);
+      if (batteryLevel != null && !isLoading) {
+        di<ILogger>().info(
+          'Sending device status packet with tablet battery info: $batteryLevel%, charging: $isCharging',
+        );
+
+        final packet = _packetInterpreter.constructPacket({
+          "PacketType": 18,
+          "Notify": true,
+          "TabletBattery": {
+            "level": batteryLevel,
+            "isCharging": isCharging,
+            "timestamp": DateTime.now().toIso8601String(),
+          },
+        });
+        await sendCommand(packet);
+      } else {
+        di<ILogger>().info(
+          'Sending device status packet without battery info (level: $batteryLevel, loading: $isLoading)',
+        );
+
+        // Send packet without battery info when not available or loading
+        final packet = _packetInterpreter.constructPacket({
+          "PacketType": 18,
+          "Notify": true,
+        });
+        await sendCommand(packet);
+      }
     } catch (e) {
       di<ILogger>().error('Error sending device status packet: $e');
 
@@ -660,28 +677,45 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     }
   }
 
-  /// Update tablet battery status in the state
-  Future<void> updateTabletBatteryStatus() async {
+  /// Update tablet battery status in the state from BatteryInfo
+  void _updateTabletBatteryFromInfo(dynamic batteryInfo) {
     try {
-      final batteryService = di<BatteryService>();
-      final batteryInfo = await batteryService.getBatteryInfo();
+      final level = batteryInfo.level as int?;
+      final isCharging = batteryInfo.isCharging as bool?;
+      final isLoading = batteryInfo.isLoading as bool? ?? false;
 
-      final level = batteryInfo['level'] as int? ?? 0;
-      final isCharging = batteryInfo['isCharging'] as bool? ?? false;
-
-      // Only emit if the values have changed
+      // Only emit if the values have changed or loading state changed
       if (state.tabletBatteryLevel != level ||
-          state.isTabletBatteryCharging != isCharging) {
+          state.isTabletBatteryCharging != isCharging ||
+          state.isTabletBatteryLoading != isLoading) {
         emit(
           state.copyWith(
             tabletBatteryLevel: level,
             isTabletBatteryCharging: isCharging,
+            isTabletBatteryLoading: isLoading,
           ),
         );
-        di<ILogger>().debug(
-          'Tablet battery status updated: $level%, charging: $isCharging',
-        );
+
+        if (!isLoading && level != null) {
+          di<ILogger>().debug(
+            'Tablet battery status updated: $level%, charging: ${isCharging ?? false}',
+          );
+        } else if (isLoading) {
+          di<ILogger>().debug('Tablet battery loading...');
+        }
       }
+    } catch (e) {
+      di<ILogger>().error('Error updating tablet battery status: $e');
+      // Set error state
+      emit(state.copyWith(isTabletBatteryLoading: false));
+    }
+  }
+
+  /// Legacy method for backward compatibility
+  Future<void> updateTabletBatteryStatus() async {
+    try {
+      final batteryService = di<BatteryService>();
+      await batteryService.refreshBatteryInfo();
     } catch (e) {
       di<ILogger>().error('Error updating tablet battery status: $e');
     }
@@ -712,27 +746,68 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         impedanceData: null,
         error: null,
         isInBeginMode: false,
+        // Reset battery states to null/loading
+        batteryLevel: null,
+        isCharging: null,
+        tabletBatteryLevel: null,
+        isTabletBatteryCharging: null,
+        isTabletBatteryLoading: true,
       ),
     );
   }
 
-  void _startTabletBatteryUpdates() {
-    // Update tablet battery status immediately
-    updateTabletBatteryStatus();
+  void _startTabletBatteryMonitoring() async {
+    try {
+      final batteryService = di<BatteryService>();
 
-    // Set up periodic updates every 30 seconds
-    _tabletBatteryUpdateTimer = Timer.periodic(const Duration(seconds: 30), (
-      timer,
-    ) {
+      // Subscribe to real-time battery updates first
+      _batteryStreamSubscription = batteryService.batteryInfoStream.listen(
+        (batteryInfo) {
+          if (!isClosed) {
+            _updateTabletBatteryFromInfo(batteryInfo);
+          }
+        },
+        onError: (error) {
+          di<ILogger>().error('Battery stream error: $error');
+          if (!isClosed) {
+            emit(state.copyWith(isTabletBatteryLoading: false));
+          }
+        },
+      );
+
+      // Initialize battery service and wait for it to complete
+      await batteryService.initialize();
+
+      // If initialization succeeded but we still don't have battery info,
+      // emit the current info from the service
       if (!isClosed) {
-        updateTabletBatteryStatus();
+        final currentInfo = batteryService.currentBatteryInfo;
+        if (currentInfo.level != null || !currentInfo.isLoading) {
+          _updateTabletBatteryFromInfo(currentInfo);
+        }
       }
-    });
+
+      di<ILogger>().info('Battery service initialized and monitoring started');
+    } catch (e) {
+      di<ILogger>().error('Failed to start tablet battery monitoring: $e');
+      if (!isClosed) {
+        emit(state.copyWith(isTabletBatteryLoading: false));
+      }
+    }
   }
 
   /// Force refresh tablet battery status
   Future<void> forceRefreshTabletBattery() async {
-    await updateTabletBatteryStatus();
+    try {
+      final batteryService = di<BatteryService>();
+      await batteryService.refreshBatteryInfo();
+
+      // Also emit current info immediately
+      final currentInfo = batteryService.currentBatteryInfo;
+      _updateTabletBatteryFromInfo(currentInfo);
+    } catch (e) {
+      di<ILogger>().error('Error force refreshing tablet battery: $e');
+    }
   }
 
   @override
@@ -742,7 +817,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       command.timeoutTimer?.cancel();
     }
     _syncRetryTimer?.cancel();
-    _tabletBatteryUpdateTimer?.cancel();
+    _batteryStreamSubscription?.cancel();
     _cleanupPort();
     return super.close();
   }

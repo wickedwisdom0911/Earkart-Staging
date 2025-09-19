@@ -71,7 +71,7 @@ import 'package:earkart_omni/features/device/domain/usecases/get_device_by_value
 import 'package:earkart_omni/features/device/domain/usecases/setup_device.usecase.dart';
 import 'package:earkart_omni/features/device/presentation/cubit/device_registration.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
-import 'package:earkart_omni/services/battery_service.dart';
+import 'package:earkart_omni/config/services/battery_service.dart';
 
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';

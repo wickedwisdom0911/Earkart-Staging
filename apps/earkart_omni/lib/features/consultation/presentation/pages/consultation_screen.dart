@@ -1,4 +1,3 @@
-// ignore_for_file: unnecessary_null_comparison
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
@@ -57,7 +56,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   final VideoCallController _videoController = VideoCallController();
   bool _hasEmittedEndCall = false;
   bool _endCallInProgress = false;
-  bool? _lastEmittedPatientPressed;
 
   Timer? _deviceEventDebounceTimer;
   CommunicationState? _lastEmittedDeviceState;
@@ -467,8 +465,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       }
       try {
         if (data['user'] != null) {
-          final consultationData = ConsultationModelData.fromJson(data['user']);
-          if (consultationData != null) {
+          try {
+            final consultationData = ConsultationModelData.fromJson(
+              data['user'],
+            );
             setState(() {
               consultation = consultationData;
             });
@@ -478,7 +478,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
             // Now that consultation ID is available, emit device event immediately
             _forceEmitDeviceEvent(context.read<CommunicationCubit>().state);
             _handleBeginPacket(testType);
-          } else {
+          } catch (e) {
             di<ILogger>().error('Failed to parse consultation data');
             // Best-effort emit even if parsing failed
             Future.delayed(const Duration(milliseconds: 300), () {
@@ -1490,8 +1490,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "tabletState": {
           // Keep both keys for backward compatibility with server expectations
           "batteryLevel": state.tabletBatteryLevel,
-          "batterylevel": state.tabletBatteryLevel.toString(),
+          "batterylevel": state.tabletBatteryLevel?.toString(),
           "isCharging": state.isTabletBatteryCharging,
+          "isLoading": state.isTabletBatteryLoading,
         },
         "timestamp": DateTime.now().toIso8601String(),
       };
