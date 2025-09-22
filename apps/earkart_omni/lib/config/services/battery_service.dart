@@ -71,8 +71,12 @@ class BatteryService {
   /// Initialize battery monitoring
   Future<void> initialize() async {
     if (_isInitialized) {
+      di<ILogger>().debug('Battery service already initialized, skipping');
       return;
     }
+
+    final initStartTime = DateTime.now();
+    di<ILogger>().info('Starting battery service initialization...');
 
     try {
       // Emit loading state
@@ -82,18 +86,50 @@ class BatteryService {
       int? initialLevel;
       bool initialCharging = false;
 
+      // Time the battery level retrieval
+      final levelStartTime = DateTime.now();
+      di<ILogger>().debug('Starting initial battery level retrieval...');
       try {
         initialLevel = await _battery.batteryLevel;
+        final levelDuration = DateTime.now().difference(levelStartTime);
+        di<ILogger>().info(
+          'Initial battery level retrieved: $initialLevel% (took ${levelDuration.inMilliseconds}ms)',
+        );
+
+        if (levelDuration.inMilliseconds > 1000) {
+          di<ILogger>().warning(
+            'Battery level retrieval took longer than expected: ${levelDuration.inMilliseconds}ms',
+          );
+        }
       } catch (e) {
-        di<ILogger>().error('Failed to get initial battery level: $e');
+        final levelDuration = DateTime.now().difference(levelStartTime);
+        di<ILogger>().error(
+          'Failed to get initial battery level after ${levelDuration.inMilliseconds}ms: $e',
+        );
         initialLevel = null;
       }
 
+      // Time the battery state retrieval
+      final stateStartTime = DateTime.now();
+      di<ILogger>().debug('Starting initial battery state retrieval...');
       try {
         final initialState = await _battery.batteryState;
         initialCharging = initialState == BatteryState.charging;
+        final stateDuration = DateTime.now().difference(stateStartTime);
+        di<ILogger>().info(
+          'Initial battery state retrieved: $initialState (charging: $initialCharging) (took ${stateDuration.inMilliseconds}ms)',
+        );
+
+        if (stateDuration.inMilliseconds > 1000) {
+          di<ILogger>().warning(
+            'Battery state retrieval took longer than expected: ${stateDuration.inMilliseconds}ms',
+          );
+        }
       } catch (e) {
-        di<ILogger>().error('Failed to get initial charging state: $e');
+        final stateDuration = DateTime.now().difference(stateStartTime);
+        di<ILogger>().error(
+          'Failed to get initial charging state after ${stateDuration.inMilliseconds}ms: $e',
+        );
         initialCharging = false;
       }
 
@@ -112,8 +148,17 @@ class BatteryService {
           final newCharging = state == BatteryState.charging;
           if (newCharging != _currentBatteryInfo.isCharging) {
             // Get fresh battery level when charging state changes
+            final stateChangeStartTime = DateTime.now();
             try {
               final freshLevel = await _battery.batteryLevel;
+              final stateChangeDuration = DateTime.now().difference(
+                stateChangeStartTime,
+              );
+              if (stateChangeDuration.inMilliseconds > 500) {
+                di<ILogger>().warning(
+                  'Battery level retrieval on state change took ${stateChangeDuration.inMilliseconds}ms',
+                );
+              }
               _currentBatteryInfo = BatteryInfo(
                 level: freshLevel,
                 isCharging: newCharging,
@@ -151,8 +196,18 @@ class BatteryService {
       _batteryLevelTimer = Timer.periodic(const Duration(seconds: 10), (
         timer,
       ) async {
+        final periodicCheckStartTime = DateTime.now();
         try {
           final newLevel = await _battery.batteryLevel;
+          final periodicCheckDuration = DateTime.now().difference(
+            periodicCheckStartTime,
+          );
+
+          if (periodicCheckDuration.inMilliseconds > 500) {
+            di<ILogger>().warning(
+              'Periodic battery level check took ${periodicCheckDuration.inMilliseconds}ms',
+            );
+          }
           if (newLevel != _currentBatteryInfo.level) {
             _currentBatteryInfo = _currentBatteryInfo.copyWith(
               level: newLevel,
@@ -163,7 +218,12 @@ class BatteryService {
             di<ILogger>().debug('Battery level updated: $newLevel%');
           }
         } catch (e) {
-          di<ILogger>().error('Error checking battery level: $e');
+          final periodicCheckDuration = DateTime.now().difference(
+            periodicCheckStartTime,
+          );
+          di<ILogger>().error(
+            'Error checking battery level after ${periodicCheckDuration.inMilliseconds}ms: $e',
+          );
           _currentBatteryInfo = _currentBatteryInfo.copyWith(
             error: e.toString(),
             timestamp: DateTime.now(),
@@ -173,9 +233,21 @@ class BatteryService {
       });
 
       _isInitialized = true;
-      di<ILogger>().info('Battery service initialized successfully');
+      final totalInitDuration = DateTime.now().difference(initStartTime);
+      di<ILogger>().info(
+        'Battery service initialized successfully (total time: ${totalInitDuration.inMilliseconds}ms)',
+      );
+
+      if (totalInitDuration.inMilliseconds > 2000) {
+        di<ILogger>().warning(
+          'Battery service initialization took longer than expected: ${totalInitDuration.inMilliseconds}ms',
+        );
+      }
     } catch (e) {
-      di<ILogger>().error('Failed to initialize battery service: $e');
+      final totalInitDuration = DateTime.now().difference(initStartTime);
+      di<ILogger>().error(
+        'Failed to initialize battery service after ${totalInitDuration.inMilliseconds}ms: $e',
+      );
       _currentBatteryInfo = BatteryInfo(
         timestamp: DateTime.now(),
         isLoading: false,
@@ -194,13 +266,26 @@ class BatteryService {
 
   /// Get current battery level (0-100) - returns null if not available
   Future<int?> getBatteryLevel() async {
+    final startTime = DateTime.now();
     try {
       if (!_isInitialized) {
+        di<ILogger>().debug(
+          'Battery service not initialized, initializing now...',
+        );
         await initialize();
+      }
+      final duration = DateTime.now().difference(startTime);
+      if (duration.inMilliseconds > 100) {
+        di<ILogger>().debug(
+          'getBatteryLevel() took ${duration.inMilliseconds}ms',
+        );
       }
       return _currentBatteryInfo.level;
     } catch (e) {
-      di<ILogger>().error('Error getting battery level: $e');
+      final duration = DateTime.now().difference(startTime);
+      di<ILogger>().error(
+        'Error getting battery level after ${duration.inMilliseconds}ms: $e',
+      );
       return _currentBatteryInfo.level;
     }
   }
@@ -247,8 +332,14 @@ class BatteryService {
 
   /// Force refresh battery information
   Future<void> refreshBatteryInfo() async {
+    final refreshStartTime = DateTime.now();
+    di<ILogger>().debug('Starting battery info refresh...');
+
     try {
       if (!_isInitialized) {
+        di<ILogger>().debug(
+          'Battery service not initialized, initializing now...',
+        );
         await initialize();
         return;
       }
@@ -256,9 +347,25 @@ class BatteryService {
       // Emit loading state
       _emitBatteryInfo(_currentBatteryInfo.copyWith(isLoading: true));
 
-      // Get fresh battery data
+      // Get fresh battery data with timing
+      final levelRefreshStart = DateTime.now();
       final freshLevel = await _battery.batteryLevel;
+      final levelRefreshDuration = DateTime.now().difference(levelRefreshStart);
+
+      final stateRefreshStart = DateTime.now();
       final batteryState = await _battery.batteryState;
+      final stateRefreshDuration = DateTime.now().difference(stateRefreshStart);
+
+      if (levelRefreshDuration.inMilliseconds > 500) {
+        di<ILogger>().warning(
+          'Battery level refresh took ${levelRefreshDuration.inMilliseconds}ms',
+        );
+      }
+      if (stateRefreshDuration.inMilliseconds > 500) {
+        di<ILogger>().warning(
+          'Battery state refresh took ${stateRefreshDuration.inMilliseconds}ms',
+        );
+      }
       final freshCharging = batteryState == BatteryState.charging;
 
       // Update and emit fresh battery info
@@ -270,11 +377,21 @@ class BatteryService {
       );
       _emitBatteryInfo(_currentBatteryInfo);
 
-      di<ILogger>().debug(
-        'Battery info refreshed: $freshLevel%, charging: $freshCharging',
+      final totalRefreshDuration = DateTime.now().difference(refreshStartTime);
+      di<ILogger>().info(
+        'Battery info refreshed: $freshLevel%, charging: $freshCharging (total time: ${totalRefreshDuration.inMilliseconds}ms)',
       );
+
+      if (totalRefreshDuration.inMilliseconds > 1000) {
+        di<ILogger>().warning(
+          'Battery info refresh took longer than expected: ${totalRefreshDuration.inMilliseconds}ms',
+        );
+      }
     } catch (e) {
-      di<ILogger>().error('Error refreshing battery info: $e');
+      final totalRefreshDuration = DateTime.now().difference(refreshStartTime);
+      di<ILogger>().error(
+        'Error refreshing battery info after ${totalRefreshDuration.inMilliseconds}ms: $e',
+      );
       _currentBatteryInfo = _currentBatteryInfo.copyWith(
         error: e.toString(),
         isLoading: false,
