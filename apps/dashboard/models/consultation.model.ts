@@ -11,13 +11,15 @@ import { OtoscopyTestModelDataSchema } from "./otoscopy.model";
 import { AudiologistModelDataSchema } from "./audiologist.model";
 import { CentreModelDataSchema } from "./centre.model";
 import { patientModeldataSchema } from "./patient.model";
+import { RecordingModelDataSchema } from "./recording.model";
 
+// Back-compat: Older API shape for recordings array
 export const ConsultationRecordingModelDataSchema = z.object({
-  id: z.string(),
-  sessionId: z.string(),
-  recordingUrl: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  id: z.string().optional().nullable(),
+  sessionId: z.string().optional().nullable(),
+  recordingUrl: z.string().optional().nullable(),
+  createdAt: z.string().optional().nullable(),
+  updatedAt: z.string().optional().nullable(),
 });
 
 export const ConsultationModelDataSchema = z.object({
@@ -38,12 +40,28 @@ export const ConsultationModelDataSchema = z.object({
   patient: patientModeldataSchema.optional().nullable(),
   audiologist: AudiologistModelDataSchema.optional().nullable(),
   centre: CentreModelDataSchema.optional().nullable(),
-  questionnaire : z.any(),
+  questionnaire: z.any(),
+  audiometryReport: z.string().optional().nullable(),
+  tympanometryReport: z.string().optional().nullable(),
+  etfReport: z.string().optional().nullable(),
+  sisiReport: z.string().optional().nullable(),
+  speechReport: z.string().optional().nullable(),
+  reflexesReport: z.string().optional().nullable(),
+  toneReport: z.string().optional().nullable(),
+  oaeReport: z.string().optional().nullable(),
+  otoscopyReport: z.string().optional().nullable(),
+  // New schema options:
+  // - recordings: array of objects
+  // - recordingName (string) or recordingsName (string)
+  // - recording (single object)
   recordings: z
     .array(ConsultationRecordingModelDataSchema)
     .optional()
     .nullable(),
-});
+  recordingName: z.string().optional().nullable(),
+  recordingsName: z.string().optional().nullable(),
+  recording: RecordingModelDataSchema.optional().nullable(),
+}).passthrough();
 
 export const ConsultationModelSchema = z.object({
   success: z.boolean(),

@@ -4,6 +4,8 @@ import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { Card, CardContent } from "@/components/ui/card";
 import { useRouter, useParams } from "next/navigation";
 import { useSocket } from "@/providers/socket-provider";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 const testOptions = [
   {
@@ -42,6 +44,29 @@ export default function TestSelectionPage() {
   const router = useRouter();
   const params = useParams();
   const socket = useSocket();
+
+  // Consume tympanometry readiness/issue events
+  useEffect(() => {
+    if (!socket) return;
+
+    const onAck = () => {
+      const consultationId = params.consultationId as string;
+      router.push(`/consultation/${consultationId}/test/tympanometry`);
+    };
+    const onIssue = (payload: { message?: string }) => {
+      toast.error(payload?.message || "Tympanometry device not ready");
+    };
+
+    socket.on("ack-tympanometry-received", onAck);
+    socket.on("ack-received", onAck);
+    socket.on("nack-received", onIssue);
+
+    return () => {
+      socket.off("ack-tympanometry-received", onAck);
+      socket.off("ack-received", onAck);
+      socket.off("nack-received", onIssue);
+    };
+  }, [socket, params.consultationId, router]);
 
   const handleTestClick = (testId: string) => {
     socket?.emit("start-test", {

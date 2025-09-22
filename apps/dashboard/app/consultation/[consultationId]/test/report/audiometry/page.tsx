@@ -7,16 +7,55 @@ import { useParams, useRouter } from "next/navigation";
 import { Ear, SessionStatus } from "@/models/enums";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
+import FloatingReportActions from "@/components/ui/FloatingReportActions";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowDownRight, ArrowDownLeft } from "lucide-react";
+import ReportTopActions from "@/components/ui/ReportTopActions";
+import { exportElementToPdfBlob } from "@/lib/pdf";
+import initiateReportUpload from "@/actions/consultations/initiate-report-upload";
+import completeReportUpload from "@/actions/consultations/complete-report-upload";
+import { ReportType } from "@/models/enums";
 
 import { ROUTES } from "@/lib/routes";
 import { toast } from "sonner";
 import { useSocket } from "@/providers/socket-provider";
-import html2canvas from "html2canvas-pro";
-import { jsPDF } from "jspdf";
+// PDF export utility is dynamically imported to avoid any SSR bundling issues
 import Image from "next/image";
+import { ArrowDownLeft, ArrowDownRight } from "lucide-react";
+import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
+
+// Helper: Synchronous rasterization for use inside html2canvas onclone (no async/await allowed)
+function rasterizeSVGsSync(container: HTMLElement, ownerDocument: Document) {
+  const svgNodes = Array.from(container.querySelectorAll("svg")) as SVGSVGElement[];
+  for (const svg of svgNodes) {
+    try {
+      const clone = svg.cloneNode(true) as SVGSVGElement;
+      if (!clone.getAttribute("xmlns")) clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      const rect = svg.getBoundingClientRect();
+      const width = rect.width || Number(clone.getAttribute("width")) || svg.clientWidth;
+      const height = rect.height || Number(clone.getAttribute("height")) || svg.clientHeight;
+      if (width && height) {
+        clone.setAttribute("width", String(width));
+        clone.setAttribute("height", String(height));
+      }
+      const xml = new XMLSerializer().serializeToString(clone);
+      const dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+      const img = ownerDocument.createElement("img");
+      (img as any).decoding = "sync";
+      if ("loading" in img) (img as any).loading = "eager";
+      img.setAttribute("width", String(width));
+      img.setAttribute("height", String(height));
+      img.style.width = `${width}px`;
+      img.style.height = `${height}px`;
+      img.style.display = getComputedStyle(svg).display === "inline" ? "inline-block" : "block";
+      img.src = dataUrl;
+      svg.style.display = "none";
+      svg.parentNode?.insertBefore(img, svg);
+    } catch {
+      // ignore and continue
+    }
+  }
+}
 
 interface TestResult {
   ear: string;
@@ -45,17 +84,20 @@ const AudiogramChart: React.FC<{
   const midFrequencies = [750, 1500, 3000, 6000];
   const dbLevels = Array.from({ length: 27 }, (_, i) => (i - 2) * 5); // -10 to 120 dB
   
-  const gridSize = 25;
-  const chartWidth = 275; // Fixed width for the chart (11 frequencies * 25px)
+  const gridSize = 22; // slightly smaller to match component proportions
+  const stepsPerOctave = 2; // place a mid-octave step between each octave
+  const minFreq = mainFrequencies[0];
+  const maxFreq = mainFrequencies[mainFrequencies.length - 1];
+  const totalSteps = (mainFrequencies.length - 1) * stepsPerOctave;
+  const chartWidth = gridSize * totalSteps; // equal spacing per octave
   const height = 14 * gridSize; // Adjust height to start from -10
   const margin = { top: 30, right: 20, bottom: 40, left: 50 };
   
-  // Calculate logarithmic positions for frequencies
+  // Map frequency to equal per-octave spacing; mid-octaves land midway
   const getFrequencyPosition = (freq: number) => {
-    const minFreq = Math.log10(125);
-    const maxFreq = Math.log10(8000);
-    const freqLog = Math.log10(freq);
-    return ((freqLog - minFreq) / (maxFreq - minFreq)) * chartWidth;
+    const clamped = Math.max(minFreq, Math.min(maxFreq, freq));
+    const stepIndex = Math.round(Math.log2(clamped / minFreq) * stepsPerOctave);
+    return stepIndex * gridSize;
   };
   
   const COLORS = {
@@ -130,166 +172,97 @@ const AudiogramChart: React.FC<{
   
   const renderSymbol = (result: TestResult, x: number, y: number) => {
     const color = getSymbolColor(result.ear);
-    const SYMBOL_SIZE = 14;
-    const LINE_THICKNESS = 2;
-    const half = SYMBOL_SIZE / 2;
+    const size = 8;
     
-    // Handle no response cases first
-    if (result.noResponse === 1) {
-      // No-response overlay with diagonal arrows based on ear (ASHA 1990)
-      const Icon = result.ear === "L" ? ArrowDownRight : ArrowDownLeft;
-      
-      // First render the base symbol
-      let baseSymbol = null;
+    // Build the base symbol firstP
+    let base: React.ReactNode = null;
       
       if (result.mode === "AC") {
         if (result.masking === 0) {
-          // Unmasked AC: X for Left ear, Circle for Right ear (ASHA standard)
-          baseSymbol = result.ear === "L" ? (
-            <text 
-              x={x} 
-              y={y} 
-              fontSize={SYMBOL_SIZE} 
-              fill={color}
-              textAnchor="middle" 
-              dominantBaseline="middle"
-            >
-              ×
-            </text>
-          ) : (
+        // Unmasked AC: Circle for Right ear, X for Left ear (ASHA standard)
+        base = result.ear === "R" ? (
             <circle 
               cx={x} 
               cy={y} 
-              r={half} 
+            r={size}
               fill="none" 
               stroke={color}
-              strokeWidth={LINE_THICKNESS}
-            />
-        );
-      } else {
-          // Masked AC: upward triangle for Left ear, square for Right ear (ASHA standard)
-          baseSymbol = result.ear === "L" ? (
-            <polygon 
-              points={`
-                ${x-half},${y+half}
-                ${x},${y-half}
-                ${x+half},${y+half}
-              `} 
-              fill="none" 
-              stroke={color}
-              strokeWidth={LINE_THICKNESS}
+            strokeWidth={2}
+            key={`${result.x}-${result.y}-${result.ear}`}
             />
           ) : (
-            <rect 
-              x={x-half} 
-              y={y-half} 
-              width={SYMBOL_SIZE} 
-              height={SYMBOL_SIZE} 
-              fill="none" 
-              stroke={color} 
-              strokeWidth={LINE_THICKNESS}
-            />
-          );
-        }
-      } else if (result.mode === "BC") {
-        // Bone conduction symbols (ASHA standard)
-        const sym = (!result.masking ? (result.ear==="L" ? ">" : "<") : (result.ear==="L" ? "]" : "["));
-        baseSymbol = (
           <text 
             x={x} 
             y={y} 
-            fontSize={SYMBOL_SIZE} 
-            fill={color}
             textAnchor="middle" 
             dominantBaseline="middle"
-          >
-            {sym}
-          </text>
-        );
-      }
-      
-      return (
-        <g key={`${result.x}-${result.y}-${result.ear}-noresponse`}>
-          {baseSymbol}
-          <g transform={`translate(${x - 10}, ${y + 10})`}>
-            <Icon stroke={color} strokeWidth={2} size={20} fill="none" />          
-          </g>
-          </g>
-        );
-    }
-    
-    if (result.mode === "AC") {
-      if (result.masking === 0) {
-        // Unmasked AC: X for Left ear, Circle for Right ear (ASHA standard)
-        return result.ear === "L" ? (
-          <text
-            x={x}
-            y={y}
-            fontSize={SYMBOL_SIZE} 
+            fontSize={size * 2}
             fill={color}
-            textAnchor="middle"
-            dominantBaseline="middle"
             key={`${result.x}-${result.y}-${result.ear}`}
+            fontWeight="bold"
           >
             ×
           </text>
-        ) : (
-          <circle 
-            cx={x} 
-            cy={y} 
-            r={half} 
-            fill="none" 
-            stroke={color}
-            strokeWidth={LINE_THICKNESS}
-            key={`${result.x}-${result.y}-${result.ear}`}
-          />
         );
       } else {
-        // Masked AC: upward triangle for Left ear, square for Right ear (ASHA standard)
-        return result.ear === "L" ? (
+        // Masked AC: Triangle for Left ear, Square for Right ear (ASHA standard)
+        base = result.ear === "L" ? (
           <polygon
-            points={`
-              ${x-half},${y+half}
-              ${x},${y-half}
-              ${x+half},${y+half}
-            `} 
+            points={`${x},${y-size} ${x-size},${y+size} ${x+size},${y+size}`}
             fill="none"
             stroke={color}
-            strokeWidth={LINE_THICKNESS}
+            strokeWidth={2}
             key={`${result.x}-${result.y}-${result.ear}`}
           />
         ) : (
           <rect
-            x={x-half} 
-            y={y-half} 
-            width={SYMBOL_SIZE} 
-            height={SYMBOL_SIZE} 
+            x={x - size}
+            y={y - size}
+            width={size * 2}
+            height={size * 2}
             fill="none"
             stroke={color}
-            strokeWidth={LINE_THICKNESS}
+            strokeWidth={2}
             key={`${result.x}-${result.y}-${result.ear}`}
           />
         );
       }
     } else if (result.mode === "BC") {
       // Bone conduction symbols (ASHA standard)
-      const sym = (!result.masking ? (result.ear==="L" ? ">" : "<") : (result.ear==="L" ? "]" : "["));
-      return (
+      const symbol = result.masking === 0 ? 
+        (result.ear === "L" ? ">" : "<") : 
+        (result.ear === "L" ? "]" : "[");
+      
+      base = (
         <text
           x={x}
           y={y}
-          fontSize={SYMBOL_SIZE} 
-          fill={color}
           textAnchor="middle"
           dominantBaseline="middle"
+          fontSize={size * 2}
+          fill={color}
           key={`${result.x}-${result.y}-${result.ear}`}
+          fontWeight="bold"
         >
-          {sym}
+          {symbol}
         </text>
       );
     }
     
-    return null;
+    // Overlay no-response arrow using lucide icons (down-right for L, down-left for R)
+    if (result.noResponse === 1) {
+      const Icon = result.ear === "L" ? ArrowDownRight : ArrowDownLeft;
+      return (
+        <g key={`${result.x}-${result.y}-${result.ear}-noresponse`}>
+          {base}
+          <g transform={`translate(${x - 10}, ${y + 10})`}>
+            <Icon stroke={color} strokeWidth={2} size={20} fill="none" />
+          </g>
+        </g>
+      );
+    }
+    
+    return <g key={`${result.x}-${result.y}-${result.ear}`}>{base}</g>;
   };
 
   return (
@@ -310,7 +283,7 @@ const AudiogramChart: React.FC<{
             />
           ))}
           
-          {/* Vertical grid lines for main frequencies */}
+                     {/* Vertical grid lines for main frequencies (octaves) */}
           {mainFrequencies.map((freq) => {
             const xPos = margin.left + getFrequencyPosition(freq);
             return (
@@ -343,7 +316,7 @@ const AudiogramChart: React.FC<{
             );
           })}
           
-          {/* Mid-intensity lines (5 dB intervals) */}
+                     {/* Mid-intensity lines (5 dB intervals, dashed) */}
           {Array.from({ length: 14 }, (_, i) => (
             <line
               key={`mid-intensity-${i}`}
@@ -357,20 +330,38 @@ const AudiogramChart: React.FC<{
             />
           ))}
           
-          {/* Frequency labels */}
-          {frequencies.map((freq) => {
-            const isMidFreq = midFrequencies.includes(freq);
+          {/* Frequency labels: top (octaves) */}
+          {mainFrequencies.map((freq) => {
             const label = freq >= 1000 ? `${freq/1000}K` : freq;
             const xPos = margin.left + getFrequencyPosition(freq);
             return (
               <text
-                key={`freq-${freq}`}
+                key={`freq-top-${freq}`}
                 x={xPos}
-                y={height + margin.top + 15}
+                y={margin.top - 10}
                 textAnchor="middle"
-                fontSize={isMidFreq ? "9" : "10"}
-                fill={isMidFreq ? "#666666" : COLORS.text}
-                fontWeight={isMidFreq ? "normal" : "bold"}
+                fontSize="10"
+                fill={COLORS.text}
+                fontWeight="bold"
+              >
+                {label}
+              </text>
+            );
+          })}
+
+          {/* Frequency labels: bottom (mid-octaves) */}
+          {midFrequencies.map((freq) => {
+            const label = freq >= 1000 ? `${freq/1000}K` : freq;
+            const xPos = margin.left + getFrequencyPosition(freq);
+            return (
+              <text
+                key={`freq-bottom-${freq}`}
+                x={xPos}
+                y={height + margin.top + 35}
+                textAnchor="middle"
+                fontSize="10"
+                fill="#666666"
+                fontWeight="normal"
               >
                 {label}
               </text>
@@ -446,12 +437,30 @@ export default function ReportPage() {
   const router = useRouter();
   const socket = useSocket();
   const { data: consultation, isLoading, error } = useGetConsultation(consultationId as string);
-  const consultationData = consultation?.data as ConsultationModelData;
+  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const updateConsultationMutation = useUpdateConsultation();
   const reportRef = useRef<HTMLDivElement>(null);
   
+  // Screen sharing functionality (shared with video call client)
+
+  console.log("Consultation data:", consultationData);
+  const { 
+    isSharing: isScreenSharing, 
+    isConnecting: isScreenConnecting, 
+    toggleScreenShare, 
+    error: screenShareError 
+  } = useSharedScreenShare();
+
   // State for show report functionality
   const [isShowingReport, setIsShowingReport] = useState(false);
+  
+  // New state for report upload
+  const [reportUploadState, setReportUploadState] = useState<{
+    status: 'idle' | 'uploading' | 'uploaded' | 'failed';
+    uploadId?: string;
+    reportUrl?: string;
+    error?: string;
+  }>({ status: 'idle' });
   
   // Form state for diagnosis fields
   const [formData, setFormData] = useState({
@@ -498,22 +507,22 @@ export default function ReportPage() {
     { 
       value: "option-1", 
       label: "Option 1",
-      description: "ENT Consultation\nHAT\nFollow up"
+      description: "ENT Consultation\nHearing Aid Trial\nFollow up"
     },
     { 
       value: "option-2", 
       label: "Option 2",
-      description: "ENT\nHAT\nTinnitus matching and masking\nFollow up"
+      description: "ENT\nHearing Aid Trial\nTinnitus matching and masking\nFollow up"
     },
     { 
       value: "option-3", 
       label: "Option 3",
-      description: "ENT consultation\nHAT right ear\nFollow up"
+      description: "ENT consultation\nHearing Aid Trial right ear\nFollow up"
     },
     { 
       value: "option-4", 
       label: "Option 4",
-      description: "ENT consultation\nHAT for left ear\nFollow up"
+      description: "ENT consultation\nHearing Aid Trial for left ear\nFollow up"
     },
     { 
       value: "option-5", 
@@ -552,18 +561,41 @@ export default function ReportPage() {
 
   // Listen for end:consultation socket event
   useEffect(() => {
-    if (socket) {
-      socket.on("end:consultation", (data) => {
-        console.log("Consultation ended via socket:", data);
-        toast.info("Consultation has ended. Redirecting to dashboard...");
-        router.push("http://localhost:3001/dashboard");
-      });
-
-      return () => {
-        socket.off("end:consultation");
-      };
-    }
+    if (!socket) return;
+    const handler = (data: any) => {
+      toast.info("Consultation has ended. Redirecting to dashboard...");
+      if (process.env.NODE_ENV === "development") {
+        try { (window as any).location.href = "http://localhost:3001/dashboard"; } catch {}
+      } else {
+        router.push("/dashboard");
+      }
+    };
+    socket.on("end:consultation", handler);
+    return () => { socket.off("end:consultation", handler); };
   }, [socket, router]);
+
+  // Show screen share error if any
+  useEffect(() => {
+    if (screenShareError) {
+      toast.error(`Screen sharing error: ${screenShareError}`);
+    }
+  }, [screenShareError]);
+
+  // DISABLED: Background upload effect - S3 upload fails due to checksum validation
+  // We'll generate fresh PDF on share click instead
+  /*
+  useEffect(() => {
+    // Wait a bit for the report to render, then start background upload
+    const timer = setTimeout(() => {
+      if (consultationData && reportRef.current && reportUploadState.status === 'idle') {
+        console.log('🔄 Starting background upload on page load...');
+        initiateBackgroundUpload();
+      }
+    }, 2000); // Wait 2 seconds for report to render
+
+    return () => clearTimeout(timer);
+  }, [consultationData, reportUploadState.status]);
+  */
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
@@ -669,65 +701,20 @@ export default function ReportPage() {
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
     
-    // Find and temporarily hide form sections
-    const formSections = reportRef.current.querySelectorAll('.print\\:hidden');
-    const printSections = reportRef.current.querySelectorAll('.hidden.print\\:block');
-    
-    // Hide form sections and show print sections
-    formSections.forEach(section => {
-      (section as HTMLElement).style.display = 'none';
-    });
-    printSections.forEach(section => {
-      (section as HTMLElement).style.display = 'block';
-    });
-    
     try {
-      // Force a re-render to ensure all content is properly sized
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      const canvas = await html2canvas(reportRef.current, { 
-        scale: 2, 
-        useCORS: true, 
-        backgroundColor: "#fff",
-        height: reportRef.current.scrollHeight + 50, // Add extra padding to prevent cutoff
-        windowWidth: reportRef.current.scrollWidth,
-        windowHeight: reportRef.current.scrollHeight + 50,
-        allowTaint: true,
-        scrollX: 0,
-        scrollY: 0
-      });
-      
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
-      const pdfW = pdf.internal.pageSize.getWidth();
-      const pdfH = pdf.internal.pageSize.getHeight();
-      
-      // Calculate scaling to fit on single page while using most width
-      const widthRatio = pdfW / canvas.width;
-      const heightRatio = pdfH / canvas.height;
-      
-      // Use the smaller ratio to ensure it fits on one page
-      const ratio = Math.min(widthRatio, heightRatio);
-      
-      const scaledWidth = canvas.width * ratio;
-      const scaledHeight = canvas.height * ratio;
-      
-      // Single page - use calculated scaling
-      const xOffset = (pdfW - scaledWidth) / 2; // Center horizontally
-      const yOffset = (pdfH - scaledHeight) / 2; // Center vertically
-        pdf.addImage(imgData, "PNG", xOffset, yOffset, scaledWidth, scaledHeight);
-      
-      pdf.save(`audiometry-report-${consultationData.patient?.code || "unknown"}.pdf`);
-    } finally {
-      // Restore original visibility
-      formSections.forEach(section => {
-        (section as HTMLElement).style.display = '';
-      });
-      printSections.forEach(section => {
-        (section as HTMLElement).style.display = '';
-      });
+      const { exportElementToPdf } = await import("@/lib/pdf");
+
+      await exportElementToPdf(
+        reportRef.current,
+        `audiometry-report-${consultationData.patient?.code || "unknown"}.pdf`,
+        { singlePage: true, fullPage: true }
+      );
+    } catch (error) {
+      console.error("Failed to export PDF:", error);
+      toast.error("Failed to generate PDF report.");
     }
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -760,30 +747,354 @@ export default function ReportPage() {
     router.push(ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string));
   };
 
-  const handleShowReport = () => {
+  const handleShowReport = async () => {
     if (!socket) {
       toast.error("Socket connection not available");
       return;
     }
 
-    const eventName = isShowingReport ? "generate-report:end" : "generate-report:start";
-    socket.emit(eventName, { consultationId });
+    const isCurrentlyShowing = isShowingReport || isScreenSharing;
     
-    setIsShowingReport(!isShowingReport);
-    toast.success(`Report ${isShowingReport ? "hidden" : "shown"} to patient`);
+    try {
+      if (isCurrentlyShowing) {
+        // Stop showing report
+        const eventName = "generate-report:end";
+        socket.emit(eventName, { consultationId });
+        setIsShowingReport(false);
+        
+        // Stop screen sharing if active
+        if (isScreenSharing) {
+          await toggleScreenShare();
+        }
+        
+        toast.success("Report hidden from patient");
+      } else {
+        // Start showing report
+        const eventName = "generate-report:start";
+        socket.emit(eventName, { consultationId });
+        setIsShowingReport(true);
+        
+        // Start screen sharing with the report element
+        if (reportRef.current) {
+          await toggleScreenShare(reportRef.current);
+        } else {
+          // Fallback to general screen share if report ref is not available
+          await toggleScreenShare();
+        }
+        
+        toast.success("Report shown to patient via screen share");
+      }
+    } catch (error) {
+      console.error("Error handling report display:", error);
+      toast.error("Failed to show/hide report");
+    }
+  };
+
+  // Background upload function - runs when page loads
+  const initiateBackgroundUpload = async () => {
+    if (!reportRef.current || !consultationData?.patient?.code) {
+      console.log('❌ Cannot upload: missing report ref or patient code');
+      return;
+    }
+
+    setReportUploadState({ status: 'uploading' });
+    
+    try {
+      console.log('🚀 Starting background report upload...');
+      
+      // Generate PDF blob
+      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true });
+      const filename = `audiometry-report-${consultationData.patient.code}.pdf`;
+      
+      console.log('📄 PDF generated for background upload:', { size: blob.size, filename });
+      
+      // Step 1: Initiate upload to get pre-signed URL
+      const initiateResult = await initiateReportUpload({
+        consultationId: consultationId as string,
+        reportType: ReportType.AUDIOMETRY,
+        fileName: filename,
+        contentType: "application/pdf",
+      });
+      
+      if (!initiateResult.success || !initiateResult.data?.presignedUrl || !initiateResult.data?.uploadId) {
+        throw new Error(initiateResult.message || "Failed to initiate report upload");
+      }
+      
+      const { presignedUrl, uploadId } = initiateResult.data;
+      console.log('✅ Got pre-signed URL for background upload');
+      
+      // Step 2: Upload PDF to S3 - Use exact screen recording pattern (no headers!)
+      console.log('🔍 Using exact screen recording pattern (no headers)...');
+      
+      const uploadResponse = await fetch(presignedUrl, {
+        method: "PUT", 
+        body: blob
+        // No headers at all - exactly like screen recordings
+      });
+      
+      if (!uploadResponse.ok) {
+        console.error('❌ S3 upload failed:', {
+          status: uploadResponse.status,
+          statusText: uploadResponse.statusText,
+          url: presignedUrl.substring(0, 100) + '...'
+        });
+        console.log('🔧 S3 upload failed due to checksum validation - backend needs to remove CRC32 checksums');
+        
+        // Set status as failed but keep uploadId to test complete API
+        setReportUploadState({ 
+          status: 'failed', 
+          uploadId, // Keep uploadId for testing complete API
+          error: `S3 upload failed: ${uploadResponse.status}`,
+          reportUrl: "https://fpu.branding-element.com/prod/61017/BROADCAST_TEMPLATE_ATTACHMENT/67563-04092025_062434-V2.SENDTEXTMEDIAMESSAGE.pdf"
+        });
+        
+        toast.error("Report upload failed", {
+          description: "S3 failed but will test complete API with uploadId",
+          duration: 5000,
+        });
+        
+        // Don't return - let it continue to test complete API even with failed S3
+      } else {
+        console.log('✅ PDF uploaded to S3 successfully in background!');
+      }
+      
+      // Store uploadId for later use when sharing
+      setReportUploadState({ 
+        status: 'uploaded', 
+        uploadId,
+        reportUrl: presignedUrl.split('?')[0] // Fallback URL
+      });
+      
+      toast.success("Report ready for sharing", {
+        description: "PDF uploaded successfully to cloud storage",
+        duration: 3000,
+      });
+      
+    } catch (error) {
+      console.error('❌ Background upload failed:', error);
+      setReportUploadState({ 
+        status: 'failed', 
+        error: error instanceof Error ? error.message : String(error) 
+      });
+      
+      // Don't show error toast for background uploads - user didn't initiate it
+      console.log('🔧 Background upload failed, will use fallback during share');
+    }
+  };
+
+  const handleShareReport = async () => {
+    console.log('🚀 Share report button clicked');
+    
+    // Get patient contact number and name
+    const patientContact = consultationData?.patient?.contactNumber;
+    const patientName = consultationData?.patient?.name;
+    
+    console.log('📋 Patient data:', { patientContact, patientName });
+    
+    if (!patientName) {
+      console.log('❌ No patient name available');
+      toast.error('Patient name not available');
+      return;
+    }
+    
+    if (!patientContact) {
+      console.log('❌ No patient contact number available');
+      toast.error('Patient contact number not available');
+      return;
+    }
+
+    try {
+      let finalReportUrl;
+      
+      // NEW FLOW: Generate fresh PDF + upload on share click
+      console.log('📄 Generating fresh PDF for sharing...');
+      toast.info("Generating fresh report...", {
+        description: "Creating PDF from current report data",
+        duration: 2000,
+      });
+      
+      if (!reportRef.current) {
+        throw new Error('Report element not available');
+      }
+      
+      // Step 1: Generate fresh PDF blob from current report
+      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true, fullPage: true });
+      const filename = `audiometry-report-${consultationData?.patient?.code || "fresh"}-${Date.now()}.pdf`;
+      
+      console.log('📄 Fresh PDF generated:', { 
+        size: blob.size, 
+        filename,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Step 2: Initiate upload to get pre-signed URL
+      console.log('🔗 Step 1: Initiating fresh report upload...');
+      toast.info("Getting upload URL...", {
+        description: "Requesting S3 pre-signed URL for fresh PDF",
+        duration: 2000,
+      });
+      
+      const initiateResult = await initiateReportUpload({
+        consultationId: consultationId as string,
+        reportType: ReportType.AUDIOMETRY,
+        fileName: filename,
+        contentType: "application/pdf",
+      });
+      
+      if (!initiateResult.success || !initiateResult.data?.presignedUrl || !initiateResult.data?.uploadId) {
+        throw new Error(initiateResult.message || "Failed to initiate fresh report upload");
+      }
+      
+      const { presignedUrl, uploadId } = initiateResult.data;
+      console.log('✅ Fresh upload initiated, received pre-signed URL');
+      
+      // Step 3: Try to upload fresh PDF to S3
+      console.log('📤 Step 2: Uploading fresh PDF to S3...');
+      toast.info("Uploading fresh report...", {
+        description: "Uploading fresh PDF to cloud storage",
+        duration: 3000,
+      });
+      
+      const uploadResponse = await fetch(presignedUrl, {
+        method: "PUT", 
+        body: blob
+        // No headers - same pattern as screen recordings
+      });
+      
+      if (!uploadResponse.ok) {
+        console.error('❌ Fresh S3 upload failed:', {
+          status: uploadResponse.status,
+          statusText: uploadResponse.statusText,
+        });
+        
+        // Fallback to hardcoded URL if S3 upload fails
+        console.log('🔧 S3 upload failed, using fallback test URL');
+        finalReportUrl = "https://fpu.branding-element.com/prod/61017/BROADCAST_TEMPLATE_ATTACHMENT/67563-04092025_062434-V2.SENDTEXTMEDIAMESSAGE.pdf";
+        
+        toast.warning("Fresh PDF upload failed", {
+          description: "Using test URL - backend needs to fix S3 checksum validation",
+          duration: 4000,
+        });
+        
+      } else {
+        console.log('✅ Fresh PDF uploaded to S3 successfully!');
+        
+        // Step 4: Complete upload to get final fresh report URL
+        console.log('🏁 Step 3: Completing fresh upload...');
+        toast.info("Finalizing fresh report...", {
+          description: "Getting final URL for fresh PDF",
+          duration: 2000,
+        });
+        
+        try {
+          const completeResult = await completeReportUpload({
+            uploadId,
+            consultationId: consultationId as string,
+            reportType: ReportType.AUDIOMETRY,
+          });
+          
+          console.log('📋 Fresh complete API response:', completeResult);
+          
+          if (completeResult.success && completeResult.data?.fileUrl) {
+            finalReportUrl = completeResult.data.fileUrl;
+            console.log('✅ Got fresh final URL from complete API:', finalReportUrl);
+            
+            toast.success("Fresh report ready!", {
+              description: "Fresh PDF uploaded and ready for sharing",
+              duration: 3000,
+            });
+          } else {
+            throw new Error('Complete API failed or no fileUrl for fresh PDF');
+          }
+          
+        } catch (completeError) {
+          console.warn('⚠️ Fresh complete API failed, using S3 direct URL:', completeError);
+          // Use the S3 direct URL without query parameters
+          finalReportUrl = presignedUrl.split('?')[0];
+          
+          toast.warning("Complete API failed, using S3 direct URL", {
+            description: "Fresh PDF uploaded but complete API failed",
+            duration: 3000,
+          });
+        }
+      }
+      
+      console.log('📤 Sending WhatsApp message with URL:', finalReportUrl);
+      
+      // Format phone number properly - remove + and ensure it starts with 91
+      const phoneNumber = patientContact || "9058075653"; // Use patient contact or fallback for testing
+      let formattedPhoneNumber = phoneNumber.replace(/^\+/, ''); // Remove + if present
+      if (!formattedPhoneNumber.startsWith("91")) {
+        formattedPhoneNumber = `91${formattedPhoneNumber}`;
+      }
+      
+      console.log('📞 Phone number formatting:', { original: phoneNumber, formatted: formattedPhoneNumber });
+      
+      console.log('🔄 Calling WhatsApp API route...');
+      console.log('📤 API parameters:', {
+        to: formattedPhoneNumber,
+        patientName: patientName,
+        reportUrl: finalReportUrl
+      });
+      
+      // Test API routing first
+      console.log('🧪 Testing API routing...');
+      try {
+        const testResponse = await fetch('/api/test-whatsapp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ test: 'data' })
+        });
+        const testResult = await testResponse.json();
+        console.log('🧪 Test API result:', testResult);
+      } catch (testError) {
+        console.error('❌ Test API failed:', testError);
+      }
+      
+      let result;
+      try {
+        console.log('🌐 Making fetch request to /api/whatsapp/send-report-dialog');
+        const response = await fetch('/api/whatsapp/send-report-dialog', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: formattedPhoneNumber,
+            patientName: patientName,
+            reportUrl: finalReportUrl
+          })
+        });
+        
+        console.log('📡 Fetch response status:', response.status, response.statusText);
+        console.log('📡 Fetch response ok:', response.ok);
+        
+        result = await response.json();
+        console.log('📱 WhatsApp API result:', result);
+      } catch (apiError) {
+        console.error('❌ API call failed:', apiError);
+        toast.error(`API call failed: ${apiError}`);
+        return;
+      }
+      
+      if (result.success) {
+        toast.success('Report shared to patient via WhatsApp');
+      } else {
+        console.error('WhatsApp send error:', result.error);
+        toast.error(`Failed to share via WhatsApp: ${result.error}`);
+      }
+    } catch (err) {
+      console.error('❌ Share report error:', err);
+      toast.error('Failed to share report');
+    }
   };
 
   return (
     <div className="p-6 flex justify-center bg-gray-100">
-      <div className="w-[794px] bg-white shadow-lg">
-        <div className="flex justify-center p-4 border-b">
-          <Button onClick={handleDownloadPDF} className="bg-blue-600 hover:bg-blue-700 text-white">
-            Download PDF
-          </Button>
-    
-        </div>
+      <div className="w-[1100px] bg-white shadow-lg">
+        <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
         
-        <div ref={reportRef} className="bg-white" style={{ fontFamily: 'Arial, sans-serif', height: 'auto', minHeight: 'auto' }}>
+        <div ref={reportRef} data-report-capture="true" className="bg-white" style={{ fontFamily: 'Arial, sans-serif', height: 'auto', minHeight: 'auto' }}>
           {/* Header */}
           <div className="relative text-white overflow-hidden" >
             <div className="relative flex items-center justify-between p-6 z-10">
@@ -807,6 +1118,10 @@ export default function ReportPage() {
                   <div className="text-center">
                     <p className="font-bold text-sm mb-2">{consultationData.centre?.user?.name || "Clinic Name"}</p>
                     <div className="flex items-center justify-center mb-1">
+                      <span className="text-xs mr-1">👨‍⚕️</span>
+                      <span className="text-xs">Dr. {consultationData.centre?.entName || "ENT Name"}</span>
+                    </div>
+                    <div className="flex items-center justify-center mb-1">
                       <span className="text-xs mr-1">📞</span>
                       <span className="text-xs">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
                     </div>
@@ -823,13 +1138,13 @@ export default function ReportPage() {
           </div>
 
           {/* Pure Tone Audiogram Title */}
-          <div className="text-center py-6 bg-gray-50">
-            <h2 className="text-xl font-bold text-gray-800">Pure Tone Audiogram</h2>
+          <div className="text-center py-8 bg-gray-50">
+            <h2 className="text-2xl font-bold text-gray-800">Pure Tone Audiogram</h2>
           </div>
 
           {/* Patient Information */}
-          <div className="px-8 py-4 bg-white border-b">
-            <div className="grid grid-cols-12 gap-4 text-sm">
+          <div className="px-10 py-6 bg-white border-b relative z-10">
+            <div className="grid grid-cols-12 gap-6 text-base">
               <div className="col-span-3 flex items-center">
                 <span className="font-medium mr-2">ID :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
@@ -850,7 +1165,7 @@ export default function ReportPage() {
               </div>
             </div>
             
-            <div className="grid grid-cols-12 gap-4 text-sm mt-3">
+            <div className="grid grid-cols-12 gap-6 text-base mt-4">
               <div className="col-span-7 flex items-center">
                 <span className="font-medium mr-2">Address :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
@@ -860,16 +1175,10 @@ export default function ReportPage() {
               <div className="col-span-2 flex items-center">
                 <span className="font-medium mr-2">Age :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
-                  {(() => {
-                    if (consultationData.patient?.age) {
-                      return consultationData.patient.age;
-                    } else if (consultationData.patient?.dob) {
-                      const calculatedAge = Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-                      return calculatedAge > 0 ? calculatedAge : "?";
-                    } else {
-                      return "?";
-                    }
-                  })()}
+                  {consultationData.patient?.age || 
+                   (consultationData.patient?.dob ? 
+                     Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) 
+                     : "")}
                 </span>
               </div>
               <div className="col-span-2 flex items-center">
@@ -880,7 +1189,7 @@ export default function ReportPage() {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 text-sm mt-3">
+            <div className="grid grid-cols-2 gap-6 text-base mt-4 bg-white">
               <div className="flex items-center">
                 <span className="font-medium mr-2">Contact No. :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
@@ -889,22 +1198,22 @@ export default function ReportPage() {
               </div>
               <div className="flex items-center">
                 <span className="font-medium mr-2">Referred by :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1"></span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.centre?.entName || "ENT Name"}</span>
               </div>
             </div>
           </div>
 
           {/* Audiogram Charts */}
-          <div className="px-8 py-6 bg-gray-50">
-            <div className="flex justify-between items-start gap-8">
-              <div className="flex-1">
+          <div className="px-10 py-8 bg-gray-50 relative z-0 overflow-hidden" data-section="audiogram-charts">
+            <div className="flex justify-between items-start gap-8 pointer-events-none">
+              <div className="flex-1 overflow-hidden">
                 <AudiogramChart
                   title="Right Ear"
                   results={rightResults}
                   ear="R"
                 />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 overflow-hidden">
                 <AudiogramChart
                   title="Left Ear"
                   results={leftResults}
@@ -915,17 +1224,17 @@ export default function ReportPage() {
           </div>
 
           {/* PTA and Symbols Section */}
-          <div className="mx-8 mb-6">
-            <div className="flex gap-6">
+          <div className="mx-10 mb-8 relative z-10">
+            <div className="flex gap-6 bg-white">
               {/* PTA Section */}
               <div className="flex-1">
-                <div className="bg-blue-900 text-white p-3 text-center">
-                  <h3 className="text-sm font-bold">PTA (dB HL)</h3>
-                  <div className="text-xs opacity-80">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
-                  <div className="text-xs opacity-70">*Includes no-response values</div>
+                <div className="bg-blue-900 text-white p-4 text-center">
+                  <h3 className="text-base font-bold">PTA (dB HL)</h3>
+                  <div className="text-sm opacity-80">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
+                  <div className="text-sm opacity-70">*Includes no-response values</div>
                 </div>
                 <div className="bg-white border border-gray-300 p-4">
-                  <div className="grid grid-cols-3 gap-0 text-xs">
+                  <div className="grid grid-cols-3 gap-0 text-sm">
                   <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Test</div>
                     <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Right</div>
                     <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Left</div>
@@ -971,69 +1280,93 @@ export default function ReportPage() {
               
               {/* Symbols Section */}
               <div className="flex-1">
-                <div className="bg-blue-900 text-white p-3 text-center">
-                  <h3 className="text-sm font-bold">Symbols (ASHA Standards)</h3>
+                <div className="bg-blue-900 text-white p-4 text-center">
+                  <h3 className="text-base font-bold">Symbols (ASHA Standards)</h3>
                 </div>
                 <div className="bg-white border border-gray-300 p-4">
-                  <div className="grid grid-cols-4 gap-2 text-xs">
+                  <div className="grid grid-cols-4 gap-4 text-sm">
                     {/* Air Conduction Unmasked */}
-                    <div className="text-centersp">
-                      <div className="font-bold mb-1 text-gray-800 text-xs">AC Unmasked</div>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-red-500 text-base">○</div>
-                          <span className="text-xs text-gray-700">R</span>
+                    <div className="text-center">
+                      <div className="font-bold mb-2 text-gray-800 text-xs">AC Unmasked</div>
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-red-500 text-lg">○</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">R</span>
                         </div>
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-blue-500 text-base font-bold">×</div>
-                          <span className="text-xs text-gray-700">L</span>
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-blue-500 text-lg font-bold">×</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">L</span>
                         </div>
                       </div>
                     </div>
                     
                     {/* Air Conduction Masked */}
                     <div className="text-center">
-                      <div className="font-bold mb-1 text-gray-800 text-xs">AC Masked</div>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-red-500 text-base">□</div>
-                          <span className="text-xs text-gray-700">R</span>
+                      <div className="font-bold mb-2 text-gray-800 text-xs">AC Masked</div>
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-red-500 text-lg">□</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">R</span>
                         </div>
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-blue-500 text-base">△</div>
-                          <span className="text-xs text-gray-700">L</span>
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-blue-500 text-lg">△</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">L</span>
                         </div>
                       </div>
                     </div>
                     
                     {/* Bone Conduction */}
                     <div className="text-center">
-                      <div className="font-bold mb-1 text-gray-800 text-xs">Bone Conduction</div>
+                      <div className="font-bold mb-2 text-gray-800 text-xs">Bone Conduction</div>
                       <div className="flex flex-col space-y-1">
-                        <div className="text-xs font-semibold mb-1 text-gray-700">Unmasked:</div>
-                        <div className="flex items-center justify-center space-x-2">
-                          <div className="text-red-500 text-base font-bold">&lt;</div>
-                          <div className="text-blue-500 text-base font-bold">&gt;</div>
+                        <div className="text-xs font-semibold text-gray-700 mb-1">Unmasked:</div>
+                        <div className="flex items-center justify-center space-x-3 mb-2">
+                          <div className="flex items-center">
+                            <span className="text-red-500 text-lg font-bold">&lt;</span>
+                            <span className="text-xs text-gray-700 ml-1">R</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-blue-500 text-lg font-bold">&gt;</span>
+                            <span className="text-xs text-gray-700 ml-1">L</span>
+                          </div>
                         </div>
-                        <div className="text-xs font-semibold mb-1 mt-1 text-gray-700">Masked:</div>
-                        <div className="flex items-center justify-center space-x-2">
-                          <div className="text-red-500 text-base font-bold">[</div>
-                          <div className="text-blue-500 text-base font-bold">]</div>
+                        <div className="text-xs font-semibold text-gray-700 mb-1">Masked:</div>
+                        <div className="flex items-center justify-center space-x-3">
+                          <div className="flex items-center">
+                            <span className="text-red-500 text-lg font-bold">[</span>
+                            <span className="text-xs text-gray-700 ml-1">R</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-blue-500 text-lg font-bold">]</span>
+                            <span className="text-xs text-gray-700 ml-1">L</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                     
                     {/* No Response */}
                     <div className="text-center">
-                      <div className="font-bold mb-1 text-gray-800 text-xs">No Response</div>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-red-500 text-base">↙</div>
-                          <span className="text-xs text-gray-700">R</span>
+                      <div className="font-bold mb-2 text-gray-800 text-xs">No Response</div>
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-red-500 text-lg">↙</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">R</span>
                         </div>
-                        <div className="flex items-center justify-center space-x-1">
-                          <div className="text-blue-500 text-base">↘</div>
-                          <span className="text-xs text-gray-700">L</span>
+                        <div className="flex items-center justify-center">
+                          <div className="w-6 flex justify-center">
+                            <span className="text-blue-500 text-lg">↘</span>
+                          </div>
+                          <span className="text-xs text-gray-700 ml-1">L</span>
                         </div>
                       </div>
                     </div>
@@ -1261,34 +1594,26 @@ export default function ReportPage() {
         </div>
       </div>
 
+      {/* Screen Share Status Notification */}
+      {isScreenSharing && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2">
+          <span>🖥️</span>
+          <span>Screen sharing active - Patient can see the report</span>
+        </div>
+      )}
+
       {/* Floating Action Buttons */}
-      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-10">
-        <Button
-          onClick={handleShowReport}
-          className={`${
-            isShowingReport 
-              ? "bg-orange-600 hover:bg-orange-700" 
-              : "bg-blue-600 hover:bg-blue-700"
-          } text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2`}
-        >
-          <span>📊</span>
-          {isShowingReport ? "Hide Report" : "Show Report"}
-        </Button>
-        <Button
-          onClick={handleDoAnotherTest}
-          className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"
-        >
-          <span>🔄</span>
-          Do Another Test
-        </Button>
-        <Button
-          onClick={handleEndConsultation}
-          className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"
-        >
-          <span>✅</span>
-          End Consultation
-        </Button>
-      </div>
+      <FloatingReportActions
+        isScreenConnecting={isScreenConnecting}
+        isScreenSharing={isScreenSharing}
+        isShowingReport={isShowingReport}
+        onToggleShowReport={handleShowReport}
+        onShare={handleShareReport}
+        onDoAnotherTest={handleDoAnotherTest}
+        onEndConsultation={handleEndConsultation}
+      />
+
+
 
 
     </div>

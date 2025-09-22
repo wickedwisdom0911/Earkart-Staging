@@ -78,9 +78,9 @@ class DeviceAdminReceiver : DeviceAdminReceiver() {
         try {
             Log.d(TAG, "Applying device policies")
             
-            // 1. Disable camera for other apps (medical device security)
-            devicePolicyManager.setCameraDisabled(componentName, true)
-            Log.d(TAG, "Camera disabled for other apps")
+            // 1. Enable camera for this app (medical device needs camera)
+            devicePolicyManager.setCameraDisabled(componentName, false)
+            Log.d(TAG, "Camera enabled for this app")
             
             // 2. Set password quality (if needed)
             devicePolicyManager.setPasswordQuality(componentName, DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED)

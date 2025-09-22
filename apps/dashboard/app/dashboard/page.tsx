@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
+import { normalizePlaybackUrl } from "@/lib/url-utils";
 import {
   User,
   Building2,
@@ -21,11 +22,14 @@ import {
   PlayCircle,
   AlertCircle,
   XCircle,
+  Download,
 } from "lucide-react";
 import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import getConsultation from "@/actions/consultations/get_consultation";
 import { toast } from "sonner";
+
+// Removed RecordingLink component – we will use consultation.recordings provided by API
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -33,8 +37,10 @@ export default function DashboardPage() {
   const [allConsulations, setAllConsulations] = useState<
     ConsultationModelData[]
   >([]);
+  const [blinkingIds, setBlinkingIds] = useState<string[]>([]);
   const { data: consultations, isLoading, isError } = useGetAllConsultations();
   const socket = useSocket();
+
 
   // NEW: Track socket connection status
   const [isSocketConnected, setIsSocketConnected] = useState(false);
@@ -51,7 +57,26 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (Array.isArray(consultations?.data)) {
+      // 🐛 DEBUG: Console log consultations data structure
+      console.log("[CONSULTATIONS] Raw consultations data:", consultations.data.map(c => ({
+        id: c.id.substring(0, 8),
+        status: c.status,
+        recordings: c.recordings?.map(r => ({
+          id: r.id,
+          fileName: (r as any).fileName,
+          mimeType: (r as any).mimeType,
+          recordingUrl: r.recordingUrl,
+          createdAt: r.createdAt,
+          // 🐛 Show ALL fields to see what's available
+          allFields: Object.keys(r)
+        })),
+        recordingName: (c as any).recordingName,
+        recordingUrl: (c as any).recordingUrl
+      })));
+      
       setAllConsulations(consultations?.data);
+      
+      // Recording details are now included in the consultation response
       
       // NEW: Check and notify for consultations that need attention when they're displayed
       if (user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST) {
@@ -63,10 +88,9 @@ export default function DashboardPage() {
         setTimeout(() => {
           if (Array.isArray(consultations.data)) {
             consultations.data.forEach((consultation: ConsultationModelData) => {
-              // Check if consultation needs attention (no audiologist OR pending status) AND not in progress/completed/cancelled
+              // Check if consultation needs attention (no audiologist assigned) AND not in progress/completed/cancelled
               const needsAttention = 
-                (!consultation.audiologist || 
-                consultation.status === SessionStatus.PENDING) &&
+                (!consultation.audiologist) &&
                 consultation.status !== SessionStatus.IN_PROGRESS && // NOT in progress (being handled)
                 consultation.status !== SessionStatus.COMPLETED && // NOT completed  
                 consultation.status !== SessionStatus.CANCELLED; // NOT cancelled
@@ -98,6 +122,24 @@ export default function DashboardPage() {
         if (prev.some((c) => c.id === data.id)) return prev;
         return [data, ...prev];
       });
+
+      // If audiologist and consultation needs attention, toast + blink
+      const isAudiologistUser = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+      if (isAudiologistUser) {
+        const needsAttention = (!data.audiologist)
+          && data.status !== SessionStatus.IN_PROGRESS
+          && data.status !== SessionStatus.COMPLETED
+          && data.status !== SessionStatus.CANCELLED;
+        if (needsAttention) {
+          const patientName = data.patient?.name || "New patient";
+          toast.info(`New consultation: ${patientName}`);
+          setBlinkingIds((prev) => prev.includes(data.id) ? prev : [...prev, data.id]);
+          // Remove blink after 6 seconds
+          setTimeout(() => {
+            setBlinkingIds((prev) => prev.filter((id) => id !== data.id));
+          }, 6000);
+        }
+      }
     };
 
     const onConsultationUpdate = (data: ConsultationModelData) => {
@@ -190,7 +232,7 @@ export default function DashboardPage() {
       socket.off("joined", handleJoined);
       socket.off("join_error", handleJoinError);
     };
-  }, [socket, joiningConsultationId, router]);
+  }, [socket, joiningConsultationId, router, user?.role]);
 
   const joinRoom = (consultationId: string) => {
     console.log(consultationId);
@@ -240,6 +282,18 @@ export default function DashboardPage() {
       statusConfig[consultation.status] || statusConfig[SessionStatus.PENDING];
     const isAudiologist =
       user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+
+    // Button styles vary by session status
+    const statusButtonStyles = {
+      [SessionStatus.PENDING]: "bg-yellow-500 hover:bg-yellow-600",
+      [SessionStatus.IN_PROGRESS]: "bg-blue-600 hover:bg-blue-700",
+      [SessionStatus.COMPLETED]: "bg-green-600 hover:bg-green-700",
+      [SessionStatus.FAILED]: "bg-red-600 hover:bg-red-700",
+      [SessionStatus.CANCELLED]: "bg-gray-500 hover:bg-gray-600",
+    } as const;
+    const commonButtonStyles =
+      "w-full text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed";
+    const buttonClassName = `${statusButtonStyles[consultation.status as keyof typeof statusButtonStyles] || "bg-primary-600 hover:bg-primary-700"} ${commonButtonStyles}`;
 
     return (
       <div
@@ -307,7 +361,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => joinRoom(consultation.id)}
                   disabled={joiningConsultationId === consultation.id}
-                  className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                  className={buttonClassName}
                 >
                   {joiningConsultationId === consultation.id ? (
                     <>
@@ -329,7 +383,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => joinRoom(consultation.id)}
                   disabled={joiningConsultationId === consultation.id}
-                  className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                  className={buttonClassName}
                 >
                   {joiningConsultationId === consultation.id ? (
                     <>
@@ -344,6 +398,105 @@ export default function DashboardPage() {
                   )}
                 </button>
               )}
+                        {consultation.status === SessionStatus.COMPLETED && (() => {
+              // Collect all recordings: regular recordings + screen recordings
+              const regularRecordings = Array.isArray(consultation.recordings) 
+                ? consultation.recordings // Show all recordings, even if recordingUrl is null
+                : [];
+              
+              // Check for screen recording URLs from different sources
+              const screenRecordings = [];
+              
+              // From consultation.recordingName field (external callback)
+              const recordingName = (consultation as any)?.recordingName ?? (consultation as any)?.recordingsName ?? (consultation as any)?.recording?.name;
+              if (recordingName && process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL) {
+                const callbackUrl = `${process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL}?name=${encodeURIComponent(recordingName)}`;
+                screenRecordings.push({
+                  id: `screen-${consultation.id}`,
+                  recordingUrl: normalizePlaybackUrl(callbackUrl) || callbackUrl,
+                  createdAt: consultation.updatedAt,
+                  type: 'screen'
+                });
+              }
+              
+              // From consultation.recordingUrl field (direct)
+              if ((consultation as any)?.recordingUrl) {
+                screenRecordings.push({
+                  id: `screen-direct-${consultation.id}`,
+                  recordingUrl: normalizePlaybackUrl((consultation as any).recordingUrl) || (consultation as any).recordingUrl,
+                  createdAt: consultation.updatedAt,
+                  type: 'screen'
+                });
+              }
+              
+              const allRecordings = [...regularRecordings, ...screenRecordings];
+              
+              // 🐛 DEBUG: Console log recordings data
+         
+              
+              return allRecordings.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <div className="text-sm font-medium text-gray-700 mb-2">
+                    Recordings ({allRecordings.length} available):
+                  </div>
+                  {allRecordings.map((recording, index) => {
+                    const timestamp = recording.createdAt 
+                      ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
+                      : `Part ${index + 1}`;
+                    
+                    // Get recording info directly from the recording object
+                    const fileName = (recording as any).fileName || (recording as any).name || '';
+                    const mimeType = (recording as any).mimeType || '';
+                    const status = (recording as any).status || 'unknown';
+                    
+                    // Detect screen recording by filename pattern or mimeType
+                    const isScreenRecording = fileName.includes('.webm') || 
+                                            mimeType?.includes('video/webm') || 
+                                            fileName.includes('consultation-') ||
+                                            fileName.includes('session-');
+                    const recordingType = isScreenRecording ? 'Screen Recording' : 'Audio Recording';
+                    const hasUrl = !!recording.recordingUrl;
+                    
+                    // If no URL, show as disabled item instead of link
+                    if (!hasUrl) {
+                      return (
+                        <div
+                          key={recording.id || `recording-${index}`}
+                          className="flex items-center justify-between px-3 py-2 border rounded-lg text-sm bg-gray-50 border-gray-200 text-gray-500"
+                        >
+                          <span className="flex items-center">
+                            <PlayCircle className="h-4 w-4 mr-2 opacity-50" />
+                            {recordingType} {index + 1} - {timestamp}
+                          </span>
+                          <span className="text-xs">Processing...</span>
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <a
+                        key={recording.id || `recording-${index}`}
+                        href={normalizePlaybackUrl(recording.recordingUrl) || recording.recordingUrl}
+                        download={`consultation-${consultation.id}-${isScreenRecording ? 'screen' : 'audio'}-${index + 1}.webm`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex items-center justify-between px-3 py-2 border rounded-lg transition-colors duration-200 text-sm ${
+                          isScreenRecording 
+                            ? 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 hover:text-blue-800'
+                            : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700 hover:text-emerald-800'
+                        }`}
+                      >
+                        <span className="flex items-center">
+                          <PlayCircle className="h-4 w-4 mr-2" />
+                          {recordingType} {index + 1} - {timestamp}
+                        </span>
+                        <Download className="h-3 w-3" />
+                      </a>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -352,6 +505,15 @@ export default function DashboardPage() {
 
   return (
     <DashboardBodyWrapper>
+      {/* Recording test UI removed */}
+      <style>{`
+        @keyframes blink-card-border { 0%{ box-shadow: 0 0 0 0 rgba(59,130,246,.6);} 50%{ box-shadow: 0 0 0 4px rgba(59,130,246,.25);} 100%{ box-shadow: 0 0 0 0 rgba(59,130,246,.0);} }
+        .blink-card { animation: blink-card-border 1s ease-in-out 0s 6; }
+        
+        /* Stronger, continuous blink for PENDING consultations */
+        @keyframes blink-pending-border { 0%{ box-shadow: 0 0 0 0 rgba(202,138,4,.75);} 50%{ box-shadow: 0 0 0 8px rgba(202,138,4,.35);} 100%{ box-shadow: 0 0 0 0 rgba(202,138,4,0);} }
+        .pending-blink { animation: blink-pending-border 1.2s ease-in-out 0s infinite; border-radius: 0.75rem; }
+      `}</style>
       <div className="w-full mb-8 ">
         <div className="rounded-2xl bg-gradient-to-r from-primary-100 to-blue-100 dark:from-primary-900 dark:to-blue-900 p-6 flex items-center justify-between gap-4 shadow-md border border-primary-200 dark:border-primary-800">
           <div className="flex  gap-4">
@@ -384,7 +546,15 @@ export default function DashboardPage() {
       {isLoading && <div>Loading...</div>}
       {isError && <div>Error</div>}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {allConsulations?.map(renderConsultationCard)}
+        {allConsulations?.map((consultation) => {
+          const Card = renderConsultationCard(consultation);
+          const shouldBlinkPending = (!consultation.audiologist) && consultation.status === SessionStatus.PENDING;
+          return (
+            <div key={consultation.id} className={`${blinkingIds.includes(consultation.id) ? 'blink-card' : ''} ${shouldBlinkPending ? 'pending-blink' : ''}`}>
+              {Card}
+            </div>
+          );
+        })}
       </div>
     </DashboardBodyWrapper>
   );

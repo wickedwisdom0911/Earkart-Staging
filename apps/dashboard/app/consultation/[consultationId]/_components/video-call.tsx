@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import AgoraRTC, {
+import {
   LocalUser,
   RemoteUser,
   useLocalMicrophoneTrack,
@@ -10,7 +10,6 @@ import AgoraRTC, {
   useRemoteUsers,
   useJoin,
   useIsConnected,
-  AgoraRTCProvider,
   useRTCClient,
   ILocalTrack,
 } from "agora-rtc-react";
@@ -22,6 +21,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface VideoCallProps {
   channel: string;
   patientName: string;
+  isFullscreen?: boolean;
+  onBeforeLeaveCall?: () => Promise<void>;
 }
 
 const VideoCallSkeleton = () => {
@@ -93,6 +94,8 @@ const VideoPlaceholder = ({
 const VideoCallContent: React.FC<VideoCallProps> = ({
   channel,
   patientName,
+  isFullscreen = false,
+  onBeforeLeaveCall,
 }) => {
   const localRef = useRef<HTMLDivElement>(null);
   const remoteRef = useRef<HTMLDivElement>(null);
@@ -219,7 +222,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   );
 
   // Publish tracks
-  usePublish([localMicrophoneTrack, localCameraTrack]);
+  usePublish([localMicrophoneTrack, localCameraTrack] as any);
 
   // Handle token fetching
   useEffect(() => {
@@ -232,7 +235,11 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         setIsInitializing(true);
         setError(null);
         console.log("Initializing call with channel:", channel);
-        const { data } = await fetchToken(channel);
+        const { data } = await fetchToken({
+          channelName: channel,
+          userRole: 'publisher',
+          isUVC: false
+        });
         console.log("Received token data:", {
           hasToken: !!data.token,
           tokenLength: data.token?.length,
@@ -300,6 +307,11 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           setIsLeaving(true);
           setError(null);
 
+          // finalize screen recording (if provided by parent)
+          if (onBeforeLeaveCall) {
+            try { await onBeforeLeaveCall(); } catch {}
+          }
+
           // Aggressive cleanup of tracks
           const cleanupTrack = async (track: ILocalTrack) => {
             if (!track) return;
@@ -326,20 +338,20 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
 
           // Cleanup local tracks
           if (localMicrophoneTrack) {
-            await cleanupTrack(localMicrophoneTrack);
+            await cleanupTrack(localMicrophoneTrack as any);
           }
           if (localCameraTrack) {
-            await cleanupTrack(localCameraTrack);
+            await cleanupTrack(localCameraTrack as any);
           }
 
           // Unpublish and leave if connected
           if (isConnected) {
             try {
               if (localMicrophoneTrack) {
-                await client.unpublish(localMicrophoneTrack);
+                await client.unpublish(localMicrophoneTrack as any);
               }
               if (localCameraTrack) {
-                await client.unpublish(localCameraTrack);
+                await client.unpublish(localCameraTrack as any);
               }
               await client.leave();
             } catch (err) {
@@ -356,9 +368,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           setShowRefreshHint(false);
 
           // Force cleanup of any remaining tracks
-          if (client.localTracks) {
-            for (const track of client.localTracks) {
-              await cleanupTrack(track);
+          if ((client as any).localTracks) {
+            for (const track of (client as any).localTracks as any[]) {
+              await cleanupTrack(track as any);
             }
           }
 
@@ -373,7 +385,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                 try {
                   const stream = await navigator.mediaDevices.getUserMedia({
                     [device.kind]: { deviceId: device.deviceId },
-                  });
+                  } as any);
                   stream.getTracks().forEach((track) => {
                     track.stop();
                     track.enabled = false;
@@ -417,7 +429,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   }
 
   return (
-    <div className="flex flex-col items-center h-full min-w-1/3 w-fit relative">
+    <div className={`flex flex-col items-center h-full relative ${
+      isFullscreen ? 'w-full' : 'min-w-1/3 w-fit'
+    }`}>
       <Dialog />
       {error && (
         <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
@@ -440,7 +454,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         {/* Remote user (patient) - full screen */}
         <div
           ref={remoteRef}
-          className="w-full h-full rounded-2xl border bg-gray-900 overflow-hidden"
+          className={`w-full h-full bg-gray-900 overflow-hidden ${
+            isFullscreen ? 'rounded-none border-none' : 'rounded-2xl border'
+          }`}
         >
           {remoteUsers.length > 0 ? (
             remoteUsers.map((user) => (
@@ -471,11 +487,11 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           >
             {localCameraTrack ? (
               <LocalUser
-                audioTrack={localMicrophoneTrack}
+                audioTrack={localMicrophoneTrack as any}
                 cameraOn={true}
                 micOn={micOn}
                 playAudio={false}
-                videoTrack={localCameraTrack}
+                videoTrack={localCameraTrack as any}
                 style={{ width: "100%", height: "100%" }}
               >
                 <div className="absolute bottom-1 left-1 text-white text-xs">
@@ -518,10 +534,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
 };
 
 export const VideoCall: React.FC<VideoCallProps> = (props) => {
-  const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
   return (
-    <AgoraRTCProvider client={client}>
       <VideoCallContent {...props} />
-    </AgoraRTCProvider>
   );
 };

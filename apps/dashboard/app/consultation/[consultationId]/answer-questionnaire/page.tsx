@@ -159,7 +159,7 @@ export default function QuestionnairePage() {
       {sortedQuestions.map((q, idx) => (
         <div key={q.id} className="bg-white p-6 rounded-lg shadow border">
           <Label.Root className="block mb-2 font-semibold text-gray-800">
-            {q.order}. {q.text}
+            {idx + 1}. {q.text}
           </Label.Root>
 
           <Controller

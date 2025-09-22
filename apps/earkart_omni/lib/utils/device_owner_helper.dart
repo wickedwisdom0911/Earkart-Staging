@@ -31,6 +31,12 @@ class DeviceOwnerHelper {
     try {
       await platform.invokeMethod('grantAllPermissions');
       print('✅ ALL permissions granted for device owner');
+
+      // Wait a moment for permissions to be applied
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Check and print permission status after granting
+      await printPermissionSummary();
     } on PlatformException catch (e) {
       print('Error granting all permissions: ${e.message}');
     }
@@ -49,15 +55,24 @@ class DeviceOwnerHelper {
     }
   }
 
-  /// Auto-grant all permissions if device owner
+  /// Auto-grant all permissions (app is always device owner)
   static Future<void> autoGrantPermissionsIfDeviceOwner() async {
     try {
+      // Since app is always device owner, proceed with granting permissions
+      print(
+        '🎯 App is device owner - auto-granting all permissions by default',
+      );
+      await grantAllPermissions();
+
+      // Print final permission status
+      await printPermissionSummary();
+
+      // Fallback: If somehow not device owner, log warning
       final bool isOwner = await isDeviceOwner();
-      if (isOwner) {
-        print('🎯 App is device owner - auto-granting all permissions');
-        await grantAllPermissions();
-      } else {
-        print('⚠️ App is NOT device owner - cannot auto-grant permissions');
+      if (!isOwner) {
+        print(
+          '⚠️ Unexpected: App is NOT device owner - permissions may not work correctly',
+        );
       }
     } catch (e) {
       print('Error in auto-grant: $e');

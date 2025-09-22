@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -158,6 +158,11 @@ interface AudiologistAnalyticsProps {
 export default function AudiologistAnalytics({ userRole, currentUser }: AudiologistAnalyticsProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   // Role-based logic for audiologist filtering
   const isAdmin = userRole === "ADMIN" || userRole === "SUPER_ADMIN";
@@ -210,7 +215,7 @@ export default function AudiologistAnalytics({ userRole, currentUser }: Audiolog
       cityIds: watchedValues.cityIds || [],
       stateIds: watchedValues.stateIds || [],
       consultationStatuses: watchedValues.consultationStatuses || [],
-      testStatuses: watchedValues.testStatuses || [],
+      testStatuses: (watchedValues.testStatuses || []).filter((s) => s !== TestStatus.PENDING) as any,
       patientSoldStatuses: watchedValues.patientSoldStatuses || [],
       genders: watchedValues.genders || [],
       ...(watchedValues.minAge && { minAge: watchedValues.minAge }),
@@ -222,11 +227,68 @@ export default function AudiologistAnalytics({ userRole, currentUser }: Audiolog
 
   const { data, isLoading, isError, refetch } = useGetAudiologistMetrics(requestBody);
 
+  // CSV export helpers
+  const downloadCsv = (csvText: string, fileName: string) => {
+    const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.setAttribute("download", fileName);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const escapeCsv = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    const str = String(value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  };
+
+  const buildCsv = (): string => {
+    if (!data) return "";
+    const out: string[] = [];
+
+    // Header metadata
+    out.push(["Metric Type", escapeCsv(data.metricType)].join(","));
+    const tr: any = data.timeRange || {};
+    out.push(["Time Range", escapeCsv(tr.preset ?? `${tr.start ?? ''} ${tr.end ? ' - ' + tr.end : ''}`)].join(","));
+
+    // Summary
+    out.push("");
+    out.push(["Summary"].join(","));
+    out.push(["total","average","min","max","growthRate","trend"].join(","));
+    out.push([
+      escapeCsv(data.summary.total),
+      escapeCsv(data.summary.average),
+      escapeCsv(data.summary.min),
+      escapeCsv(data.summary.max),
+      escapeCsv(data.summary.growthRate),
+      escapeCsv(data.summary.trend),
+    ].join(","));
+
+    // Data points
+    out.push("");
+    out.push(["label","value","percentageChange","date"].join(","));
+    (data.data || []).forEach((dp: any) => {
+      out.push([
+        escapeCsv(dp.label),
+        escapeCsv(dp.value),
+        escapeCsv(dp.percentageChange ?? ""),
+        escapeCsv(dp.date ?? ""),
+      ].join(","));
+    });
+
+    return out.join("\n");
+  };
+
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      console.log("Exporting audiologist data...", data);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const csv = buildCsv();
+      const file = `audiologist_analytics_${watchedValues.groupBy}_${watchedValues.timeRange}.csv`;
+      downloadCsv(csv, file);
     } finally {
       setIsExporting(false);
     }
@@ -555,41 +617,47 @@ export default function AudiologistAnalytics({ userRole, currentUser }: Audiolog
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <ResponsiveContainer width="100%" height={400}>
-                <AreaChart data={data.data}>
-                  <defs>
-                    <linearGradient id="colorUvAudio" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e0e4e7" />
-                  <XAxis 
-                    dataKey="label" 
-                    tick={{ fontSize: 12 }}
-                    stroke="#6b7280"
-                  />
-                  <YAxis 
-                    tick={{ fontSize: 12 }}
-                    stroke="#6b7280"
-                  />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: 'none',
-                      borderRadius: '8px',
-                      color: '#ffffff'
-                    }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="#8b5cf6" 
-                    strokeWidth={3}
-                    fill="url(#colorUvAudio)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {isClient ? (
+                <ResponsiveContainer width="100%" height={400}>
+                  <AreaChart data={data.data}>
+                    <defs>
+                      <linearGradient id="colorUvAudio" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e4e7" />
+                    <XAxis 
+                      dataKey="label" 
+                      tick={{ fontSize: 12 }}
+                      stroke="#6b7280"
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 12 }}
+                      stroke="#6b7280"
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: '#1f2937',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: '#ffffff'
+                      }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#8b5cf6" 
+                      strokeWidth={3}
+                      fill="url(#colorUvAudio)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="w-full h-[400px] flex items-center justify-center bg-gray-50 rounded-md">
+                  <div className="text-gray-500">Loading chart...</div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

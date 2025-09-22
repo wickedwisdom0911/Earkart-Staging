@@ -6,6 +6,7 @@ import CustomQueryClientProvider from "@/providers/QueryClientProvider";
 import { SocketProvider } from "@/providers/socket-provider";
 import { DeviceProvider } from "@/providers/device-provider";
 import { PatientAlertProvider } from "@/providers/patient-alert-provider";
+import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,7 +58,11 @@ export default function RootLayout({
         <CustomQueryClientProvider>
           <SocketProvider>
             <DeviceProvider>
-              <PatientAlertProvider>{children}</PatientAlertProvider>
+              <PatientAlertProvider>
+                <AgoraOtoscopyProvider>
+                  {children}
+                </AgoraOtoscopyProvider>
+              </PatientAlertProvider>
             </DeviceProvider>
           </SocketProvider>
         </CustomQueryClientProvider>

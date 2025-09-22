@@ -1,18 +1,24 @@
 import type { NextConfig } from "next";
 import dotenv from "dotenv";
-dotenv.config();
+
+// Load environment variables with fallback
+try {
+  dotenv.config();
+} catch (error) {
+  console.warn("No .env file found, using default values");
+}
 
 const nextConfig: NextConfig = {
   env: {
-    IS_PRODUCTION: process.env.IS_PRODUCTION,
-    BASE_API_URL_PROD: process.env.BASE_API_URL_PROD,
-    BASE_API_URL_DEV: process.env.BASE_API_URL_DEV,
-    SESSION_SECRET: process.env.SESSION_SECRET,
-    JWT_SECRET: process.env.JWT_SECRET,
-    JWT_EXPIRE: process.env.JWT_EXPIRE,
-    COOKIE_EXPIRE: process.env.COOKIE_EXPIRE,
-    BASE_SOCKET_URL_PROD: process.env.BASE_SOCKET_URL_PROD,
-    BASE_SOCKET_URL_DEV: process.env.BASE_SOCKET_URL_DEV,
+    IS_PRODUCTION: process.env.IS_PRODUCTION || "false",
+    BASE_API_URL_PROD: process.env.BASE_API_URL_PROD || "http://65.2.163.137:3000/api/v1/",
+    BASE_API_URL_DEV: process.env.BASE_API_URL_DEV || "http://localhost:3000/api/v1/",
+    SESSION_SECRET: process.env.SESSION_SECRET || "default-session-secret",
+    JWT_SECRET: process.env.JWT_SECRET || "default-jwt-secret",
+    JWT_EXPIRE: process.env.JWT_EXPIRE || "7d",
+    COOKIE_EXPIRE: process.env.COOKIE_EXPIRE || "7",
+    BASE_SOCKET_URL_PROD: process.env.BASE_SOCKET_URL_PROD || "http://65.2.163.137:3000/",
+    BASE_SOCKET_URL_DEV: process.env.BASE_SOCKET_URL_DEV || "http://192.168.1.172:3000/",
   },
   typescript: {
     // Disable type checking during build for faster deployments
@@ -23,7 +29,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
 
-  // Add security headers to allow mixed content (NOT RECOMMENDED)
+  // Security headers (permissive for development)
   async headers() {
     return [
       {
@@ -31,7 +37,15 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: "upgrade-insecure-requests;",
+            value: [
+              "default-src 'self'",
+              "connect-src * 'self' http://192.168.1.172:3000 ws://192.168.1.172:3000 wss: ws: https://*.agora.io https://*.agoraio.cn https://webrtc2-ap-web-1.agora.io https://webrtc2-2.ap.sd-rtn.com",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob:",
+              "font-src 'self' data:",
+              "media-src 'self' data: blob:"
+            ].join("; "),
           },
         ],
       },

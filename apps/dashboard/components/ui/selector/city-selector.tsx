@@ -44,9 +44,9 @@ export default function CitySelector({
   }, [data]);
 
   useEffect(() => {
-    if (initialValue) {
+    if (initialValue && cities.length > 0) {
       setSelectedCity(cities.find((c) => c.id === initialValue) || null);
-    } else {
+    } else if (!initialValue) {
       setSelectedCity(null);
     }
   }, [initialValue, cities]);

@@ -43,9 +43,9 @@ export default function StateSelector({
   }, [data]);
 
   useEffect(() => {
-    if (initialValue) {
+    if (initialValue && states.length > 0) {
       setSelectedState(states.find((s) => s.id === initialValue) || null);
-    } else {
+    } else if (!initialValue) {
       setSelectedState(null);
     }
   }, [initialValue, states]);

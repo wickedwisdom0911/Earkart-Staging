@@ -1,9 +1,13 @@
 "use client";
-import { useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import Image from "next/image";
+
+import { Suspense } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { Eye, EyeOff, AlertTriangle, AlertCircle, Mail } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -12,31 +16,33 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, AlertCircle, Phone, Mail } from "lucide-react";
-import CircularText from "@/components/ui/circular-text";
-import useLoginUser from "@/hooks/auth/use-login-user";
+import { Input } from "@/components/ui/input";
+import loginUser from "@/actions/auth/login-user";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-export default function LoginPage() {
-  const [showPass, setShowPass] = useState(false);
-  const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
-  const router = useRouter();
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription 
+} from "@/components/ui/dialog";
 
-  const formSchema = z.object({
-    email: z.string().email(),
-    password: z
-      .string()
-      .min(8, { message: "Password must be at least 8 characters long" }),
-  });
+const formSchema = z.object({
+  email: z.string().email({
+    message: "Please enter a valid email address.",
+  }),
+  password: z.string().min(1, {
+    message: "Password is required.",
+  }),
+});
+
+function LoginPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [showPass, setShowPass] = useState(false);
+  const [isPending, setIsPending] = useState(false);
+  const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
+  const [showSecurityWarning, setShowSecurityWarning] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -46,71 +52,57 @@ export default function LoginPage() {
     },
   });
 
-  const { mutate: loginUser, isPending } = useLoginUser();
+  // Check for URL parameters and handle them securely
+  useEffect(() => {
+    const email = searchParams?.get('email');
+    const password = searchParams?.get('password');
+    
+    // Pre-fill email safely (no security risk)
+    if (email) {
+      form.setValue('email', email);
+    }
+    
+    // Security warning if password is in URL
+    if (password) {
+      setShowSecurityWarning(true);
+      
+      // Clean URL by removing parameters
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [searchParams, form]);
 
-  const handleSubmit = async (data: z.infer<typeof formSchema>) => {
-    const formData = new FormData();
-    formData.append("email", data.email);
-    formData.append("password", data.password);
-    loginUser(formData, {
-      onSuccess: (data) => {
-        if (data.success) {
-          toast.success("Login successful", {
-            description: "You have been logged in successfully",
-          });
-          router.replace("/dashboard");
-        } else {
-          toast.error("Login failed", {
-            description: data.message,
-          });
-        }
-      },
-      onError: (error) => {
-        toast.error("Login failed", {
-          description: error.message,
-        });
-      },
-    });
-  };
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsPending(true);
+    try {
+      const formData = new FormData();
+      formData.append("email", values.email);
+      formData.append("password", values.password);
+
+      const result = await loginUser(formData);
+      
+      if (result.success) {
+        router.push("/dashboard");
+      } else {
+        toast.error(result.message || "Login failed");
+      }
+    } catch (error) {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setIsPending(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative  px-2 overflow-hidden">
-      <div className="absolute inset-0 -z-10">
-        <Image
-          src="/login-bg.webp"
-          alt="Background"
-          fill
-          className="object-cover w-full h-full"
-          style={{ filter: "blur(12px)", opacity: 0.55 }}
-          priority
-        />
-        <div className="absolute inset-0 bg-primary-200/40 dark:bg-black/40" />
-      </div>
-      <CircularText
-        text="EARKART*OMNI*"
-        onHover="speedUp"
-        spinDuration={20}
-        className="absolute bottom-5 right-5"
-      />
-      <div className="w-full max-w-md bg-white/90 dark:bg-background/70 border border-primary-400 shadow-2xl p-6 sm:p-8 flex flex-col items-center backdrop-blur-md">
-        <div className="flex flex-col items-center w-full mb-6">
-          <Image src="/logo.webp" alt="Logo" width={180} height={60} priority />
-          <div className="flex flex-col items-center bg-primary-100 w-full p-2 rounded-md">
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-center text-primary-700 tracking-tight leading-tight">
-              OMNI
-            </h1>
-            <span className="text-xs sm:text-sm text-muted-foreground text-center">
-              by earKart Limited
-            </span>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+          <p className="text-gray-600">Please sign in to your account</p>
         </div>
-        <div className="w-full">
+
+        <div className="space-y-6">
           <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSubmit)}
-              className="space-y-5"
-              autoComplete="off"
-            >
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
                 name="email"
@@ -121,7 +113,7 @@ export default function LoginPage() {
                       <Input
                         {...field}
                         type="email"
-                        placeholder="you@example.com"
+                        placeholder="your@email.com"
                         autoComplete="email"
                         disabled={isPending}
                       />
@@ -130,6 +122,7 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={form.control}
                 name="password"
@@ -162,6 +155,7 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
+
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <Button
                   type="button"
@@ -173,6 +167,7 @@ export default function LoginPage() {
                   Forgot password?
                 </Button>
               </div>
+
               <Button
                 type="submit"
                 className="w-full mt-2 bg-primary-600 hover:bg-primary-700 hover:scale-[1.04] transition-all duration-200 cursor-pointer"
@@ -244,6 +239,71 @@ export default function LoginPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Security Warning Dialog */}
+      <Dialog open={showSecurityWarning} onOpenChange={setShowSecurityWarning}>
+        <DialogContent className="max-w-md mx-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <DialogTitle className="text-xl font-semibold text-gray-900">
+                Security Warning
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-gray-600 text-left">
+              We detected that your password was visible in the URL. This is a security risk.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-400">
+              <h4 className="font-medium text-red-900 mb-2">What happened?</h4>
+              <p className="text-sm text-red-800">
+                Your login credentials were passed through the URL, which can be:
+              </p>
+              <ul className="text-sm text-red-800 mt-2 ml-4 list-disc">
+                <li>Stored in browser history</li>
+                <li>Visible in server logs</li>
+                <li>Shared accidentally when copying the URL</li>
+              </ul>
+            </div>
+            
+            <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-400">
+              <h4 className="font-medium text-blue-900 mb-2">What we did:</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>✓ Cleaned the URL immediately</li>
+                <li>✓ Your email was safely pre-filled</li>
+                <li>✓ Password was not stored</li>
+              </ul>
+            </div>
+            
+            <div className="bg-amber-50 p-3 rounded-lg border-l-4 border-amber-400">
+              <p className="text-sm text-amber-800">
+                <strong>Recommendation:</strong> Please clear your browser history and ensure you log in securely.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              onClick={() => setShowSecurityWarning(false)}
+              className="px-6 bg-red-600 hover:bg-red-700"
+            >
+              I Understand
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
   );
 }

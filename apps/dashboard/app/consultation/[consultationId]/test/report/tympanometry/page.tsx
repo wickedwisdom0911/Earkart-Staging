@@ -1,14 +1,25 @@
 "use client";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Ear, TympType } from "@/models/enums";
-import { format, parseISO } from "date-fns";
+import { TympanometryReadingModelData } from "@/models/tympanometry.model";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { useRef } from "react";
-import html2canvas from "html2canvas-pro";
-import { jsPDF } from "jspdf";
+import { useRef, useEffect, useState } from "react";
+import Image from "next/image";
+// PDF export utility is loaded dynamically to avoid bundling issues
 import { toast } from "sonner";
+import FloatingReportActions from "@/components/ui/FloatingReportActions";
+import { Textarea } from "@/components/ui/textarea";
+import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
+import { exportElementToPdfBlob } from "@/lib/pdf";
+import ReportTopActions from "@/components/ui/ReportTopActions";
+import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
+import { useSocket } from "@/providers/socket-provider";
+import initiateReportUpload from "@/actions/consultations/initiate-report-upload";
+import completeReportUpload from "@/actions/consultations/complete-report-upload";
+import { ReportType } from "@/models/enums";
 import {
   LineChart,
   Line,
@@ -55,7 +66,7 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
   if (!data || data.length === 0) {
     return (
       <div className="border rounded p-4">
-        <div className="h-[400px] relative">
+        <div className="h-[400px] relative overflow-hidden">
           <div className="w-full h-full flex items-center justify-center text-gray-500">
             <div className="text-center">
               <div className="text-6xl mb-4">📊</div>
@@ -70,7 +81,7 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
 
   return (
     <div className="border rounded p-4">
-      <div className="h-[400px] relative">
+      <div className="h-[400px] relative overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
@@ -129,74 +140,279 @@ const TympanogramGraph: React.FC<TympanogramGraphProps> = ({
 
 export default function TympanometryReportPage() {
   const { consultationId } = useParams();
+  const router = useRouter();
+  const socket = useSocket();
   const {
     data: consultation,
     isLoading,
     error,
   } = useGetConsultation(consultationId as string);
-  const consultationData = consultation?.data as ConsultationModelData;
+  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const reportRef = useRef<HTMLDivElement>(null);
+  const updateConsultationMutation = useUpdateConsultation();
+  const [comments, setComments] = useState<string>("");
+  const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare, error: screenShareError } = useSharedScreenShare();
+  const [isShowingReport, setIsShowingReport] = useState(false);
+  useEffect(() => {
+    setComments(consultationData?.tympanometry?.notes || "");
+  }, [consultationData?.tympanometry?.notes]);
+
+  useEffect(() => {
+    if (screenShareError) {
+      toast.error(`Screen sharing error: ${screenShareError}`);
+    }
+  }, [screenShareError]);
+
+  const handleSaveComments = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!consultationData) return;
+    try {
+      await updateConsultationMutation.mutateAsync({
+        ...consultationData,
+        tympanometry: {
+          ...consultationData.tympanometry!,
+          notes: comments,
+        },
+      });
+      toast.success("Comments saved");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save comments");
+    }
+  };
+
+  // Helper: convert inline SVGs to images in the cloned DOM before rasterizing
+  const rasterizeSVGsSync = (container: HTMLElement, ownerDocument: Document) => {
+    const svgs = Array.from(container.querySelectorAll("svg")) as SVGSVGElement[];
+    for (const svg of svgs) {
+      try {
+        const clone = svg.cloneNode(true) as SVGSVGElement;
+        if (!clone.getAttribute("xmlns")) clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        const rect = svg.getBoundingClientRect();
+        const width = rect.width || Number(clone.getAttribute("width")) || svg.clientWidth;
+        const height = rect.height || Number(clone.getAttribute("height")) || svg.clientHeight;
+        if (width && height) {
+          clone.setAttribute("width", String(width));
+          clone.setAttribute("height", String(height));
+        }
+        const xml = new XMLSerializer().serializeToString(clone);
+        const dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+        const img = ownerDocument.createElement("img");
+        (img as any).decoding = "sync";
+        if ("loading" in img) (img as any).loading = "eager";
+        img.setAttribute("width", String(width));
+        img.setAttribute("height", String(height));
+        img.style.width = `${width}px`;
+        img.style.height = `${height}px`;
+        img.style.display = getComputedStyle(svg).display === "inline" ? "inline-block" : "block";
+        img.src = dataUrl;
+        svg.style.display = "none";
+        svg.parentNode?.insertBefore(img, svg);
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
     try {
       toast.success("Generating PDF...");
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        onclone: (clonedDoc) => {
-          const element = clonedDoc.querySelector(
-            '[data-ref="report-content"]'
-          ) as HTMLElement;
-          if (element) {
-            element.style.width = "100%";
-            element.style.height = "auto";
-            element.style.padding = "20px";
-          }
-        },
-      });
+      const { exportElementToPdf } = await import("@/lib/pdf");
 
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "px",
-        format: "a4",
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-
-      const ratio = pdfWidth / imgWidth;
-      const scaledWidth = pdfWidth;
-      const scaledHeight = imgHeight * ratio;
-      const pageCount = Math.ceil(scaledHeight / pdfHeight);
-
-      for (let i = 0; i < pageCount; i++) {
-        if (i > 0) {
-          pdf.addPage();
+      // Pre-rasterize Recharts SVGs to PNG <img> to avoid any CSP plugin/image loader issues
+      const svgs = Array.from(reportRef.current.querySelectorAll("svg.recharts-surface")) as SVGSVGElement[];
+      const cleanup: Array<() => void> = [];
+      for (const svg of svgs) {
+        try {
+          const rect = svg.getBoundingClientRect();
+          const width = Math.max(1, Math.floor(rect.width));
+          const height = Math.max(1, Math.floor(rect.height));
+          // Serialize SVG and draw onto a canvas, then swap with <img src=png>
+          const xml = new XMLSerializer().serializeToString(svg);
+          const svgBlob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
+          const svgUrl = URL.createObjectURL(svgBlob);
+          const img = document.createElement("img");
+          img.width = width;
+          img.height = height;
+          img.style.width = `${width}px`;
+          img.style.height = `${height}px`;
+          await new Promise<void>((res) => { img.onload = () => res(); img.onerror = () => res(); img.src = svgUrl; });
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) ctx.drawImage(img, 0, 0, width, height);
+          const pngUrl = canvas.toDataURL("image/png");
+          const pngImg = document.createElement("img");
+          pngImg.src = pngUrl;
+          pngImg.width = width;
+          pngImg.height = height;
+          pngImg.style.width = `${width}px`;
+          pngImg.style.height = `${height}px`;
+          svg.style.display = "none";
+          svg.parentNode?.insertBefore(pngImg, svg);
+          cleanup.push(() => {
+            if (pngImg.parentNode) pngImg.parentNode.removeChild(pngImg);
+            svg.style.display = "";
+            URL.revokeObjectURL(svgUrl);
+          });
+        } catch {
+          // ignore this one and proceed
         }
-
-        pdf.addImage(
-          imgData,
-          "PNG",
-          0,
-          -i * pdfHeight,
-          scaledWidth,
-          scaledHeight
-        );
       }
 
-      pdf.save(
-        `tympanometry-report-${consultationData?.patient?.code || "unknown"}.pdf`
+      await exportElementToPdf(
+        reportRef.current,
+        `tympanometry-report-${consultationData?.patient?.code || "unknown"}.pdf`,
+        { singlePage: true, fullPage: true }
       );
       toast.success("PDF downloaded successfully!");
+      cleanup.forEach(fn => fn());
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast.error("Failed to generate PDF");
+    }
+  };
+
+  const handleShowReport = async () => {
+    if (!socket) {
+      toast.error("Socket connection not available");
+      return;
+    }
+
+    const isCurrentlyShowing = isShowingReport || isScreenSharing;
+    try {
+      if (isCurrentlyShowing) {
+        socket.emit("generate-report:end", { consultationId });
+        setIsShowingReport(false);
+        if (isScreenSharing) {
+          await toggleScreenShare();
+        }
+        toast.success("Report hidden from patient");
+      } else {
+        socket.emit("generate-report:start", { consultationId });
+        setIsShowingReport(true);
+        if (reportRef.current) {
+          await toggleScreenShare(reportRef.current);
+        } else {
+          await toggleScreenShare();
+        }
+        toast.success("Report shown to patient via screen share");
+      }
+    } catch (err) {
+      console.error("Error handling report display:", err);
+      toast.error("Failed to show/hide report");
+    }
+  };
+
+  const handleShareReport = async () => {
+    if (!reportRef.current || !consultationData) return;
+    
+    try {
+      toast.info("Preparing report for sharing...");
+      
+      // Generate fresh PDF
+      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true, fullPage: true });
+      const file = new File([blob], `tympanometry-report-${consultationData.patient?.code || "unknown"}.pdf`, { type: "application/pdf" });
+      
+      // Get pre-signed URL
+      const initiateResult = await initiateReportUpload({
+        consultationId: consultationId as string,
+        reportType: ReportType.TYMPANOMETRY,
+        fileName: file.name,
+        contentType: file.type,
+      });
+      
+      if (!initiateResult.success || !initiateResult.data) {
+        throw new Error(initiateResult.message || "Failed to initiate upload");
+      }
+      
+      const { presignedUrl, uploadId } = initiateResult.data;
+      
+      // Upload to S3
+      try {
+        const uploadResponse = await fetch(presignedUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type,
+          },
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error(`S3 upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+        }
+        
+        // Complete the upload
+        const completeResult = await completeReportUpload({
+          uploadId,
+          consultationId: consultationId as string,
+          reportType: ReportType.TYMPANOMETRY,
+        });
+        
+        if (!completeResult.success || !completeResult.data) {
+          throw new Error(completeResult.message || "Failed to complete upload");
+        }
+        
+        const finalReportUrl = completeResult.data.fileUrl;
+        
+        // Send WhatsApp message
+        const patientName = consultationData.patient?.name || "Patient";
+        const patientContact = consultationData.patient?.contactNumber || "9058075653";
+        const formattedPhoneNumber = patientContact.startsWith('+') ? patientContact.substring(1) : 
+                                   patientContact.startsWith('91') ? patientContact : `91${patientContact}`;
+        
+        const response = await fetch('/api/whatsapp/send-report-dialog', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: formattedPhoneNumber,
+            patientName: patientName,
+            reportUrl: finalReportUrl
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          toast.success("Report shared successfully via WhatsApp!");
+        } else {
+          toast.error(`Failed to send WhatsApp: ${result.error}`);
+        }
+        
+      } catch (s3Error) {
+        console.error("S3 upload failed, using fallback:", s3Error);
+        toast.warning("Using fallback URL for sharing");
+        
+        // Fallback to hardcoded URL
+        const patientName = consultationData.patient?.name || "Patient";
+        const patientContact = consultationData.patient?.contactNumber || "9058075653";
+        const formattedPhoneNumber = patientContact.startsWith('+') ? patientContact.substring(1) : 
+                                   patientContact.startsWith('91') ? patientContact : `91${patientContact}`;
+        
+        const response = await fetch('/api/whatsapp/send-report-dialog', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: formattedPhoneNumber,
+            patientName: patientName,
+            reportUrl: "https://omni-two.s3.ap-south-1.amazonaws.com/reports/test-tympanometry-report.pdf"
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          toast.success("Report shared successfully via WhatsApp!");
+      } else {
+          toast.error(`Failed to send WhatsApp: ${result.error}`);
+        }
+      }
+      
+    } catch (err) {
+      console.error("Error sharing report:", err);
+      toast.error(`Failed to share report: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
 
@@ -228,7 +444,7 @@ export default function TympanometryReportPage() {
         Error loading report: {error.message}
       </div>
     );
-  if (!consultation?.data)
+  if (!consultationData)
     return <div className="p-6">No consultation data found</div>;
 
   const tympanometryData = consultationData.tympanometry;
@@ -249,352 +465,259 @@ export default function TympanometryReportPage() {
   }
 
   return (
-    <div className="p-6 flex justify-center items-start min-h-screen bg-gray-100">
+    <div className="p-6 flex justify-center bg-gray-100">
       <div className="w-[794px] bg-white shadow-lg">
-        <div className="flex justify-end p-4 border-b">
-          <Button
-            onClick={handleDownloadPDF}
-            className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white"
-          >
-            Download PDF
-          </Button>
-        </div>
-        <div ref={reportRef} data-ref="report-content" className="p-8">
-          {/* Centre Information */}
-          <div className="text-center mb-6 border-b pb-4">
-            <h1 className="text-3xl font-bold mb-2 text-[#1f2937]">
-              {consultationData.centre?.user?.name}
-            </h1>
-            <div className="text-[#4b5563] text-sm">
-              <span className="font-medium">
-                {consultationData.centre?.code}
-              </span>
-              <span className="mx-2">•</span>
-              <span>{consultationData.centre?.address}</span>
-              <span className="mx-2">•</span>
-              <span>Contact: {consultationData.centre?.contactNumber}</span>
-            </div>
-          </div>
+        <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
 
+        <div ref={reportRef} data-report-capture="true" className="bg-white" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
-          <div className="text-center mb-8 border-b pb-6">
-            <h2 className="text-xl font-bold mb-2 text-[#1f2937]">
-              Tympanometry Test Report
-            </h2>
-            <p className="text-[#4b5563]">
-              Date: {format(new Date(consultationData.createdAt), "PPP")}
-            </p>
-          </div>
-
-          {/* Patient and Audiologist Information */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            {/* Patient Information */}
-            <div className="bg-[#f8fafc] rounded-lg p-4">
-              <h2 className="text-lg font-semibold mb-2 text-[#1f2937] border-b pb-1">
-                Patient Information
-              </h2>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <p className="text-[#4b5563] text-xs">Patient Name</p>
-                  <p className="font-medium text-[#1f2937]">
-                    {consultationData.patient?.name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[#4b5563] text-xs">Patient Code</p>
-                  <p className="font-medium text-[#1f2937]">
-                    {consultationData.patient?.code}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[#4b5563] text-xs">Contact Number</p>
-                  <p className="font-medium text-[#1f2937]">
-                    {consultationData.patient?.contactNumber}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[#4b5563] text-xs">Gender</p>
-                  <p className="font-medium text-[#1f2937]">
-                    {consultationData.patient?.gender}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[#4b5563] text-xs">Date of Birth</p>
-                  <p className="font-medium text-[#1f2937]">
-                    {consultationData.patient?.dob
-                      ? format(parseISO(consultationData.patient.dob), "PPP")
-                      : "N/A"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[#4b5563] text-xs">Address</p>
-                  <p className="font-medium text-[#1f2937]">
-                    {consultationData.patient?.address}
-                  </p>
-                </div>
+          <div className="relative text-white overflow-hidden">
+            <div className="relative flex items-center justify-between p-6 z-10">
+              <div className="flex items-center bg-white p-2 rounded">
+                <Image src="/EARKART LOGO BLUE.webp" alt="earKART Logo" width={200} height={250} className="bg-white" />
               </div>
-            </div>
-
-            {/* Audiologist Information */}
-            <div className="bg-[#f8fafc] rounded-lg p-4">
-              <h2 className="text-lg font-semibold mb-2 text-[#1f2937] border-b pb-1">
-                Audiologist Information
-              </h2>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <p className="text-[#4b5563] text-xs">Name</p>
-                  <p className="font-medium text-[#1f2937]">
-                    {consultationData.audiologist?.user?.name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[#4b5563] text-xs">RCI Number</p>
-                  <p className="font-medium text-[#1f2937]">
-                    {consultationData.audiologist?.rciNumber}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Tympanogram */}
-          <div className="mb-8 bg-[#f8fafc] rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4 text-[#1f2937] border-b pb-2">
-              Tympanogram
-            </h2>
-            {tympanometryData.readings &&
-            tympanometryData.readings.length > 0 ? (
-              <div className="space-y-6">
-                {tympanometryData.readings.map((reading, index) => {
-                  // Create sample tympanogram data based on the reading
-                  // In a real implementation, this would come from the actual test data
-                  const peakPressure = reading.peakPressure;
-                  const peakCompliance = reading.staticCompliance;
-
-                  // Generate data points around the peak pressure
-                  const generateTympanogramData = (): TympanogramPoint[] => {
-                    const data: TympanogramPoint[] = [];
-                    const ear = reading.ear === Ear.LEFT ? "L" : "R";
-
-                    // Generate points from 200 to -400 daPa
-                    for (let pressure = 200; pressure >= -400; pressure -= 25) {
-                      let compliance = 0;
-
-                      // Create a bell curve centered at peak pressure
-                      const distanceFromPeak = Math.abs(
-                        pressure - peakPressure
-                      );
-                      const maxDistance = 200; // Maximum distance for significant compliance
-
-                      if (distanceFromPeak <= maxDistance) {
-                        // Bell curve formula: compliance = peak * exp(-(distance^2) / (2 * sigma^2))
-                        const sigma = 100; // Controls the width of the curve
-                        const normalizedDistance = distanceFromPeak / sigma;
-                        compliance =
-                          peakCompliance *
-                          Math.exp(
-                            -(normalizedDistance * normalizedDistance) / 2
-                          );
-                      }
-
-                      // Add some baseline compliance for very low values
-                      compliance = Math.max(compliance, 0.05);
-
-                      data.push({
-                        pressure,
-                        compliance: compliance * 1.1, // Slightly higher for uncompensated
-                        compensatedCompliance: compliance,
-                        ear,
-                      });
-                    }
-
-                    return data;
-                  };
-
-                  const sampleData = generateTympanogramData();
-
-                  return (
-                    <div key={index} className="border rounded-lg p-4 bg-white">
-                      <h3 className="text-lg font-medium mb-3 text-[#374151]">
-                        {getEarLabel(reading.ear)}
-                      </h3>
-                      <div className="w-full">
-                        <TympanogramGraph
-                          realTimeData={[]}
-                          finalData={sampleData}
-                          isTestCompleted={true}
-                          selectedEar={reading.ear === Ear.LEFT ? "L" : "R"}
-                          pressureMax={200}
-                          pressureMin={-400}
-                          complianceMax={2.0}
-                          complianceMin={0}
-                        />
-                      </div>
-                      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <span className="text-[#6b7280]">Peak Pressure:</span>
-                          <p className="font-medium text-[#1f2937]">
-                            {reading.peakPressure} daPa
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-[#6b7280]">
-                            Static Compliance:
-                          </span>
-                          <p className="font-medium text-[#1f2937]">
-                            {reading.staticCompliance.toFixed(2)} ml
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-[#6b7280]">
-                            Ear Canal Volume:
-                          </span>
-                          <p className="font-medium text-[#1f2937]">
-                            {reading.earCanalVolume.toFixed(2)} ml
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-[#6b7280]">Type:</span>
-                          <p className="font-medium text-[#1f2937]">
-                            {reading.tympType}
-                          </p>
-                        </div>
-                      </div>
+              <div className="relative">
+                <div className="text-blue-900 px-6 py-4 rounded-lg shadow-md" style={{ backgroundColor: '#8bdaef' }}>
+                  <div className="text-center">
+                    <p className="font-bold text-sm mb-2">{consultationData.centre?.user?.name || "Clinic Name"}</p>
+                    <div className="flex items-center justify-center mb-1">
+                      <span className="text-xs mr-1">👨‍⚕️</span>
+                      <span className="text-xs">Dr. {consultationData.centre?.entName || "ENT Name"}</span>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="border rounded-lg p-4 bg-white">
-                <div className="w-full">
-                  <TympanogramGraph
-                    realTimeData={[]}
-                    finalData={[]}
-                    isTestCompleted={true}
-                    selectedEar="L"
-                    pressureMax={200}
-                    pressureMin={-400}
-                    complianceMax={2.0}
-                    complianceMin={0}
-                  />
+                    <div className="flex items-center justify-center mb-1">
+                      <span className="text-xs mr-1">📞</span>
+                      <span className="text-xs">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
+                    </div>
+                    <div className="flex items-center justify-center">
+                      <span className="text-xs mr-1">📍</span>
+                      <span className="text-xs">{consultationData.centre?.address || "Address"}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Test Results */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4 text-[#1f2937] border-b pb-2">
-              Test Results
-            </h2>
-
-            {tympanometryData.readings &&
-            tympanometryData.readings.length > 0 ? (
-              <div className="bg-[#f8fafc] rounded-lg p-6">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-[#e5e7eb]">
-                    <thead className="bg-white">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider">
-                          Ear
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider">
-                          Peak Pressure (daPa)
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider">
-                          Static Compliance (ml)
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider">
-                          Ear Canal Volume (ml)
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider">
-                          Tympanogram Type
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider">
-                          Interpretation
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-[#e5e7eb]">
-                      {tympanometryData.readings.map((reading, index) => (
-                        <tr
-                          key={index}
-                          className={
-                            index % 2 === 0 ? "bg-white" : "bg-[#f8fafc]"
-                          }
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap text-[#1f2937]">
-                            {getEarLabel(reading.ear)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-[#1f2937]">
-                            {reading.peakPressure}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-[#1f2937]">
-                            {reading.staticCompliance.toFixed(2)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-[#1f2937]">
-                            {reading.earCanalVolume.toFixed(2)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-[#1f2937]">
-                            <span className="font-medium">
-                              {reading.tympType}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-[#1f2937]">
-                            <div className="max-w-xs">
-                              {getTympTypeDescription(reading.tympType)}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 bg-gray-50 rounded-lg">
-                <p className="text-gray-500">No reading data available</p>
-              </div>
-            )}
-          </div>
-
-          {/* Test Notes */}
-          {tympanometryData.notes && (
-            <div className="mb-8">
-              <h2 className="text-xl font-semibold mb-4 text-[#1f2937] border-b pb-2">
-                Test Notes
-              </h2>
-              <div className="bg-[#f8fafc] rounded-lg p-6">
-                <p className="text-[#1f2937] whitespace-pre-wrap">
-                  {tympanometryData.notes}
-                </p>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Test Status */}
-          <div className="text-right space-y-1 bg-[#f8fafc] rounded-lg p-6">
-            <p className="text-[#4b5563]">
-              Status:{" "}
-              <span className="font-medium text-[#1f2937]">
-                {tympanometryData.status}
-              </span>
-            </p>
-            <p className="text-[#4b5563]">
-              Test Date:{" "}
-              <span className="font-medium text-[#1f2937]">
-                {format(new Date(tympanometryData.createdAt), "PPP")}
-              </span>
-            </p>
-            <p className="text-[#4b5563]">
-              Last Updated:{" "}
-              <span className="font-medium text-[#1f2937]">
-                {format(new Date(tympanometryData.updatedAt), "PPP")}
-              </span>
-            </p>
+          {/* Title */}
+          <div className="text-center py-6 bg-gray-50">
+            <h2 className="text-xl font-bold text-gray-800">Impedance Audiometry</h2>
+          </div>
+
+            {/* Patient Information */}
+          <div className="px-8 py-4 bg-white border-b">
+            <div className="grid grid-cols-12 gap-4 text-sm">
+              <div className="col-span-3 flex items-center">
+                <span className="font-medium mr-2">ID :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.code || ""}</span>
+                </div>
+              <div className="col-span-6 flex items-center">
+                <span className="font-medium mr-2">Name :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.name || ""}</span>
+                </div>
+              <div className="col-span-3 flex items-center">
+                <span className="font-medium mr-2">Date :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{format(new Date(consultationData.createdAt), "dd/MM/yyyy")}</span>
+                </div>
+                </div>
+
+            <div className="grid grid-cols-12 gap-4 text-sm mt-3">
+              <div className="col-span-7 flex items-center">
+                <span className="font-medium mr-2">Address :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.address || ""}</span>
+                </div>
+              <div className="col-span-2 flex items-center">
+                <span className="font-medium mr-2">Age :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
+                  {consultationData.patient?.age || 
+                   (consultationData.patient?.dob ? 
+                     Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) 
+                     : "")}
+                </span>
+                </div>
+              <div className="col-span-2 flex items-center">
+                <span className="font-medium mr-2">Sex :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.gender || ""}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-sm mt-3">
+              <div className="flex items-center">
+                <span className="font-medium mr-2">Contact No. :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.contactNumber || ""}</span>
+                </div>
+              <div className="flex items-center">
+                <span className="font-medium mr-2">Referred by :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.centre?.entName || "ENT Name"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tympanogram Charts */}
+          <div className="px-8 py-6 bg-gray-50 relative z-0">
+            {(() => {
+              const leftReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
+              const rightReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
+
+              const buildData = (r: TympanometryReadingModelData | undefined, ear: 'L' | 'R'): TympanogramPoint[] => {
+                if (!r) return [];
+                const data: TympanogramPoint[] = [];
+                for (let pressure = 200; pressure >= -400; pressure -= 25) {
+                  const distance = Math.abs(pressure - r.peakPressure);
+                  const sigma = 100;
+                  const normalized = distance / sigma;
+                  const compliance = Math.max(r.staticCompliance * Math.exp(-(normalized * normalized) / 2), 0.05);
+                  data.push({ pressure, compliance: compliance * 1.1, compensatedCompliance: compliance, ear });
+                }
+                return data;
+              };
+
+              // Build the list of graphs to render only for ears with data
+              const graphs: React.ReactNode[] = [];
+              if (rightReading) {
+                graphs.push(
+                  <div key="graph-right" className="flex-1 min-w-0">
+                    <TympanogramGraph
+                      realTimeData={[]}
+                      finalData={buildData(rightReading, 'R')}
+                      isTestCompleted={true}
+                      selectedEar={'R'}
+                      pressureMax={200}
+                      pressureMin={-400}
+                      complianceMax={2.0}
+                      complianceMin={0}
+                    />
+                  </div>
+                );
+              }
+              if (leftReading) {
+                graphs.push(
+                  <div key="graph-left" className="flex-1 min-w-0">
+                    <TympanogramGraph
+                      realTimeData={[]}
+                      finalData={buildData(leftReading, 'L')}
+                      isTestCompleted={true}
+                      selectedEar={'L'}
+                      pressureMax={200}
+                      pressureMin={-400}
+                      complianceMax={2.0}
+                      complianceMin={0}
+                    />
+                  </div>
+                );
+              }
+
+              // If no readings at all, show a single placeholder
+              if (graphs.length === 0) {
+                return (
+                  <div className="border rounded p-4">
+                    <div className="h-[200px] flex items-center justify-center text-gray-500">
+                      No Tympanogram Data
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div className={`flex items-start gap-8 ${graphs.length === 1 ? 'justify-center' : 'justify-between'}`}>
+                  {graphs}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Investigation: Impedance */}
+          <div className="mx-8 mb-6 relative z-10">
+            <div className="bg-white border border-gray-300">
+              <div className="bg-blue-900 text-white p-3 text-center">
+                <h3 className="text-sm font-bold">Investigation : Impedance</h3>
+              </div>
+              <div className="grid grid-cols-4 text-sm">
+                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Test</div>
+                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">SI Units</div>
+                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Rt</div>
+                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Lt</div>
+
+                {(() => {
+                  const left = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
+                  const right = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
+                  const row = (label: string, units: string, r?: (typeof right), l?: (typeof left), formatter?: (v: number) => string) => (
+                    <>
+                      <div className="font-semibold border border-gray-400 p-2 text-gray-800">{label}</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">{units}</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">{r ? (label === 'Tympanogram' ? r.tympType : formatter ? formatter((label === 'Compliance' ? r.staticCompliance : label === 'Ear canal volume' ? r.earCanalVolume : label === 'Peak Pressure' ? r.peakPressure : 0)) : '—') : '—'}</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">{l ? (label === 'Tympanogram' ? l.tympType : formatter ? formatter((label === 'Compliance' ? l.staticCompliance : label === 'Ear canal volume' ? l.earCanalVolume : label === 'Peak Pressure' ? l.peakPressure : 0)) : '—') : '—'}</div>
+                    </>
+                  );
+                  return (
+                    <>
+                      {row('Tympanogram', '—', right, left)}
+                      {row('Compliance', 'ml', right, left, (v) => `${v.toFixed(2)}`)}
+                      {row('Ear canal volume', 'ml', right, left, (v) => `${v.toFixed(2)}`)}
+                      {row('Peak Pressure', 'daPa', right, left, (v) => `${v}`)}
+                      {/* Gradient not in model; show em dash */}
+                      <div className="font-semibold border border-gray-400 p-2 text-gray-800">Gradient</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">daPa</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+
+          {/* Comments */}
+          <div className="px-8 mb-6">
+            <form onSubmit={handleSaveComments} className="space-y-3 print:hidden">
+              <div className="text-sm font-bold">Comments :</div>
+              <Textarea
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+                placeholder="Enter comments..."
+                className="h-28 resize-none border border-gray-300 bg-gray-50"
+              />
+              <div className="flex justify-end">
+                <Button type="submit" disabled={updateConsultationMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  {updateConsultationMutation.isPending ? "Saving..." : "Save Comments"}
+                </Button>
+              </div>
+            </form>
+            <div className="hidden print:block border border-gray-300 p-4 min-h-[120px] mt-0">
+              <div className="text-sm font-bold mb-2">Comments :</div>
+              <div className="whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible">{comments || "No comments entered"}</div>
+            </div>
+          </div>
+
+          {/* Audiologist Box */}
+          <div className="px-8 mb-6 flex justify-end">
+            <div className="border-2 border-blue-600 bg-blue-50 p-4 text-center">
+              <div className="text-sm font-bold text-blue-900">Audiologist Name</div>
+              <div className="text-xs text-blue-800 mt-1">{consultationData.audiologist?.user?.name || ""}</div>
+              <div className="text-xs text-blue-900 font-bold mt-2">RCI No.</div>
+              <div className="text-xs text-blue-800">{consultationData.audiologist?.rciNumber || ""}</div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="bg-blue-900 text-white p-4">
+            <div className="flex justify-center items-center space-x-8 text-sm">
+              <div className="flex items-center"><span className="mr-2">📞</span><span>{consultationData.centre?.contactNumber || "+91 9289097578"}</span></div>
+              <div className="flex items-center"><span className="mr-2">🌐</span><span>www.earkart.in</span></div>
+              <div className="flex items-center"><span className="mr-2">📧</span><span>info@earkart.in</span></div>
+            </div>
+            <div className="text-center text-xs mt-2 opacity-80">(Not for Medico-legal Purpose)</div>
           </div>
         </div>
       </div>
+      <FloatingReportActions
+        isScreenConnecting={isScreenConnecting}
+        isScreenSharing={isScreenSharing}
+        isShowingReport={isShowingReport}
+        onToggleShowReport={handleShowReport}
+        onShare={handleShareReport}
+        onDoAnotherTest={() => router.push(`/consultation/${consultationId}/test-selection`)}
+        onEndConsultation={() => router.push(`/consultation/${consultationId}/end-consultation`)}
+      />
     </div>
   );
 }

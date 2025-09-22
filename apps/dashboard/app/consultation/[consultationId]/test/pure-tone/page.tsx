@@ -22,7 +22,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, HelpCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 const SIGNAL_TYPE_MAP = {
   0: SignalType.Steady,
@@ -78,6 +79,8 @@ export default function PureTonePage() {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [acTestResults, setAcTestResults] = useState<TestResult[]>([]);
   const [bcTestResults, setBcTestResults] = useState<TestResult[]>([]);
+  // Masking playback state: true when masking noise is actually playing
+  const [isMaskingActive, setIsMaskingActive] = useState(false);
   const [selectedLabelIndexes, setSelectedLabelIndexes] = useState({
     x: FREQUENCIES.findIndex(f => f === 1000), // Index 4 for 1000Hz
     y: HEARING_LEVELS.findIndex(h => h === 25), // Index 7 for 25dB
@@ -88,6 +91,7 @@ export default function PureTonePage() {
   const [transducerData, setTransducerData] = useState<TransducerData | null>(
     null
   );
+  const [showHelpDialog, setShowHelpDialog] = useState(false);
 
   // Dummy transducer data for testing
   const dummyTransducerData: TransducerData = {
@@ -181,11 +185,14 @@ export default function PureTonePage() {
 
   // Populate test results from existing audiometry data
   useEffect(() => {
-    if (socket) {
-      socket.on("patient-response", (data) => {
-        setIsPatientResponse(data.patientResponse);
-      });
-    }
+    if (!socket) return;
+    const onPatientResponse = (data: any) => {
+      setIsPatientResponse(!!data?.patientResponse);
+    };
+    socket.on("patient-response", onPatientResponse);
+    return () => {
+      socket.off("patient-response", onPatientResponse);
+    };
 
     if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
       return;
@@ -265,13 +272,22 @@ export default function PureTonePage() {
   // Auto-hide patient response indicator after 3 seconds
   useEffect(() => {
     if (isPatientResponse) {
+      // Blink the screen background briefly and float the heading
+      const root = document.documentElement;
+      root.classList.add("blink-bg");
+      const heading = document.querySelector("h1");
+      if (heading) (heading as HTMLElement).classList.add("float-heading");
       const timer = setTimeout(() => {
         setIsPatientResponse(false);
-      }, 3000);
+        root.classList.remove("blink-bg");
+        if (heading) (heading as HTMLElement).classList.remove("float-heading");
+      }, 1000);
 
       return () => clearTimeout(timer);
     }
   }, [isPatientResponse]);
+
+
 
   // Reset justCleared flag after a delay to allow backend sync
   useEffect(() => {
@@ -392,7 +408,7 @@ export default function PureTonePage() {
         earSide: selectedEar,
         signalType: selectedSignalType,
         conductionType: selectedMode,
-        maskingSignal: isMasking,
+        maskingSignal: isMaskingActive,
         maskingLevel: maskingLevel,
       });
       setIsPlaying(true);
@@ -405,7 +421,7 @@ export default function PureTonePage() {
     selectedEar,
     selectedSignalType,
     selectedMode,
-    isMasking,
+    isMaskingActive,
     maskingLevel,
     isPulsed,
   ]);
@@ -438,6 +454,22 @@ export default function PureTonePage() {
     maskingLevel,
     isPulsed,
   ]);
+
+  // Emit masking-signal to backend with frequency, level (masking), signal (on/off), and earSide
+  const sendMaskingSignal = useCallback(
+    (signal: boolean) => {
+      if (!socket) return;
+      socket.emit("masking-signal", {
+        consultationId: consultationId,
+        frequency: selectedFrequency,
+        level: maskingLevel,
+        signal,
+        earSide: selectedEar,
+      });
+      setIsMaskingActive(signal);
+    },
+    [socket, consultationId, selectedFrequency, maskingLevel, selectedEar]
+  );
 
   // Handle mouse down for play tone
   const handleMouseDown = useCallback(() => {
@@ -515,10 +547,16 @@ export default function PureTonePage() {
       setSelectedLabelIndexes((prev) => ({ ...prev, x: freqIndex }));
     }
 
-    // Reset level to first available level for the new frequency
+    // Only change level if current level is not available for the new frequency
+    // This preserves the user's selected level when possible
     if (availableLevels.length > 0) {
-      const newLevel = availableLevels[0];
-      setSelectedLevel(newLevel);
+      let newLevel = selectedLevel; // Keep current level by default
+      
+      // If current level is not available for this frequency, use the first available level
+      if (!availableLevels.includes(selectedLevel)) {
+        newLevel = availableLevels[0];
+        setSelectedLevel(newLevel);
+      }
 
       // Update the y-axis index for the audiogram using HEARING_LEVELS array
       const levelIndex = HEARING_LEVELS.findIndex((l) => l === newLevel);
@@ -531,6 +569,11 @@ export default function PureTonePage() {
     if (isPlaying) {
       _endAudiometrySignal();
       _sendAudiometrySignal();
+    }
+
+    // If masking is active, update masking signal with new frequency
+    if (isMasking) {
+      sendMaskingSignal(true);
     }
   };
 
@@ -555,10 +598,15 @@ export default function PureTonePage() {
       _endAudiometrySignal();
       _sendAudiometrySignal();
     }
+
+    // If masking is active, (re)send masking signal with updated level
+    if (isMasking) {
+      sendMaskingSignal(true);
+    }
   };
 
   // Add test result
-  const addTestResult = (noResponse = false) => {
+  const addTestResult = useCallback((noResponse = false) => {
     if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
       return;
 
@@ -650,11 +698,297 @@ export default function PureTonePage() {
         },
       }
     );
-  };
+  }, [consultationResponse?.data, consultationId, selectedEar, selectedFrequency, selectedLevel, selectedMode, isMasking, maskingLevel, selectedSignalType, isPulsed, acTestResults, bcTestResults, updateConsultation, queryClient]);
 
-  // Helper functions for button clicks
-  const addResponse = () => addTestResult(false);  // false = normal response, no arrow
-  const addNoResponse = () => addTestResult(true); // true = no response, show arrow
+  // Helper functions for button clicks (moved up to be used in useEffect dependencies)
+  const addResponse = useCallback(() => {
+    addTestResult(false);  // false = normal response, no arrow
+    // Scroll to the audiogram and flash background
+    const audiogramElement = document.querySelector(".audiogram-graph");
+    if (audiogramElement) {
+      audiogramElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      const root = document.documentElement;
+      root.classList.add("blink-bg");
+      const heading = document.querySelector("h1");
+      if (heading) (heading as HTMLElement).classList.add("float-heading");
+      setTimeout(() => {
+        root.classList.remove("blink-bg");
+        if (heading) (heading as HTMLElement).classList.remove("float-heading");
+      }, 1000); // Blink for 1 second
+    }
+  }, [addTestResult]); 
+  
+  const addNoResponse = useCallback(() => addTestResult(true), [addTestResult]); // true = no response, show arrow
+
+  // Handle test submission
+  const handleSubmit = useCallback(() => {
+    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+      return;
+
+    const consultationData = consultationResponse.data as ConsultationModelData;
+    
+    // Ensure we preserve all test data when completing
+    const acTests = acTestResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y, // Always store the test level, even for no response
+      response: result.noResponse === 0, // true if patient responded
+      maskingUsed: result.masking > 0,
+      maskingEar:
+        result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
+    const bcTests = bcTestResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y, // Always store the test level, even for no response
+      response: result.noResponse === 0, // true if patient responded
+      maskingUsed: result.masking > 0,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
+    updateConsultation(
+      {
+        ...consultationData,
+        audiometry: {
+          ...consultationData.audiometry,
+          id: consultationData.audiometry?.id,
+          sessionId: consultationId as string,
+          status: TestStatus.COMPLETED,
+          acTests: acTests,
+          bcTests: bcTests,
+          audiologicalDiagnosis: consultationData.audiometry?.audiologicalDiagnosis,
+          suggestion: consultationData.audiometry?.suggestion,
+          recommendation: consultationData.audiometry?.recommendation,
+          createdAt:
+            consultationData.audiometry?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      {
+        onSuccess: (data) => {
+          if (data.success) {
+            toast.success("Test completed successfully");
+            console.log(`Test completed with ${acTests.length} AC tests and ${bcTests.length} BC tests`);
+            router.push(
+              ROUTES.AUDIOMETRY_TEST_REPORT(consultationId as string)
+            );
+          } else {
+            toast.error(data.message);
+          }
+        },
+        onError: (error) => {
+          toast.error(`Failed to complete test: ${error.message}`);
+        },
+      }
+    );
+  }, [consultationResponse, acTestResults, bcTestResults, consultationId, updateConsultation, router]);
+
+  // Comprehensive keyboard shortcuts for audiologist efficiency
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Skip if typing in input/select/textarea
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Help dialog toggle
+      if (event.code === 'KeyH' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        setShowHelpDialog(prev => !prev);
+        return;
+      }
+
+      // Skip other shortcuts if help dialog is open
+      if (showHelpDialog) return;
+
+      // Prevent default for handled keys
+      const preventDefault = () => event.preventDefault();
+
+      switch (event.code) {
+        // Quick responses
+        case 'Space':
+        case 'Enter':
+          preventDefault();
+          addResponse();
+          break;
+        case 'KeyN':
+          preventDefault();
+          addNoResponse();
+          break;
+
+        // Ear switching
+        case 'KeyL':
+          preventDefault();
+          setSelectedEar('L');
+          if (isMasking) sendMaskingSignal(true);
+          break;
+        case 'KeyR':
+          preventDefault();
+          setSelectedEar('R');
+          if (isMasking) sendMaskingSignal(true);
+          break;
+
+        // Mode switching
+        case 'KeyA':
+          preventDefault();
+          setSelectedMode('AC');
+          break;
+        case 'KeyB':
+          preventDefault();
+          setSelectedMode('BC');
+          break;
+
+        // Frequency navigation
+        case 'ArrowLeft':
+          if (!event.shiftKey) {
+            preventDefault();
+            const currentFreqIndex = FREQUENCIES.indexOf(selectedFrequency);
+            if (currentFreqIndex > 0) {
+              const newFreq = FREQUENCIES[currentFreqIndex - 1];
+              handleFrequencyChange(newFreq);
+            }
+          }
+          break;
+        case 'ArrowRight':
+          if (!event.shiftKey) {
+            preventDefault();
+            const currentFreqIndexRight = FREQUENCIES.indexOf(selectedFrequency);
+            if (currentFreqIndexRight < FREQUENCIES.length - 1) {
+              const newFreq = FREQUENCIES[currentFreqIndexRight + 1];
+              handleFrequencyChange(newFreq);
+            }
+          }
+          break;
+
+        // Level adjustment (5dB steps)
+        case 'ArrowUp':
+          if (!event.shiftKey) {
+            preventDefault();
+            const currentLevelIndex = HEARING_LEVELS.indexOf(selectedLevel);
+            if (currentLevelIndex > 0) {
+              const newLevel = HEARING_LEVELS[currentLevelIndex - 1];
+              handleLevelChange(newLevel);
+            }
+          } else {
+            // 10dB steps with Shift
+            preventDefault();
+            const currentIdx = HEARING_LEVELS.indexOf(selectedLevel);
+            const newIdx = Math.max(0, currentIdx - 2); // 2 steps = 10dB
+            handleLevelChange(HEARING_LEVELS[newIdx]);
+          }
+          break;
+        case 'ArrowDown':
+          if (!event.shiftKey) {
+            preventDefault();
+            const currentLevelIndexDown = HEARING_LEVELS.indexOf(selectedLevel);
+            if (currentLevelIndexDown < HEARING_LEVELS.length - 1) {
+              const newLevel = HEARING_LEVELS[currentLevelIndexDown + 1];
+              handleLevelChange(newLevel);
+            }
+          } else {
+            // 10dB steps with Shift
+            preventDefault();
+            const currentIdx = HEARING_LEVELS.indexOf(selectedLevel);
+            const newIdx = Math.min(HEARING_LEVELS.length - 1, currentIdx + 2);
+            handleLevelChange(HEARING_LEVELS[newIdx]);
+          }
+          break;
+
+        // Masking toggle
+        case 'KeyM':
+          preventDefault();
+          const nextMasking = !isMasking;
+          setIsMasking(nextMasking);
+          sendMaskingSignal(nextMasking);
+          break;
+
+        // Pulsed toggle
+        case 'KeyP':
+          preventDefault();
+          setIsPulsed(prev => {
+            const next = !prev;
+            if (isPlaying) {
+              _endAudiometrySignal();
+              _sendAudiometrySignal();
+            }
+            return next;
+          });
+          break;
+
+        // Common frequencies (quick jump)
+        case 'Digit1':
+          preventDefault();
+          handleFrequencyChange(1000); // 1K
+          break;
+        case 'Digit2':
+          preventDefault();
+          handleFrequencyChange(2000); // 2K
+          break;
+        case 'Digit4':
+          preventDefault();
+          handleFrequencyChange(4000); // 4K
+          break;
+        case 'Digit5':
+          preventDefault();
+          handleFrequencyChange(500); // 500Hz
+          break;
+
+        // Play/stop tone
+        case 'KeyT':
+          preventDefault();
+          if (isPlaying) {
+            _endAudiometrySignal();
+          } else {
+            _sendAudiometrySignal();
+          }
+          break;
+
+        // Submit test
+        case 'KeyS':
+          if (event.ctrlKey || event.metaKey) {
+            preventDefault();
+            handleSubmit();
+          }
+          break;
+      }
+    };
+
+    const handleDoubleClick = (event: MouseEvent) => {
+      // Prevent double-click from interfering with existing controls
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'BUTTON' || target.tagName === 'SELECT' || target.tagName === 'INPUT') {
+        return; // Don't trigger on UI controls
+      }
+      addResponse();
+    };
+
+    // Add event listeners
+    document.addEventListener('keydown', handleKeyPress);
+    document.addEventListener('dblclick', handleDoubleClick);
+
+    // Cleanup event listeners
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress);
+      document.removeEventListener('dblclick', handleDoubleClick);
+    };
+  }, [
+    addResponse, 
+    addNoResponse, 
+    selectedFrequency, 
+    selectedLevel, 
+    isMasking, 
+    isPlaying, 
+    showHelpDialog,
+    handleFrequencyChange, 
+    handleLevelChange, 
+    sendMaskingSignal,
+    _endAudiometrySignal,
+    _sendAudiometrySignal,
+    handleSubmit
+  ]);
 
   // Helper function to persist cleared results to backend
   const persistClearedResults = (updatedAcResults: TestResult[], updatedBcResults: TestResult[]) => {
@@ -783,87 +1117,33 @@ export default function PureTonePage() {
     }
   };
 
-  // Handle test submission
-  const handleSubmit = () => {
-    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
-      return;
-
-    const consultationData = consultationResponse.data as ConsultationModelData;
-    
-    // Ensure we preserve all test data when completing
-    const acTests = acTestResults.map((result) => ({
-      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
-      frequencyHz: result.x,
-      thresholdDb: result.y, // Always store the test level, even for no response
-      response: result.noResponse === 0, // true if patient responded
-      maskingUsed: result.masking > 0,
-      maskingEar:
-        result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
-      maskingThresholdDb: result.masking > 0 ? result.masking : null,
-    }));
-
-    const bcTests = bcTestResults.map((result) => ({
-      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
-      frequencyHz: result.x,
-      thresholdDb: result.y, // Always store the test level, even for no response
-      response: result.noResponse === 0, // true if patient responded
-      maskingUsed: result.masking > 0,
-      maskingThresholdDb: result.masking > 0 ? result.masking : null,
-    }));
-
-    updateConsultation(
-      {
-        ...consultationData,
-        audiometry: {
-          ...consultationData.audiometry,
-          id: consultationData.audiometry?.id,
-          sessionId: consultationId as string,
-          status: TestStatus.COMPLETED,
-          acTests: acTests,
-          bcTests: bcTests,
-          audiologicalDiagnosis: consultationData.audiometry?.audiologicalDiagnosis,
-          suggestion: consultationData.audiometry?.suggestion,
-          recommendation: consultationData.audiometry?.recommendation,
-          createdAt:
-            consultationData.audiometry?.createdAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      },
-      {
-        onSuccess: (data) => {
-          if (data.success) {
-            toast.success("Test completed successfully");
-            console.log(`Test completed with ${acTests.length} AC tests and ${bcTests.length} BC tests`);
-            router.push(
-              ROUTES.AUDIOMETRY_TEST_REPORT(consultationId as string)
-            );
-          } else {
-            toast.error(data.message);
-          }
-        },
-        onError: (error) => {
-          toast.error(`Failed to complete test: ${error.message}`);
-        },
-      }
-    );
-  };
-
   if (!currentTransducer) {
     return <PureToneLoadingSkeleton />;
   }
 
   return (
     <div className="p-6 w-full">
+      <style>{`
+        @keyframes screen-blink { from { background-color: rgba(0,255,0,0.15);} to { background-color: transparent; } }
+        .blink-bg { animation: screen-blink 0.4s ease-in-out 0s 2 alternate; }
+        @keyframes float-y { 0%{ transform: translateY(0);} 50%{ transform: translateY(-6px);} 100%{ transform: translateY(0);} }
+        .float-heading { animation: float-y 1s ease-in-out 0s 1; }
+      `}</style>
       {/* Patient Response Indicator */}
       {isPatientResponse && (
-        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 rounded-md">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
-            <span className="text-yellow-800 font-medium">
-              Patient Responded
-            </span>
+        <>
+          {/* Full-screen visual cue */}
+          <div className="fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center">
+            <div className="absolute inset-0 bg-green-200/25 animate-pulse" />
+            <div className="relative pointer-events-none bg-white/90 border border-green-300 rounded-2xl shadow-xl px-8 py-6 text-center">
+              <div className="mx-auto mb-2 relative flex h-5 w-5 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-600"></span>
+              </div>
+              <div className="text-green-700 font-semibold text-lg tracking-wide">Patient Responded</div>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       <div className="mb-6">
@@ -879,47 +1159,84 @@ export default function PureTonePage() {
           </div>
         </div>
 
-        {/* Test Controls */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium mb-2">Ear</label>
-            <div className="flex gap-4">
+        {/* Test Controls removed from top in favor of right floating panel */}
+      </div>
+
+
+
+      {/* Audiogram Display */}
+      <div className="border flex items-center justify-center rounded p-4">
+        <div className="w-full audiogram-graph">
+        <PureToneGraph
+          selectedLabelIndexes={selectedLabelIndexes}
+          resultMarkings={testResults}
+          onIndexChange={handleAudiogramClick}
+          onRightClickIndex={(i,j) => {
+            // Jump crosshair then add No Response
+            setSelectedLabelIndexes({ x: i, y: j });
+            setSelectedFrequency(FREQUENCIES[i]);
+            setSelectedLevel(HEARING_LEVELS[j]);
+            addTestResult(true);
+          }}
+          onDoubleClickIndex={(i,j) => {
+            setSelectedLabelIndexes({ x: i, y: j });
+            setSelectedFrequency(FREQUENCIES[i]);
+            setSelectedLevel(HEARING_LEVELS[j]);
+            addTestResult(false);
+          }}
+          onAltClickIndex={(i,j) => {
+            setSelectedLabelIndexes({ x: i, y: j });
+            setSelectedFrequency(FREQUENCIES[i]);
+            setSelectedLevel(HEARING_LEVELS[j]);
+            addTestResult(true);
+          }}
+        />
+      </div>
+      </div>
+
+      {/* Full Controls (Right-side floating) */}
+      <div className="fixed right-4 top-28 md:top-1/2 md:-translate-y-1/2 z-30 w-72">
+        <div className="bg-white shadow-lg rounded-lg p-3 w-64 border max-h-[calc(100vh-8rem)] overflow-auto">
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Ear</label>
+            <div className="flex gap-2">
               {availableEarSides.map((ear: "L" | "R") => (
                 <button
                   key={ear}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-3 py-1 rounded text-xs ${
                     selectedEar === ear
                       ? ear === "L"
                         ? "bg-blue-500 text-white"
                         : "bg-red-500 text-white"
                       : "bg-gray-200"
                   }`}
-                  onClick={() => setSelectedEar(ear)}
+                  onClick={() => {
+                    setSelectedEar(ear);
+                    // If masking is active, re-emit for the new ear side
+                    if (isMasking) {
+                      sendMaskingSignal(true);
+                    }
+                  }}
                 >
                   {ear === "L" ? "Left" : "Right"}
                 </button>
               ))}
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Mode</label>
-            <div className="flex gap-4">
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Mode</label>
+            <div className="flex gap-2">
               <button
-                className={`px-4 py-2 rounded ${
-                  selectedMode === "AC"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200"
+                className={`px-3 py-1 rounded text-xs ${
+                  selectedMode === "AC" ? "bg-blue-500 text-white" : "bg-gray-200"
                 }`}
                 onClick={() => setSelectedMode("AC")}
               >
                 Air
               </button>
               <button
-                className={`px-4 py-2 rounded ${
-                  selectedMode === "BC"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200"
+                className={`px-3 py-1 rounded text-xs ${
+                  selectedMode === "BC" ? "bg-blue-500 text-white" : "bg-gray-200"
                 }`}
                 onClick={() => setSelectedMode("BC")}
               >
@@ -927,227 +1244,209 @@ export default function PureTonePage() {
               </button>
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Frequency (Hz)
-            </label>
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Frequency (Hz)</label>
             <select
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded text-sm"
               value={selectedFrequency}
               onChange={(e) => handleFrequencyChange(Number(e.target.value))}
             >
               {availableFrequencies.map((freq) => (
-                <option key={freq} value={freq}>
-                  {freq}
-                </option>
+                <option key={freq} value={freq}>{freq}</option>
               ))}
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Level (dB HL)
-            </label>
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Level (dB HL)</label>
             <select
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded text-sm"
               value={selectedLevel}
               onChange={(e) => handleLevelChange(Number(e.target.value))}
             >
               {availableLevels.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
+                <option key={level} value={level}>{level}</option>
               ))}
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Signal Type
-            </label>
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Signal Type</label>
             <select
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded text-sm"
               value={selectedSignalType}
-              onChange={(e) =>
-                handleSignalTypeChange(e.target.value as SignalType)
-              }
+              onChange={(e) => handleSignalTypeChange(e.target.value as SignalType)}
             >
               {availableSignalTypes.map((type: SignalType) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
+                <option key={type} value={type}>{type}</option>
               ))}
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Pulsed Signal
-            </label>
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Pulsed</label>
             <button
-              className={`w-full px-4 py-2 rounded flex items-center justify-center gap-2 ${
-                isPulsed ? "bg-blue-500 text-white" : "bg-gray-200"
-              }`}
+              className={`w-full px-3 py-1 rounded text-xs ${isPulsed ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
               onClick={() => {
                 setIsPulsed((prev) => !prev);
-                if (isPlaying) {
-                  _endAudiometrySignal();
-                  _sendAudiometrySignal();
-                }
+                if (isPlaying) { _endAudiometrySignal(); _sendAudiometrySignal(); }
               }}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              {isPulsed ? "Pulsed On" : "Pulsed Off"}
+              {isPulsed ? 'Pulsed On' : 'Pulsed Off'}
             </button>
           </div>
-
-          {/* Masking Controls */}
-          <div className="col-span-2">
-            <div className="flex items-end gap-4">
+          <div className="mb-3">
+            <label className="block text-xs font-medium mb-1">Masking</label>
+            <div className="flex items-center gap-2">
               <button
-                className={`px-4 py-2 rounded flex items-center gap-2 ${
-                  isMasking ? "bg-purple-500 text-white" : "bg-gray-200"
-                }`}
-                onClick={() => setIsMasking((prev) => !prev)}
+                className={`px-3 py-1 rounded text-xs ${isMasking ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
+                onClick={() => {
+                  const next = !isMasking;
+                  setIsMasking(next);
+                  // Emit masking start/stop immediately
+                  sendMaskingSignal(next);
+                }}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 100-12 6 6 0 000 12z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                {isMasking ? "Masking On" : "Masking Off"}
+                {isMasking ? 'On' : 'Off'}
               </button>
-              {isMasking && (
-                <div className="flex-1 ">
-                  <label className="block text-sm font-medium mb-2">
-                    Masking Level (dB HL)
-                  </label>
-                  <select
-                    className="w-full p-2 border rounded"
-                    value={maskingLevel}
-                    onChange={(e) =>
-                      handleMaskingLevelChange(Number(e.target.value))
-                    }
-                  >
-                    {availableLevels.map((level) => (
-                      <option key={level} value={level}>
-                        {level}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <select
+                className="flex-1 p-2 border rounded text-sm"
+                value={maskingLevel}
+                onChange={(e) => handleMaskingLevelChange(Number(e.target.value))}
+              >
+                {availableLevels.map((level) => (
+                  <option key={level} value={level}>{level}</option>
+                ))}
+              </select>
             </div>
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-4 mb-6">
+          <div className="flex flex-col gap-2 mb-3">
           <button
-            className={`px-6 py-2 rounded flex items-center gap-2 ${
-              isPlaying
-                ? "bg-red-500 hover:bg-red-600"
-                : "bg-green-500 hover:bg-green-600"
-            } text-white select-none`}
+              className={`w-full px-4 py-2 rounded text-sm ${isPlaying ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} text-white`}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseLeave}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                clipRule="evenodd"
-              />
-            </svg>
-            {isPlaying ? "Release to Stop" : "Hold to Play"}
+              {isPlaying ? 'Release to Stop' : 'Hold to Play'}
           </button>
+          </div>
+       
+          
+          <div className="flex flex-col gap-2">
           <button
-            className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
             onClick={addResponse}
           >
             Add Response
           </button>
           <button
-            className="px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
+              className="w-full px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 text-sm"
             onClick={addNoResponse}
           >
             No Response
           </button>
+            <div className="mt-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 flex items-center gap-2">
+                  <button className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm flex items-center justify-center gap-2">
                 Clear Test
-                <ChevronDown size={16} />
+                    <ChevronDown size={14} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => clearEarResults("L")}>
-                Clear Left Ear
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => clearEarResults("R")}>
-                Clear Right Ear
-              </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearEarResults('L')}>Clear Left Ear</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearEarResults('R')}>Clear Right Ear</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => clearModeResults("AC")}>
-                Clear Air Conduction
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => clearModeResults("BC")}>
-                Clear Bone Conduction
-              </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearModeResults('AC')}>Clear Air Conduction</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearModeResults('BC')}>Clear Bone Conduction</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={clearTest} className="text-red-600">
-                Clear All Results
-              </DropdownMenuItem>
+                  <DropdownMenuItem onClick={clearTest} className="text-red-600">Clear All Results</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+            </div>
           <button
-            className="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-all duration-200 hover:shadow-lg hover:scale-105"
+              className="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm transition-all duration-200 hover:shadow-lg hover:scale-105"
             onClick={handleSubmit}
           >
             Submit Test
           </button>
         </div>
       </div>
-
-
-
-      {/* Audiogram Display */}
-      <div className="border flex items-center justify-center rounded p-4">
-        <div className="w-full">
-        <PureToneGraph
-          selectedLabelIndexes={selectedLabelIndexes}
-          resultMarkings={testResults}
-          onIndexChange={handleAudiogramClick}
-        />
       </div>
-      </div>
+
+      {/* Keyboard Shortcuts Help Dialog */}
+      <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HelpCircle size={20} />
+              Keyboard Shortcuts
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-semibold text-blue-600 mb-2">Quick Actions</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">Space</kbd> or <kbd className="px-2 py-1 bg-gray-100 rounded">Enter</kbd> - Add response</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">N</kbd> - Add no response</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">T</kbd> - Play/stop tone</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">Ctrl+S</kbd> - Submit test</div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-green-600 mb-2">Navigation</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">L</kbd> - Switch to Left ear</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">R</kbd> - Switch to Right ear</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">A</kbd> - Air Conduction</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">B</kbd> - Bone Conduction</div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-purple-600 mb-2">Frequency & Level</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">←/→</kbd> - Navigate frequencies</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">↑/↓</kbd> - Adjust level (5dB)</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">Shift+↑/↓</kbd> - Adjust level (10dB)</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">1/2/4/5</kbd> - Jump to 1K/2K/4K/500Hz</div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-orange-600 mb-2">Settings</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">M</kbd> - Toggle masking</div>
+                <div><kbd className="px-2 py-1 bg-gray-100 rounded">P</kbd> - Toggle pulsed tone</div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-red-600 mb-2">Graph Interactions</h4>
+              <div className="space-y-1 text-sm">
+                <div>• <strong>Right-click</strong> on graph - Add no response at point</div>
+                <div>• <strong>Double-click</strong> on graph - Add response at point</div>
+                <div>• <strong>Alt+click</strong> on graph - Add no response at point</div>
+              </div>
+            </div>
+            
+            <div className="pt-2 border-t">
+              <div className="text-xs text-gray-600">
+                Press <kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Ctrl+H</kbd> to toggle this help dialog
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Floating Help Button */}
+      <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
+        <DialogTrigger asChild>
+          <button className="fixed bottom-6 left-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg z-50 transition-all duration-200 hover:scale-105">
+            <HelpCircle size={20} />
+          </button>
+        </DialogTrigger>
+      </Dialog>
     </div>
   );
 }
