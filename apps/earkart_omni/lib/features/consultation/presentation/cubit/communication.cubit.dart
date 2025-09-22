@@ -13,13 +13,14 @@ import 'package:earkart_omni/models/communication/audiometer_core_state.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/communication/impedance_data.dart';
 import 'package:earkart_omni/models/communication/impedance_status.dart';
-import 'package:earkart_omni/services/battery_service.dart';
+import 'package:earkart_omni/config/services/battery_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 
 class _Command {
   final Uint8List packet;
   final Completer<void> completer;
+  Timer? timeoutTimer;
   _Command(this.packet, this.completer);
 }
 
@@ -29,9 +30,10 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   StreamSubscription<Uint8List>? _subscription;
   final _commandQueue = Queue<_Command>();
   bool _processing = false;
-  Timer? _commandTimeoutTimer;
+  // Removed single global command timeout in favor of per-command timers
   Timer? _syncRetryTimer;
-  Timer? _tabletBatteryUpdateTimer;
+  StreamSubscription<dynamic>? _batteryStreamSubscription;
+  UsbDevice? _lastDevice;
 
   static const int MAX_CONSECUTIVE_ERRORS = 15;
   static const int MAX_RETRY_ATTEMPTS = 3;
@@ -41,8 +43,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   int _errorCount = 0;
 
   CommunicationCubit() : super(const CommunicationState()) {
-    // Start periodic tablet battery updates
-    _startTabletBatteryUpdates();
+    // Start stream-based tablet battery monitoring
+    _startTabletBatteryMonitoring();
   }
 
   Future<bool> initializePort(UsbDevice device) async {
@@ -53,6 +55,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       // Close existing port if any
       await _cleanupPort();
 
+      _lastDevice = device;
       _port = await device.create();
       if (_port == null) {
         throw Exception('Failed to create port');
@@ -257,7 +260,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         case 19: // Battery Status
           di<ILogger>().debug('Received battery status');
           final isCharging = json['Battery']['Powered'];
-          final batteryLevel = json['Battery']['Level'];
+          final batteryLevel = json['Battery']['Level'] as int?;
           emit(
             state.copyWith(isCharging: isCharging, batteryLevel: batteryLevel),
           );
@@ -273,25 +276,39 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   Future<void> sendCommand(Uint8List packet) async {
     if (_port == null) {
-      throw Exception('Port not initialized');
+      di<ILogger>().warning('Port not initialized; ignoring command');
+      return;
     }
 
     return _withRetry(() async {
       final completer = Completer<void>();
-      _commandQueue.add(_Command(packet, completer));
-      _processQueue();
+      final command = _Command(packet, completer);
+      _commandQueue.add(command);
 
-      // Set command timeout
-      _commandTimeoutTimer?.cancel();
-      _commandTimeoutTimer = Timer(
+      // Set per-command timeout that safely removes the command on expiry
+      command.timeoutTimer = Timer(
         const Duration(milliseconds: COMMAND_TIMEOUT_MS),
         () {
           if (!completer.isCompleted) {
+            di<ILogger>().warning('Command timeout occurred');
             completer.completeError('Command timeout');
+            // Remove the timed-out command if still queued
+            if (_commandQueue.isNotEmpty &&
+                identical(_commandQueue.first, command)) {
+              _commandQueue.removeFirst();
+            } else {
+              _commandQueue.remove(command);
+            }
+            _errorCount++;
+            _handleError('Command timeout');
+            _processing = false;
+            // Attempt to continue processing remaining commands
+            _processQueue();
           }
         },
       );
 
+      _processQueue();
       return completer.future;
     });
   }
@@ -305,12 +322,19 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       try {
         await _port!.write(command.packet);
         await Future.delayed(const Duration(milliseconds: 50));
-        command.completer.complete();
+        if (!command.completer.isCompleted) {
+          command.completer.complete();
+        }
+        // Cancel timeout for this command
+        command.timeoutTimer?.cancel();
         _commandQueue.removeFirst();
         _errorCount = 0; // Reset error count on successful command
       } catch (e) {
         di<ILogger>().error('Error sending command: $e');
-        command.completer.completeError(e);
+        if (!command.completer.isCompleted) {
+          command.completer.completeError(e);
+        }
+        command.timeoutTimer?.cancel();
         _handleError(e);
         break;
       }
@@ -393,9 +417,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     bool? maskingSignal,
     int? maskingLevel,
   }) async {
-    di<ILogger>().debug(
-      'Sending state packet - Frequency: $frequency, Level: $level, Signal: $signal',
-    );
+    // Create base channel
     final channel0 = {
       "Channel": 0,
       "Valid": true,
@@ -415,7 +437,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
               ? 0
               : 2,
       "SignalType":
-          signalType == SignalType.Steady
+          (signalType == SignalType.Steady
               ? 0
               : signalType == SignalType.Warble
               ? 1
@@ -427,7 +449,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
               ? 4
               : signalType == SignalType.Speech
               ? 7
-              : 0,
+              : 0),
       "Frequency": frequency,
       "Level": level,
       "Pulsed": pulsed,
@@ -435,8 +457,11 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       "Signal": signal,
     };
 
+    // Create channels list with channel 0
     List<Map<String, dynamic>> channels = [channel0];
 
+    // Only add channel 1 if conduction type is Air
+    //white noise for masking
     final channel1 = {
       "Channel": 1,
       "Valid": true,
@@ -449,7 +474,61 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       "Level": maskingLevel ?? 0,
       "Pulsed": false,
       "Rate": 1.0,
-      "Signal": signal == true ? maskingSignal ?? false : false,
+      "Signal": maskingSignal ?? false,
+    };
+    channels.add(channel1);
+
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 4,
+      "AudiometerCoreState": {"Enabled": true, "Channels": channels},
+    });
+
+    await sendCommand(packet);
+  }
+
+  Future<void> sendMaskingPacket({
+    required int frequency,
+    required int level,
+    required bool signal,
+    required EarSide earSide,
+  }) async {
+    final channel0 = {
+      "Channel": 0,
+      "Valid": true,
+      "ConductionType": 0,
+      "TransducerID": state.transducerResponse?.transducers[0].id,
+      "TransducerName": state.transducerResponse?.transducers[0].name,
+      "EarSide":
+          earSide == EarSide.Left
+              ? 1
+              : earSide == EarSide.Right
+              ? 0
+              : 2,
+      "SignalType": 0,
+      "Frequency": frequency,
+      "Level": level,
+      "Pulsed": false,
+      "Rate": 1.0,
+      "Signal": false,
+    };
+
+    // Create channels list with channel 0
+    List<Map<String, dynamic>> channels = [channel0];
+
+    //white noise for masking
+    final channel1 = {
+      "Channel": 1,
+      "Valid": true,
+      "ConductionType": 0,
+      "TransducerID": state.transducerResponse?.transducers[0].id,
+      "TransducerName": state.transducerResponse?.transducers[0].name,
+      "EarSide": earSide == EarSide.Left ? 0 : 1,
+      "SignalType": 3,
+      "Frequency": -1,
+      "Level": level,
+      "Pulsed": false,
+      "Rate": 1.0,
+      "Signal": signal,
     };
     channels.add(channel1);
 
@@ -539,26 +618,39 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   Future<void> sendDeviceStatusPacket() async {
     try {
-      di<ILogger>().info(
-        'Sending device status packet with tablet battery info: ${state.tabletBatteryLevel}%, charging: ${state.isTabletBatteryCharging}',
-      );
-      print(
-        '🔋 Sending device status packet with tablet battery info: ${state.tabletBatteryLevel}%, charging: ${state.isTabletBatteryCharging}',
-      );
+      final batteryLevel = state.tabletBatteryLevel;
+      final isCharging = state.isTabletBatteryCharging ?? false;
+      final isLoading = state.isTabletBatteryLoading;
 
-      final packet = _packetInterpreter.constructPacket({
-        "PacketType": 18,
-        "Notify": true,
-        "TabletBattery": {
-          "level": state.tabletBatteryLevel,
-          "isCharging": state.isTabletBatteryCharging,
-          "timestamp": DateTime.now().toIso8601String(),
-        },
-      });
-      await sendCommand(packet);
+      if (batteryLevel != null && !isLoading) {
+        di<ILogger>().info(
+          'Sending device status packet with tablet battery info: $batteryLevel%, charging: $isCharging',
+        );
+
+        final packet = _packetInterpreter.constructPacket({
+          "PacketType": 18,
+          "Notify": true,
+          "TabletBattery": {
+            "level": batteryLevel,
+            "isCharging": isCharging,
+            "timestamp": DateTime.now().toIso8601String(),
+          },
+        });
+        await sendCommand(packet);
+      } else {
+        di<ILogger>().info(
+          'Sending device status packet without battery info (level: $batteryLevel, loading: $isLoading)',
+        );
+
+        // Send packet without battery info when not available or loading
+        final packet = _packetInterpreter.constructPacket({
+          "PacketType": 18,
+          "Notify": true,
+        });
+        await sendCommand(packet);
+      }
     } catch (e) {
       di<ILogger>().error('Error sending device status packet: $e');
-      print('❌ Error sending device status packet: $e');
 
       // Send packet without battery info if there's an error
       final packet = _packetInterpreter.constructPacket({
@@ -585,28 +677,45 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     }
   }
 
-  /// Update tablet battery status in the state
-  Future<void> updateTabletBatteryStatus() async {
+  /// Update tablet battery status in the state from BatteryInfo
+  void _updateTabletBatteryFromInfo(dynamic batteryInfo) {
     try {
-      final batteryService = di<BatteryService>();
-      final batteryInfo = await batteryService.getBatteryInfo();
+      final level = batteryInfo.level as int?;
+      final isCharging = batteryInfo.isCharging as bool?;
+      final isLoading = batteryInfo.isLoading as bool? ?? false;
 
-      final level = batteryInfo['level'] as int? ?? 0;
-      final isCharging = batteryInfo['isCharging'] as bool? ?? false;
-
-      // Only emit if the values have changed
+      // Only emit if the values have changed or loading state changed
       if (state.tabletBatteryLevel != level ||
-          state.isTabletBatteryCharging != isCharging) {
+          state.isTabletBatteryCharging != isCharging ||
+          state.isTabletBatteryLoading != isLoading) {
         emit(
           state.copyWith(
             tabletBatteryLevel: level,
             isTabletBatteryCharging: isCharging,
+            isTabletBatteryLoading: isLoading,
           ),
         );
-        di<ILogger>().debug(
-          'Tablet battery status updated: $level%, charging: $isCharging',
-        );
+
+        if (!isLoading && level != null) {
+          di<ILogger>().debug(
+            'Tablet battery status updated: $level%, charging: ${isCharging ?? false}',
+          );
+        } else if (isLoading) {
+          di<ILogger>().debug('Tablet battery loading...');
+        }
       }
+    } catch (e) {
+      di<ILogger>().error('Error updating tablet battery status: $e');
+      // Set error state
+      emit(state.copyWith(isTabletBatteryLoading: false));
+    }
+  }
+
+  /// Legacy method for backward compatibility
+  Future<void> updateTabletBatteryStatus() async {
+    try {
+      final batteryService = di<BatteryService>();
+      await batteryService.refreshBatteryInfo();
     } catch (e) {
       di<ILogger>().error('Error updating tablet battery status: $e');
     }
@@ -637,34 +746,78 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         impedanceData: null,
         error: null,
         isInBeginMode: false,
+        // Reset battery states to null/loading
+        batteryLevel: null,
+        isCharging: null,
+        tabletBatteryLevel: null,
+        isTabletBatteryCharging: null,
+        isTabletBatteryLoading: true,
       ),
     );
   }
 
-  void _startTabletBatteryUpdates() {
-    // Update tablet battery status immediately
-    updateTabletBatteryStatus();
+  void _startTabletBatteryMonitoring() async {
+    try {
+      final batteryService = di<BatteryService>();
 
-    // Set up periodic updates every 30 seconds
-    _tabletBatteryUpdateTimer = Timer.periodic(const Duration(seconds: 30), (
-      timer,
-    ) {
+      // Subscribe to real-time battery updates first
+      _batteryStreamSubscription = batteryService.batteryInfoStream.listen(
+        (batteryInfo) {
+          if (!isClosed) {
+            _updateTabletBatteryFromInfo(batteryInfo);
+          }
+        },
+        onError: (error) {
+          di<ILogger>().error('Battery stream error: $error');
+          if (!isClosed) {
+            emit(state.copyWith(isTabletBatteryLoading: false));
+          }
+        },
+      );
+
+      // Initialize battery service and wait for it to complete
+      await batteryService.initialize();
+
+      // If initialization succeeded but we still don't have battery info,
+      // emit the current info from the service
       if (!isClosed) {
-        updateTabletBatteryStatus();
+        final currentInfo = batteryService.currentBatteryInfo;
+        if (currentInfo.level != null || !currentInfo.isLoading) {
+          _updateTabletBatteryFromInfo(currentInfo);
+        }
       }
-    });
+
+      di<ILogger>().info('Battery service initialized and monitoring started');
+    } catch (e) {
+      di<ILogger>().error('Failed to start tablet battery monitoring: $e');
+      if (!isClosed) {
+        emit(state.copyWith(isTabletBatteryLoading: false));
+      }
+    }
   }
 
   /// Force refresh tablet battery status
   Future<void> forceRefreshTabletBattery() async {
-    await updateTabletBatteryStatus();
+    try {
+      final batteryService = di<BatteryService>();
+      await batteryService.refreshBatteryInfo();
+
+      // Also emit current info immediately
+      final currentInfo = batteryService.currentBatteryInfo;
+      _updateTabletBatteryFromInfo(currentInfo);
+    } catch (e) {
+      di<ILogger>().error('Error force refreshing tablet battery: $e');
+    }
   }
 
   @override
   Future<void> close() {
-    _commandTimeoutTimer?.cancel();
+    // Cancel any pending per-command timers
+    for (final command in _commandQueue) {
+      command.timeoutTimer?.cancel();
+    }
     _syncRetryTimer?.cancel();
-    _tabletBatteryUpdateTimer?.cancel();
+    _batteryStreamSubscription?.cancel();
     _cleanupPort();
     return super.close();
   }
@@ -713,8 +866,10 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       // Wait for device to stabilize
       await Future.delayed(const Duration(seconds: 1));
 
-      // Attempt to reopen port
-      if (_port != null) {
+      // Attempt to recreate and reopen port from last known device
+      if (_lastDevice != null) {
+        _port = await _lastDevice!.create();
+        if (_port == null) throw Exception('Failed to recreate port');
         bool openResult = await _port!.open();
         if (!openResult) throw Exception('Failed to reopen port');
 
@@ -730,6 +885,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         );
 
         await sendSyncPacket();
+      } else {
+        throw Exception('No known device to reset connection');
       }
     } catch (e) {
       di<ILogger>().error('Reset failed: $e');

@@ -54,6 +54,24 @@ class ConsultationEntity extends Equatable {
   final List<ConsultationRecordingEntity>? recordings;
   @HiveField(18)
   final List<ConsultationPricingEntity>? consultationPricing;
+  @HiveField(19)
+  final String? audiometryReport;
+  @HiveField(20)
+  final String? tympanometryReport;
+  @HiveField(21)
+  final String? etfReport;
+  @HiveField(22)
+  final String? sisiReport;
+  @HiveField(23)
+  final String? speechReport;
+  @HiveField(24)
+  final String? reflexesReport;
+  @HiveField(25)
+  final String? toneReport;
+  @HiveField(26)
+  final String? oaeReport;
+  @HiveField(27)
+  final String? otoscopyReport;
 
   const ConsultationEntity({
     this.id,
@@ -75,6 +93,15 @@ class ConsultationEntity extends Equatable {
     this.centre,
     this.recordings,
     this.consultationPricing,
+    this.audiometryReport,
+    this.tympanometryReport,
+    this.etfReport,
+    this.sisiReport,
+    this.speechReport,
+    this.reflexesReport,
+    this.toneReport,
+    this.oaeReport,
+    this.otoscopyReport,
   });
 
   factory ConsultationEntity.fromJson(
@@ -123,13 +150,24 @@ class ConsultationEntity extends Equatable {
     centre:
         json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
     recordings:
-        (json['recordings'] as List?)
-            ?.map((x) => ConsultationRecordingEntity.fromJson(x))
-            .toList(),
+        json['recordings'] != null && json['recordings'] is List
+            ? (json['recordings'] as List)
+                .map((x) => ConsultationRecordingEntity.fromJson(x))
+                .toList()
+            : <ConsultationRecordingEntity>[],
     consultationPricing:
         (json['consultationPricing'] as List?)
             ?.map((x) => ConsultationPricingEntity.fromJson(x))
             .toList(),
+    audiometryReport: json['audiometryReport'],
+    tympanometryReport: json['tympanometryReport'],
+    etfReport: json['etfReport'],
+    sisiReport: json['sisiReport'],
+    speechReport: json['speechReport'],
+    reflexesReport: json['reflexesReport'],
+    toneReport: json['toneReport'],
+    oaeReport: json['oaeReport'],
+    otoscopyReport: json['otoscopyReport'],
   );
 
   Map<String, dynamic> toJson() => {
@@ -146,6 +184,15 @@ class ConsultationEntity extends Equatable {
     'notes': notes,
     'status': status != null ? toUpperSnakeCase(status!.name) : null,
     'selectedServices': consultationPricing?.map((x) => x.toJson()).toList(),
+    'audiometryReport': audiometryReport,
+    'tympanometryReport': tympanometryReport,
+    'etfReport': etfReport,
+    'sisiReport': sisiReport,
+    'speechReport': speechReport,
+    'reflexesReport': reflexesReport,
+    'toneReport': toneReport,
+    'oaeReport': oaeReport,
+    'otoscopyReport': otoscopyReport,
   };
 
   ConsultationEntity copyWith({
@@ -168,6 +215,15 @@ class ConsultationEntity extends Equatable {
     CentreEntity? centre,
     List<ConsultationRecordingEntity>? recordings,
     List<ConsultationPricingEntity>? consultationPricing,
+    String? audiometryReport,
+    String? tympanometryReport,
+    String? etfReport,
+    String? sisiReport,
+    String? speechReport,
+    String? reflexesReport,
+    String? toneReport,
+    String? oaeReport,
+    String? otoscopyReport,
   }) {
     return ConsultationEntity(
       id: id ?? this.id,
@@ -213,5 +269,14 @@ class ConsultationEntity extends Equatable {
     centre,
     recordings,
     consultationPricing,
+    audiometryReport,
+    tympanometryReport,
+    etfReport,
+    sisiReport,
+    speechReport,
+    reflexesReport,
+    toneReport,
+    oaeReport,
+    otoscopyReport,
   ];
 }

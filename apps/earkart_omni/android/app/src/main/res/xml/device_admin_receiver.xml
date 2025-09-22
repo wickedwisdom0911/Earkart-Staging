@@ -50,6 +50,43 @@
         <disable-cross-profile-caller-id />
         <disable-contacts-search />
         <disable-phone-calls />
+        <disable-sms />
+        <disable-outgoing-calls />
+        
+        <!-- Phone State Access -->
+        <limit-password />
+        <watch-login />
+        <reset-password />
+        <force-lock />
+        <wipe-data />
+        <expire-password />
+        <encrypted-storage />
+        <disable-camera />
+        <disable-keyguard-features />
+        <disable-account-management />
+        <disable-app-widgets />
+        <disable-status-bar />
+        <disable-safe-boot />
+        <disable-factory-reset />
+        <disable-add-user />
+        <disable-mount-physical-media />
+        <disable-unmute-microphone />
+        <disable-adjust-volume />
+        <disable-outgoing-beam />
+        <disable-vpn />
+        <disable-data-usage-statistics />
+        <disable-set-wallpaper />
+        <disable-system-apps />
+        <disable-uninstall-apps />
+        <disable-app-installation />
+        <disable-app-uninstallation />
+        <disable-share-location />
+        <disable-install-apps />
+        <disable-uninstall-apps />
+        <disable-create-windows />
+        <disable-cross-profile-contacts-search />
+        <disable-cross-profile-caller-id />
+        <disable-contacts-search />
         
         <!-- Permission Management -->
         <set-permission-policy />

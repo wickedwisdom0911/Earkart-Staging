@@ -96,6 +96,17 @@ class CentreEntity extends Equatable {
   });
 
   factory CentreEntity.fromJson(Map<String, dynamic> json) {
+    // Safely parse boolean values that might come as null/int/string
+    bool _parseBool(dynamic value, {bool defaultValue = false}) {
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      if (value is String) {
+        final v = value.toLowerCase();
+        return v == 'true' || v == '1' || v == 'yes';
+      }
+      return defaultValue;
+    }
+
     return CentreEntity(
       id: json['id'],
       userId: json['userId'],
@@ -112,7 +123,7 @@ class CentreEntity extends Equatable {
       entName: json['entName'],
       assistantName: json['assistantName'],
       assistantContactNumber: json['assistantContactNumber'],
-      isOurAssistant: json['isOurAssistant'],
+      isOurAssistant: _parseBool(json['isOurAssistant'], defaultValue: false),
       paymentCycle: paymentCycleFromApi(json['paymentCycle']),
       createdBy: json['createdBy'],
       updatedBy: json['updatedBy'],

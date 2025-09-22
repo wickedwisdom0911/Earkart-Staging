@@ -16,6 +16,9 @@ class ConsultationState with _$ConsultationState {
   const factory ConsultationState.allConsultationsSuccess({
     required List<ConsultationEntity> consultations,
   }) = AllConsultationsSuccess;
+  const factory ConsultationState.allConsultationsError({
+    required String message,
+  }) = AllConsultationsError;
   const factory ConsultationState.currentConsultationSuccess({
     required ConsultationEntity consultation,
   }) = CurrentConsultationSuccess;

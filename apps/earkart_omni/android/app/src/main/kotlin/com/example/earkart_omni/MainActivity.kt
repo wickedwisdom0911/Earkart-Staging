@@ -19,6 +19,7 @@ import android.os.Process
 import android.os.Environment
 import android.os.Build
 import java.io.File
+import android.telephony.TelephonyManager
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.earkart_omni/device_owner"
@@ -65,6 +66,11 @@ class MainActivity: FlutterActivity() {
                     grantUSBPermissions()
                     result.success(true)
                 }
+                "getDeviceSerialNumber" -> {
+                    val serialNumber = getDeviceSerialNumber()
+                    result.success(serialNumber)
+                }
+
                 else -> result.notImplemented()
             }
         }
@@ -172,6 +178,8 @@ class MainActivity: FlutterActivity() {
                 
                 // 12. Security permissions
                 grantSecurityPermissions()
+                
+
                 
                 Log.d("MainActivity", "✅ ALL permissions granted for device owner")
                 
@@ -399,9 +407,104 @@ class MainActivity: FlutterActivity() {
             // Grant PROJECT_MEDIA AppOps permission for screen capture without dialog
             grantProjectMediaPermission()
             
+            // Grant device identifier permissions for device owner
+            grantDeviceIdentifierPermissions()
+            
             Log.d("MainActivity", "System permissions granted")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting system permissions: ${e.message}")
+        }
+    }
+
+    private fun grantDeviceIdentifierPermissions() {
+        try {
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+            
+            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                Log.d("MainActivity", "Granting device identifier permissions as device owner")
+                
+                // Get AppOpsManager
+                val appOpsManager = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                
+                // Grant device identifier permissions using the same pattern as PROJECT_MEDIA
+                val devicePermissions = mapOf(
+                    "READ_DEVICE_IDENTIFIERS" to 77,
+                    "READ_PHONE_STATE" to 51,
+                    "READ_PRIVILEGED_PHONE_STATE" to 94
+                )
+                
+                for ((permName, opCode) in devicePermissions) {
+                    try {
+                        // Use reflection to call setMode on AppOpsManager (same as PROJECT_MEDIA)
+                        val setModeMethod = AppOpsManager::class.java.getMethod(
+                            "setMode",
+                            Int::class.java,
+                            Int::class.java,
+                            String::class.java,
+                            Int::class.java
+                        )
+                        
+                        val MODE_ALLOWED = 0
+                        
+                        setModeMethod.invoke(
+                            appOpsManager,
+                            opCode,
+                            Process.myUid(),
+                            packageName,
+                            MODE_ALLOWED
+                        )
+                        
+                        Log.d("MainActivity", "✅ $permName permission granted successfully")
+                        
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Error setting $permName permission via reflection: ${e.message}")
+                    }
+                }
+                
+                // Also try DevicePolicyManager's setPermissionGrantState for runtime permissions
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        val runtimePermissions = listOf(
+                            android.Manifest.permission.READ_PHONE_STATE
+                        )
+                        
+                        for (permission in runtimePermissions) {
+                            try {
+                                val grantState = devicePolicyManager.getPermissionGrantState(
+                                    componentName, packageName, permission
+                                )
+                                
+                                if (grantState != DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED) {
+                                    val result = devicePolicyManager.setPermissionGrantState(
+                                        componentName,
+                                        packageName,
+                                        permission,
+                                        DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                                    )
+                                    
+                                    if (result) {
+                                        Log.d("MainActivity", "✅ $permission runtime permission granted via DevicePolicyManager")
+                                    } else {
+                                        Log.w("MainActivity", "Failed to grant $permission via DevicePolicyManager")
+                                    }
+                                } else {
+                                    Log.d("MainActivity", "✅ $permission already granted via DevicePolicyManager")
+                                }
+                            } catch (e: Exception) {
+                                Log.w("MainActivity", "Error granting $permission via DevicePolicyManager: ${e.message}")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("MainActivity", "Error with DevicePolicyManager permission granting: ${e.message}")
+                    }
+                }
+                
+            } else {
+                Log.w("MainActivity", "Not device owner - cannot grant device identifier permissions")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in grantDeviceIdentifierPermissions: ${e.message}")
         }
     }
 
@@ -716,4 +819,160 @@ class MainActivity: FlutterActivity() {
             }
         }
     }
+
+    private fun getDeviceSerialNumber(): String? {
+        return try {
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+            
+            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                Log.d("MainActivity", "Device owner detected - attempting to access device serial number")
+                Log.d("MainActivity", "Android Version: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+                
+                // First, grant all device identifier permissions
+                Log.d("MainActivity", "Pre-granting device identifier permissions...")
+                grantDeviceIdentifierPermissions()
+                
+                // Wait a moment for permissions to take effect
+                Thread.sleep(1000)
+                
+                // Check current permissions after granting
+                val hasReadPhoneState = checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+                val hasReadPrivilegedPhoneState = checkSelfPermission("android.permission.READ_PRIVILEGED_PHONE_STATE") == PackageManager.PERMISSION_GRANTED
+                val hasAccessDeviceIdentifiers = checkSelfPermission("android.permission.ACCESS_DEVICE_IDENTIFIERS") == PackageManager.PERMISSION_GRANTED
+                
+                Log.d("MainActivity", "Permission Status After Granting:")
+                Log.d("MainActivity", "  READ_PHONE_STATE: $hasReadPhoneState")
+                Log.d("MainActivity", "  READ_PRIVILEGED_PHONE_STATE: $hasReadPrivilegedPhoneState")
+                Log.d("MainActivity", "  ACCESS_DEVICE_IDENTIFIERS: $hasAccessDeviceIdentifiers")
+                
+                // Grant READ_DEVICE_IDENTIFIERS AppOps permission as device owner
+                try {
+                    Log.d("MainActivity", "Attempting to grant READ_DEVICE_IDENTIFIERS AppOps permission...")
+                    
+                    // Method 1: Use shell command (most reliable for device owner)
+                    val process = Runtime.getRuntime().exec("cmd appops set $packageName READ_DEVICE_IDENTIFIERS allow")
+                    val exitCode = process.waitFor()
+                    
+                    if (exitCode == 0) {
+                        Log.d("MainActivity", "✅ Successfully granted READ_DEVICE_IDENTIFIERS permission via shell")
+                    } else {
+                        Log.w("MainActivity", "❌ Shell command failed with exit code: $exitCode")
+                        
+                        // Method 2: Try reflection as fallback
+                        try {
+                            val appOpsManager = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                            val setModeMethod = AppOpsManager::class.java.getMethod(
+                                "setMode",
+                                Int::class.java,
+                                Int::class.java,
+                                String::class.java,
+                                Int::class.java
+                            )
+                            
+                            val READ_DEVICE_IDENTIFIERS = 77
+                            val MODE_ALLOWED = 0
+                            
+                            setModeMethod.invoke(
+                                appOpsManager,
+                                READ_DEVICE_IDENTIFIERS,
+                                Process.myUid(),
+                                packageName,
+                                MODE_ALLOWED
+                            )
+                            Log.d("MainActivity", "✅ Granted READ_DEVICE_IDENTIFIERS permission via reflection")
+                        } catch (reflectionException: Exception) {
+                            Log.e("MainActivity", "❌ Reflection method also failed: ${reflectionException.message}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "❌ Failed to grant READ_DEVICE_IDENTIFIERS permission: ${e.message}")
+                }
+                
+                // Now attempt to get the serial number using Build.getSerial()
+                Log.d("MainActivity", "Attempting to retrieve device serial number...")
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    try {
+                        val serialNumber = Build.getSerial()
+                        if (serialNumber != null && serialNumber != "unknown" && serialNumber.isNotEmpty()) {
+                            Log.d("MainActivity", "✅ Successfully obtained device serial number: $serialNumber")
+                            return serialNumber
+                        } else {
+                            Log.w("MainActivity", "❌ Build.getSerial() returned null, empty, or 'unknown'")
+                            Log.w("MainActivity", "Reason: Device serial may not be available or accessible")
+                        }
+                    } catch (e: SecurityException) {
+                        Log.e("MainActivity", "❌ SecurityException accessing Build.getSerial(): ${e.message}")
+                        Log.e("MainActivity", "Possible causes:")
+                        Log.e("MainActivity", "  1. App lacks READ_PRIVILEGED_PHONE_STATE permission (system-level)")
+                        Log.e("MainActivity", "  2. Android 10+ restrictions prevent access even for device owner")
+                        Log.e("MainActivity", "  3. Device manufacturer has disabled serial number access")
+                        Log.e("MainActivity", "  4. AppOps permission was not properly granted")
+                        
+                        // Check if we can grant READ_PRIVILEGED_PHONE_STATE (system permission)
+                        try {
+                            val privilegedProcess = Runtime.getRuntime().exec("cmd appops set $packageName READ_PRIVILEGED_PHONE_STATE allow")
+                            val privilegedExitCode = privilegedProcess.waitFor()
+                            if (privilegedExitCode == 0) {
+                                Log.d("MainActivity", "Granted READ_PRIVILEGED_PHONE_STATE permission, retrying...")
+                                try {
+                                    val retrySerial = Build.getSerial()
+                                    if (retrySerial != null && retrySerial != "unknown" && retrySerial.isNotEmpty()) {
+                                        Log.d("MainActivity", "✅ Serial obtained after granting privileged permission: $retrySerial")
+                                        return retrySerial
+                                    }
+                                } catch (retryException: Exception) {
+                                    Log.e("MainActivity", "❌ Still failed after granting privileged permission: ${retryException.message}")
+                                }
+                            }
+                        } catch (privilegedException: Exception) {
+                            Log.w("MainActivity", "Could not grant READ_PRIVILEGED_PHONE_STATE: ${privilegedException.message}")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "❌ Unexpected error accessing Build.getSerial(): ${e.message}")
+                    }
+                } else {
+                    // For older Android versions, try Build.SERIAL
+                    try {
+                        @Suppress("DEPRECATION")
+                        val serialNumber = Build.SERIAL
+                        if (serialNumber != null && serialNumber != "unknown" && serialNumber.isNotEmpty()) {
+                            Log.d("MainActivity", "✅ Successfully obtained device serial (legacy): $serialNumber")
+                            return serialNumber
+                        } else {
+                            Log.w("MainActivity", "❌ Build.SERIAL returned null, empty, or 'unknown'")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "❌ Error accessing Build.SERIAL: ${e.message}")
+                    }
+                }
+                
+                Log.e("MainActivity", "❌ FAILED TO OBTAIN DEVICE SERIAL NUMBER")
+                Log.e("MainActivity", "Final Analysis:")
+                Log.e("MainActivity", "  • Device Owner Status: ✅ Confirmed")
+                Log.e("MainActivity", "  • Android Version: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+                Log.e("MainActivity", "  • Serial Access: ❌ Blocked by system security")
+                Log.e("MainActivity", "")
+                Log.e("MainActivity", "RESOLUTION STEPS:")
+                Log.e("MainActivity", "  1. Verify device is properly provisioned as device owner")
+                Log.e("MainActivity", "  2. Check if device manufacturer allows serial access")
+                Log.e("MainActivity", "  3. Consider using alternative device identification methods")
+                Log.e("MainActivity", "  4. Test on different Android versions/devices")
+                
+                return "unknown"
+                
+            } else {
+                Log.e("MainActivity", "❌ App is not device owner - cannot access serial number")
+                Log.e("MainActivity", "Device owner status is required to access device serial number")
+                return "unknown"
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "❌ Critical error in getDeviceSerialNumber(): ${e.message}")
+            e.printStackTrace()
+            return "unknown"
+        }
+    }
+
+
 }

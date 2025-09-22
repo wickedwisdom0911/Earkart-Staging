@@ -4,9 +4,6 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/device.cub
 import 'package:earkart_omni/features/consultation/presentation/cubit/device.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
-import 'package:earkart_omni/di.dart';
-import 'package:earkart_omni/config/utils/custom_logger.dart';
-import 'package:earkart_omni/services/battery_service.dart';
 
 class DeviceStatusWidget extends StatelessWidget {
   const DeviceStatusWidget({super.key});
@@ -125,8 +122,10 @@ class DeviceStatusWidget extends StatelessWidget {
     String batteryInfo = '';
     if (deviceName == 'R15C' && commState.isConnected) {
       final batteryLevel = commState.batteryLevel;
-      final isCharging = commState.isCharging;
-      batteryInfo = ' | Battery: ${batteryLevel}%${isCharging ? ' ⚡' : ''}';
+      final isCharging = commState.isCharging ?? false;
+      if (batteryLevel != null) {
+        batteryInfo = ' | Battery: $batteryLevel%${isCharging ? ' ⚡' : ''}';
+      }
     }
 
     return Tooltip(
@@ -156,12 +155,14 @@ class DeviceStatusWidget extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
             ),
-            // Show battery indicator for R15C if connected
-            if (deviceName == 'R15C' && commState.isConnected) ...[
+            // Show battery indicator for R15C if connected and battery level is available
+            if (deviceName == 'R15C' &&
+                commState.isConnected &&
+                commState.batteryLevel != null) ...[
               const SizedBox(width: 4),
               _buildBatteryIndicator(
-                commState.batteryLevel,
-                commState.isCharging,
+                commState.batteryLevel!,
+                commState.isCharging ?? false,
                 size: 12,
               ),
             ],
@@ -175,26 +176,60 @@ class DeviceStatusWidget extends StatelessWidget {
     return BlocBuilder<CommunicationCubit, CommunicationState>(
       builder: (context, commState) {
         final level = commState.tabletBatteryLevel;
-        final isCharging = commState.isTabletBatteryCharging;
+        final isCharging = commState.isTabletBatteryCharging ?? false;
+        final isLoading = commState.isTabletBatteryLoading;
+
+        // Build tooltip message based on state
+        String tooltipMessage;
+        if (isLoading) {
+          tooltipMessage = 'Tablet Battery: Loading...';
+        } else if (level != null) {
+          tooltipMessage = 'Tablet Battery: $level%${isCharging ? ' ⚡' : ''}';
+        } else {
+          tooltipMessage = 'Tablet Battery: Not Available';
+        }
 
         return Tooltip(
-          message: 'Tablet Battery: $level%${isCharging ? ' ⚡' : ''}',
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 40, maxWidth: 80),
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.withOpacity(0.3), width: 1),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.battery_std, size: 12, color: Colors.grey[600]),
-                const SizedBox(width: 2),
-                _buildBatteryIndicator(level, isCharging, size: 10),
-              ],
+          message: tooltipMessage,
+          child: GestureDetector(
+            onTap: () {
+              // Manual refresh on tap for testing
+              context.read<CommunicationCubit>().forceRefreshTabletBattery();
+            },
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 40, maxWidth: 80),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.grey.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.battery_std, size: 12, color: Colors.grey[600]),
+                  const SizedBox(width: 2),
+                  // Show loading, battery indicator, or just icon based on state
+                  if (isLoading)
+                    SizedBox(
+                      width: 10,
+                      height: 10,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.grey[600]!,
+                        ),
+                      ),
+                    )
+                  else if (level != null)
+                    _buildBatteryIndicator(level, isCharging, size: 10),
+                  // If level is null and not loading, show nothing (just the battery icon)
+                ],
+              ),
             ),
           ),
         );

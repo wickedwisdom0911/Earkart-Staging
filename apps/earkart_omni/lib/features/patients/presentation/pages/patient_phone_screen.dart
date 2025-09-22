@@ -54,12 +54,11 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
       backgroundColor: Colors.grey.shade50,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          // Navigate to add new patient
           Navigator.pushNamed(
             context,
             PatientFormScreen.routeName,
             arguments: PatientEntity(
-              contactNumber: "",
+              contactNumber: _phoneController.text.trim(),
               name: "",
               gender: Gender.male,
               password: "",

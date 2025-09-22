@@ -5,8 +5,12 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/device.cub
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
+import 'package:earkart_omni/features/device/presentation/cubit/device_registration.cubit.dart';
+import 'package:earkart_omni/features/device/presentation/cubit/device_registration.state.dart';
+import 'package:earkart_omni/features/device/presentation/pages/device_registration_screen.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
+import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/user/user.entity.dart';
@@ -39,10 +43,12 @@ class _RootScreenState extends State<RootScreen> {
   bool checkedPatient = false;
   bool checkedConsultation = false;
   bool checkedUser = false;
+  bool checkedDevice = false;
   UserEntity? user;
   CentreEntity? centre;
   PatientEntity? patient;
   ConsultationEntity? consultation;
+  DeviceEntity? device;
 
   Timer? _loadingTimeoutTimer;
 
@@ -52,18 +58,130 @@ class _RootScreenState extends State<RootScreen> {
 
     print('🚀 RootScreen initState - Starting initialization');
 
-    context.read<AuthCubit>().getCurrentUser();
-    print('📞 Called getCurrentUser()');
-
-    context.read<PatientCubit>().getCurrentPatient();
-    print('📞 Called getCurrentPatient()');
-
-    // Don't call getCurrentConsultation here - it will be called after centre data is available
+    // Only check device registration first - no other APIs until device is registered
+    context.read<DeviceRegistrationCubit>().getCurrentDevice();
+    print('📞 Called getCurrentDevice() - Device registration check only');
 
     // Grant permissions immediately since app is always device owner
     _grantPermissionsImmediately();
   }
 
+  void _setupLoadingTimeout() {
+    _loadingTimeoutTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted && !checkedDevice) {
+        print('⏰ Loading timeout reached! Force completing device check');
+        print('   checkedDevice: $checkedDevice');
+
+        setState(() {
+          // Force complete device check only
+          checkedDevice = true;
+          device = null;
+          print('   ⚠️ Forced checkedDevice to true due to timeout');
+        });
+      }
+    });
+  }
+
+  Future<void> _checkAndRequestPermissions() async {
+    try {
+      // First check if app is device owner and auto-grant permissions with timeout
+      final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner()
+          .timeout(const Duration(seconds: 3), onTimeout: () => false);
+      print('🔍 Device owner check result: $isDeviceOwner');
+
+      if (isDeviceOwner) {
+        print('🎯 App is device owner - auto-granting permissions');
+        await DeviceOwnerHelper.grantAllPermissions().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            print('⚠️ Permission granting timed out');
+          },
+        );
+
+        // Reduced delay for faster startup
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        // For device owner, use DeviceOwnerHelper to check permissions
+        // instead of permission_handler which doesn't work properly for device owners
+        final permissionStatus =
+            await DeviceOwnerHelper.checkCommonPermissions().timeout(
+              const Duration(seconds: 3),
+              onTimeout: () => <String, bool>{},
+            );
+
+        print('🔍 Permission status after device owner grant:');
+        permissionStatus.forEach((permission, granted) {
+          print('   $permission: ${granted ? "✅ GRANTED" : "❌ DENIED"}');
+        });
+
+        // Skip detailed permission summary for faster startup
+        // await DeviceOwnerHelper.printPermissionSummary();
+
+        // For device owner, we should trust that permissions are granted
+        // Check if any critical permissions are explicitly denied
+        final criticalPermissions = [
+          'android.permission.CAMERA',
+          'android.permission.RECORD_AUDIO',
+          'android.permission.READ_EXTERNAL_STORAGE',
+          'android.permission.WRITE_EXTERNAL_STORAGE',
+          'android.permission.BLUETOOTH',
+          'android.permission.BLUETOOTH_CONNECT',
+        ];
+
+        bool hasDeniedCriticalPermissions = false;
+        for (final permission in criticalPermissions) {
+          if (permissionStatus[permission] == false) {
+            print('⚠️ Critical permission denied: $permission');
+            hasDeniedCriticalPermissions = true;
+          }
+        }
+
+        if (hasDeniedCriticalPermissions) {
+          print('⚠️ Some critical permissions denied for device owner');
+          // Try one more time with a longer delay
+          await Future.delayed(const Duration(seconds: 1));
+          await DeviceOwnerHelper.grantAllPermissions();
+
+          // Check permissions again
+          final retryPermissionStatus =
+              await DeviceOwnerHelper.checkCommonPermissions();
+          bool stillHasDeniedPermissions = false;
+
+          for (final permission in criticalPermissions) {
+            if (retryPermissionStatus[permission] == false) {
+              print(
+                '⚠️ Critical permission still denied after retry: $permission',
+              );
+              stillHasDeniedPermissions = true;
+            }
+          }
+
+          if (stillHasDeniedPermissions) {
+            print(
+              '⚠️ Some permissions still denied after retry - using fallback',
+            );
+            await _requestPermissionsAsFallback();
+          } else {
+            print('✅ All critical permissions granted after retry');
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _startGlobalDeviceMonitoring();
+            });
+            return;
+          }
+        } else {
+          print('✅ All critical permissions granted for device owner');
+          // Delay the start to ensure BlocProvider is set up
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _startGlobalDeviceMonitoring();
+          });
+          return;
+        }
+      } else {
+        print('📱 App is not device owner - requesting permissions normally');
+        await _requestPermissionsAsFallback();
+      }
+    } catch (e) {
+      print('❌ Error during permission check: $e - continuing with fallback');
   Future<void> _grantPermissionsImmediately() async {
     // Since app is always device owner, auto-grant all permissions by default
     print('🎯 App is device owner - auto-granting all permissions by default');
@@ -180,15 +298,6 @@ class _RootScreenState extends State<RootScreen> {
     // Cancel loading timeout timer
     _loadingTimeoutTimer?.cancel();
     _loadingTimeoutTimer = null;
-
-    // Stop global device monitoring when root screen is disposed
-    try {
-      final deviceCubit = di<DeviceCubit>();
-      deviceCubit.stopDeviceMonitoring();
-      print('✅ Global device monitoring stopped');
-    } catch (e) {
-      print('Error stopping global device monitoring: $e');
-    }
     super.dispose();
   }
 
@@ -376,7 +485,7 @@ class _RootScreenState extends State<RootScreen> {
 
             if (state is CurrentConsultationSuccess) {
               print(
-                '✅ CurrentConsultationSuccess - Consultation: ${state.consultation != null ? state.consultation!.id : 'null'}',
+                '✅ CurrentConsultationSuccess - Consultation: ${state.consultation.id}',
               );
               setState(() {
                 checkedConsultation = true;
@@ -397,11 +506,73 @@ class _RootScreenState extends State<RootScreen> {
             }
           },
         ),
+        BlocListener<DeviceRegistrationCubit, DeviceRegistrationState>(
+          listener: (context, state) {
+            print(
+              '📱 DeviceRegistrationCubit state changed: ${state.runtimeType}',
+            );
+
+            state.maybeWhen(
+              success: (device) {
+                print(
+                  '✅ DeviceRegistrationSuccess - Device: ${device != null ? device.deviceCode : 'null'}',
+                );
+                setState(() {
+                  checkedDevice = true;
+                  this.device = device;
+                });
+
+                // Only after device is registered, start other API calls
+                if (device != null) {
+                  print('📞 Device registered - starting other API calls');
+                  context.read<AuthCubit>().getCurrentUser();
+                  context.read<PatientCubit>().getCurrentPatient();
+                }
+              },
+              error: (message) {
+                print('❌ Device Registration Error: $message');
+                setState(() {
+                  checkedDevice = true;
+                  device = null;
+                });
+              },
+              orElse: () {
+                print('🔄 DeviceRegistrationInitial state');
+                setState(() {
+                  checkedDevice = true;
+                  device = null;
+                });
+              },
+            );
+          },
+        ),
       ],
       child: Builder(
         builder: (context) {
           // Debug logging to identify which operation is not completing
           print('🔍 RootScreen build check:');
+          print(
+            '   checkedDevice: $checkedDevice (device: ${device != null ? device!.deviceCode : 'null'})',
+          );
+
+          // First priority: Check device registration
+          if (!checkedDevice) {
+            print(
+              '⏳ Device registration check in progress - showing AppLoadingScreen.compact()',
+            );
+            return const AppLoadingScreen.compact();
+          }
+
+          // If device is not registered, show device registration screen
+          if (device == null) {
+            print(
+              '📱 Device not registered - navigating to device registration',
+            );
+            return const DeviceRegistrationScreen();
+          }
+
+          // Device is registered, now check other operations
+          print('📱 Device registered - checking other operations');
           print(
             '   checkedUser: $checkedUser (user: ${user?.email ?? 'null'})',
           );
@@ -419,7 +590,9 @@ class _RootScreenState extends State<RootScreen> {
               !checkedPatient ||
               !checkedConsultation ||
               !checkedUser) {
-            print('⏳ Still loading - showing AppLoadingScreen.compact()');
+            print(
+              '⏳ Other operations in progress - showing AppLoadingScreen.compact()',
+            );
             return const AppLoadingScreen.compact();
           }
 

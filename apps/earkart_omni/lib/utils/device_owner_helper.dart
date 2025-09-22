@@ -21,7 +21,6 @@ class DeviceOwnerHelper {
   static Future<void> grantPermissions() async {
     try {
       await platform.invokeMethod('grantPermissions');
-      print('Basic permissions granted');
     } on PlatformException catch (e) {
       print('Error granting permissions: ${e.message}');
     }
@@ -49,7 +48,6 @@ class DeviceOwnerHelper {
       final bool status = await platform.invokeMethod('checkPermissionStatus', {
         'permission': permission,
       });
-      print('Permission $permission: $status');
       return status;
     } on PlatformException catch (e) {
       print('Error checking permission $permission: ${e.message}');

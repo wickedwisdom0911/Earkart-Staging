@@ -39,7 +39,7 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       creator: fields[24] as UserEntity?,
       updater: fields[25] as UserEntity?,
       language: fields[26] as LanguageEntity?,
-      soldStatus: fields[21] as PatientSoldStatus?,
+      leadStatus: fields[21] as LeadStatus?,
       handledBy: fields[22] as String?,
       districtId: fields[11] as String?,
       stateId: fields[12] as String?,
@@ -95,7 +95,7 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       ..writeByte(20)
       ..write(obj.status)
       ..writeByte(21)
-      ..write(obj.soldStatus)
+      ..write(obj.leadStatus)
       ..writeByte(22)
       ..write(obj.handledBy)
       ..writeByte(23)

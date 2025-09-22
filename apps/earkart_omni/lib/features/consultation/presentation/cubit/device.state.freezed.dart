@@ -90,9 +90,6 @@ class _$DeviceStateCopyWithImpl<$Res, $Val extends DeviceState>
   final $Val _value;
   // ignore: unused_field
   final $Res Function($Val) _then;
-
-  /// Create a copy of DeviceState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -109,9 +106,6 @@ class __$$DeviceInitialImplCopyWithImpl<$Res>
   __$$DeviceInitialImplCopyWithImpl(
       _$DeviceInitialImpl _value, $Res Function(_$DeviceInitialImpl) _then)
       : super(_value, _then);
-
-  /// Create a copy of DeviceState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -232,9 +226,6 @@ class __$$DeviceLoadingImplCopyWithImpl<$Res>
   __$$DeviceLoadingImplCopyWithImpl(
       _$DeviceLoadingImpl _value, $Res Function(_$DeviceLoadingImpl) _then)
       : super(_value, _then);
-
-  /// Create a copy of DeviceState
-  /// with the given fields replaced by the non-null parameter values.
 }
 
 /// @nodoc
@@ -359,8 +350,6 @@ class __$$DeviceSuccessImplCopyWithImpl<$Res>
       _$DeviceSuccessImpl _value, $Res Function(_$DeviceSuccessImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of DeviceState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -428,9 +417,7 @@ class _$DeviceSuccessImpl implements DeviceSuccess {
   int get hashCode => Object.hash(runtimeType,
       const DeepCollectionEquality().hash(_devices), r15cDevice, revo2Device);
 
-  /// Create a copy of DeviceState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$DeviceSuccessImplCopyWith<_$DeviceSuccessImpl> get copyWith =>
@@ -526,10 +513,7 @@ abstract class DeviceSuccess implements DeviceState {
   List<UsbDevice> get devices;
   UsbDevice? get r15cDevice;
   UsbDevice? get revo2Device;
-
-  /// Create a copy of DeviceState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$DeviceSuccessImplCopyWith<_$DeviceSuccessImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
@@ -551,8 +535,6 @@ class __$$DeviceErrorImplCopyWithImpl<$Res>
       _$DeviceErrorImpl _value, $Res Function(_$DeviceErrorImpl) _then)
       : super(_value, _then);
 
-  /// Create a copy of DeviceState
-  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -591,9 +573,7 @@ class _$DeviceErrorImpl implements DeviceError {
   @override
   int get hashCode => Object.hash(runtimeType, message);
 
-  /// Create a copy of DeviceState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$DeviceErrorImplCopyWith<_$DeviceErrorImpl> get copyWith =>
@@ -685,10 +665,7 @@ abstract class DeviceError implements DeviceState {
       _$DeviceErrorImpl;
 
   String get message;
-
-  /// Create a copy of DeviceState
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
+  @JsonKey(ignore: true)
   _$$DeviceErrorImplCopyWith<_$DeviceErrorImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

@@ -69,7 +69,7 @@ class PatientModelData extends PatientEntity {
     super.creator,
     super.updater,
     super.language,
-    super.soldStatus,
+    super.leadStatus,
     super.handledBy,
     super.districtId,
     super.stateId,
@@ -114,7 +114,7 @@ class PatientModelData extends PatientEntity {
           json['language'] != null
               ? LanguageEntity.fromJson(json['language'])
               : null,
-      soldStatus: patienSoldStatusFromApi(json['soldStatus']),
+      leadStatus: leadStatusFromApi(json['leadStatus']),
       handledBy: json['handledBy'],
       districtId: json['districtId'],
       stateId: json['stateId'],
@@ -148,7 +148,7 @@ class PatientModelData extends PatientEntity {
       'updater': updater?.toJson(),
       'language': language?.toJson(),
       'district': district?.toJson(),
-      'soldStatus': toUpperSnakeCase(soldStatus?.name ?? ''),
+      'leadStatus': toUpperSnakeCase(leadStatus?.name ?? ''),
       'handledBy': handledBy,
       'districtId': districtId,
       'stateId': stateId,

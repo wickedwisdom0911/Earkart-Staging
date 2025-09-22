@@ -61,8 +61,17 @@ import 'package:earkart_omni/features/patients/domain/usecases/get_current_patie
 import 'package:earkart_omni/features/patients/domain/usecases/get_patients_by_value_usecase.dart';
 import 'package:earkart_omni/features/patients/domain/usecases/update_patient_usecase.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
+import 'package:earkart_omni/features/device/data/repositories/device.repository.impl.dart';
+import 'package:earkart_omni/features/device/data/source/local/device.entity.source.dart';
+import 'package:earkart_omni/features/device/data/source/remote/device.source.impl.dart';
+import 'package:earkart_omni/features/device/data/source/remote/device.source.interface.dart';
+import 'package:earkart_omni/features/device/domain/repositories/device.repository.interface.dart';
+import 'package:earkart_omni/features/device/domain/usecases/get_current_device.usecase.dart';
+import 'package:earkart_omni/features/device/domain/usecases/get_device_by_value.usecase.dart';
+import 'package:earkart_omni/features/device/domain/usecases/setup_device.usecase.dart';
+import 'package:earkart_omni/features/device/presentation/cubit/device_registration.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
-import 'package:earkart_omni/services/battery_service.dart';
+import 'package:earkart_omni/config/services/battery_service.dart';
 
 import 'package:get_it/get_it.dart';
 import 'package:logger/logger.dart';
@@ -108,6 +117,9 @@ Future<void> setupDI() async {
   );
   di.registerLazySingleton<ConsultationEntityDataSource>(
     () => ConsultationEntityDataSource(),
+  );
+  di.registerLazySingleton<DeviceEntityDataSource>(
+    () => DeviceEntityDataSource(),
   );
 
   //auth
@@ -284,6 +296,29 @@ Future<void> setupDI() async {
   di.registerLazySingleton<AgoraCubit>(() => AgoraCubit(di.call()));
 
   //device
+  di.registerLazySingleton<IDeviceDataSource>(
+    () =>
+        DeviceDataSourceImpl(dio: di.call(), deviceEntityDataSource: di.call()),
+  );
+  di.registerLazySingleton<IDeviceRepository>(
+    () => DeviceRepositoryImpl(deviceDataSource: di.call()),
+  );
+  di.registerLazySingleton<GetCurrentDeviceUsecase>(
+    () => GetCurrentDeviceUsecase(deviceRepository: di.call()),
+  );
+  di.registerLazySingleton<GetDeviceByValueUsecase>(
+    () => GetDeviceByValueUsecase(deviceRepository: di.call()),
+  );
+  di.registerLazySingleton<SetupDeviceUsecase>(
+    () => SetupDeviceUsecase(deviceRepository: di.call()),
+  );
+  di.registerLazySingleton<DeviceRegistrationCubit>(
+    () => DeviceRegistrationCubit(
+      getDeviceByValueUsecase: di.call(),
+      setupDeviceUsecase: di.call(),
+      getCurrentDeviceUsecase: di.call(),
+    ),
+  );
   di.registerLazySingleton<DeviceCubit>(() => DeviceCubit());
   di.registerLazySingleton<CommunicationCubit>(() => CommunicationCubit());
 

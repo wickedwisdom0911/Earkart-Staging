@@ -75,7 +75,7 @@ class ConsultationCubit extends Cubit<ConsultationState> {
     emit(ConsultationLoading());
     final result = await getConsultationsByCentreIdUsecase();
     result.fold(
-      (l) => emit(ConsultationError(message: l.message)),
+      (l) => emit(AllConsultationsError(message: l.message)),
       (r) => emit(AllConsultationsSuccess(consultations: r)),
     );
   }

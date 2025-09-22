@@ -40,15 +40,24 @@ class DeviceEntity extends Equatable {
 
   factory DeviceEntity.fromJson(Map<String, dynamic> json) {
     return DeviceEntity(
-      id: json['id'],
-      deviceCode: json['deviceCode'],
+      id: json['id'] ?? '',
+      deviceCode: json['deviceCode'] ?? '',
       tabletID: json['tabletID'],
       deviceID: json['deviceID'],
       tabletAppVersion: json['tabletAppVersion'],
       centreId: json['centreId'],
-      status: statusFromApi(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      status:
+          json['status'] != null
+              ? statusFromApi(json['status'])
+              : Status.inactive,
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now(),
     );
   }
 

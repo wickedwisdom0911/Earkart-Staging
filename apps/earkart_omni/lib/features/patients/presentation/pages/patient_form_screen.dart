@@ -413,7 +413,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       email: emailController.text.trim(),
       status: Status.active,
       languageId: selectedLanguage?.id ?? "",
-      soldStatus: PatientSoldStatus.unknown,
+      leadStatus: LeadStatus.LEAD_GENERATED,
     );
     di<ILogger>().info(patient.toJson().toString());
     if (widget.patient.id != null) {

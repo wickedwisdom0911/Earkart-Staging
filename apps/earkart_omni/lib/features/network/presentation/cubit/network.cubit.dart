@@ -140,7 +140,16 @@ class NetworkCubit extends Cubit<NetworkState> {
           }
         }
       } else {
-        print('⏭️ Network state unchanged, skipping emission');
+        print(
+          '⏭️ Network state unchanged, re-emitting current state to clear loading',
+        );
+        if (!isClosed) {
+          if (networkStatus.isConnected) {
+            emit(NetworkConnected(status: networkStatus));
+          } else {
+            emit(NetworkDisconnected());
+          }
+        }
       }
     } catch (e) {
       print('❌ Error checking network status: $e');

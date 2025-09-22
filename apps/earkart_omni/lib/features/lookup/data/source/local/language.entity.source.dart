@@ -26,7 +26,13 @@ class LanguageEntityDataSource {
   }
 
   Future<void> clearBox() async {
-    print("Clearning city box....");
-    await languageEntityBox.deleteAll(languageEntityBox.keys);
+    print("Clearing language box....");
+    try {
+      await languageEntityBox.deleteAll(languageEntityBox.keys);
+    } catch (e) {
+      print(
+        "Warning: Could not clear language box - it may not be initialized: $e",
+      );
+    }
   }
 }

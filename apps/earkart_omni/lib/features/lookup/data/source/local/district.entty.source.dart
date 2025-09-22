@@ -26,7 +26,13 @@ class DistrictEntityDataSource {
   }
 
   Future<void> clearBox() async {
-    print("Clearning city box....");
-    await districtEntityBox.deleteAll(districtEntityBox.keys);
+    print("Clearing district box....");
+    try {
+      await districtEntityBox.deleteAll(districtEntityBox.keys);
+    } catch (e) {
+      print(
+        "Warning: Could not clear district box - it may not be initialized: $e",
+      );
+    }
   }
 }

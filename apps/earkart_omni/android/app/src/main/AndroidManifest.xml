@@ -43,6 +43,10 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
     <uses-permission android:name="android.permission.READ_PRIVILEGED_PHONE_STATE"/>
     
+    <!-- Device identifier permissions for device owner apps -->
+    <uses-permission android:name="android.permission.READ_DEVICE_CONFIG" />
+    <uses-permission android:name="android.permission.ACCESS_DEVICE_IDENTIFIERS" />
+    
     <!-- Device Admin permissions for Device Owner mode -->
     <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN" />
     <uses-permission android:name="android.permission.MANAGE_DEVICE_ADMINS" />

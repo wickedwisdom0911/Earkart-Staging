@@ -20,6 +20,26 @@ import android.hardware.usb.UsbConstants
 import org.json.JSONObject
 import java.nio.charset.Charset
 
+/**
+ * USB Serial Port Adapter for Flutter USB Serial communication.
+ * 
+ * This class handles USB serial communication with various device types including
+ * FTDI, CDC, CH34x, CP210x, and PL2303. It includes a USB buffer fix that adds
+ * a null byte after packets that are exactly 512 bytes long to prevent them from
+ * getting stuck in USB endpoint buffers.
+ * 
+ * Key Features:
+ * - Multi-device type support (FTDI, CDC, CH34x, CP210x, PL2303)
+ * - USB 512-byte buffer fix for reliable packet transmission
+ * - Automatic endpoint management and error recovery
+ * - Continuous read thread with error handling
+ * - Flow control and line control support
+ * 
+ * USB Buffer Fix:
+ * When a packet is exactly 512 bytes, a null byte (0x00) is automatically added
+ * after the packet to prevent it from getting stuck in USB endpoint buffers.
+ * This null byte is not part of the protocol and is ignored during parsing.
+ */
 class UsbSerialPortAdapter(
     private val messenger: BinaryMessenger,
     private val interfaceId: Int,
@@ -27,6 +47,15 @@ class UsbSerialPortAdapter(
     private val usbDevice: UsbDevice,
     private val usbManager: UsbManager
 ) : MethodCallHandler, EventChannel.StreamHandler {
+
+    companion object {
+        /**
+         * USB endpoint buffer size threshold that requires the buffer fix.
+         * Packets of exactly this size need a null byte added to prevent
+         * them from getting stuck in USB endpoint buffers.
+         */
+        private const val USB_BUFFER_FIX_THRESHOLD = 512
+    }
 
     private val TAG = UsbSerialPortAdapter::class.java.simpleName
     private var eventSink: EventChannel.EventSink? = null
@@ -371,21 +400,71 @@ class UsbSerialPortAdapter(
         try {
             Log.d(TAG, "Writing ${data.size} bytes")
             
-            usbEndpointOut?.let { endpoint ->
-                val result = connection.bulkTransfer(endpoint, data, data.size, 1000)
-                if (result < 0) {
-                    Log.e(TAG, "Failed to write data: $result")
-                } else {
-                    Log.d(TAG, "Successfully wrote $result bytes")
-                    
-                    // Remove automatic read after write
-                    // Let the continuous read thread handle incoming data
-                }
-            } ?: run {
+            val endpoint = usbEndpointOut
+            if (endpoint == null) {
                 Log.e(TAG, "Output endpoint is null")
+                return
+            }
+            
+            val result = connection.bulkTransfer(endpoint, data, data.size, 1000)
+            if (result < 0) {
+                Log.e(TAG, "Failed to write data: $result")
+            } else {
+                Log.d(TAG, "Successfully wrote $result bytes")
+                
+                // Apply USB 512-byte buffer fix
+                applyUsbBufferFix(data, endpoint)
+                
+                // Remove automatic read after write
+                // Let the continuous read thread handle incoming data
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error writing data", e)
+        }
+    }
+
+    private fun flush(): Boolean {
+        try {
+            Log.d(TAG, "Flushing USB output buffer")
+            
+            val endpoint = usbEndpointOut
+            if (endpoint == null) {
+                Log.e(TAG, "Output endpoint is null during flush")
+                return false
+            }
+            
+            // For FTDI devices, use specific flush commands
+            if (deviceType.lowercase() == "ftdi") {
+                // Clear TX buffer
+                val clearTxResult = connection.controlTransfer(0x40, 0, 2, 0, null, 0, 1000)
+                Log.d(TAG, "FTDI TX buffer clear result: $clearTxResult")
+                
+                // Force flush by sending a zero-length packet
+                val flushResult = connection.bulkTransfer(endpoint, ByteArray(0), 0, 100)
+                Log.d(TAG, "FTDI flush result: $flushResult")
+                
+                return true
+            } else {
+                // For other devices, try to force flush with zero-length packet
+                val flushResult = connection.bulkTransfer(endpoint, ByteArray(0), 0, 100)
+                Log.d(TAG, "Generic flush result: $flushResult")
+                
+                // Also try to clear any pending transfers
+                connection.controlTransfer(
+                    UsbConstants.USB_TYPE_STANDARD or UsbConstants.USB_DIR_OUT,
+                    0x01,  // Clear Feature
+                    0,     // Clear Halt
+                    endpoint.address,
+                    null,
+                    0,
+                    1000
+                )
+                
+                return true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error flushing USB buffer", e)
+            return false
         }
     }
 
@@ -597,6 +676,26 @@ class UsbSerialPortAdapter(
         return crc
     }
 
+    /**
+     * Apply USB 512-byte buffer fix to prevent packets from getting stuck in USB endpoint buffers.
+     * This method adds a null byte after packets that are exactly 512 bytes long.
+     * 
+     * @param data The original data that was written
+     * @param endpoint The USB endpoint to write the null byte to
+     */
+    private fun applyUsbBufferFix(data: ByteArray, endpoint: UsbEndpoint) {
+        if (data.size == USB_BUFFER_FIX_THRESHOLD) {
+            Log.d(TAG, "${USB_BUFFER_FIX_THRESHOLD}-byte packet detected, adding null byte to prevent USB buffer issue")
+            val nullByte = ByteArray(1) { 0x00 }
+            val nullResult = connection.bulkTransfer(endpoint, nullByte, 1, 100)
+            if (nullResult > 0) {
+                Log.d(TAG, "Successfully wrote null byte after ${USB_BUFFER_FIX_THRESHOLD}-byte packet")
+            } else {
+                Log.w(TAG, "Failed to write null byte after ${USB_BUFFER_FIX_THRESHOLD}-byte packet: $nullResult")
+            }
+        }
+    }
+
     private fun resetEndpoints() {
         try {
             usbEndpointIn?.let { resetEndpoint(it) }
@@ -718,6 +817,10 @@ class UsbSerialPortAdapter(
                     Log.e(TAG, "Write called with null data")
                     result.error("INVALID_ARGUMENT", "Data cannot be null", null)
                 }
+            }
+            "flush" -> {
+                val flushResult = flush()
+                result.success(flushResult)
             }
             "setPortParameters" -> {
                 try {

@@ -12,10 +12,13 @@ class CommunicationState with _$CommunicationState {
     @Default(false) bool isSynced,
     @Default(false) bool isReleased,
     @Default(true) bool isInBeginMode,
-    @Default(100) int batteryLevel,
-    @Default(false) bool isCharging,
-    @Default(0) int tabletBatteryLevel,
-    @Default(false) bool isTabletBatteryCharging,
+    // Device battery (R15C) - null when not available
+    int? batteryLevel,
+    bool? isCharging,
+    // Tablet battery - null when not available/loading
+    int? tabletBatteryLevel,
+    bool? isTabletBatteryCharging,
+    @Default(false) bool isTabletBatteryLoading,
     @Default('Disconnected') String connectionStatus,
     @Default(false) bool isCameraOpen,
     TransducerResponse? transducerResponse,

@@ -70,6 +70,24 @@ class ConsultationModelData extends ConsultationEntity {
   final DateTime createdAt;
   @override
   final DateTime updatedAt;
+  @override
+  final String? audiometryReport;
+  @override
+  final String? tympanometryReport;
+  @override
+  final String? etfReport;
+  @override
+  final String? sisiReport;
+  @override
+  final String? speechReport;
+  @override
+  final String? reflexesReport;
+  @override
+  final String? toneReport;
+  @override
+  final String? oaeReport;
+  @override
+  final String? otoscopyReport;
 
   // Relations
   final PatientEntity? patient;
@@ -98,6 +116,15 @@ class ConsultationModelData extends ConsultationEntity {
     this.centre,
     this.recordings,
     this.consultationPricing,
+    this.audiometryReport,
+    this.tympanometryReport,
+    this.etfReport,
+    this.sisiReport,
+    this.speechReport,
+    this.reflexesReport,
+    this.toneReport,
+    this.oaeReport,
+    this.otoscopyReport,
   }) : super(
          id: id,
          patientId: patientId,
@@ -117,6 +144,15 @@ class ConsultationModelData extends ConsultationEntity {
          centre: centre,
          recordings: recordings,
          consultationPricing: consultationPricing,
+         audiometryReport: audiometryReport,
+         tympanometryReport: tympanometryReport,
+         etfReport: etfReport,
+         sisiReport: sisiReport,
+         speechReport: speechReport,
+         reflexesReport: reflexesReport,
+         toneReport: toneReport,
+         oaeReport: oaeReport,
+         otoscopyReport: otoscopyReport,
        );
 
   factory ConsultationModelData.fromJson(Map<String, dynamic> json) {
@@ -157,13 +193,13 @@ class ConsultationModelData extends ConsultationEntity {
       centre:
           json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
       recordings:
-          json['recordings'] != null
+          json['recordings'] != null && json['recordings'] is List
               ? List<ConsultationRecording>.from(
                 (json['recordings'] as List).map(
                   (x) => ConsultationRecording.fromJson(x),
                 ),
               )
-              : null,
+              : <ConsultationRecording>[],
       consultationPricing:
           json['consultationPricing'] != null
               ? List<ConsultationPricingEntity>.from(
@@ -172,6 +208,15 @@ class ConsultationModelData extends ConsultationEntity {
                 ),
               )
               : null,
+      audiometryReport: json['audiometryReport'],
+      tympanometryReport: json['tympanometryReport'],
+      etfReport: json['etfReport'],
+      sisiReport: json['sisiReport'],
+      speechReport: json['speechReport'],
+      reflexesReport: json['reflexesReport'],
+      toneReport: json['toneReport'],
+      oaeReport: json['oaeReport'],
+      otoscopyReport: json['otoscopyReport'],
     );
   }
 
@@ -197,6 +242,15 @@ class ConsultationModelData extends ConsultationEntity {
       'recordings': recordings?.map((x) => x.toJson()).toList(),
       'consultationPricing':
           consultationPricing?.map((x) => x.toJson()).toList(),
+      'audiometryReport': audiometryReport,
+      'tympanometryReport': tympanometryReport,
+      'etfReport': etfReport,
+      'sisiReport': sisiReport,
+      'speechReport': speechReport,
+      'reflexesReport': reflexesReport,
+      'toneReport': toneReport,
+      'oaeReport': oaeReport,
+      'otoscopyReport': otoscopyReport,
     };
   }
 }

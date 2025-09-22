@@ -122,7 +122,8 @@ enum TestStatus {
   cancelled,
 }
 
-testStatusFromApi(String value) {
+testStatusFromApi(String? value) {
+  if (value == null) return TestStatus.inProgress;
   switch (value.toUpperCase()) {
     case 'IN_PROGRESS':
       return TestStatus.inProgress;
@@ -131,7 +132,7 @@ testStatusFromApi(String value) {
     case 'CANCELLED':
       return TestStatus.cancelled;
     default:
-      throw Exception('Unknown TestStatus: $value');
+      return TestStatus.inProgress;
   }
 }
 
@@ -149,7 +150,8 @@ enum TympType {
   C,
 }
 
-tympTypeFromApi(String value) {
+tympTypeFromApi(String? value) {
+  if (value == null) return TympType.A;
   switch (value) {
     case 'A':
       return TympType.A;
@@ -162,38 +164,42 @@ tympTypeFromApi(String value) {
     case 'C':
       return TympType.C;
     default:
-      throw Exception('Unknown TympType: $value');
+      return TympType.A;
   }
 }
 
 // Ear enum and helper
 // If not already present:
-earFromApi(String value) {
+earFromApi(String? value) {
+  if (value == null) return Ear.left;
   switch (value.toLowerCase()) {
     case 'left':
       return Ear.left;
     case 'right':
       return Ear.right;
     default:
-      throw Exception('Unknown Ear: $value');
+      return Ear.left;
   }
 }
 
-Status statusFromApi(String value) {
+Status statusFromApi(String? value) {
+  if (value == null) return Status.inactive;
   return Status.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
     orElse: () => Status.inactive,
   );
 }
 
-Gender genderFromApi(String value) {
+Gender genderFromApi(String? value) {
+  if (value == null) return Gender.other;
   return Gender.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
     orElse: () => Gender.other,
   );
 }
 
-Role roleFromApi(String value) {
+Role roleFromApi(String? value) {
+  if (value == null) return Role.admin;
   return Role.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
     orElse: () => Role.admin,
@@ -209,14 +215,16 @@ String toUpperSnakeCase(String input) {
       .toUpperCase();
 }
 
-PaymentCycle paymentCycleFromApi(String value) {
+PaymentCycle paymentCycleFromApi(String? value) {
+  if (value == null) return PaymentCycle.monthly;
   return PaymentCycle.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
     orElse: () => PaymentCycle.monthly,
   );
 }
 
-WeekDays weekDaysFromApi(String value) {
+WeekDays weekDaysFromApi(String? value) {
+  if (value == null) return WeekDays.monday;
   return WeekDays.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
     orElse: () => WeekDays.monday,
@@ -224,15 +232,17 @@ WeekDays weekDaysFromApi(String value) {
 }
 
 AudiologistConsultationStatus audiologistConsultationStatusFromApi(
-  String value,
+  String? value,
 ) {
+  if (value == null) return AudiologistConsultationStatus.pending;
   return AudiologistConsultationStatus.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
     orElse: () => AudiologistConsultationStatus.pending,
   );
 }
 
-SessionStatus sessionStatusFromApi(String value) {
+SessionStatus sessionStatusFromApi(String? value) {
+  if (value == null) return SessionStatus.pending;
   switch (value.toUpperCase()) {
     case 'PENDING':
       return SessionStatus.pending;
@@ -245,32 +255,34 @@ SessionStatus sessionStatusFromApi(String value) {
     case 'FAILED':
       return SessionStatus.failed;
     default:
-      throw Exception('Unknown SessionStatus: $value');
+      return SessionStatus.pending;
   }
 }
 
-PatientConsultationStatus patientConsultationStatusFromApi(String value) {
+PatientConsultationStatus patientConsultationStatusFromApi(String? value) {
+  if (value == null) return PatientConsultationStatus.requested;
   return PatientConsultationStatus.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
     orElse: () => PatientConsultationStatus.requested,
   );
 }
 
-@HiveType(typeId: HiveTypes.patientSoldStatusEnum)
-enum PatientSoldStatus {
+@HiveType(typeId: HiveTypes.leadStatusEnum)
+enum LeadStatus {
   @HiveField(0)
-  unknown,
+  LEAD_GENERATED,
   @HiveField(1)
-  sold,
+  LEAD_CONVERTED,
   @HiveField(2)
-  inProgress,
+  LEAD_QUALIFIED,
   @HiveField(3)
-  notInterested,
+  LEAD_UNQUALIFIED,
 }
 
-patienSoldStatusFromApi(String value) {
-  return PatientSoldStatus.values.firstWhere(
+leadStatusFromApi(String? value) {
+  if (value == null) return LeadStatus.LEAD_GENERATED;
+  return LeadStatus.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
-    orElse: () => PatientSoldStatus.unknown,
+    orElse: () => LeadStatus.LEAD_GENERATED,
   );
 }
