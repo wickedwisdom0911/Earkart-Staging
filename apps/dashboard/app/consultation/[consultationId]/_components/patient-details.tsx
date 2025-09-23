@@ -207,24 +207,60 @@ export default function PatientDetails({
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="dob"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date of Birth</FormLabel>
-                      <FormControl>
-                        <DatetimePicker
-                          value={field.value ? new Date(field.value) : undefined}
-                          onChange={(date: Date | undefined) =>
-                            field.onChange(date ? date.toISOString() : "")
-                          }
-                          format={[["days", "months", "years"], []]}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="dob"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date of Birth</FormLabel>
+                        <FormControl>
+                          <DatetimePicker
+                            value={field.value ? new Date(field.value) : undefined}
+                            onChange={(date: Date | undefined) =>
+                              field.onChange(date ? date.toISOString() : "")
+                            }
+                            format={[["days", "months", "years"], []]}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="age"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Age (years)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            max={150}
+                            step={1}
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "") {
+                                field.onChange(null);
+                              } else {
+                                const n = Number(v);
+                                field.onChange(Number.isNaN(n) ? null : n);
+                              }
+                            }}
+                            placeholder="Enter age"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+
+
+                
 
                 <FormField
                   control={form.control}

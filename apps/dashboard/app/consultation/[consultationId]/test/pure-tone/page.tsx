@@ -79,6 +79,8 @@ export default function PureTonePage() {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [acTestResults, setAcTestResults] = useState<TestResult[]>([]);
   const [bcTestResults, setBcTestResults] = useState<TestResult[]>([]);
+  // Track last N added results for undo support
+  const [recentResults, setRecentResults] = useState<TestResult[]>([]);
   // Masking playback state: true when masking noise is actually playing
   const [isMaskingActive, setIsMaskingActive] = useState(false);
   const [selectedLabelIndexes, setSelectedLabelIndexes] = useState({
@@ -176,6 +178,7 @@ export default function PureTonePage() {
   const { data: consultationResponse } = useGetConsultation(
     consultationId as string
   );
+  const consultationData = (consultationResponse as any)?.data as ConsultationModelData | undefined;
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -194,15 +197,14 @@ export default function PureTonePage() {
       socket.off("patient-response", onPatientResponse);
     };
 
-    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+    if (!consultationData)
       return;
-
-    const consultationData = consultationResponse.data as ConsultationModelData;
 
     // Only load data if we haven't loaded it initially, or if there are more results in backend than local state
     // This prevents overriding local changes while still allowing for external updates
-    const backendAcCount = consultationData.audiometry?.acTests?.length || 0;
-    const backendBcCount = consultationData.audiometry?.bcTests?.length || 0;
+    const cd = consultationData as ConsultationModelData;
+    const backendAcCount = cd.audiometry?.acTests?.length || 0;
+    const backendBcCount = cd.audiometry?.bcTests?.length || 0;
     const localTotalCount = acTestResults.length + bcTestResults.length;
     const backendTotalCount = backendAcCount + backendBcCount;
     
@@ -219,9 +221,9 @@ export default function PureTonePage() {
     let existingBcResults: TestResult[] = [];
 
     // Handle AC tests
-    if (consultationData.audiometry?.acTests) {
-      existingAcResults = consultationData.audiometry.acTests
-        .filter(test => test.thresholdDb !== null) // Only include tests with valid thresholds
+    if (cd.audiometry?.acTests) {
+      existingAcResults = (cd.audiometry?.acTests ?? [])
+        .filter(test => test.thresholdDb !== null)
         .map((test) => {
           // More robust logic: explicitly check for true response, everything else is no-response
           const patientResponded = test.response === true;
@@ -243,9 +245,9 @@ export default function PureTonePage() {
     }
 
     // Handle BC tests
-    if (consultationData.audiometry?.bcTests) {
-      existingBcResults = consultationData.audiometry.bcTests
-        .filter(test => test.thresholdDb !== null) // Only include tests with valid thresholds
+    if (cd.audiometry?.bcTests) {
+      existingBcResults = (cd.audiometry?.bcTests ?? [])
+        .filter(test => test.thresholdDb !== null)
         .map((test) => {
           // More robust logic: explicitly check for true response, everything else is no-response
           const patientResponded = test.response === true;
@@ -267,7 +269,7 @@ export default function PureTonePage() {
       setBcTestResults(existingBcResults);
     setTestResults([...existingAcResults, ...existingBcResults]);
     setHasInitiallyLoaded(true);
-  }, [consultationResponse?.data, socket, hasInitiallyLoaded, acTestResults.length, bcTestResults.length]);
+  }, [consultationData, socket, hasInitiallyLoaded, acTestResults.length, bcTestResults.length, justCleared]);
 
   // Auto-hide patient response indicator after 3 seconds
   useEffect(() => {
@@ -605,9 +607,110 @@ export default function PureTonePage() {
     }
   };
 
+  // Persist arbitrary AC/BC results state to backend (shared by undo/clear flows)
+  const persistResultsToBackend = useCallback((updatedAcResults: TestResult[], updatedBcResults: TestResult[], message?: string) => {
+    if (!consultationData)
+      return;
+
+    // Transform test results to match backend schema
+    const acTests = updatedAcResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y,
+      response: result.noResponse === 0,
+      maskingUsed: result.masking > 0,
+      maskingEar: result.masking > 0 ? (result.ear === "L" ? Ear.RIGHT : Ear.LEFT) : null,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
+    const bcTests = updatedBcResults.map((result) => ({
+      ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
+      frequencyHz: result.x,
+      thresholdDb: result.y,
+      response: result.noResponse === 0,
+      maskingUsed: result.masking > 0,
+      maskingThresholdDb: result.masking > 0 ? result.masking : null,
+    }));
+
+    // consultationData is already typed above
+    const audiometryData: any = {
+      id: consultationData.audiometry?.id || undefined,
+      sessionId: consultationId as string,
+      status: TestStatus.IN_PROGRESS,
+      acTests: acTests,
+      bcTests: bcTests,
+      audiologicalDiagnosis: consultationData.audiometry?.audiologicalDiagnosis,
+      suggestion: consultationData.audiometry?.suggestion,
+      recommendation: consultationData.audiometry?.recommendation,
+      createdAt: consultationData.audiometry?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const dataToSend = {
+      ...consultationData,
+      audiometry: audiometryData,
+    };
+
+    updateConsultation(dataToSend, {
+      onSuccess: (data) => {
+        if (data.success) {
+          if (message) {
+            // no-op: caller may already show a specific toast
+          }
+          queryClient.invalidateQueries({
+            queryKey: ['consultation', consultationId]
+          });
+        } else {
+          toast.error(data.message);
+        }
+      },
+      onError: (error) => {
+        toast.error(`Failed to persist changes: ${error.message}`);
+      },
+    });
+  }, [consultationData, consultationId, updateConsultation, queryClient]);
+
+  // Undo the most recently added result
+  const undoLastResult = useCallback(() => {
+    if (recentResults.length === 0) {
+      toast.info("No recent results to undo");
+      return;
+    }
+
+    const lastResult = recentResults[recentResults.length - 1];
+
+    // Remove from recent history
+    setRecentResults(prev => prev.slice(0, -1));
+
+    // Remove matching result from AC/BC lists
+    const updatedAcResults = acTestResults.filter(result =>
+      !(result.ear === lastResult.ear &&
+        result.x === lastResult.x &&
+        result.mode === lastResult.mode &&
+        result.y === lastResult.y)
+    );
+
+    const updatedBcResults = bcTestResults.filter(result =>
+      !(result.ear === lastResult.ear &&
+        result.x === lastResult.x &&
+        result.mode === lastResult.mode &&
+        result.y === lastResult.y)
+    );
+
+    // Update state
+    setAcTestResults(updatedAcResults);
+    setBcTestResults(updatedBcResults);
+    setTestResults([...updatedAcResults, ...updatedBcResults]);
+
+    // Persist
+    persistResultsToBackend(updatedAcResults, updatedBcResults, "Result undone");
+
+    toast.success(`Undone: ${lastResult.ear} ear, ${lastResult.x}Hz, ${lastResult.y}dB (${lastResult.mode})`);
+  }, [recentResults, acTestResults, bcTestResults, persistResultsToBackend]);
+
   // Add test result
   const addTestResult = useCallback((noResponse = false) => {
-    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+    if (!consultationData)
       return;
 
     const newResult: TestResult = {
@@ -640,6 +743,12 @@ export default function PureTonePage() {
       setBcTestResults(updatedBcResults);
     setTestResults([...updatedAcResults, ...updatedBcResults]);
 
+    // Track this result for undo (keep last 10)
+    setRecentResults(prev => {
+      const updated = [...prev, newResult];
+      return updated.slice(-10);
+    });
+
     // Transform test results to match ACReadingModelData schema
     const acTests = updatedAcResults.map((result) => ({
       ear: result.ear === "L" ? Ear.LEFT : Ear.RIGHT,
@@ -662,7 +771,7 @@ export default function PureTonePage() {
       maskingThresholdDb: result.masking > 0 ? result.masking : null,
     }));
 
-    const consultationData = consultationResponse.data as ConsultationModelData;
+    // consultationData already typed above
     const audiometryData: any = {
       id: consultationData.audiometry?.id || undefined,
           sessionId: consultationId as string,
@@ -698,7 +807,7 @@ export default function PureTonePage() {
         },
       }
     );
-  }, [consultationResponse?.data, consultationId, selectedEar, selectedFrequency, selectedLevel, selectedMode, isMasking, maskingLevel, selectedSignalType, isPulsed, acTestResults, bcTestResults, updateConsultation, queryClient]);
+  }, [consultationData, consultationId, selectedEar, selectedFrequency, selectedLevel, selectedMode, isMasking, maskingLevel, selectedSignalType, isPulsed, acTestResults, bcTestResults, updateConsultation, queryClient]);
 
   // Helper functions for button clicks (moved up to be used in useEffect dependencies)
   const addResponse = useCallback(() => {
@@ -722,10 +831,10 @@ export default function PureTonePage() {
 
   // Handle test submission
   const handleSubmit = useCallback(() => {
-    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+    if (!consultationData)
       return;
 
-    const consultationData = consultationResponse.data as ConsultationModelData;
+    // consultationData already typed above
     
     // Ensure we preserve all test data when completing
     const acTests = acTestResults.map((result) => ({
@@ -783,7 +892,7 @@ export default function PureTonePage() {
         },
       }
     );
-  }, [consultationResponse, acTestResults, bcTestResults, consultationId, updateConsultation, router]);
+  }, [consultationData, acTestResults, bcTestResults, consultationId, updateConsultation, router]);
 
   // Comprehensive keyboard shortcuts for audiologist efficiency
   useEffect(() => {
@@ -808,6 +917,11 @@ export default function PureTonePage() {
       const preventDefault = () => event.preventDefault();
 
       switch (event.code) {
+        // Undo last result
+        case 'Backspace':
+          preventDefault();
+          undoLastResult();
+          break;
         // Quick responses
         case 'Space':
         case 'Enter':
@@ -953,6 +1067,12 @@ export default function PureTonePage() {
             handleSubmit();
           }
           break;
+        case 'KeyZ':
+          if (event.ctrlKey || event.metaKey) {
+            preventDefault();
+            undoLastResult();
+          }
+          break;
       }
     };
 
@@ -992,7 +1112,7 @@ export default function PureTonePage() {
 
   // Helper function to persist cleared results to backend
   const persistClearedResults = (updatedAcResults: TestResult[], updatedBcResults: TestResult[]) => {
-    if (!consultationResponse?.data || Array.isArray(consultationResponse.data))
+    if (!consultationData)
       return;
 
     // Transform test results to match backend schema
@@ -1015,7 +1135,7 @@ export default function PureTonePage() {
       maskingThresholdDb: result.masking > 0 ? result.masking : null,
     }));
 
-    const consultationData = consultationResponse.data as ConsultationModelData;
+    // consultationData already typed above
     const audiometryData: any = {
       id: consultationData.audiometry?.id || undefined,
         sessionId: consultationId as string,
@@ -1341,6 +1461,13 @@ export default function PureTonePage() {
             onClick={addNoResponse}
           >
             No Response
+          </button>
+          <button
+            className={`w-full px-4 py-2 rounded text-sm ${recentResults.length > 0 ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
+            onClick={() => undoLastResult()}
+            disabled={recentResults.length === 0}
+          >
+            Undo Last{recentResults.length > 0 ? ` (${recentResults.length})` : ''}
           </button>
             <div className="mt-2">
           <DropdownMenu>
