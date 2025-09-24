@@ -3,20 +3,33 @@ import { NextResponse } from "next/server";
 interface SendReportDialogRequest {
   to: string;
   patientName: string;
+  reportType?: 'audiometry' | 'tympanometry';
   reportUrl: string;
 }
 
 export async function POST(request: Request) {
   try {
-    const { to, patientName, reportUrl }: SendReportDialogRequest = await request.json();
+    const { to, patientName, reportUrl, reportType }: SendReportDialogRequest = await request.json();
     
     console.log('📱 WhatsApp API - API route called');
-    console.log('📱 WhatsApp API - Sending request:', { to, patientName, reportUrl });
+    console.log('📱 WhatsApp API - Sending request:', { to, patientName, reportUrl, reportType });
+
+    const filename = reportType === 'audiometry'
+      ? 'Audiometry Report.pdf'
+      : reportType === 'tympanometry'
+        ? 'Tympanometry Report.pdf'
+        : 'Report.pdf';
+
+    const templateName = reportType === 'audiometry'
+      ? (process.env.WHATSAPP_TEMPLATE_NAME_AUDIO || 'final_report_copy')
+      : reportType === 'tympanometry'
+        ? (process.env.WHATSAPP_TEMPLATE_NAME_TYMP || 'final_report_copy')
+        : 'final_report_copy';
     
     const requestBody = {
       template: {
         namespace: "065adc48_d91a_473f_a962_c1259f818555",
-        name: "final_report_copy",
+        name: templateName,
         components: [
           {
             type: "header",
@@ -24,7 +37,7 @@ export async function POST(request: Request) {
               {
                 type: "document",
                 document: {
-                  filename: "V2.SEND TEXT MEDIA MESSAGE.pdf",
+                  filename,
                   link: reportUrl
                 }
               }

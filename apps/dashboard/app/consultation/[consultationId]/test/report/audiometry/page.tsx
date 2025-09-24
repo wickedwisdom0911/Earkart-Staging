@@ -7,6 +7,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Ear, SessionStatus } from "@/models/enums";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import FloatingReportActions from "@/components/ui/FloatingReportActions";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -440,6 +442,8 @@ export default function ReportPage() {
   const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const updateConsultationMutation = useUpdateConsultation();
   const reportRef = useRef<HTMLDivElement>(null);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [sharePhone, setSharePhone] = useState<string>("");
   
   // Screen sharing functionality (shared with video call client)
 
@@ -600,6 +604,18 @@ export default function ReportPage() {
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
   if (!consultationData) return <div>No data</div>;
+
+  // Default patient phone formatted for WhatsApp (91XXXXXXXXXX)
+  const defaultPatientPhone = (() => {
+    const raw = consultationData.patient?.contactNumber || "";
+    const stripped = raw.replace(/^\+/, "");
+    return stripped.startsWith("91") ? stripped : (stripped ? `91${stripped}` : "");
+  })();
+
+  // Keep dialog input in sync with patient number on load
+  useEffect(() => {
+    setSharePhone(defaultPatientPhone);
+  }, [defaultPatientPhone]);
 
   const allResults: TestResult[] = [
     ...(consultationData.audiometry?.acTests?.map(t => {
@@ -882,7 +898,7 @@ export default function ReportPage() {
     }
   };
 
-  const handleShareReport = async () => {
+  const sendReportToNumbers = async (toNumbersInput: string) => {
     console.log('🚀 Share report button clicked');
     
     // Get patient contact number and name
@@ -897,11 +913,7 @@ export default function ReportPage() {
       return;
     }
     
-    if (!patientContact) {
-      console.log('❌ No patient contact number available');
-      toast.error('Patient contact number not available');
-      return;
-    }
+    // Allow custom number even if patient contact missing
 
     try {
       let finalReportUrl;
@@ -1021,72 +1033,58 @@ export default function ReportPage() {
       
       console.log('📤 Sending WhatsApp message with URL:', finalReportUrl);
       
-      // Format phone number properly - remove + and ensure it starts with 91
-      const phoneNumber = patientContact || "9058075653"; // Use patient contact or fallback for testing
-      let formattedPhoneNumber = phoneNumber.replace(/^\+/, ''); // Remove + if present
-      if (!formattedPhoneNumber.startsWith("91")) {
-        formattedPhoneNumber = `91${formattedPhoneNumber}`;
-      }
-      
-      console.log('📞 Phone number formatting:', { original: phoneNumber, formatted: formattedPhoneNumber });
-      
-      console.log('🔄 Calling WhatsApp API route...');
-      console.log('📤 API parameters:', {
-        to: formattedPhoneNumber,
-        patientName: patientName,
-        reportUrl: finalReportUrl
-      });
-      
-      // Test API routing first
-      console.log('🧪 Testing API routing...');
-      try {
-        const testResponse = await fetch('/api/test-whatsapp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ test: 'data' })
-        });
-        const testResult = await testResponse.json();
-        console.log('🧪 Test API result:', testResult);
-      } catch (testError) {
-        console.error('❌ Test API failed:', testError);
-      }
-      
-      let result;
-      try {
-        console.log('🌐 Making fetch request to /api/whatsapp/send-report-dialog');
-        const response = await fetch('/api/whatsapp/send-report-dialog', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: formattedPhoneNumber,
-            patientName: patientName,
-            reportUrl: finalReportUrl
-          })
-        });
-        
-        console.log('📡 Fetch response status:', response.status, response.statusText);
-        console.log('📡 Fetch response ok:', response.ok);
-        
-        result = await response.json();
-        console.log('📱 WhatsApp API result:', result);
-      } catch (apiError) {
-        console.error('❌ API call failed:', apiError);
-        toast.error(`API call failed: ${apiError}`);
-        return;
-      }
-      
-      if (result.success) {
-        toast.success('Report shared to patient via WhatsApp');
+      // Build recipients list from input or fallback to patient number
+      const rawList = (toNumbersInput || patientContact || "9058075653");
+      const recipients = rawList
+        .split(/[\s,]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const formatNumber = (n: string) => {
+        let x = n.replace(/^\+/, '');
+        if (!/^91\d{10}$/.test(x)) {
+          if (/^\d{10}$/.test(x)) x = `91${x}`;
+        }
+        return x;
+      };
+
+      const uniqueRecipients = Array.from(new Set(recipients.map(formatNumber)));
+      console.log('📞 Recipients:', uniqueRecipients);
+
+      const results = await Promise.allSettled(uniqueRecipients.map(async (to) => {
+        try {
+          const response = await fetch('/api/whatsapp/send-report-dialog', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to, patientName, reportUrl: finalReportUrl, reportType: 'audiometry' })
+          });
+          const json = await response.json();
+          if (!json.success) throw new Error(json.error || 'Unknown error');
+          return { to, success: true };
+        } catch (e: any) {
+          return { to, success: false, error: e?.message || String(e) };
+        }
+      }));
+
+      const succeeded = results.filter(r => r.status === 'fulfilled' && (r as any).value?.success).length;
+      const failed = uniqueRecipients.length - succeeded;
+
+      if (failed === 0) {
+        toast.success(`Report shared to ${succeeded} recipient(s)`);
+      } else if (succeeded > 0) {
+        toast.warning(`Shared to ${succeeded}, failed for ${failed}`);
+        console.warn('Some sends failed:', results);
       } else {
-        console.error('WhatsApp send error:', result.error);
-        toast.error(`Failed to share via WhatsApp: ${result.error}`);
+        toast.error('Failed to share report to all recipients');
       }
     } catch (err) {
       console.error('❌ Share report error:', err);
       toast.error('Failed to share report');
     }
+  };
+
+  const handleShareReport = () => {
+    setIsShareDialogOpen(true);
   };
 
   return (
@@ -1613,9 +1611,33 @@ export default function ReportPage() {
         onEndConsultation={handleEndConsultation}
       />
 
-
-
-
+      <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Share report via WhatsApp</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm text-gray-600">Enter a WhatsApp number to send the report. Use 10-digit or include country code.</div>
+            <Input
+              placeholder="e.g. 9876543210 or 919876543210"
+              value={sharePhone}
+              onChange={(e) => setSharePhone(e.target.value)}
+            />
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" onClick={() => setIsShareDialogOpen(false)}>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  setIsShareDialogOpen(false);
+                  await sendReportToNumbers(sharePhone);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                Send
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
