@@ -6,6 +6,8 @@ import { Ear, TympType } from "@/models/enums";
 import { TympanometryReadingModelData } from "@/models/tympanometry.model";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useRef, useEffect, useState } from "react";
 import Image from "next/image";
 // PDF export utility is loaded dynamically to avoid bundling issues
@@ -149,6 +151,8 @@ export default function TympanometryReportPage() {
   } = useGetConsultation(consultationId as string);
   const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const reportRef = useRef<HTMLDivElement>(null);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [sharePhone, setSharePhone] = useState<string>("");
   const updateConsultationMutation = useUpdateConsultation();
   const [comments, setComments] = useState<string>("");
   const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare, error: screenShareError } = useSharedScreenShare();
@@ -156,6 +160,14 @@ export default function TympanometryReportPage() {
   useEffect(() => {
     setComments(consultationData?.tympanometry?.notes || "");
   }, [consultationData?.tympanometry?.notes]);
+
+  // Default patient phone formatted
+  const defaultPatientPhone = (() => {
+    const raw = consultationData?.patient?.contactNumber || "";
+    const stripped = raw.replace(/^\+/, "");
+    return stripped.startsWith("91") ? stripped : (stripped ? `91${stripped}` : "");
+  })();
+  useEffect(() => { setSharePhone(defaultPatientPhone); }, [defaultPatientPhone]);
 
   useEffect(() => {
     if (screenShareError) {
@@ -306,7 +318,7 @@ export default function TympanometryReportPage() {
     }
   };
 
-  const handleShareReport = async () => {
+  const sendReportToNumbers = async (toNumbersInput: string) => {
     if (!reportRef.current || !consultationData) return;
     
     try {
@@ -316,6 +328,23 @@ export default function TympanometryReportPage() {
       const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true, fullPage: true });
       const file = new File([blob], `tympanometry-report-${consultationData.patient?.code || "unknown"}.pdf`, { type: "application/pdf" });
       
+      // Prepare recipients list once so both success and fallback can use it
+      const rawList = (toNumbersInput || consultationData.patient?.contactNumber || "9058075653");
+      const recipients = rawList
+        .split(/[\s,]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const formatNumber = (n: string) => {
+        let x = n.replace(/^\+/, '');
+        if (!/^91\d{10}$/.test(x)) {
+          if (/^\d{10}$/.test(x)) x = `91${x}`;
+        }
+        return x;
+      };
+
+      const uniqueRecipients = Array.from(new Set(recipients.map(formatNumber)));
+
       // Get pre-signed URL
       const initiateResult = await initiateReportUpload({
         consultationId: consultationId as string,
@@ -359,26 +388,33 @@ export default function TympanometryReportPage() {
         
         // Send WhatsApp message
         const patientName = consultationData.patient?.name || "Patient";
-        const patientContact = consultationData.patient?.contactNumber || "9058075653";
-        const formattedPhoneNumber = patientContact.startsWith('+') ? patientContact.substring(1) : 
-                                   patientContact.startsWith('91') ? patientContact : `91${patientContact}`;
+        // uniqueRecipients available from earlier
         
-        const response = await fetch('/api/whatsapp/send-report-dialog', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: formattedPhoneNumber,
-            patientName: patientName,
-            reportUrl: finalReportUrl
-          })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-          toast.success("Report shared successfully via WhatsApp!");
+        const results = await Promise.allSettled(uniqueRecipients.map(async (to) => {
+          try {
+            const response = await fetch('/api/whatsapp/send-report-dialog', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ to, patientName, reportUrl: finalReportUrl, reportType: 'tympanometry' })
+            });
+            const json = await response.json();
+            if (!json.success) throw new Error(json.error || 'Unknown error');
+            return { to, success: true };
+          } catch (e: any) {
+            return { to, success: false, error: e?.message || String(e) };
+          }
+        }));
+
+        const succeeded = results.filter(r => r.status === 'fulfilled' && (r as any).value?.success).length;
+        const failed = uniqueRecipients.length - succeeded;
+
+        if (failed === 0) {
+          toast.success(`Report shared to ${succeeded} recipient(s)`);
+        } else if (succeeded > 0) {
+          toast.warning(`Shared to ${succeeded}, failed for ${failed}`);
+          console.warn('Some sends failed:', results);
         } else {
-          toast.error(`Failed to send WhatsApp: ${result.error}`);
+          toast.error('Failed to share report to all recipients');
         }
         
       } catch (s3Error) {
@@ -387,26 +423,32 @@ export default function TympanometryReportPage() {
         
         // Fallback to hardcoded URL
         const patientName = consultationData.patient?.name || "Patient";
-        const patientContact = consultationData.patient?.contactNumber || "9058075653";
-        const formattedPhoneNumber = patientContact.startsWith('+') ? patientContact.substring(1) : 
-                                   patientContact.startsWith('91') ? patientContact : `91${patientContact}`;
         
-        const response = await fetch('/api/whatsapp/send-report-dialog', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: formattedPhoneNumber,
-            patientName: patientName,
-            reportUrl: "https://omni-two.s3.ap-south-1.amazonaws.com/reports/test-tympanometry-report.pdf"
-          })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-          toast.success("Report shared successfully via WhatsApp!");
-      } else {
-          toast.error(`Failed to send WhatsApp: ${result.error}`);
+        const results = await Promise.allSettled(uniqueRecipients.map(async (to) => {
+          try {
+            const response = await fetch('/api/whatsapp/send-report-dialog', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ to, patientName, reportUrl: "https://omni-two.s3.ap-south-1.amazonaws.com/reports/test-tympanometry-report.pdf", reportType: 'tympanometry' })
+            });
+            const json = await response.json();
+            if (!json.success) throw new Error(json.error || 'Unknown error');
+            return { to, success: true };
+          } catch (e: any) {
+            return { to, success: false, error: e?.message || String(e) };
+          }
+        }));
+
+        const succeeded = results.filter(r => r.status === 'fulfilled' && (r as any).value?.success).length;
+        const failed = uniqueRecipients.length - succeeded;
+
+        if (failed === 0) {
+          toast.success(`Report shared to ${succeeded} recipient(s)`);
+        } else if (succeeded > 0) {
+          toast.warning(`Shared to ${succeeded}, failed for ${failed}`);
+          console.warn('Some sends failed:', results);
+        } else {
+          toast.error('Failed to share report to all recipients');
         }
       }
       
@@ -414,6 +456,10 @@ export default function TympanometryReportPage() {
       console.error("Error sharing report:", err);
       toast.error(`Failed to share report: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
+  };
+
+  const handleShareReport = () => {
+    setIsShareDialogOpen(true);
   };
 
   const getTympTypeDescription = (type: TympType): string => {
@@ -718,6 +764,33 @@ export default function TympanometryReportPage() {
         onDoAnotherTest={() => router.push(`/consultation/${consultationId}/test-selection`)}
         onEndConsultation={() => router.push(`/consultation/${consultationId}/end-consultation`)}
       />
+      <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Share report via WhatsApp</DialogTitle>
+          </DialogHeader>
+            <div className="space-y-3">
+            <div className="text-sm text-gray-600">Enter one or more WhatsApp numbers. Separate with commas or spaces. Use 10-digit or include country code.</div>
+            <Input
+              placeholder="e.g. 9876543210, 919876543210"
+              value={sharePhone}
+              onChange={(e) => setSharePhone(e.target.value)}
+            />
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" onClick={() => setIsShareDialogOpen(false)}>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  setIsShareDialogOpen(false);
+                  await sendReportToNumbers(sharePhone);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                Send
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
