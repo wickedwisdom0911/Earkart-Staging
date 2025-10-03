@@ -133,8 +133,8 @@ class DeviceStatusWidget extends StatelessWidget {
     return Tooltip(
       message: tooltip + batteryInfo,
       child: Container(
-        constraints: const BoxConstraints(minWidth: 100, maxWidth: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: statusConfig.color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(borderRadius),
@@ -204,7 +204,7 @@ class DeviceStatusWidget extends StatelessWidget {
               context.read<CommunicationCubit>().forceRefreshTabletBattery();
             },
             child: Container(
-              constraints: const BoxConstraints(minWidth: 60, maxWidth: 120),
+              constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.grey.withOpacity(0.1),

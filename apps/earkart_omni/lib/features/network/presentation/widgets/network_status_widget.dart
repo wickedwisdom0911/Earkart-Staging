@@ -705,8 +705,8 @@ class _AnimatedLoadingWidgetState extends State<_AnimatedLoadingWidget>
         return Transform.scale(
           scale: _pulseAnimation.value,
           child: Container(
-            constraints: const BoxConstraints(minHeight: 32),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
               color: Colors.blue.shade50,
               borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -812,8 +812,8 @@ class _AnimatedConnectedWidgetState extends State<_AnimatedConnectedWidget>
       animation: _breathingAnimation,
       builder: (context, child) {
         return Container(
-          constraints: const BoxConstraints(minHeight: 32),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: Colors.green.shade50,
             borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -1028,8 +1028,8 @@ class _AnimatedDisconnectedWidgetState
       animation: _flashAnimation,
       builder: (context, child) {
         return Container(
-          constraints: const BoxConstraints(minHeight: 32),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: Colors.red.shade50,
             borderRadius: BorderRadius.circular(widget.borderRadius),

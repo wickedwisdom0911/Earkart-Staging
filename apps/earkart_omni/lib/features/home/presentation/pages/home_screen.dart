@@ -169,10 +169,30 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           actions: [
-            IconButton(
-              onPressed: _showLogoutDialog,
-              icon: Icon(Icons.logout, color: Colors.red.shade600),
-              tooltip: 'Logout',
+            Container(
+              constraints: const BoxConstraints(minHeight: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(12.0),
+                border: Border.all(color: Colors.red.shade100, width: 1),
+              ),
+              child: InkWell(
+                onTap: _showLogoutDialog,
+                borderRadius: BorderRadius.circular(12.0),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.logout, size: 14, color: Colors.red.shade600),
+                    ],
+                  ),
+                ),
+              ),
             ),
             const SizedBox(width: 8),
           ],

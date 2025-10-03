@@ -59,24 +59,37 @@ class GlassmorphismAppBar extends StatelessWidget
             leading: leading,
             title: title,
             actions: [
-              // Status widgets row
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const WakelockStatusWidget(showTooltip: true),
-                  const SizedBox(width: 8),
-                  const NetworkStatusWidget(
-                    showDetails: false,
-                    showTooltips: true,
-                    borderRadius: borderRadius,
-                  ),
-                  const SizedBox(width: 8),
-                  const DeviceStatusWidget(borderRadius: borderRadius),
-                  const SizedBox(width: 16),
-                ],
+              // Status widgets row with consistent height
+              IntrinsicHeight(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    WakelockStatusWidget(
+                      showTooltip: true,
+                      borderRadius: borderRadius,
+                    ),
+                    const SizedBox(width: 8),
+                    NetworkStatusWidget(
+                      showDetails: false,
+                      showTooltips: true,
+                      borderRadius: borderRadius,
+                    ),
+                    const SizedBox(width: 8),
+                    DeviceStatusWidget(borderRadius: borderRadius),
+                    const SizedBox(width: 8),
+                  ],
+                ),
               ),
-              // Original actions (if any)
-              if (actions != null) ...actions!,
+              // Original actions (if any) with consistent height
+              if (actions != null)
+                IntrinsicHeight(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: actions!,
+                  ),
+                ),
             ],
             systemOverlayStyle: const SystemUiOverlayStyle(
               statusBarColor: Colors.transparent,
