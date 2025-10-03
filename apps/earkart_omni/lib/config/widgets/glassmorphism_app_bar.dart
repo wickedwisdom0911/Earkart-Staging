@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
+import 'package:earkart_omni/features/network/presentation/widgets/wakelock_status_widget.dart';
+import 'package:earkart_omni/features/consultation/presentation/widgets/device_status_widget.dart';
 
 class GlassmorphismAppBar extends StatelessWidget
     implements PreferredSizeWidget {
@@ -31,6 +34,7 @@ class GlassmorphismAppBar extends StatelessWidget
 
   @override
   Widget build(BuildContext context) {
+    const borderRadius = 10.0;
     return ClipRRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
@@ -48,12 +52,32 @@ class GlassmorphismAppBar extends StatelessWidget
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
             scrolledUnderElevation: 0,
+            automaticallyImplyLeading: false,
             centerTitle: centerTitle,
             titleSpacing: titleSpacing ?? 20,
             toolbarHeight: toolbarHeight,
             leading: leading,
             title: title,
-            actions: actions,
+            actions: [
+              // Status widgets row
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const WakelockStatusWidget(showTooltip: true),
+                  const SizedBox(width: 8),
+                  const NetworkStatusWidget(
+                    showDetails: false,
+                    showTooltips: true,
+                    borderRadius: borderRadius,
+                  ),
+                  const SizedBox(width: 8),
+                  const DeviceStatusWidget(borderRadius: borderRadius),
+                  const SizedBox(width: 16),
+                ],
+              ),
+              // Original actions (if any)
+              if (actions != null) ...actions!,
+            ],
             systemOverlayStyle: const SystemUiOverlayStyle(
               statusBarColor: Colors.transparent,
               statusBarIconBrightness: Brightness.dark,

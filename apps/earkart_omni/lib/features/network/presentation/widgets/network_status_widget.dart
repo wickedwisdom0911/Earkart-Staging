@@ -7,11 +7,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class NetworkStatusWidget extends StatefulWidget {
   final bool showDetails;
   final bool showTooltips;
+  final double borderRadius;
 
   const NetworkStatusWidget({
     super.key,
     this.showDetails = false,
     this.showTooltips = true,
+    this.borderRadius = 12.0,
   });
 
   @override
@@ -108,6 +110,7 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
                 _closeExpanded();
               },
               networkState: context.read<NetworkCubit>().state,
+              borderRadius: widget.borderRadius,
             ),
           ),
         ),
@@ -122,6 +125,7 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
       return _AnimatedLoadingWidget(
         key: const ValueKey('loading'),
         showTooltips: widget.showTooltips,
+        borderRadius: widget.borderRadius,
       );
     } else if (state is NetworkConnected) {
       return _AnimatedConnectedWidget(
@@ -129,12 +133,14 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
         status: state.status,
         showDetails: widget.showDetails,
         showTooltips: widget.showTooltips,
+        borderRadius: widget.borderRadius,
       );
     } else if (state is NetworkDisconnected) {
       return _AnimatedDisconnectedWidget(
         key: const ValueKey('disconnected'),
         showDetails: widget.showDetails,
         showTooltips: widget.showTooltips,
+        borderRadius: widget.borderRadius,
       );
     } else if (state is NetworkError) {
       return _AnimatedErrorWidget(
@@ -142,6 +148,7 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
         message: state.message,
         showDetails: widget.showDetails,
         showTooltips: widget.showTooltips,
+        borderRadius: widget.borderRadius,
       );
     } else {
       return const SizedBox.shrink();
@@ -152,10 +159,12 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
 class _ExpandedNetworkPopup extends StatefulWidget {
   final VoidCallback onClose;
   final NetworkState networkState;
+  final double borderRadius;
 
   const _ExpandedNetworkPopup({
     required this.onClose,
     required this.networkState,
+    this.borderRadius = 16.0,
   });
 
   @override
@@ -215,7 +224,7 @@ class _ExpandedNetworkPopupState extends State<_ExpandedNetworkPopup>
               child: Material(
                 color: Colors.transparent,
                 elevation: 8,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(widget.borderRadius),
                 child: Container(
                   constraints: const BoxConstraints(
                     maxWidth: 300,
@@ -224,7 +233,7 @@ class _ExpandedNetworkPopupState extends State<_ExpandedNetworkPopup>
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(widget.borderRadius),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.15),
@@ -644,8 +653,13 @@ class _ExpandedNetworkPopupState extends State<_ExpandedNetworkPopup>
 
 class _AnimatedLoadingWidget extends StatefulWidget {
   final bool showTooltips;
+  final double borderRadius;
 
-  const _AnimatedLoadingWidget({super.key, this.showTooltips = true});
+  const _AnimatedLoadingWidget({
+    super.key,
+    this.showTooltips = true,
+    this.borderRadius = 12.0,
+  });
 
   @override
   State<_AnimatedLoadingWidget> createState() => _AnimatedLoadingWidgetState();
@@ -691,11 +705,11 @@ class _AnimatedLoadingWidgetState extends State<_AnimatedLoadingWidget>
         return Transform.scale(
           scale: _pulseAnimation.value,
           child: Container(
-            height: 24,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            constraints: const BoxConstraints(minHeight: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(widget.borderRadius),
               border: Border.all(color: Colors.blue.shade100),
             ),
             child: Row(
@@ -715,7 +729,7 @@ class _AnimatedLoadingWidgetState extends State<_AnimatedLoadingWidget>
                 Text(
                   'Checking',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: Colors.blue.shade700,
                     decoration: TextDecoration.none,
@@ -740,12 +754,14 @@ class _AnimatedConnectedWidget extends StatefulWidget {
   final NetworkStatus status;
   final bool showDetails;
   final bool showTooltips;
+  final double borderRadius;
 
   const _AnimatedConnectedWidget({
     super.key,
     required this.status,
     required this.showDetails,
     this.showTooltips = true,
+    this.borderRadius = 12.0,
   });
 
   @override
@@ -796,11 +812,11 @@ class _AnimatedConnectedWidgetState extends State<_AnimatedConnectedWidget>
       animation: _breathingAnimation,
       builder: (context, child) {
         return Container(
-          height: 24,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          constraints: const BoxConstraints(minHeight: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: Colors.green.shade50,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(widget.borderRadius),
             border: Border.all(
               color: Colors.green.shade100.withOpacity(
                 _breathingAnimation.value,
@@ -819,7 +835,7 @@ class _AnimatedConnectedWidgetState extends State<_AnimatedConnectedWidget>
                 Text(
                   _getConnectionTypeLabel(),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: Colors.green.shade700,
                     decoration: TextDecoration.none,
@@ -829,7 +845,7 @@ class _AnimatedConnectedWidgetState extends State<_AnimatedConnectedWidget>
                 Text(
                   widget.status.networkName ?? 'Connected',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: Colors.green.shade700,
                     decoration: TextDecoration.none,
@@ -954,11 +970,13 @@ class _AnimatedConnectedWidgetState extends State<_AnimatedConnectedWidget>
 class _AnimatedDisconnectedWidget extends StatefulWidget {
   final bool showDetails;
   final bool showTooltips;
+  final double borderRadius;
 
   const _AnimatedDisconnectedWidget({
     super.key,
     required this.showDetails,
     this.showTooltips = true,
+    this.borderRadius = 12.0,
   });
 
   @override
@@ -1010,11 +1028,11 @@ class _AnimatedDisconnectedWidgetState
       animation: _flashAnimation,
       builder: (context, child) {
         return Container(
-          height: 24,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          constraints: const BoxConstraints(minHeight: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: Colors.red.shade50,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(widget.borderRadius),
             border: Border.all(
               color: Colors.red.shade100.withOpacity(_flashAnimation.value),
               width: 1.2,
@@ -1037,7 +1055,7 @@ class _AnimatedDisconnectedWidgetState
               Text(
                 'Offline',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: Colors.red.shade700,
                   decoration: TextDecoration.none,
@@ -1080,12 +1098,14 @@ class _AnimatedErrorWidget extends StatefulWidget {
   final String message;
   final bool showDetails;
   final bool showTooltips;
+  final double borderRadius;
 
   const _AnimatedErrorWidget({
     super.key,
     required this.message,
     required this.showDetails,
     this.showTooltips = true,
+    this.borderRadius = 12.0,
   });
 
   @override
@@ -1147,13 +1167,16 @@ class _AnimatedErrorWidgetState extends State<_AnimatedErrorWidget>
                   widget.showDetails
                       ? null
                       : () => context.read<NetworkCubit>().checkNetworkStatus(),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(widget.borderRadius),
               child: Container(
-                height: 24,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                constraints: const BoxConstraints(minHeight: 32),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(widget.borderRadius),
                   border: Border.all(color: Colors.orange.shade100),
                 ),
                 child: Row(
@@ -1170,7 +1193,7 @@ class _AnimatedErrorWidgetState extends State<_AnimatedErrorWidget>
                     Text(
                       'Error',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: Colors.orange.shade700,
                         decoration: TextDecoration.none,

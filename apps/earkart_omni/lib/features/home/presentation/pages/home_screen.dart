@@ -1,3 +1,4 @@
+import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
@@ -129,10 +130,9 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       child: Scaffold(
         backgroundColor: Colors.grey.shade50,
-        appBar: AppBar(
+        appBar: GlassmorphismAppBar(
           elevation: 0,
           backgroundColor: Colors.white,
-          automaticallyImplyLeading: false,
           title: BlocBuilder<AuthCubit, AuthState>(
             builder: (context, state) {
               if (state is AuthCentreSuccess) {
