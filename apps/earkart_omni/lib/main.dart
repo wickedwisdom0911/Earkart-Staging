@@ -447,7 +447,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (_isInitializing) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        home: const AppLoadingScreen(subtitle: "Initializing..."),
+        home: const AppLoadingScreen(message: "Getting Omni Ready for You..."),
       );
     }
 

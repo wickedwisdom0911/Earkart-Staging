@@ -434,7 +434,7 @@ class _RootScreenState extends State<RootScreen> {
             print(
               '⏳ Device registration check in progress - showing AppLoadingScreen.compact()',
             );
-            return const AppLoadingScreen.compact();
+            return const AppLoadingScreen();
           }
 
           // If device is not registered, show device registration screen
@@ -467,7 +467,7 @@ class _RootScreenState extends State<RootScreen> {
             print(
               '⏳ Other operations in progress - showing AppLoadingScreen.compact()',
             );
-            return const AppLoadingScreen.compact();
+            return const AppLoadingScreen();
           }
 
           // All operations completed - cancel timeout timer

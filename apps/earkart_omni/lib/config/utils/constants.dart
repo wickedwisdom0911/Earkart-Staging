@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Constants {
-  static const primaryColor = Colors.lightBlue;
-  static const secondaryColor = Colors.lightBlueAccent;
-  static final darkAccent = Colors.lightBlue[100]!;
-  static final accentColor = Colors.lightBlue[50]!;
+  static const primaryColor = Color(0xFF242C69);
+  static const secondaryColor = Color(0xFF7080AB);
+  static final darkAccent = Color(0xFFDFE8F0);
+  static final accentColor = Color(0xFFF0F4F7);
   static const bg = Color(0xFFF5F5F6);
 
   static const userDb = "user_db";

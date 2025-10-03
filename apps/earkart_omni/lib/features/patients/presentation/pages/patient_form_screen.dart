@@ -3,6 +3,7 @@ import 'package:earkart_omni/config/widgets/custom_text_field.dart';
 import 'package:earkart_omni/config/widgets/gender_selector.dart';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/config/widgets/gradient_button.dart';
+import 'package:earkart_omni/config/widgets/helpers.dart';
 import 'package:earkart_omni/config/widgets/phone_number_input.dart';
 import 'package:earkart_omni/config/widgets/app_loading_screen.dart';
 import 'package:earkart_omni/config/constants/country_codes.dart';
@@ -770,7 +771,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                       return Center(
                         child: Padding(
                           padding: const EdgeInsets.all(20.0),
-                          child: AppLoadingScreen.simple(
+                          child: AppLoadingScreen(
                             message: "Loading location data...",
                           ),
                         ),
@@ -915,10 +916,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                 return GradientButton(
                   child:
                       state is PatientLoading
-                          ? AppLoadingScreen.whiteSpinner(
-                            size: 20,
-                            strokeWidth: 2,
-                          )
+                          ? buttonLoading()
                           : Text(
                             state is PatientError ? "Retry " : "Continue ",
                           ),
