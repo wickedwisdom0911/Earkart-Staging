@@ -1,3 +1,4 @@
+import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_form_screen.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:flutter/material.dart';
@@ -81,7 +82,7 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
-      appBar: AppBar(
+      appBar: GlassmorphismAppBar(
         title: const Text(
           'Search Patients',
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 20),
