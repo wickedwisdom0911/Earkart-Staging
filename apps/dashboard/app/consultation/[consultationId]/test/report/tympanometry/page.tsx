@@ -12,7 +12,7 @@ import { useRef, useEffect, useState } from "react";
 import Image from "next/image";
 // PDF export utility is loaded dynamically to avoid bundling issues
 import { toast } from "sonner";
-import FloatingReportActions from "@/components/ui/FloatingReportActions";
+import StickyReportNavigation from "@/components/ui/StickyReportNavigation";
 import { Textarea } from "@/components/ui/textarea";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import { exportElementToPdfBlob } from "@/lib/pdf";
@@ -168,6 +168,14 @@ export default function TympanometryReportPage() {
     return stripped.startsWith("91") ? stripped : (stripped ? `91${stripped}` : "");
   })();
   useEffect(() => { setSharePhone(defaultPatientPhone); }, [defaultPatientPhone]);
+
+  // Prevent body scrolling when component mounts
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
 
   useEffect(() => {
     if (screenShareError) {
@@ -511,11 +519,11 @@ export default function TympanometryReportPage() {
   }
 
   return (
-    <div className="p-6 flex justify-center bg-gray-100">
-      <div className="w-[794px] bg-white shadow-lg">
+    <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
+      <div className="w-[794px] max-h-[calc(100vh-2rem)] bg-white shadow-lg overflow-hidden">
         <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
 
-        <div ref={reportRef} data-report-capture="true" className="bg-white" style={{ fontFamily: 'Arial, sans-serif' }}>
+        <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
           <div className="relative text-white overflow-hidden">
             <div className="relative flex items-center justify-between p-6 z-10">
@@ -755,7 +763,7 @@ export default function TympanometryReportPage() {
           </div>
         </div>
       </div>
-      <FloatingReportActions
+      <StickyReportNavigation
         isScreenConnecting={isScreenConnecting}
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}

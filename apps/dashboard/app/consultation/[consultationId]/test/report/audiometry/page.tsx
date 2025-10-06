@@ -9,7 +9,7 @@ import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import FloatingReportActions from "@/components/ui/FloatingReportActions";
+import StickyReportNavigation from "@/components/ui/StickyReportNavigation";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReportTopActions from "@/components/ui/ReportTopActions";
@@ -617,6 +617,14 @@ export default function ReportPage() {
     setSharePhone(defaultPatientPhone);
   }, [defaultPatientPhone]);
 
+  // Prevent body scrolling when component mounts
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   const allResults: TestResult[] = [
     ...(consultationData.audiometry?.acTests?.map(t => {
       const patientResponded = t.response === true;
@@ -1088,11 +1096,11 @@ export default function ReportPage() {
   };
 
   return (
-    <div className="p-6 flex justify-center bg-gray-100">
-      <div className="w-[1100px] bg-white shadow-lg">
+    <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
+      <div className="w-[1100px] max-h-[calc(100vh-2rem)] bg-white shadow-lg overflow-hidden">
         <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
         
-        <div ref={reportRef} data-report-capture="true" className="bg-white" style={{ fontFamily: 'Arial, sans-serif', height: 'auto', minHeight: 'auto' }}>
+        <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
           <div className="relative text-white overflow-hidden" >
             <div className="relative flex items-center justify-between p-6 z-10">
@@ -1600,8 +1608,8 @@ export default function ReportPage() {
         </div>
       )}
 
-      {/* Floating Action Buttons */}
-      <FloatingReportActions
+      {/* Sticky Bottom Navigation */}
+      <StickyReportNavigation
         isScreenConnecting={isScreenConnecting}
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}
