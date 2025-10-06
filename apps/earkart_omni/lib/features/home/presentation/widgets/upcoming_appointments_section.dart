@@ -20,7 +20,6 @@ class UpcomingAppointmentsSection extends StatelessWidget {
         Expanded(
           child: ListView(
             children: [
-              // Placeholder for upcoming appointments
               Container(
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
