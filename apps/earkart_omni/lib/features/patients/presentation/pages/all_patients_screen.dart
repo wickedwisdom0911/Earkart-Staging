@@ -1,8 +1,9 @@
+import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
+import 'package:earkart_omni/features/patients/presentation/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 
 class AllPatientsScreen extends StatefulWidget {
   const AllPatientsScreen({super.key});
@@ -22,7 +23,7 @@ class _AllPatientsScreenState extends State<AllPatientsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("All Patients")),
+      appBar: GlassmorphismAppBar(title: const Text("All Patients")),
       body: BlocBuilder<PatientCubit, PatientState>(
         builder: (context, state) {
           return state.maybeWhen(
@@ -38,104 +39,12 @@ class _AllPatientsScreenState extends State<AllPatientsScreen> {
               if (patients.isEmpty) {
                 return const Center(child: Text("No patients found."));
               }
-              return ListView.separated(
+              return ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: patients.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 16),
                 itemBuilder: (context, index) {
                   final patient = patients[index];
-                  return Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 20,
-                      ),
-                      leading: CircleAvatar(
-                        radius: 28,
-                        backgroundColor: Colors.blue.shade100,
-                        child: Text(
-                          patient.name.isNotEmpty
-                              ? patient.name[0].toUpperCase()
-                              : "?",
-                          style: const TextStyle(
-                            fontSize: 24,
-                            color: Colors.blue,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      title: Text(
-                        patient.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.phone,
-                                size: 16,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(patient.contactNumber),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.email,
-                                size: 16,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(patient.email ?? "-"),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.cake,
-                                size: 16,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                patient.dob != null
-                                    ? DateFormat.yMd().format(
-                                      DateTime.parse(patient.dob!),
-                                    )
-                                    : "-",
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.wc,
-                                size: 16,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(patient.gender.name),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
+                  return PatientCard(patient: patient);
                 },
               );
             },

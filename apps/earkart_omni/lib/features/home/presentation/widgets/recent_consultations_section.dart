@@ -1,3 +1,4 @@
+import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:flutter/material.dart';
@@ -90,8 +91,12 @@ class ConsultationCard extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundColor: Colors.blue.shade50,
-            child: Icon(Icons.person, color: Colors.blue.shade600, size: 20),
+            backgroundColor: Constants.accentColor,
+            child: Icon(
+              Icons.person,
+              color: Constants.secondaryColor,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -138,12 +143,12 @@ class ConsultationCard extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'completed':
         return Colors.green;
-      case 'in_progress':
+      case 'inProgress':
         return Colors.orange;
       case 'cancelled':
         return Colors.red;
       default:
-        return Colors.blue;
+        return Constants.secondaryColor;
     }
   }
 }

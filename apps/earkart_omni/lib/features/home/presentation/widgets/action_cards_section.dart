@@ -1,3 +1,4 @@
+import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_phone_screen.dart';
 import 'package:flutter/material.dart';
@@ -26,7 +27,7 @@ class ActionCardsSection extends StatelessWidget {
                 icon: Icons.people_outline,
                 title: "View Patients",
                 subtitle: "Browse all patients",
-                color: Colors.blue,
+                color: Constants.secondaryColor,
                 onTap: () {
                   Navigator.pushNamed(context, AllPatientsScreen.routeName);
                 },
@@ -51,7 +52,7 @@ class ActionCardsSection extends StatelessWidget {
                 icon: Icons.info_outline,
                 title: "Device Information",
                 subtitle: "Know Your Omni",
-                color: Colors.blue,
+                color: Constants.secondaryColor,
                 onTap: () {},
               ),
             ),
@@ -61,7 +62,7 @@ class ActionCardsSection extends StatelessWidget {
                 icon: Icons.help_outline,
                 title: "Contact Earkart's Support Team",
                 subtitle: "Raise Ticket",
-                color: Colors.blue,
+                color: Constants.secondaryColor,
                 onTap: () {},
               ),
             ),

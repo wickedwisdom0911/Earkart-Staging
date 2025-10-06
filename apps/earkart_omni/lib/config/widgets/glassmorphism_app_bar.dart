@@ -17,6 +17,7 @@ class GlassmorphismAppBar extends StatelessWidget
   final double toolbarHeight;
   final double blurSigma;
   final double opacity;
+  final bool? autoLeading;
 
   const GlassmorphismAppBar({
     super.key,
@@ -30,6 +31,7 @@ class GlassmorphismAppBar extends StatelessWidget
     this.toolbarHeight = 60,
     this.blurSigma = 10.0,
     this.opacity = 0.1,
+    this.autoLeading = true,
   });
 
   @override
@@ -52,7 +54,7 @@ class GlassmorphismAppBar extends StatelessWidget
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
             scrolledUnderElevation: 0,
-            automaticallyImplyLeading: false,
+            automaticallyImplyLeading: autoLeading ?? false,
             centerTitle: centerTitle,
             titleSpacing: titleSpacing ?? 20,
             toolbarHeight: toolbarHeight,
