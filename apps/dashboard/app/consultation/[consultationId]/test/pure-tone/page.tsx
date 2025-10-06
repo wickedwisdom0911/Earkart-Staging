@@ -1242,7 +1242,7 @@ export default function PureTonePage() {
   }
 
   return (
-    <div className="p-6 w-full">
+    <div className="h-screen flex flex-col overflow-hidden p-4">
       <style>{`
         @keyframes screen-blink { from { background-color: rgba(0,255,0,0.15);} to { background-color: transparent; } }
         .blink-bg { animation: screen-blink 0.4s ease-in-out 0s 2 alternate; }
@@ -1266,64 +1266,64 @@ export default function PureTonePage() {
         </>
       )}
 
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">Pure Tone Audiometry</h1>
-          <div className="bg-gray-100 px-4 py-2 rounded-lg">
-            <div className="text-sm text-gray-600">Test Results:</div>
-            <div className="flex gap-4 text-sm font-medium">
+      <div className="flex-shrink-0 mb-3">
+        <div className="flex justify-between items-center">
+          <h1 className="text-xl font-bold">Pure Tone Audiometry</h1>
+          <div className="bg-gray-100 px-3 py-1.5 rounded-lg">
+            <div className="text-xs text-gray-600">Results:</div>
+            <div className="flex gap-3 text-xs font-medium">
               <span className="text-green-600">AC: {acTestResults.length}</span>
               <span className="text-purple-600">BC: {bcTestResults.length}</span>
               <span className="text-gray-600">Total: {testResults.length}</span>
             </div>
           </div>
         </div>
-
-        {/* Test Controls removed from top in favor of right floating panel */}
       </div>
 
 
 
-      {/* Audiogram Display */}
-      <div className="border flex items-center justify-center rounded p-4">
-        <div className="w-full audiogram-graph">
-        <PureToneGraph
-          selectedLabelIndexes={selectedLabelIndexes}
-          resultMarkings={testResults}
-          onIndexChange={handleAudiogramClick}
-          onRightClickIndex={(i,j) => {
-            // Jump crosshair then add No Response
-            setSelectedLabelIndexes({ x: i, y: j });
-            setSelectedFrequency(FREQUENCIES[i]);
-            setSelectedLevel(HEARING_LEVELS[j]);
-            addTestResult(true);
-          }}
-          onDoubleClickIndex={(i,j) => {
-            setSelectedLabelIndexes({ x: i, y: j });
-            setSelectedFrequency(FREQUENCIES[i]);
-            setSelectedLevel(HEARING_LEVELS[j]);
-            addTestResult(false);
-          }}
-          onAltClickIndex={(i,j) => {
-            setSelectedLabelIndexes({ x: i, y: j });
-            setSelectedFrequency(FREQUENCIES[i]);
-            setSelectedLevel(HEARING_LEVELS[j]);
-            addTestResult(true);
-          }}
-        />
-      </div>
-      </div>
+      {/* Responsive layout: stack on mobile, side-by-side on desktop */}
+      <div className="flex-1 min-h-0 lg:flex lg:gap-3">
+        {/* Audiogram area */}
+        <div className="flex-1 border rounded p-3 flex items-center justify-center min-h-0">
+          <div className="w-full h-full audiogram-graph flex items-center justify-center">
+            <PureToneGraph
+              selectedLabelIndexes={selectedLabelIndexes}
+              resultMarkings={testResults}
+              onIndexChange={handleAudiogramClick}
+              onRightClickIndex={(i,j) => {
+                // Jump crosshair then add No Response
+                setSelectedLabelIndexes({ x: i, y: j });
+                setSelectedFrequency(FREQUENCIES[i]);
+                setSelectedLevel(HEARING_LEVELS[j]);
+                addTestResult(true);
+              }}
+              onDoubleClickIndex={(i,j) => {
+                setSelectedLabelIndexes({ x: i, y: j });
+                setSelectedFrequency(FREQUENCIES[i]);
+                setSelectedLevel(HEARING_LEVELS[j]);
+                addTestResult(false);
+              }}
+              onAltClickIndex={(i,j) => {
+                setSelectedLabelIndexes({ x: i, y: j });
+                setSelectedFrequency(FREQUENCIES[i]);
+                setSelectedLevel(HEARING_LEVELS[j]);
+                addTestResult(true);
+              }}
+            />
+          </div>
+        </div>
 
-      {/* Full Controls (Right-side floating) */}
-      <div className="fixed right-4 top-28 md:top-1/2 md:-translate-y-1/2 z-30 w-72">
-        <div className="bg-white shadow-lg rounded-lg p-3 w-64 border max-h-[calc(100vh-8rem)] overflow-auto">
-          <div className="mb-3">
+        {/* Controls panel: full-width below on mobile, fixed-width column on desktop */}
+        <div className="mt-3 lg:mt-0 w-full lg:w-56 xl:w-64">
+          <div className="bg-white shadow-lg rounded-lg p-2.5 border max-h-[40vh] overflow-y-auto lg:max-h-[calc(100vh-6rem)]">
+          <div className="mb-2">
             <label className="block text-xs font-medium mb-1">Ear</label>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               {availableEarSides.map((ear: "L" | "R") => (
                 <button
                   key={ear}
-                  className={`px-3 py-1 rounded text-xs ${
+                  className={`flex-1 px-2 py-1 rounded text-xs ${
                     selectedEar === ear
                       ? ear === "L"
                         ? "bg-blue-500 text-white"
@@ -1343,11 +1343,11 @@ export default function PureTonePage() {
               ))}
             </div>
           </div>
-          <div className="mb-3">
+          <div className="mb-2">
             <label className="block text-xs font-medium mb-1">Mode</label>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               <button
-                className={`px-3 py-1 rounded text-xs ${
+                className={`flex-1 px-2 py-1 rounded text-xs ${
                   selectedMode === "AC" ? "bg-blue-500 text-white" : "bg-gray-200"
                 }`}
                 onClick={() => setSelectedMode("AC")}
@@ -1355,7 +1355,7 @@ export default function PureTonePage() {
                 Air
               </button>
               <button
-                className={`px-3 py-1 rounded text-xs ${
+                className={`flex-1 px-2 py-1 rounded text-xs ${
                   selectedMode === "BC" ? "bg-blue-500 text-white" : "bg-gray-200"
                 }`}
                 onClick={() => setSelectedMode("BC")}
@@ -1364,10 +1364,10 @@ export default function PureTonePage() {
               </button>
             </div>
           </div>
-          <div className="mb-3">
-            <label className="block text-xs font-medium mb-1">Frequency (Hz)</label>
+          <div className="mb-2">
+            <label className="block text-xs font-medium mb-1">Freq (Hz)</label>
             <select
-              className="w-full p-2 border rounded text-sm"
+              className="w-full p-1.5 border rounded text-xs"
               value={selectedFrequency}
               onChange={(e) => handleFrequencyChange(Number(e.target.value))}
             >
@@ -1376,10 +1376,10 @@ export default function PureTonePage() {
               ))}
             </select>
           </div>
-          <div className="mb-3">
-            <label className="block text-xs font-medium mb-1">Level (dB HL)</label>
+          <div className="mb-2">
+            <label className="block text-xs font-medium mb-1">Level (dB)</label>
             <select
-              className="w-full p-2 border rounded text-sm"
+              className="w-full p-1.5 border rounded text-xs"
               value={selectedLevel}
               onChange={(e) => handleLevelChange(Number(e.target.value))}
             >
@@ -1388,10 +1388,10 @@ export default function PureTonePage() {
               ))}
             </select>
           </div>
-          <div className="mb-3">
-            <label className="block text-xs font-medium mb-1">Signal Type</label>
+          <div className="mb-2">
+            <label className="block text-xs font-medium mb-1">Signal</label>
             <select
-              className="w-full p-2 border rounded text-sm"
+              className="w-full p-1.5 border rounded text-xs"
               value={selectedSignalType}
               onChange={(e) => handleSignalTypeChange(e.target.value as SignalType)}
             >
@@ -1400,23 +1400,22 @@ export default function PureTonePage() {
               ))}
             </select>
           </div>
-          <div className="mb-3">
-            <label className="block text-xs font-medium mb-1">Pulsed</label>
+          <div className="mb-2">
             <button
-              className={`w-full px-3 py-1 rounded text-xs ${isPulsed ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+              className={`w-full px-2 py-1 rounded text-xs ${isPulsed ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
               onClick={() => {
                 setIsPulsed((prev) => !prev);
                 if (isPlaying) { _endAudiometrySignal(); _sendAudiometrySignal(); }
               }}
             >
-              {isPulsed ? 'Pulsed On' : 'Pulsed Off'}
+              {isPulsed ? 'Pulsed' : 'Steady'}
             </button>
           </div>
-          <div className="mb-3">
+          <div className="mb-2">
             <label className="block text-xs font-medium mb-1">Masking</label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
-                className={`px-3 py-1 rounded text-xs ${isMasking ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
+                className={`px-2 py-1 rounded text-xs ${isMasking ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
                 onClick={() => {
                   const next = !isMasking;
                   setIsMasking(next);
@@ -1427,7 +1426,7 @@ export default function PureTonePage() {
                 {isMasking ? 'On' : 'Off'}
               </button>
               <select
-                className="flex-1 p-2 border rounded text-sm"
+                className="flex-1 p-1.5 border rounded text-xs"
                 value={maskingLevel}
                 onChange={(e) => handleMaskingLevelChange(Number(e.target.value))}
               >
@@ -1437,67 +1436,65 @@ export default function PureTonePage() {
               </select>
             </div>
           </div>
-          <div className="flex flex-col gap-2 mb-3">
           <button
-              className={`w-full px-4 py-2 rounded text-sm ${isPlaying ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} text-white`}
+            className={`w-full px-3 py-1.5 rounded text-xs mb-2 ${isPlaying ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} text-white`}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseLeave}
           >
-              {isPlaying ? 'Release to Stop' : 'Hold to Play'}
+            {isPlaying ? 'Release' : 'Hold Play'}
           </button>
+
+          <div className="flex flex-col gap-1.5">
+            <button
+              className="w-full px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+              onClick={addResponse}
+            >
+              Response
+            </button>
+            <button
+              className="w-full px-3 py-1.5 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs"
+              onClick={addNoResponse}
+            >
+              No Response
+            </button>
+            <button
+              className={`w-full px-3 py-1.5 rounded text-xs ${recentResults.length > 0 ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
+              onClick={() => undoLastResult()}
+              disabled={recentResults.length === 0}
+            >
+              Undo{recentResults.length > 0 ? ` (${recentResults.length})` : ''}
+            </button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-full px-3 py-1.5 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs flex items-center justify-center gap-1">
+                  Clear
+                  <ChevronDown size={12} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => clearEarResults('L')}>Left Ear</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => clearEarResults('R')}>Right Ear</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => clearModeResults('AC')}>Air Conduction</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => clearModeResults('BC')}>Bone Conduction</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={clearTest} className="text-red-600">All Results</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <button
+              className="w-full px-3 py-1.5 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+              onClick={handleSubmit}
+            >
+              Submit Test
+            </button>
           </div>
-       
-          
-          <div className="flex flex-col gap-2">
-          <button
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-            onClick={addResponse}
-          >
-            Add Response
-          </button>
-          <button
-              className="w-full px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 text-sm"
-            onClick={addNoResponse}
-          >
-            No Response
-          </button>
-          <button
-            className={`w-full px-4 py-2 rounded text-sm ${recentResults.length > 0 ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
-            onClick={() => undoLastResult()}
-            disabled={recentResults.length === 0}
-          >
-            Undo Last{recentResults.length > 0 ? ` (${recentResults.length})` : ''}
-          </button>
-            <div className="mt-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                  <button className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm flex items-center justify-center gap-2">
-                Clear Test
-                    <ChevronDown size={14} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => clearEarResults('L')}>Clear Left Ear</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => clearEarResults('R')}>Clear Right Ear</DropdownMenuItem>
-              <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => clearModeResults('AC')}>Clear Air Conduction</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => clearModeResults('BC')}>Clear Bone Conduction</DropdownMenuItem>
-              <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={clearTest} className="text-red-600">Clear All Results</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-            </div>
-          <button
-              className="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm transition-all duration-200 hover:shadow-lg hover:scale-105"
-            onClick={handleSubmit}
-          >
-            Submit Test
-          </button>
+          </div>
         </div>
-      </div>
       </div>
 
       {/* Keyboard Shortcuts Help Dialog */}
@@ -1569,8 +1566,8 @@ export default function PureTonePage() {
       {/* Floating Help Button */}
       <Dialog open={showHelpDialog} onOpenChange={setShowHelpDialog}>
         <DialogTrigger asChild>
-          <button className="fixed bottom-6 left-6 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg z-50 transition-all duration-200 hover:scale-105">
-            <HelpCircle size={20} />
+          <button className="fixed bottom-4 left-4 bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-full shadow-lg z-50">
+            <HelpCircle size={18} />
           </button>
         </DialogTrigger>
       </Dialog>
