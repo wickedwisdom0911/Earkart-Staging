@@ -129,7 +129,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.grey.shade50,
         appBar: GlassmorphismAppBar(
           elevation: 0,
           backgroundColor: Colors.white,
@@ -199,6 +198,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         body: RefreshIndicator(
           onRefresh: _onRefresh,
+          color: Colors.blue,
+          backgroundColor: Colors.white,
+          strokeWidth: 2.5,
+          displacement: 40,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Padding(
@@ -232,12 +235,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 24),
                       Expanded(
                         child: _ActionCard(
+                          highlightyBorder: true,
                           icon: Icons.add_circle_outline,
-                          title: "New Consultation",
-                          subtitle: "Start consultation",
+                          title: "Create a New Consultation",
+                          subtitle: "New consultation",
                           color: Colors.green,
                           onTap: () {
                             Navigator.pushNamed(
@@ -247,66 +251,169 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                       ),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: _ActionCard(
+                          icon: Icons.info_outline,
+                          title: "Device Information",
+                          subtitle: "Know Your Omni",
+                          color: Colors.blue,
+                          onTap: () {},
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: _ActionCard(
+                          icon: Icons.help_outline,
+                          title: "Contact Earkart's Support Team",
+                          subtitle: "Raise Ticket",
+                          color: Colors.blue,
+                          onTap: () {},
+                        ),
+                      ),
                     ],
                   ),
 
                   const SizedBox(height: 32),
 
-                  // Recent Consultations Section
-                  const Text(
-                    "Recent Consultations",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  BlocBuilder<ConsultationCubit, ConsultationState>(
-                    builder: (context, state) {
-                      if (state is ConsultationLoading) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(40),
-                            child: CircularProgressIndicator(),
+                  // Sections with independent scrolling
+                  SizedBox(
+                    height: 400, // Fixed height for both scrollable sections
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Recent Consultations Section
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Recent Consultations",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Expanded(
+                                child: BlocBuilder<
+                                  ConsultationCubit,
+                                  ConsultationState
+                                >(
+                                  builder: (context, state) {
+                                    if (state is ConsultationLoading) {
+                                      return const Center(
+                                        child: CircularProgressIndicator(),
+                                      );
+                                    }
+                                    if (state is AllConsultationsError) {
+                                      return _ErrorCard(message: state.message);
+                                    }
+                                    if (state is AllConsultationsSuccess) {
+                                      if (state.consultations.isEmpty) {
+                                        return const _EmptyStateCard();
+                                      }
+                                      return ListView.separated(
+                                        itemCount: state.consultations.length,
+                                        separatorBuilder:
+                                            (context, index) =>
+                                                const SizedBox(height: 12),
+                                        itemBuilder: (context, index) {
+                                          final consultation =
+                                              state.consultations[index];
+                                          return _ConsultationCard(
+                                            patientName:
+                                                consultation.patient?.name ??
+                                                "Unknown Patient",
+                                            date:
+                                                consultation.createdAt
+                                                    ?.toString()
+                                                    .split(' ')[0] ??
+                                                "No date",
+                                            status:
+                                                consultation.status?.name ??
+                                                "Unknown",
+                                          );
+                                        },
+                                      );
+                                    }
+                                    return const _EmptyStateCard();
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
-                        );
-                      }
-                      if (state is AllConsultationsError) {
-                        return _ErrorCard(message: state.message);
-                      }
-                      if (state is AllConsultationsSuccess) {
-                        if (state.consultations.isEmpty) {
-                          return const _EmptyStateCard();
-                        }
-                        return ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount:
-                              state.consultations.length > 5
-                                  ? 5
-                                  : state.consultations.length,
-                          separatorBuilder:
-                              (context, index) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final consultation = state.consultations[index];
-                            return _ConsultationCard(
-                              patientName:
-                                  consultation.patient?.name ??
-                                  "Unknown Patient",
-                              date:
-                                  consultation.createdAt?.toString().split(
-                                    ' ',
-                                  )[0] ??
-                                  "No date",
-                              status: consultation.status?.name ?? "Unknown",
-                            );
-                          },
-                        );
-                      }
-                      return const _EmptyStateCard();
-                    },
+                        ),
+                        const SizedBox(width: 24),
+                        // Upcoming Appointments Section
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Upcoming Appointments",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Expanded(
+                                child: ListView(
+                                  children: [
+                                    // Placeholder for upcoming appointments
+                                    Container(
+                                      padding: const EdgeInsets.all(40),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(
+                                              0.05,
+                                            ),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Icon(
+                                            Icons.schedule_outlined,
+                                            size: 48,
+                                            color: Colors.grey.shade400,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            "No upcoming appointments",
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            "Appointments will appear here when scheduled",
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey.shade500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -324,6 +431,7 @@ class _ActionCard extends StatelessWidget {
   final String subtitle;
   final Color color;
   final VoidCallback onTap;
+  final bool highlightyBorder;
 
   const _ActionCard({
     required this.icon,
@@ -331,6 +439,7 @@ class _ActionCard extends StatelessWidget {
     required this.subtitle,
     required this.color,
     required this.onTap,
+    this.highlightyBorder = false,
   });
 
   @override
@@ -344,17 +453,24 @@ class _ActionCard extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(20),
+            border:
+                highlightyBorder
+                    ? Border.all(color: color.withAlpha(90), width: 1.5)
+                    : Border.all(color: Colors.grey.withAlpha(90), width: 1),
+            boxShadow:
+                highlightyBorder
+                    ? [
+                      BoxShadow(
+                        color: color.withAlpha(40),
+                        blurRadius: 10,
+                        offset: const Offset(0, 8),
+                      ),
+                    ]
+                    : null,
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
@@ -373,10 +489,20 @@ class _ActionCard extends StatelessWidget {
                   color: Colors.black87,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 14, color: Colors.white),
+                ),
               ),
             ],
           ),
