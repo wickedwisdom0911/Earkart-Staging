@@ -1,6 +1,7 @@
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/widgets/custom_text_field.dart';
 import 'package:earkart_omni/config/widgets/gender_selector.dart';
+import 'package:earkart_omni/config/widgets/age_or_dob_selector.dart';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/config/widgets/gradient_button.dart';
 import 'package:earkart_omni/config/widgets/helpers.dart';
@@ -52,7 +53,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   DateTime? selectedDate;
   Gender selectedGender = Gender.male;
   String selectedCountryCode = '+91'; // Default to India country code
-  AgeOrDob selectedAgeOrDob = AgeOrDob.age; // Default to age
+  AgeOrDob? selectedAgeOrDob; // Start with no selection
 
   @override
   void initState() {
@@ -90,12 +91,12 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       } catch (e) {
         // Handle invalid date format
         di<ILogger>().error('Invalid date format: ${patient.dob}');
-        // Default to age if DOB is invalid
-        selectedAgeOrDob = AgeOrDob.age;
+        // Default to no selection if DOB is invalid
+        selectedAgeOrDob = null;
       }
     } else {
-      // Neither age nor DOB available, default to age
-      selectedAgeOrDob = AgeOrDob.age;
+      // Neither age nor DOB available, start with no selection
+      selectedAgeOrDob = null;
       ageController.clear();
       dobController.clear();
       selectedDate = null;
@@ -413,10 +414,32 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   }
 
   bool _isFormValid() {
-    return _validateName(nameController.text) == null &&
-        _validateContactNumber(phoneController.text) == null &&
-        _validateEmail(emailController.text) == null &&
-        _validateLanguage(selectedLanguage) == null;
+    // Check required fields
+    final nameValid = _validateName(nameController.text) == null;
+    final phoneValid = _validateContactNumber(phoneController.text) == null;
+    final emailValid = _validateEmail(emailController.text) == null;
+    final languageValid = _validateLanguage(selectedLanguage) == null;
+
+    // Check if age/dob is selected and has valid input
+    bool ageOrDobValid = true;
+    if (selectedAgeOrDob == AgeOrDob.age) {
+      // If age is selected, check if age field has valid input
+      ageOrDobValid =
+          ageController.text.trim().isNotEmpty &&
+          int.tryParse(ageController.text.trim()) != null;
+    } else if (selectedAgeOrDob == AgeOrDob.dob) {
+      // If DOB is selected, check if date is selected
+      ageOrDobValid = selectedDate != null;
+    } else {
+      // If no age/dob selection is made, it's invalid
+      ageOrDobValid = false;
+    }
+
+    return nameValid &&
+        phoneValid &&
+        emailValid &&
+        languageValid &&
+        ageOrDobValid;
   }
 
   void submitPatient() {
@@ -442,7 +465,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
         age = int.tryParse(ageController.text.trim());
       }
       dobString = null; // Clear DOB when age is selected
-    } else {
+    } else if (selectedAgeOrDob == AgeOrDob.dob) {
       // User chose to enter DOB
       if (selectedDate != null) {
         // Calculate age from DOB
@@ -451,6 +474,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
         dobString = selectedDate!.toUtc().toIso8601String();
       }
     }
+    // If selectedAgeOrDob is null, both age and dobString remain null
 
     final patient = PatientEntity(
       id: widget.patient.id, // Include the ID if it exists (for updates)
@@ -587,112 +611,128 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Age or DOB Selection - More compact
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Constants.accentColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Constants.darkAccent,
+                                // Age or DOB Selection
+                                AgeOrDobSelector(
+                                  title: "Age Information",
+                                  value: selectedAgeOrDob,
+                                  onChanged: (AgeOrDob? value) {
+                                    setState(() {
+                                      selectedAgeOrDob = value!;
+                                      if (value == AgeOrDob.age) {
+                                        dobController.clear();
+                                        selectedDate = null;
+                                      } else {
+                                        ageController.clear();
+                                      }
+                                    });
+                                  },
+                                  hideAfterSelection: true,
+                                ),
+
+                                // Show selected choice indicator when hidden
+                                if (selectedAgeOrDob != null) ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          selectedAgeOrDob == AgeOrDob.age
+                                              ? Colors.orange.shade50
+                                              : Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color:
+                                            selectedAgeOrDob == AgeOrDob.age
+                                                ? Colors.orange.shade200
+                                                : Colors.green.shade200,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          selectedAgeOrDob == AgeOrDob.age
+                                              ? Icons.cake_rounded
+                                              : Icons.calendar_today_rounded,
+                                          size: 16,
+                                          color:
+                                              selectedAgeOrDob == AgeOrDob.age
+                                                  ? Colors.orange.shade600
+                                                  : Colors.green.shade600,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          selectedAgeOrDob == AgeOrDob.age
+                                              ? "Entering Age"
+                                              : "Entering Date of Birth",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color:
+                                                selectedAgeOrDob == AgeOrDob.age
+                                                    ? Colors.orange.shade700
+                                                    : Colors.green.shade700,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              selectedAgeOrDob = null;
+                                              ageController.clear();
+                                              dobController.clear();
+                                              selectedDate = null;
+                                            });
+                                          },
+                                          child: Icon(
+                                            Icons.close_rounded,
+                                            size: 16,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "Age Information",
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: Constants.secondaryColor,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: RadioListTile<AgeOrDob>(
-                                              title: const Text(
-                                                "Enter Age",
-                                                style: TextStyle(fontSize: 13),
-                                              ),
-                                              value: AgeOrDob.age,
-                                              groupValue: selectedAgeOrDob,
-                                              onChanged: (AgeOrDob? value) {
-                                                setState(() {
-                                                  selectedAgeOrDob = value!;
-                                                  dobController.clear();
-                                                  selectedDate = null;
-                                                });
-                                              },
-                                              contentPadding: EdgeInsets.zero,
-                                              dense: true,
-                                              activeColor:
-                                                  Constants.primaryColor,
-                                            ),
-                                          ),
-                                          Expanded(
-                                            child: RadioListTile<AgeOrDob>(
-                                              title: const Text(
-                                                "Enter Date of Birth",
-                                                style: TextStyle(fontSize: 13),
-                                              ),
-                                              value: AgeOrDob.dob,
-                                              groupValue: selectedAgeOrDob,
-                                              onChanged: (AgeOrDob? value) {
-                                                setState(() {
-                                                  selectedAgeOrDob = value!;
-                                                  ageController.clear();
-                                                });
-                                              },
-                                              contentPadding: EdgeInsets.zero,
-                                              dense: true,
-                                              activeColor:
-                                                  Constants.primaryColor,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
+                                  const SizedBox(height: 16),
+                                ],
 
-                                // Conditional Input Field
-                                if (selectedAgeOrDob == AgeOrDob.age)
-                                  CustomTextField(
-                                    hint: "Enter age",
-                                    title: "Age",
-                                    controller: ageController,
-                                    keyboardType: TextInputType.number,
-                                  )
-                                else
-                                  CustomTextField(
-                                    hint: "Select date of birth",
-                                    title: "Date of Birth",
-                                    controller: dobController,
-                                    readOnly: true,
-                                    onTap: () {
-                                      showDatePicker(
-                                        context: context,
-                                        firstDate: DateTime(1900),
-                                        initialEntryMode:
-                                            DatePickerEntryMode.calendarOnly,
-                                        lastDate: DateTime.now(),
-                                      ).then((value) {
-                                        if (value != null) {
-                                          setState(() {
-                                            selectedDate = value;
-                                            dobController.text = DateFormat(
-                                              'dd/MM/yyyy',
-                                            ).format(value);
-                                          });
-                                        }
-                                      });
-                                    },
-                                  ),
+                                // Conditional Input Field - Only show when selection is made
+                                if (selectedAgeOrDob != null) ...[
+                                  if (selectedAgeOrDob == AgeOrDob.age)
+                                    CustomTextField(
+                                      hint: "Enter age",
+                                      title: "Age",
+                                      controller: ageController,
+                                      keyboardType: TextInputType.number,
+                                    )
+                                  else
+                                    CustomTextField(
+                                      hint: "Select date of birth",
+                                      title: "Date of Birth",
+                                      controller: dobController,
+                                      readOnly: true,
+                                      onTap: () {
+                                        showDatePicker(
+                                          context: context,
+                                          firstDate: DateTime(1900),
+                                          initialEntryMode:
+                                              DatePickerEntryMode.calendarOnly,
+                                          lastDate: DateTime.now(),
+                                        ).then((value) {
+                                          if (value != null) {
+                                            setState(() {
+                                              selectedDate = value;
+                                              dobController.text = DateFormat(
+                                                'dd/MM/yyyy',
+                                              ).format(value);
+                                            });
+                                          }
+                                        });
+                                      },
+                                    ),
+                                ],
                               ],
                             ),
 
@@ -726,7 +766,17 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                                 ),
                               ],
                             ),
+                          ],
+                        ),
+                      ),
 
+                      const SizedBox(width: 20),
+
+                      // Right Column - Address, Location & Language Information
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             // Address Information Section
                             _buildSection(
                               title: "Address Information",
@@ -751,17 +801,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-                      ),
 
-                      const SizedBox(width: 20),
-
-                      // Right Column - Location & Language Information
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
                             // Location & Language Section
                             _buildSection(
                               title: "Location & Language",
@@ -845,69 +885,103 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                                           validator: _validateLanguage,
                                         ),
                                         const SizedBox(height: 16),
-                                        CountrySelector(
-                                          value: selectedCountry,
-                                          onChanged: (value) {
-                                            setState(() {
-                                              selectedCountry = value;
-                                              selectedState = null;
-                                              selectedCity = null;
-                                              selectedDistrict = null;
-                                            });
-                                            if (value != null) {
-                                              context
-                                                  .read<LookupCubit>()
-                                                  .getStates(value.id ?? "");
-                                            }
-                                          },
-                                          items: state.countries,
-                                          title: "Country",
-                                        ),
-                                        const SizedBox(height: 16),
-                                        StateSelector(
-                                          value: selectedState,
-                                          onChanged: (value) {
-                                            setState(() {
-                                              selectedState = value;
-                                              selectedCity = null;
-                                              selectedDistrict = null;
-                                            });
-                                            if (value != null) {
-                                              context
-                                                  .read<LookupCubit>()
-                                                  .getDistricts(value.id ?? "");
-                                            }
-                                          },
-                                          items: state.states,
-                                          title: "State",
-                                        ),
-                                        const SizedBox(height: 16),
-                                        DistrictSelector(
-                                          value: selectedDistrict,
-                                          onChanged: (value) {
-                                            setState(() {
-                                              selectedDistrict = value;
-                                              selectedCity = null;
-                                              if (value != null) {
-                                                context
-                                                    .read<LookupCubit>()
-                                                    .getCities(value.id ?? "");
-                                              }
-                                            });
-                                          },
-                                          items: state.districts,
-                                          title: "District",
-                                        ),
-                                        const SizedBox(height: 16),
-                                        CitySelector(
-                                          value: selectedCity,
-                                          onChanged: (value) {
-                                            setState(() {
-                                              selectedCity = value;
-                                            });
-                                          },
-                                          items: state.cities,
-                                          title: "City",
+
+                                        // 2x2 Grid for Location Selectors
+                                        Column(
+                                          children: [
+                                            // First row: Country and State
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: CountrySelector(
+                                                    value: selectedCountry,
+                                                    onChanged: (value) {
+                                                      setState(() {
+                                                        selectedCountry = value;
+                                                        selectedState = null;
+                                                        selectedCity = null;
+                                                        selectedDistrict = null;
+                                                      });
+                                                      if (value != null) {
+                                                        context
+                                                            .read<LookupCubit>()
+                                                            .getStates(
+                                                              value.id ?? "",
+                                                            );
+                                                      }
+                                                    },
+                                                    items: state.countries,
+                                                    title: "Country",
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: StateSelector(
+                                                    value: selectedState,
+                                                    onChanged: (value) {
+                                                      setState(() {
+                                                        selectedState = value;
+                                                        selectedCity = null;
+                                                        selectedDistrict = null;
+                                                      });
+                                                      if (value != null) {
+                                                        context
+                                                            .read<LookupCubit>()
+                                                            .getDistricts(
+                                                              value.id ?? "",
+                                                            );
+                                                      }
+                                                    },
+                                                    items: state.states,
+                                                    title: "State",
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 16),
+
+                                            // Second row: District and City
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: DistrictSelector(
+                                                    value: selectedDistrict,
+                                                    onChanged: (value) {
+                                                      setState(() {
+                                                        selectedDistrict =
+                                                            value;
+                                                        selectedCity = null;
+                                                        if (value != null) {
+                                                          context
+                                                              .read<
+                                                                LookupCubit
+                                                              >()
+                                                              .getCities(
+                                                                value.id ?? "",
+                                                              );
+                                                        }
+                                                      });
+                                                    },
+                                                    items: state.districts,
+                                                    title: "District",
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: CitySelector(
+                                                    value: selectedCity,
+                                                    onChanged: (value) {
+                                                      setState(() {
+                                                        selectedCity = value;
+                                                      });
+                                                    },
+                                                    items: state.cities,
+                                                    title: "City",
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     );
@@ -948,14 +1022,21 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                 }
               },
               builder: (context, state) {
+                final isFormValid = _isFormValid();
+                final isLoading = state is PatientLoading;
+
                 return GradientButton(
+                  enabled: isFormValid && !isLoading,
                   child:
-                      state is PatientLoading
+                      isLoading
                           ? buttonLoading()
                           : Text(state is PatientError ? "Retry" : "Continue"),
-                  onPressed: () {
-                    submitPatient();
-                  },
+                  onPressed:
+                      isFormValid && !isLoading
+                          ? () {
+                            submitPatient();
+                          }
+                          : null,
                 );
               },
             ),
