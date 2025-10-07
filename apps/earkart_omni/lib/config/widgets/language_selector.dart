@@ -54,6 +54,19 @@ class _LanguageSelectorState extends State<LanguageSelector> {
     }
   }
 
+  LanguageEntity? _getValidValue() {
+    // Only return the value if it exists in the items list
+    if (widget.value != null && widget.items.isNotEmpty) {
+      try {
+        return widget.items.firstWhere((item) => item.id == widget.value!.id);
+      } catch (e) {
+        // Value not found in items, return null
+        return null;
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -101,7 +114,7 @@ class _LanguageSelectorState extends State<LanguageSelector> {
                     : null,
           ),
           child: DropdownButtonFormField<LanguageEntity>(
-            value: widget.value,
+            value: _getValidValue(),
             onChanged:
                 widget.enabled
                     ? (value) {

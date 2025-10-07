@@ -56,8 +56,11 @@ class LocationLanguageWidget extends StatelessWidget {
             }
 
             // Set location entities from patient data when lookup data is available
+            // Only call this once when the data is first loaded
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              onLocationEntitiesSet();
+              if (state.languages.isNotEmpty || state.countries.isNotEmpty) {
+                onLocationEntitiesSet();
+              }
             });
 
             return Column(

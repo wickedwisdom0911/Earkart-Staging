@@ -211,7 +211,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   void _setLocationEntitiesFromPatient(LookupState state) {
     final patient = widget.patient;
 
-    // Set language with default fallback
+    // Set language with default fallback - only if not already set
     if (selectedLanguage == null && state.languages.isNotEmpty) {
       LanguageEntity? newLanguage;
 
@@ -250,64 +250,50 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       }
     }
 
-    // Set country with default fallback
+    // Set country with default fallback - only if not already set
     if (selectedCountry == null && state.countries.isNotEmpty) {
+      CountryEntity? newCountry;
+
       // Try to find the country by ID first
       if (patient.countryId != null && patient.countryId!.isNotEmpty) {
         try {
-          final country = state.countries.firstWhere(
+          newCountry = state.countries.firstWhere(
             (country) => country.id == patient.countryId,
           );
-          setState(() {
-            selectedCountry = country;
-          });
-          // Fetch states for this country
-          context.read<LookupCubit>().getStates(country.id ?? "");
         } catch (e) {
           // Country not found by ID, try to find by code IN
           try {
-            final country = state.countries.firstWhere(
+            newCountry = state.countries.firstWhere(
               (country) => country.code == 'IN',
             );
-            setState(() {
-              selectedCountry = country;
-            });
-            // Fetch states for this country
-            context.read<LookupCubit>().getStates(country.id ?? "");
           } catch (e) {
             // Default to first country if IN not found
-            setState(() {
-              selectedCountry = state.countries.first;
-            });
-            // Fetch states for default country
-            context.read<LookupCubit>().getStates(
-              state.countries.first.id ?? "",
-            );
+            newCountry = state.countries.first;
           }
         }
       } else {
         // No country ID, try to find by code IN
         try {
-          final country = state.countries.firstWhere(
+          newCountry = state.countries.firstWhere(
             (country) => country.code == 'IN',
           );
-          setState(() {
-            selectedCountry = country;
-          });
-          // Fetch states for this country
-          context.read<LookupCubit>().getStates(country.id ?? "");
         } catch (e) {
           // Default to first country if IN not found
-          setState(() {
-            selectedCountry = state.countries.first;
-          });
-          // Fetch states for default country
-          context.read<LookupCubit>().getStates(state.countries.first.id ?? "");
+          newCountry = state.countries.first;
         }
+      }
+
+      // Only update state if we found a country and it's different
+      if (newCountry != selectedCountry) {
+        setState(() {
+          selectedCountry = newCountry;
+        });
+        // Fetch states for this country
+        context.read<LookupCubit>().getStates(newCountry.id ?? "");
       }
     }
 
-    // Set state if available
+    // Set state if available - only if not already set
     if (patient.stateId != null &&
         selectedState == null &&
         state.states.isNotEmpty) {
@@ -315,17 +301,19 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
         final stateEntity = state.states.firstWhere(
           (stateEntity) => stateEntity.id == patient.stateId,
         );
-        setState(() {
-          selectedState = stateEntity;
-        });
-        // Fetch districts for this state
-        context.read<LookupCubit>().getDistricts(stateEntity.id ?? "");
+        if (stateEntity != selectedState) {
+          setState(() {
+            selectedState = stateEntity;
+          });
+          // Fetch districts for this state
+          context.read<LookupCubit>().getDistricts(stateEntity.id ?? "");
+        }
       } catch (e) {
         // State not found, ignore
       }
     }
 
-    // Set district if available
+    // Set district if available - only if not already set
     if (patient.districtId != null &&
         selectedDistrict == null &&
         state.districts.isNotEmpty) {
@@ -333,17 +321,19 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
         final district = state.districts.firstWhere(
           (district) => district.id == patient.districtId,
         );
-        setState(() {
-          selectedDistrict = district;
-        });
-        // Fetch cities for this district
-        context.read<LookupCubit>().getCities(district.id ?? "");
+        if (district != selectedDistrict) {
+          setState(() {
+            selectedDistrict = district;
+          });
+          // Fetch cities for this district
+          context.read<LookupCubit>().getCities(district.id ?? "");
+        }
       } catch (e) {
         // District not found, ignore
       }
     }
 
-    // Set city if available
+    // Set city if available - only if not already set
     if (patient.cityId != null &&
         selectedCity == null &&
         state.cities.isNotEmpty) {
@@ -351,9 +341,11 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
         final city = state.cities.firstWhere(
           (city) => city.id == patient.cityId,
         );
-        setState(() {
-          selectedCity = city;
-        });
+        if (city != selectedCity) {
+          setState(() {
+            selectedCity = city;
+          });
+        }
       } catch (e) {
         // City not found, ignore
       }
@@ -370,9 +362,11 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
           final country = state.countries.firstWhere(
             (country) => country.id == patient.countryId,
           );
-          setState(() {
-            selectedCountry = country;
-          });
+          if (country != selectedCountry) {
+            setState(() {
+              selectedCountry = country;
+            });
+          }
         } catch (e) {
           // Country not found, ignore
         }
@@ -389,9 +383,11 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
           final stateEntity = state.states.firstWhere(
             (stateEntity) => stateEntity.id == patient.stateId,
           );
-          setState(() {
-            selectedState = stateEntity;
-          });
+          if (stateEntity != selectedState) {
+            setState(() {
+              selectedState = stateEntity;
+            });
+          }
         } catch (e) {
           // State not found, ignore
         }

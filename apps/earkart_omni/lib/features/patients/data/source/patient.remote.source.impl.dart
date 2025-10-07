@@ -41,7 +41,11 @@ class PatientRemoteSourceImpl implements IPatientSource {
       );
       final result = PatientModel.fromJson(response.data);
       if (result.success) {
-        patientEntityDataSource.addPatientEntity(result.data!);
+        try {
+          patientEntityDataSource.addPatientEntity(result.data!);
+        } catch (e) {
+          print(e);
+        }
         return right(result.data!);
       } else {
         return left(UnKnownFailure(error: result.message));
@@ -149,7 +153,11 @@ class PatientRemoteSourceImpl implements IPatientSource {
       );
       final result = PatientModel.fromJson(response.data);
       if (result.success) {
-        patientEntityDataSource.addPatientEntity(result.data!);
+        try {
+          patientEntityDataSource.addPatientEntity(result.data!);
+        } catch (e) {
+          print(e);
+        }
         return right(result.data!);
       } else {
         return left(UnKnownFailure(error: result.message));
