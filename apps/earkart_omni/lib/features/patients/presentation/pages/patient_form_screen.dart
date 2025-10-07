@@ -1,19 +1,12 @@
 import 'package:earkart_omni/config/utils/custom_logger.dart';
-import 'package:earkart_omni/config/widgets/custom_text_field.dart';
-import 'package:earkart_omni/config/widgets/gender_selector.dart';
-import 'package:earkart_omni/config/widgets/age_or_dob_selector.dart';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
-import 'package:earkart_omni/config/widgets/gradient_button.dart';
-import 'package:earkart_omni/config/widgets/helpers.dart';
-import 'package:earkart_omni/config/widgets/phone_number_input.dart';
 import 'package:earkart_omni/config/constants/country_codes.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/di.dart';
-import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.state.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
-import 'package:earkart_omni/features/patients/presentation/cubit/patient.state.dart';
+import 'package:earkart_omni/features/patients/presentation/widgets/widgets.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/language/language.entity.dart';
 import 'package:earkart_omni/models/locations/locations.entity.dart';
@@ -21,13 +14,6 @@ import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import 'package:earkart_omni/config/widgets/language_selector.dart';
-import 'package:earkart_omni/config/widgets/country_selector.dart';
-import 'package:earkart_omni/config/widgets/state_selector.dart';
-import 'package:earkart_omni/config/widgets/city_selector.dart';
-import 'package:earkart_omni/config/widgets/district_selector.dart';
-
-enum AgeOrDob { age, dob }
 
 class PatientFormScreen extends StatefulWidget {
   final PatientEntity patient;
@@ -55,11 +41,56 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   String selectedCountryCode = '+91'; // Default to India country code
   AgeOrDob? selectedAgeOrDob; // Start with no selection
 
+  // Cache form validation result to prevent excessive rebuilding
+  bool? _cachedFormValid;
+  String? _lastValidationHash;
+  bool _isFormValidState = false;
+
   @override
   void initState() {
     super.initState();
 
     _prefillFormFields();
+    _addTextControllerListeners();
+
+    // Initialize form validation state
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateFormValidationState();
+    });
+  }
+
+  void _addTextControllerListeners() {
+    // Add listeners to text controllers to invalidate cache when text changes
+    nameController.addListener(_invalidateFormValidationCache);
+    emailController.addListener(_invalidateFormValidationCache);
+    phoneController.addListener(_invalidateFormValidationCache);
+    addressController.addListener(_invalidateFormValidationCache);
+    pincodeController.addListener(_invalidateFormValidationCache);
+    dobController.addListener(_invalidateFormValidationCache);
+    ageController.addListener(_invalidateFormValidationCache);
+  }
+
+  @override
+  void dispose() {
+    // Remove listeners to prevent memory leaks
+    nameController.removeListener(_invalidateFormValidationCache);
+    emailController.removeListener(_invalidateFormValidationCache);
+    phoneController.removeListener(_invalidateFormValidationCache);
+    addressController.removeListener(_invalidateFormValidationCache);
+    pincodeController.removeListener(_invalidateFormValidationCache);
+    dobController.removeListener(_invalidateFormValidationCache);
+    ageController.removeListener(_invalidateFormValidationCache);
+
+    // Dispose controllers
+    nameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
+    addressController.dispose();
+    pincodeController.dispose();
+    dobController.dispose();
+    ageController.dispose();
+
+    super.dispose();
   }
 
   void _prefillFormFields() {
@@ -182,46 +213,40 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
 
     // Set language with default fallback
     if (selectedLanguage == null && state.languages.isNotEmpty) {
+      LanguageEntity? newLanguage;
+
       // Try to find the language by ID first
       if (patient.languageId.isNotEmpty) {
         try {
-          final language = state.languages.firstWhere(
+          newLanguage = state.languages.firstWhere(
             (lang) => lang.id == patient.languageId,
           );
-          setState(() {
-            selectedLanguage = language;
-          });
         } catch (e) {
           // Language not found by ID, try to find by code
           try {
-            final language = state.languages.firstWhere(
+            newLanguage = state.languages.firstWhere(
               (lang) => lang.code == 'EN',
             );
-            setState(() {
-              selectedLanguage = language;
-            });
           } catch (e) {
             // Default to first language if EN not found
-            setState(() {
-              selectedLanguage = state.languages.first;
-            });
+            newLanguage = state.languages.first;
           }
         }
       } else {
         // No language ID, try to find by code EN
         try {
-          final language = state.languages.firstWhere(
-            (lang) => lang.code == 'EN',
-          );
-          setState(() {
-            selectedLanguage = language;
-          });
+          newLanguage = state.languages.firstWhere((lang) => lang.code == 'EN');
         } catch (e) {
           // Default to first language if EN not found
-          setState(() {
-            selectedLanguage = state.languages.first;
-          });
+          newLanguage = state.languages.first;
         }
+      }
+
+      // Only update state if we found a language and it's different
+      if (newLanguage != selectedLanguage) {
+        setState(() {
+          selectedLanguage = newLanguage;
+        });
       }
     }
 
@@ -434,12 +459,61 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
       // If no age/dob selection is made, it's invalid
       ageOrDobValid = false;
     }
-
+    // Debug logging removed for performance
     return nameValid &&
         phoneValid &&
         emailValid &&
         languageValid &&
         ageOrDobValid;
+  }
+
+  void _updateFormValidationState() {
+    // This method can be called to force a form validation state update
+    final newValidationState = _isFormValidCached();
+    if (_isFormValidState != newValidationState) {
+      _isFormValidState = newValidationState;
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  void _invalidateFormValidationCache() {
+    // Invalidate the cached validation result
+    _cachedFormValid = null;
+    _lastValidationHash = null;
+
+    // Update the form validation state
+    final newValidationState = _isFormValidCached();
+    if (_isFormValidState != newValidationState) {
+      _isFormValidState = newValidationState;
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  String _generateFormStateHash() {
+    // Generate a hash of all form fields to detect changes
+    return '${nameController.text}|${phoneController.text}|${emailController.text}|${selectedLanguage?.id}|${selectedAgeOrDob?.name}|${ageController.text}|${selectedDate?.millisecondsSinceEpoch}|${selectedCountryCode}';
+  }
+
+  bool _isFormValidCached() {
+    final currentHash = _generateFormStateHash();
+
+    // If the form state hasn't changed, return cached result
+    if (_lastValidationHash == currentHash && _cachedFormValid != null) {
+      return _cachedFormValid!;
+    }
+
+    // Calculate validation result
+    final isValid = _isFormValid();
+
+    // Cache the result
+    _cachedFormValid = isValid;
+    _lastValidationHash = currentHash;
+
+    return isValid;
   }
 
   void submitPatient() {
@@ -515,31 +589,6 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
     }
   }
 
-  Widget _buildSection({
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 16),
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Constants.primaryColor,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-        ...children,
-        const SizedBox(height: 20),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -570,476 +619,151 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                 right: 20,
                 bottom: 20,
               ),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Two-column layout
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Left Column - Personal, Contact, Address Information
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Personal Information Section
-                            _buildSection(
-                              title: "Personal Information",
-                              children: [
-                                CustomTextField(
-                                  hint: "Enter full name",
-                                  title: "Full Name *",
-                                  controller: nameController,
-                                  validator: _validateName,
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: GenderSelector(
-                                        title: "Gender",
-                                        value: selectedGender,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            selectedGender =
-                                                value ?? Gender.male;
-                                          });
-                                        },
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-
-                                // Age or DOB Selection
-                                AgeOrDobSelector(
-                                  title: "Age Information",
-                                  value: selectedAgeOrDob,
-                                  onChanged: (AgeOrDob? value) {
-                                    setState(() {
-                                      selectedAgeOrDob = value!;
-                                      if (value == AgeOrDob.age) {
-                                        dobController.clear();
-                                        selectedDate = null;
-                                      } else {
-                                        ageController.clear();
-                                      }
-                                    });
-                                  },
-                                  hideAfterSelection: true,
-                                ),
-
-                                // Show selected choice indicator when hidden
-                                if (selectedAgeOrDob != null) ...[
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          selectedAgeOrDob == AgeOrDob.age
-                                              ? Colors.orange.shade50
-                                              : Colors.green.shade50,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color:
-                                            selectedAgeOrDob == AgeOrDob.age
-                                                ? Colors.orange.shade200
-                                                : Colors.green.shade200,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          selectedAgeOrDob == AgeOrDob.age
-                                              ? Icons.cake_rounded
-                                              : Icons.calendar_today_rounded,
-                                          size: 16,
-                                          color:
-                                              selectedAgeOrDob == AgeOrDob.age
-                                                  ? Colors.orange.shade600
-                                                  : Colors.green.shade600,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          selectedAgeOrDob == AgeOrDob.age
-                                              ? "Entering Age"
-                                              : "Entering Date of Birth",
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                            color:
-                                                selectedAgeOrDob == AgeOrDob.age
-                                                    ? Colors.orange.shade700
-                                                    : Colors.green.shade700,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        GestureDetector(
-                                          onTap: () {
-                                            setState(() {
-                                              selectedAgeOrDob = null;
-                                              ageController.clear();
-                                              dobController.clear();
-                                              selectedDate = null;
-                                            });
-                                          },
-                                          child: Icon(
-                                            Icons.close_rounded,
-                                            size: 16,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                ],
-
-                                // Conditional Input Field - Only show when selection is made
-                                if (selectedAgeOrDob != null) ...[
-                                  if (selectedAgeOrDob == AgeOrDob.age)
-                                    CustomTextField(
-                                      hint: "Enter age",
-                                      title: "Age",
-                                      controller: ageController,
-                                      keyboardType: TextInputType.number,
-                                    )
-                                  else
-                                    CustomTextField(
-                                      hint: "Select date of birth",
-                                      title: "Date of Birth",
-                                      controller: dobController,
-                                      readOnly: true,
-                                      onTap: () {
-                                        showDatePicker(
-                                          context: context,
-                                          firstDate: DateTime(1900),
-                                          initialEntryMode:
-                                              DatePickerEntryMode.calendarOnly,
-                                          lastDate: DateTime.now(),
-                                        ).then((value) {
-                                          if (value != null) {
-                                            setState(() {
-                                              selectedDate = value;
-                                              dobController.text = DateFormat(
-                                                'dd/MM/yyyy',
-                                              ).format(value);
-                                            });
-                                          }
-                                        });
-                                      },
-                                    ),
-                                ],
-                              ],
-                            ),
-
-                            // Contact Information Section
-                            _buildSection(
-                              title: "Contact Information",
-                              children: [
-                                CustomTextField(
-                                  hint: "Enter email address (optional)",
-                                  title: "Email Address",
-                                  controller: emailController,
-                                  keyboardType: TextInputType.emailAddress,
-                                  validator: _validateEmail,
-                                ),
-                                const SizedBox(height: 16),
-                                PhoneNumberInput(
-                                  countryCode: selectedCountryCode,
-                                  phoneNumber: phoneController.text,
-                                  onCountryCodeChanged: (String countryCode) {
-                                    setState(() {
-                                      selectedCountryCode = countryCode;
-                                    });
-                                  },
-                                  onPhoneNumberChanged: (String phoneNumber) {
-                                    phoneController.text = phoneNumber;
-                                  },
-                                  title: "Phone Number *",
-                                  hint: "Enter phone number",
-                                  controller: phoneController,
-                                  validator: _validateContactNumber,
-                                ),
-                              ],
-                            ),
-                          ],
+                  // Left Column - Personal & Contact Information
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        PersonalInformationWidget(
+                          nameController: nameController,
+                          selectedGender: selectedGender,
+                          onGenderChanged: (value) {
+                            setState(() {
+                              selectedGender = value ?? Gender.male;
+                            });
+                            _invalidateFormValidationCache();
+                          },
+                          selectedAgeOrDob: selectedAgeOrDob,
+                          onAgeOrDobChanged: (value) {
+                            setState(() {
+                              selectedAgeOrDob = value;
+                              if (value == AgeOrDob.age) {
+                                dobController.clear();
+                                selectedDate = null;
+                              } else if (value == AgeOrDob.dob) {
+                                ageController.clear();
+                              }
+                            });
+                            _invalidateFormValidationCache();
+                          },
+                          ageController: ageController,
+                          dobController: dobController,
+                          selectedDate: selectedDate,
+                          onDateChanged: (date) {
+                            setState(() {
+                              selectedDate = date;
+                            });
+                            _invalidateFormValidationCache();
+                          },
+                          nameValidator: _validateName,
                         ),
-                      ),
-
-                      const SizedBox(width: 20),
-
-                      // Right Column - Address, Location & Language Information
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Address Information Section
-                            _buildSection(
-                              title: "Address Information",
-                              children: [
-                                CustomTextField(
-                                  hint: "Enter address (optional)",
-                                  title: "Address",
-                                  controller: addressController,
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: CustomTextField(
-                                        hint: "Enter pincode (optional)",
-                                        title: "Pincode",
-                                        controller: pincodeController,
-                                        keyboardType: TextInputType.number,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-
-                            // Location & Language Section
-                            _buildSection(
-                              title: "Location & Language",
-                              children: [
-                                BlocBuilder<LookupCubit, LookupState>(
-                                  builder: (context, state) {
-                                    if (state.isLoading) {
-                                      return Container(
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: Constants.accentColor,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(Constants.primaryColor),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Text(
-                                              "Loading location data...",
-                                              style: TextStyle(
-                                                color: Constants.secondaryColor,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }
-                                    if (state.error != null) {
-                                      return Container(
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red.shade50,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.red.shade200,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Error: ${state.error}',
-                                          style: TextStyle(
-                                            color: Colors.red.shade600,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      );
-                                    }
-
-                                    // Set location entities from patient data when lookup data is available
-                                    WidgetsBinding.instance
-                                        .addPostFrameCallback((_) {
-                                          _setLocationEntitiesFromPatient(
-                                            state,
-                                          );
-                                        });
-
-                                    return Column(
-                                      children: [
-                                        LanguageSelector(
-                                          value: selectedLanguage,
-                                          onChanged:
-                                              (value) => setState(
-                                                () => selectedLanguage = value,
-                                              ),
-                                          items: state.languages,
-                                          title: "Preferred Language *",
-                                          validator: _validateLanguage,
-                                        ),
-                                        const SizedBox(height: 16),
-
-                                        // 2x2 Grid for Location Selectors
-                                        Column(
-                                          children: [
-                                            // First row: Country and State
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: CountrySelector(
-                                                    value: selectedCountry,
-                                                    onChanged: (value) {
-                                                      setState(() {
-                                                        selectedCountry = value;
-                                                        selectedState = null;
-                                                        selectedCity = null;
-                                                        selectedDistrict = null;
-                                                      });
-                                                      if (value != null) {
-                                                        context
-                                                            .read<LookupCubit>()
-                                                            .getStates(
-                                                              value.id ?? "",
-                                                            );
-                                                      }
-                                                    },
-                                                    items: state.countries,
-                                                    title: "Country",
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: StateSelector(
-                                                    value: selectedState,
-                                                    onChanged: (value) {
-                                                      setState(() {
-                                                        selectedState = value;
-                                                        selectedCity = null;
-                                                        selectedDistrict = null;
-                                                      });
-                                                      if (value != null) {
-                                                        context
-                                                            .read<LookupCubit>()
-                                                            .getDistricts(
-                                                              value.id ?? "",
-                                                            );
-                                                      }
-                                                    },
-                                                    items: state.states,
-                                                    title: "State",
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 16),
-
-                                            // Second row: District and City
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: DistrictSelector(
-                                                    value: selectedDistrict,
-                                                    onChanged: (value) {
-                                                      setState(() {
-                                                        selectedDistrict =
-                                                            value;
-                                                        selectedCity = null;
-                                                        if (value != null) {
-                                                          context
-                                                              .read<
-                                                                LookupCubit
-                                                              >()
-                                                              .getCities(
-                                                                value.id ?? "",
-                                                              );
-                                                        }
-                                                      });
-                                                    },
-                                                    items: state.districts,
-                                                    title: "District",
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: CitySelector(
-                                                    value: selectedCity,
-                                                    onChanged: (value) {
-                                                      setState(() {
-                                                        selectedCity = value;
-                                                      });
-                                                    },
-                                                    items: state.cities,
-                                                    title: "City",
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ],
+                        ContactInformationWidget(
+                          emailController: emailController,
+                          phoneController: phoneController,
+                          selectedCountryCode: selectedCountryCode,
+                          onCountryCodeChanged: (countryCode) {
+                            setState(() {
+                              selectedCountryCode = countryCode;
+                            });
+                            _invalidateFormValidationCache();
+                          },
+                          onPhoneNumberChanged: (phoneNumber) {
+                            phoneController.text = phoneNumber;
+                            _invalidateFormValidationCache();
+                          },
+                          emailValidator: _validateEmail,
+                          phoneValidator: _validateContactNumber,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  // Right Column - Address & Location Information
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AddressInformationWidget(
+                          addressController: addressController,
+                          pincodeController: pincodeController,
+                        ),
+                        LocationLanguageWidget(
+                          selectedLanguage: selectedLanguage,
+                          onLanguageChanged: (value) {
+                            setState(() {
+                              selectedLanguage = value;
+                            });
+                            _invalidateFormValidationCache();
+                          },
+                          selectedCountry: selectedCountry,
+                          onCountryChanged: (value) {
+                            setState(() {
+                              selectedCountry = value;
+                              selectedState = null;
+                              selectedCity = null;
+                              selectedDistrict = null;
+                            });
+                            if (value != null) {
+                              context.read<LookupCubit>().getStates(
+                                value.id ?? "",
+                              );
+                            }
+                          },
+                          selectedState: selectedState,
+                          onStateChanged: (value) {
+                            setState(() {
+                              selectedState = value;
+                              selectedCity = null;
+                              selectedDistrict = null;
+                            });
+                            if (value != null) {
+                              context.read<LookupCubit>().getDistricts(
+                                value.id ?? "",
+                              );
+                            }
+                          },
+                          selectedDistrict: selectedDistrict,
+                          onDistrictChanged: (value) {
+                            setState(() {
+                              selectedDistrict = value;
+                              selectedCity = null;
+                            });
+                            if (value != null) {
+                              context.read<LookupCubit>().getCities(
+                                value.id ?? "",
+                              );
+                            }
+                          },
+                          selectedCity: selectedCity,
+                          onCityChanged: (value) {
+                            setState(() {
+                              selectedCity = value;
+                            });
+                          },
+                          languageValidator: _validateLanguage,
+                          onLocationEntitiesSet: () {
+                            _setLocationEntitiesFromPatient(
+                              context.read<LookupCubit>().state,
+                            );
+                            // Invalidate cache and update form validation state
+                            _invalidateFormValidationCache();
+                            _updateFormValidationState();
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          // Persistent Submit Button at bottom
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: BlocConsumer<PatientCubit, PatientState>(
-              listener: (context, state) {
-                di<ILogger>().info(state.toString());
-                if (state is PatientSuccess) {
-                  Navigator.pushNamed(
-                    context,
-                    ConsultationRequestScreen.routeName,
-                  );
-                }
-              },
-              builder: (context, state) {
-                final isFormValid = _isFormValid();
-                final isLoading = state is PatientLoading;
-
-                return GradientButton(
-                  enabled: isFormValid && !isLoading,
-                  child:
-                      isLoading
-                          ? buttonLoading()
-                          : Text(state is PatientError ? "Retry" : "Continue"),
-                  onPressed:
-                      isFormValid && !isLoading
-                          ? () {
-                            submitPatient();
-                          }
-                          : null,
-                );
-              },
-            ),
+          // Submit Button
+          FormSubmitButtonWidget(
+            isFormValid: _isFormValidState,
+            onSubmitPressed: submitPatient,
           ),
         ],
       ),
