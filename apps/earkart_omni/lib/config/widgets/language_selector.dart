@@ -8,6 +8,7 @@ class LanguageSelector extends StatefulWidget {
   final String? title;
   final bool enabled;
   final String? errorText;
+  final String? Function(LanguageEntity?)? validator;
   final List<LanguageEntity> items;
 
   const LanguageSelector({
@@ -19,6 +20,7 @@ class LanguageSelector extends StatefulWidget {
     this.title,
     this.enabled = true,
     this.errorText,
+    this.validator,
   });
 
   @override
@@ -27,6 +29,30 @@ class LanguageSelector extends StatefulWidget {
 
 class _LanguageSelectorState extends State<LanguageSelector> {
   bool _isFocused = false;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateErrorText();
+  }
+
+  @override
+  void didUpdateWidget(LanguageSelector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value ||
+        oldWidget.validator != widget.validator) {
+      _updateErrorText();
+    }
+  }
+
+  void _updateErrorText() {
+    if (widget.validator != null) {
+      setState(() {
+        _errorText = widget.validator!(widget.value);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,14 +78,22 @@ class _LanguageSelectorState extends State<LanguageSelector> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _isFocused ? Colors.blue.shade500 : Colors.grey.shade200,
-              width: _isFocused ? 2.0 : 1.0,
+              color:
+                  _errorText != null
+                      ? Colors.red.shade500
+                      : _isFocused
+                      ? Colors.blue.shade500
+                      : Colors.grey.shade200,
+              width: _errorText != null || _isFocused ? 2.0 : 1.0,
             ),
             boxShadow:
                 _isFocused
                     ? [
                       BoxShadow(
-                        color: Colors.blue.shade100,
+                        color:
+                            _errorText != null
+                                ? Colors.red.shade100
+                                : Colors.blue.shade100,
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -68,7 +102,13 @@ class _LanguageSelectorState extends State<LanguageSelector> {
           ),
           child: DropdownButtonFormField<LanguageEntity>(
             value: widget.value,
-            onChanged: widget.enabled ? widget.onChanged : null,
+            onChanged:
+                widget.enabled
+                    ? (value) {
+                      widget.onChanged(value);
+                      _updateErrorText();
+                    }
+                    : null,
             decoration: InputDecoration(
               hintText: widget.label ?? 'Select language...',
               hintStyle: TextStyle(
@@ -103,7 +143,7 @@ class _LanguageSelectorState extends State<LanguageSelector> {
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
-              errorText: widget.errorText,
+              errorText: _errorText ?? widget.errorText,
               isDense: true,
             ),
             icon: Icon(

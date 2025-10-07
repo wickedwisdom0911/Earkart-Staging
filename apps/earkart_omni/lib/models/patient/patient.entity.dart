@@ -29,7 +29,7 @@ class PatientEntity extends Equatable {
   @HiveField(8)
   final String? password;
   @HiveField(9)
-  final String address;
+  final String? address;
   @HiveField(10)
   final String? cityId;
   @HiveField(11)
@@ -39,7 +39,7 @@ class PatientEntity extends Equatable {
   @HiveField(13)
   final String? countryId;
   @HiveField(14)
-  final String pincode;
+  final String? pincode;
   @HiveField(15)
   final String? createdBy;
   @HiveField(16)
@@ -78,10 +78,10 @@ class PatientEntity extends Equatable {
     required this.gender,
     this.dob,
     this.age,
-    required this.password,
-    required this.address,
+    this.password,
+    this.address,
     this.cityId,
-    required this.pincode,
+    this.pincode,
     this.createdBy,
     this.updatedBy,
     this.createdAt,
