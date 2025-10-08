@@ -1,4 +1,5 @@
 import 'package:earkart_omni/config/utils/constants.dart';
+import 'package:earkart_omni/features/device/presentation/pages/device_info_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/all_patients_screen.dart';
 import 'package:earkart_omni/features/patients/presentation/pages/patient_phone_screen.dart';
 import 'package:flutter/material.dart';
@@ -53,7 +54,9 @@ class ActionCardsSection extends StatelessWidget {
                 title: "Device Information",
                 subtitle: "Know Your Omni",
                 color: Constants.secondaryColor,
-                onTap: () {},
+                onTap: () {
+                  Navigator.pushNamed(context, DeviceInfoScreen.routeName);
+                },
               ),
             ),
             const SizedBox(width: 24),
@@ -63,12 +66,124 @@ class ActionCardsSection extends StatelessWidget {
                 title: "Contact Earkart's Support Team",
                 subtitle: "Raise Ticket",
                 color: Constants.secondaryColor,
-                onTap: () {},
+                onTap: () {
+                  _showSupportDialog(context);
+                },
               ),
             ),
           ],
         ),
       ],
+    );
+  }
+
+  void _showSupportDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Constants.secondaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.email_outlined,
+                  color: Constants.secondaryColor,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Contact Support',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Please send an email to:',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.email,
+                      color: Constants.secondaryColor,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'omniinput@earkart.in',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'for your queries and to get instant resolution.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Constants.secondaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Got it',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

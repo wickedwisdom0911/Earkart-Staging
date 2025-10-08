@@ -76,7 +76,6 @@ class _WakelockStatusWidgetState extends State<WakelockStatusWidget>
         Color backgroundColor;
         Color borderColor;
         Color iconColor;
-        Color textColor;
 
         if (isEnabled) {
           if (isForceEnabled) {
@@ -89,9 +88,6 @@ class _WakelockStatusWidgetState extends State<WakelockStatusWidget>
             iconColor = Colors.green.shade600.withOpacity(
               _pulseAnimation.value,
             );
-            textColor = Colors.green.shade600.withOpacity(
-              _pulseAnimation.value,
-            );
           } else {
             backgroundColor = Colors.amber.shade50.withOpacity(
               _pulseAnimation.value,
@@ -102,15 +98,11 @@ class _WakelockStatusWidgetState extends State<WakelockStatusWidget>
             iconColor = Colors.amber.shade600.withOpacity(
               _pulseAnimation.value,
             );
-            textColor = Colors.amber.shade600.withOpacity(
-              _pulseAnimation.value,
-            );
           }
         } else {
           backgroundColor = Colors.grey.shade50;
           borderColor = Colors.grey.shade100;
           iconColor = Colors.grey.shade600;
-          textColor = Colors.grey.shade600;
         }
 
         return Container(

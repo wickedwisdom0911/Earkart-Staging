@@ -1,4 +1,5 @@
 import 'package:earkart_omni/config/utils/hive_types.dart';
+import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:equatable/equatable.dart';
 import 'package:hive/hive.dart';
@@ -31,6 +32,8 @@ class DeviceEntity extends Equatable {
   final DateTime createdAt;
   @HiveField(11)
   final DateTime updatedAt;
+  @HiveField(12)
+  final CentreEntity? centre;
 
   const DeviceEntity({
     required this.id,
@@ -45,6 +48,7 @@ class DeviceEntity extends Equatable {
     required this.status,
     required this.createdAt,
     required this.updatedAt,
+    this.centre,
   });
 
   factory DeviceEntity.fromJson(Map<String, dynamic> json) {
@@ -70,6 +74,8 @@ class DeviceEntity extends Equatable {
           json['updatedAt'] != null
               ? DateTime.parse(json['updatedAt'])
               : DateTime.now(),
+      centre:
+          json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
     );
   }
 
@@ -85,6 +91,7 @@ class DeviceEntity extends Equatable {
       'tabletAndroidVersion': tabletAndroidVersion,
       'centreId': centreId,
       'status': status.name.toUpperCase(),
+      'centre': centre?.toJson(),
     };
   }
 
@@ -101,6 +108,7 @@ class DeviceEntity extends Equatable {
     Status? status,
     DateTime? createdAt,
     DateTime? updatedAt,
+    CentreEntity? centre,
   }) {
     return DeviceEntity(
       id: id ?? this.id,
@@ -115,6 +123,7 @@ class DeviceEntity extends Equatable {
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      centre: centre ?? this.centre,
     );
   }
 
@@ -132,5 +141,6 @@ class DeviceEntity extends Equatable {
     status,
     createdAt,
     updatedAt,
+    centre,
   ];
 }

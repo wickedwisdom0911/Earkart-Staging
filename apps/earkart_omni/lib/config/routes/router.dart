@@ -1,6 +1,7 @@
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
+import 'package:earkart_omni/features/device/presentation/pages/device_info_screen.dart';
 import 'package:earkart_omni/features/device/presentation/pages/device_registration_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
@@ -104,6 +105,14 @@ Route<dynamic> generateRoute(RouteSettings settings) {
         Builder(
           builder: (context) {
             return const DeviceRegistrationScreen();
+          },
+        ),
+      );
+    case DeviceInfoScreen.routeName:
+      return router(
+        Builder(
+          builder: (context) {
+            return const DeviceInfoScreen();
           },
         ),
       );

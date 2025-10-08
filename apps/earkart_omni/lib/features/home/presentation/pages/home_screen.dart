@@ -60,9 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const ActionCardsSection(),
                   const SizedBox(height: 32),
-                  // Sections with independent scrolling
                   SizedBox(
-                    height: 400, // Fixed height for both scrollable sections
+                    height: 400,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
