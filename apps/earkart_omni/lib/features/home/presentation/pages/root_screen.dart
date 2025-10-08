@@ -389,7 +389,7 @@ class _RootScreenState extends State<RootScreen> {
             state.maybeWhen(
               success: (device) {
                 print(
-                  '✅ DeviceRegistrationSuccess - Device: ${device != null ? device.deviceCode : 'null'}',
+                  '✅ DeviceRegistrationSuccess - Device: ${device != null ? device.code : 'null'}',
                 );
                 setState(() {
                   checkedDevice = true;
@@ -426,7 +426,7 @@ class _RootScreenState extends State<RootScreen> {
           // Debug logging to identify which operation is not completing
           print('🔍 RootScreen build check:');
           print(
-            '   checkedDevice: $checkedDevice (device: ${device != null ? device!.deviceCode : 'null'})',
+            '   checkedDevice: $checkedDevice (device: ${device != null ? device!.code : 'null'})',
           );
 
           // First priority: Check device registration

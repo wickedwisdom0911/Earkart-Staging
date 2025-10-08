@@ -55,7 +55,7 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
     });
     if (device != null) {
       context.read<DeviceRegistrationCubit>().getDeviceByValue(
-        device!.deviceCode,
+        device!.code ?? "",
       );
     }
   }

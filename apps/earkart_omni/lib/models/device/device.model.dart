@@ -31,13 +31,19 @@ class DeviceData extends DeviceEntity {
   @override
   final String id;
   @override
-  final String deviceCode;
+  final String? code;
+  @override
+  final int? codeSequence;
   @override
   final String? tabletID;
   @override
   final String? deviceID;
   @override
+  final String? otoscopeID;
+  @override
   final String? tabletAppVersion;
+  @override
+  final String? tabletAndroidVersion;
   @override
   final String? centreId;
   @override
@@ -52,10 +58,13 @@ class DeviceData extends DeviceEntity {
 
   const DeviceData({
     required this.id,
-    required this.deviceCode,
+    this.code,
+    this.codeSequence,
     this.tabletID,
     this.deviceID,
+    this.otoscopeID,
     this.tabletAppVersion,
+    this.tabletAndroidVersion,
     this.centreId,
     required this.status,
     required this.createdAt,
@@ -65,10 +74,13 @@ class DeviceData extends DeviceEntity {
     // this.activityLogs = const [],
   }) : super(
          id: id,
-         deviceCode: deviceCode,
+         code: code,
+         codeSequence: codeSequence,
          tabletID: tabletID,
          deviceID: deviceID,
+         otoscopeID: otoscopeID,
          tabletAppVersion: tabletAppVersion,
+         tabletAndroidVersion: tabletAndroidVersion,
          centreId: centreId,
          status: status,
          createdAt: createdAt,
@@ -78,10 +90,13 @@ class DeviceData extends DeviceEntity {
   factory DeviceData.fromJson(Map<String, dynamic> json) {
     return DeviceData(
       id: json['id'] ?? '',
-      deviceCode: json['deviceCode'] ?? '',
+      code: json['code'],
+      codeSequence: json['codeSequence'],
       tabletID: json['tabletID'],
       deviceID: json['deviceID'],
+      otoscopeID: json['otoscopeID'],
       tabletAppVersion: json['tabletAppVersion'],
+      tabletAndroidVersion: json['tabletAndroidVersion'],
       centreId: json['centreId'],
       status:
           json['status'] != null
@@ -109,10 +124,13 @@ class DeviceData extends DeviceEntity {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'deviceCode': deviceCode,
+      'code': code,
+      'codeSequence': codeSequence,
       'tabletID': tabletID,
       'deviceID': deviceID,
+      'otoscopeID': otoscopeID,
       'tabletAppVersion': tabletAppVersion,
+      'tabletAndroidVersion': tabletAndroidVersion,
       'centreId': centreId,
       'status': status.name.toUpperCase(),
       'createdAt': createdAt.toIso8601String(),
