@@ -55,11 +55,12 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
   const pathname = usePathname();
   const router = useRouter();
   const { deviceState } = useDevice();
+  const [videoRenderKey, setVideoRenderKey] = React.useState(0);
   
   // Check if we're on the specific video-otoscopy page
   const isVideoOtoscopyPage = pathname?.includes('/test/video-otoscopy');
   
-  // Only enlarge video when on video-otoscopy page AND otoscopy is active AND camera is open
+  // This is the crucial change. We now wait for the device camera to be ready.
   const isCameraOpen = deviceState.r15c.isCameraOpen;
   const shouldEnlargeVideo = isVideoOtoscopyPage && isOtoscopyActive && isCameraOpen;
 
@@ -89,10 +90,8 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     try {
       setIsStopping(true);
       await stopOtoscopy();
-      // Small delay then refresh to restore video call properly
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      // Force a re-render of the video component by changing its key
+      setVideoRenderKey(prevKey => prevKey + 1);
     } catch (e) {
       console.error("Error stopping otoscopy:", e);
     } finally {
@@ -108,6 +107,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
         <div className="w-screen h-screen">
           {/* Add a small delay before rendering VideoCall to let device prepare */}
           <DelayedVideoCall
+            key={videoRenderKey}
             channel={consultationId}
             patientName={patientName}
             isFullscreen={true}
@@ -141,6 +141,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     <div className="flex gap-2 overflow-hidden h-full w-full">
       {/* Video Call on left - Normal layout */}
       <VideoCall
+        key={videoRenderKey}
         channel={consultationId}
         patientName={patientName}
         isFullscreen={false}
