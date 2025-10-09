@@ -17,9 +17,6 @@ import 'package:earkart_omni/features/device/presentation/cubit/device_registrat
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
-import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
-import 'package:earkart_omni/features/network/presentation/widgets/wakelock_status_widget.dart';
-import 'package:earkart_omni/features/consultation/presentation/widgets/device_status_widget.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/countries.entity.source.dart';
@@ -447,7 +444,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (_isInitializing) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        home: const AppLoadingScreen(subtitle: "Initializing..."),
+        home: const AppLoadingScreen(message: "Getting Omni Ready for You..."),
       );
     }
 
@@ -516,41 +513,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                               children: [
                                 // Main app content
                                 child ?? const SizedBox.shrink(),
-
-                                // Global network and wakelock status widgets overlay
-                                Positioned(
-                                  top: 0,
-                                  left: 0,
-                                  right: 0,
-                                  child: SafeArea(
-                                    child: Container(
-                                      height: 60, // Match toolbar height
-                                      alignment: Alignment.center,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            const WakelockStatusWidget(
-                                              showTooltip: true,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            const NetworkStatusWidget(
-                                              showDetails: false,
-                                              showTooltips: true,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Center(child: DeviceStatusWidget()),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
                               ],
                             ),
                           ),

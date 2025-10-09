@@ -18,39 +18,51 @@ class DeviceEntityAdapter extends TypeAdapter<DeviceEntity> {
     };
     return DeviceEntity(
       id: fields[0] as String,
-      deviceCode: fields[1] as String,
-      tabletID: fields[2] as String?,
-      deviceID: fields[3] as String?,
-      tabletAppVersion: fields[4] as String?,
-      centreId: fields[5] as String?,
-      status: fields[6] as Status,
-      createdAt: fields[7] as DateTime,
-      updatedAt: fields[8] as DateTime,
+      code: fields[1] as String?,
+      codeSequence: fields[2] as int?,
+      tabletID: fields[3] as String?,
+      deviceID: fields[4] as String?,
+      otoscopeID: fields[5] as String?,
+      tabletAppVersion: fields[6] as String?,
+      tabletAndroidVersion: fields[7] as String?,
+      centreId: fields[8] as String?,
+      status: fields[9] as Status,
+      createdAt: fields[10] as DateTime,
+      updatedAt: fields[11] as DateTime,
+      centre: fields[12] as CentreEntity?,
     );
   }
 
   @override
   void write(BinaryWriter writer, DeviceEntity obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.deviceCode)
+      ..write(obj.code)
       ..writeByte(2)
-      ..write(obj.tabletID)
+      ..write(obj.codeSequence)
       ..writeByte(3)
-      ..write(obj.deviceID)
+      ..write(obj.tabletID)
       ..writeByte(4)
-      ..write(obj.tabletAppVersion)
+      ..write(obj.deviceID)
       ..writeByte(5)
-      ..write(obj.centreId)
+      ..write(obj.otoscopeID)
       ..writeByte(6)
-      ..write(obj.status)
+      ..write(obj.tabletAppVersion)
       ..writeByte(7)
-      ..write(obj.createdAt)
+      ..write(obj.tabletAndroidVersion)
       ..writeByte(8)
-      ..write(obj.updatedAt);
+      ..write(obj.centreId)
+      ..writeByte(9)
+      ..write(obj.status)
+      ..writeByte(10)
+      ..write(obj.createdAt)
+      ..writeByte(11)
+      ..write(obj.updatedAt)
+      ..writeByte(12)
+      ..write(obj.centre);
   }
 
   @override

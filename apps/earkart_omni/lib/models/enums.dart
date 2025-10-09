@@ -22,6 +22,8 @@ enum Gender {
   other,
 }
 
+enum AgeOrDob { age, dob }
+
 @HiveType(typeId: HiveTypes.roleEnum)
 enum Role {
   @HiveField(0)

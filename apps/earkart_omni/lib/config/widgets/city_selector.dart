@@ -28,6 +28,19 @@ class CitySelector extends StatefulWidget {
 class _CitySelectorState extends State<CitySelector> {
   bool _isFocused = false;
 
+  CityEntity? _getValidValue() {
+    // Only return the value if it exists in the items list
+    if (widget.value != null && widget.items.isNotEmpty) {
+      try {
+        return widget.items.firstWhere((item) => item.id == widget.value!.id);
+      } catch (e) {
+        // Value not found in items, return null
+        return null;
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -67,7 +80,7 @@ class _CitySelectorState extends State<CitySelector> {
                     : null,
           ),
           child: DropdownButtonFormField<CityEntity>(
-            value: widget.value,
+            value: _getValidValue(),
             onChanged: widget.enabled ? widget.onChanged : null,
             decoration: InputDecoration(
               hintText: widget.label ?? 'Select city...',

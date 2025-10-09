@@ -29,7 +29,7 @@ class PatientEntity extends Equatable {
   @HiveField(8)
   final String? password;
   @HiveField(9)
-  final String address;
+  final String? address;
   @HiveField(10)
   final String? cityId;
   @HiveField(11)
@@ -39,7 +39,7 @@ class PatientEntity extends Equatable {
   @HiveField(13)
   final String? countryId;
   @HiveField(14)
-  final String pincode;
+  final String? pincode;
   @HiveField(15)
   final String? createdBy;
   @HiveField(16)
@@ -68,6 +68,10 @@ class PatientEntity extends Equatable {
   final LanguageEntity? language; // LanguageEntity
   @HiveField(27)
   final CityEntity? city; // CityEntity - added missing field
+  @HiveField(28)
+  final StateEntity? state;
+  @HiveField(29)
+  final CountryEntity? country;
 
   const PatientEntity({
     this.id,
@@ -78,10 +82,10 @@ class PatientEntity extends Equatable {
     required this.gender,
     this.dob,
     this.age,
-    required this.password,
-    required this.address,
+    this.password,
+    this.address,
     this.cityId,
-    required this.pincode,
+    this.pincode,
     this.createdBy,
     this.updatedBy,
     this.createdAt,
@@ -98,6 +102,8 @@ class PatientEntity extends Equatable {
     this.stateId,
     this.countryId,
     this.city,
+    this.state,
+    this.country,
   });
 
   factory PatientEntity.fromJson(Map<String, dynamic> json) {
@@ -143,6 +149,11 @@ class PatientEntity extends Equatable {
       stateId: json['stateId'],
       countryId: json['countryId'],
       city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
+      state: json['state'] != null ? StateEntity.fromJson(json['state']) : null,
+      country:
+          json['country'] != null
+              ? CountryEntity.fromJson(json['country'])
+              : null,
     );
   }
 
@@ -175,7 +186,6 @@ class PatientEntity extends Equatable {
       'districtId': districtId,
       'stateId': stateId,
       'countryId': countryId,
-      'city': city?.toJson(),
     };
   }
 
@@ -207,6 +217,8 @@ class PatientEntity extends Equatable {
     String? stateId,
     String? countryId,
     CityEntity? city,
+    StateEntity? state,
+    CountryEntity? country,
   }) {
     return PatientEntity(
       id: id ?? this.id,
@@ -237,6 +249,8 @@ class PatientEntity extends Equatable {
       stateId: stateId ?? this.stateId,
       countryId: countryId ?? this.countryId,
       city: city ?? this.city,
+      state: state ?? this.state,
+      country: country ?? this.country,
     );
   }
 
@@ -267,5 +281,7 @@ class PatientEntity extends Equatable {
     leadStatus,
     handledBy,
     city,
+    state,
+    country,
   ];
 }

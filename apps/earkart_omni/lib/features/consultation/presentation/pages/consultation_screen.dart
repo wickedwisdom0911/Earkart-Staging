@@ -802,6 +802,110 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     }
   }
 
+  Widget _buildSocketStatusButton() {
+    if (_socketReconnectFailed) {
+      // Retry button when connection failed
+      return GestureDetector(
+        onTap: _manualReconnect,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 32, minWidth: 80),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.red.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.red.shade200, width: 1.2),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.refresh, size: 16, color: Colors.red.shade700),
+              const SizedBox(width: 6),
+              Text(
+                'Retry',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red.shade700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else if (_isSocketInitialized) {
+      // System healthy button when connected
+      return GestureDetector(
+        onTap: () {
+          _showErrorSnackBar('System healthy - Connected to server');
+        },
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 32, minWidth: 100),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green.shade200, width: 1.2),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+              const SizedBox(width: 6),
+              Text(
+                'System healthy',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green.shade700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // System not connected button when connecting
+      return GestureDetector(
+        onTap: () {
+          _showErrorSnackBar('System not connected - Connecting to server...');
+        },
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 32, minWidth: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange.shade200, width: 1.2),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Colors.orange.shade700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'System not connected',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange.shade700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -813,35 +917,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         actions: [
-          // Show reconnect button when socket reconnection fails
-          if (_socketReconnectFailed)
-            IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.red),
-              tooltip: 'Reconnect to server',
-              onPressed: _manualReconnect,
-            ),
-          // Show connection status indicator
-          if (!_socketReconnectFailed)
-            IconButton(
-              icon: Icon(
-                _isSocketInitialized ? Icons.circle : Icons.circle_outlined,
-                color: _isSocketInitialized ? Colors.green : Colors.red,
-              ),
-              tooltip:
-                  _isSocketInitialized
-                      ? 'Connected to server'
-                      : 'Connecting to server...',
-              onPressed: () {
-                _showErrorSnackBar(
-                  _isSocketInitialized
-                      ? 'Connected to server'
-                      : 'Connecting to server...',
-                );
-              },
-            ),
-
-          // Device status is now shown globally in the main app overlay
-          const SizedBox.shrink(),
+          // Socket status button
+          _buildSocketStatusButton(),
+          const SizedBox(width: 8),
         ],
       ),
       body: MultiBlocListener(

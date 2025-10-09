@@ -56,9 +56,9 @@ class PatientModelData extends PatientEntity {
     super.dob,
     super.age,
     super.password,
-    required super.address,
-    required super.cityId,
-    required super.pincode,
+    super.address,
+    super.cityId,
+    super.pincode,
     super.createdBy,
     super.updatedBy,
     super.createdAt,
@@ -75,6 +75,8 @@ class PatientModelData extends PatientEntity {
     super.stateId,
     super.countryId,
     super.city,
+    super.state,
+    super.country,
   });
 
   factory PatientModelData.fromJson(Map<String, dynamic> json) {
@@ -120,6 +122,11 @@ class PatientModelData extends PatientEntity {
       stateId: json['stateId'],
       countryId: json['countryId'],
       city: json['city'] != null ? CityEntity.fromJson(json['city']) : null,
+      state: json['state'] != null ? StateEntity.fromJson(json['state']) : null,
+      country:
+          json['country'] != null
+              ? CountryEntity.fromJson(json['country'])
+              : null,
     );
   }
 
@@ -154,6 +161,8 @@ class PatientModelData extends PatientEntity {
       'stateId': stateId,
       'countryId': countryId,
       'city': city?.toJson(),
+      'state': state?.toJson(),
+      'country': country?.toJson(),
     };
   }
 }

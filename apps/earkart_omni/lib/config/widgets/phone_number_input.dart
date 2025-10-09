@@ -9,6 +9,7 @@ class PhoneNumberInput extends StatefulWidget {
   final String? title;
   final String? hint;
   final TextEditingController? controller;
+  final String? Function(String?)? validator;
 
   const PhoneNumberInput({
     super.key,
@@ -19,6 +20,7 @@ class PhoneNumberInput extends StatefulWidget {
     this.title,
     this.hint,
     this.controller,
+    this.validator,
   });
 
   @override
@@ -28,6 +30,7 @@ class PhoneNumberInput extends StatefulWidget {
 class _PhoneNumberInputState extends State<PhoneNumberInput> {
   bool _isFocused = false;
   late FocusNode _focusNode;
+  final GlobalKey<FormFieldState> _formFieldKey = GlobalKey<FormFieldState>();
 
   @override
   void initState() {
@@ -141,10 +144,12 @@ class _PhoneNumberInputState extends State<PhoneNumberInput> {
               // Phone Number Field
               Expanded(
                 child: TextFormField(
+                  key: _formFieldKey,
                   controller: widget.controller,
                   focusNode: _focusNode,
                   keyboardType: TextInputType.phone,
                   onChanged: widget.onPhoneNumberChanged,
+                  validator: widget.validator,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
@@ -188,12 +193,40 @@ class _PhoneNumberInputState extends State<PhoneNumberInput> {
                       ),
                       borderSide: BorderSide.none,
                     ),
+                    errorBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.only(
+                        topRight: Radius.circular(16),
+                        bottomRight: Radius.circular(16),
+                      ),
+                      borderSide: BorderSide(color: Colors.red, width: 1),
+                    ),
+                    focusedErrorBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.only(
+                        topRight: Radius.circular(16),
+                        bottomRight: Radius.circular(16),
+                      ),
+                      borderSide: BorderSide(color: Colors.red, width: 1.5),
+                    ),
                   ),
                 ),
               ),
             ],
           ),
         ),
+        // Error message display
+        if (widget.validator != null &&
+            _formFieldKey.currentState?.hasError == true)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, left: 4),
+            child: Text(
+              _formFieldKey.currentState?.errorText ?? '',
+              style: TextStyle(
+                color: Colors.red.shade600,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
       ],
     );
   }

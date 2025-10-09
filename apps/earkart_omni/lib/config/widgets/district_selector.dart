@@ -28,6 +28,19 @@ class DistrictSelector extends StatefulWidget {
 class _DistrictSelectorState extends State<DistrictSelector> {
   bool _isFocused = false;
 
+  DistrictEntity? _getValidValue() {
+    // Only return the value if it exists in the items list
+    if (widget.value != null && widget.items.isNotEmpty) {
+      try {
+        return widget.items.firstWhere((item) => item.id == widget.value!.id);
+      } catch (e) {
+        // Value not found in items, return null
+        return null;
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -67,7 +80,7 @@ class _DistrictSelectorState extends State<DistrictSelector> {
                     : null,
           ),
           child: DropdownButtonFormField<DistrictEntity>(
-            value: widget.value,
+            value: _getValidValue(),
             onChanged: widget.enabled ? widget.onChanged : null,
             decoration: InputDecoration(
               hintText: widget.label ?? 'Select district...',

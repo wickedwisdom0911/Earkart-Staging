@@ -1,92 +1,85 @@
 import 'package:flutter/material.dart';
 import 'package:earkart_omni/models/enums.dart';
 
-class GenderSelector extends StatefulWidget {
-  final Gender? value;
-  final ValueChanged<Gender?> onChanged;
-  final String? label;
+class AgeOrDobSelector extends StatefulWidget {
+  final AgeOrDob? value;
+  final ValueChanged<AgeOrDob?> onChanged;
   final String? title;
   final bool enabled;
   final String? errorText;
+  final bool hideAfterSelection;
 
-  const GenderSelector({
+  const AgeOrDobSelector({
     super.key,
     required this.value,
     required this.onChanged,
-    this.label,
     this.title,
     this.enabled = true,
     this.errorText,
+    this.hideAfterSelection = false,
   });
 
   @override
-  State<GenderSelector> createState() => _GenderSelectorState();
+  State<AgeOrDobSelector> createState() => _AgeOrDobSelectorState();
 }
 
-class _GenderSelectorState extends State<GenderSelector> {
-  String _genderToString(Gender gender) {
-    switch (gender) {
-      case Gender.male:
-        return 'Male';
-      case Gender.female:
-        return 'Female';
-      case Gender.other:
-        return 'Other';
+class _AgeOrDobSelectorState extends State<AgeOrDobSelector> {
+  String _ageOrDobToString(AgeOrDob ageOrDob) {
+    switch (ageOrDob) {
+      case AgeOrDob.age:
+        return 'Enter Age';
+      case AgeOrDob.dob:
+        return 'Enter Date of Birth';
     }
   }
 
-  Icon _genderIcon(Gender gender, {bool isSelected = false}) {
-    switch (gender) {
-      case Gender.male:
+  Icon _ageOrDobIcon(AgeOrDob ageOrDob, {bool isSelected = false}) {
+    switch (ageOrDob) {
+      case AgeOrDob.age:
         return Icon(
-          Icons.male_rounded,
-          color: isSelected ? Colors.blue.shade700 : Colors.grey.shade600,
+          Icons.cake_rounded,
+          color: isSelected ? Colors.orange.shade700 : Colors.grey.shade600,
           size: 20,
         );
-      case Gender.female:
+      case AgeOrDob.dob:
         return Icon(
-          Icons.female_rounded,
-          color: isSelected ? Colors.pink.shade700 : Colors.grey.shade600,
-          size: 20,
-        );
-      case Gender.other:
-        return Icon(
-          Icons.person_rounded,
-          color: isSelected ? Colors.grey.shade700 : Colors.grey.shade600,
+          Icons.calendar_today_rounded,
+          color: isSelected ? Colors.green.shade700 : Colors.grey.shade600,
           size: 20,
         );
     }
   }
 
-  Color _getGenderColor(Gender gender) {
+  Color _getAgeOrDobColor(AgeOrDob ageOrDob) {
     // Unselected state - always neutral
     return Colors.grey.shade50;
   }
 
-  Color _getGenderBorderColor(Gender gender) {
-    switch (gender) {
-      case Gender.male:
-        return Colors.blue.shade400;
-      case Gender.female:
-        return Colors.pink.shade400;
-      case Gender.other:
-        return Colors.grey.shade400;
+  Color _getAgeOrDobBorderColor(AgeOrDob ageOrDob) {
+    switch (ageOrDob) {
+      case AgeOrDob.age:
+        return Colors.orange.shade400;
+      case AgeOrDob.dob:
+        return Colors.green.shade400;
     }
   }
 
-  Color _getSelectedGenderColor(Gender gender) {
-    switch (gender) {
-      case Gender.male:
-        return Colors.blue.shade100;
-      case Gender.female:
-        return Colors.pink.shade100;
-      case Gender.other:
-        return Colors.grey.shade100;
+  Color _getSelectedAgeOrDobColor(AgeOrDob ageOrDob) {
+    switch (ageOrDob) {
+      case AgeOrDob.age:
+        return Colors.orange.shade100;
+      case AgeOrDob.dob:
+        return Colors.green.shade100;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // If hideAfterSelection is true and a value is selected, don't show the selector
+    if (widget.hideAfterSelection && widget.value != null) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -107,12 +100,14 @@ class _GenderSelectorState extends State<GenderSelector> {
         // Radio choice containers
         Row(
           children:
-              Gender.values.map((gender) {
-                final isSelected = widget.value == gender;
+              AgeOrDob.values.map((ageOrDob) {
+                final isSelected = widget.value == ageOrDob;
                 return Expanded(
                   child: GestureDetector(
                     onTap:
-                        widget.enabled ? () => widget.onChanged(gender) : null,
+                        widget.enabled
+                            ? () => widget.onChanged(ageOrDob)
+                            : null,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       curve: Curves.easeInOut,
@@ -126,13 +121,13 @@ class _GenderSelectorState extends State<GenderSelector> {
                       decoration: BoxDecoration(
                         color:
                             isSelected
-                                ? _getSelectedGenderColor(gender)
-                                : _getGenderColor(gender),
+                                ? _getSelectedAgeOrDobColor(ageOrDob)
+                                : _getAgeOrDobColor(ageOrDob),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color:
                               isSelected
-                                  ? _getGenderBorderColor(gender)
+                                  ? _getAgeOrDobBorderColor(ageOrDob)
                                   : Colors.grey.shade300,
                           width: isSelected ? 2.0 : 1.0,
                         ),
@@ -140,8 +135,8 @@ class _GenderSelectorState extends State<GenderSelector> {
                             isSelected
                                 ? [
                                   BoxShadow(
-                                    color: _getGenderBorderColor(
-                                      gender,
+                                    color: _getAgeOrDobBorderColor(
+                                      ageOrDob,
                                     ).withOpacity(0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
@@ -152,10 +147,10 @@ class _GenderSelectorState extends State<GenderSelector> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _genderIcon(gender, isSelected: isSelected),
+                          _ageOrDobIcon(ageOrDob, isSelected: isSelected),
                           const SizedBox(width: 8),
                           Text(
-                            _genderToString(gender),
+                            _ageOrDobToString(ageOrDob),
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight:
@@ -164,7 +159,7 @@ class _GenderSelectorState extends State<GenderSelector> {
                                       : FontWeight.w500,
                               color:
                                   isSelected
-                                      ? _getGenderBorderColor(gender)
+                                      ? _getAgeOrDobBorderColor(ageOrDob)
                                       : Colors.grey.shade500,
                             ),
                           ),

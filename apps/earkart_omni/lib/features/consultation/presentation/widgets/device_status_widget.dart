@@ -6,7 +6,9 @@ import 'package:earkart_omni/features/consultation/presentation/cubit/communicat
 import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
 
 class DeviceStatusWidget extends StatelessWidget {
-  const DeviceStatusWidget({super.key});
+  final double borderRadius;
+
+  const DeviceStatusWidget({super.key, this.borderRadius = 12.0});
 
   @override
   Widget build(BuildContext context) {
@@ -23,17 +25,17 @@ class DeviceStatusWidget extends StatelessWidget {
               children: [
                 Flexible(
                   child: _buildDeviceStatus(
-                    'R15C',
+                    'Audiometer',
                     r15cStatus,
                     Icons.hearing,
                     context,
                     commState,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Flexible(
                   child: _buildDeviceStatus(
-                    'Revo2',
+                    'Otoscope',
                     revo2Status,
                     Icons.videocam,
                     context,
@@ -131,11 +133,11 @@ class DeviceStatusWidget extends StatelessWidget {
     return Tooltip(
       message: tooltip + batteryInfo,
       child: Container(
-        constraints: const BoxConstraints(minWidth: 60, maxWidth: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: statusConfig.color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(borderRadius),
           border: Border.all(
             color: statusConfig.color.withOpacity(0.3),
             width: 1,
@@ -145,25 +147,30 @@ class DeviceStatusWidget extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 14, color: statusConfig.color),
-            const SizedBox(width: 3),
-            Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                color: statusConfig.color,
-                shape: BoxShape.circle,
+            Icon(icon, size: 16, color: statusConfig.color),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                deviceName,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: statusConfig.color,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            // Show battery indicator for R15C if connected and battery level is available
-            if (deviceName == 'R15C' &&
+            const SizedBox(width: 4),
+            Icon(_getStatusIcon(status), size: 14, color: statusConfig.color),
+            // Show battery indicator for Audiometer (R15C) if connected and battery level is available
+            if (deviceName == 'Audiometer' &&
                 commState.isConnected &&
                 commState.batteryLevel != null) ...[
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               _buildBatteryIndicator(
                 commState.batteryLevel!,
                 commState.isCharging ?? false,
-                size: 12,
+                size: 14,
               ),
             ],
           ],
@@ -197,11 +204,13 @@ class DeviceStatusWidget extends StatelessWidget {
               context.read<CommunicationCubit>().forceRefreshTabletBattery();
             },
             child: Container(
-              constraints: const BoxConstraints(minWidth: 40, maxWidth: 80),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.grey.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(
+                  borderRadius * 0.67,
+                ), // Slightly smaller for tablet battery
                 border: Border.all(
                   color: Colors.grey.withOpacity(0.3),
                   width: 1,
@@ -211,8 +220,12 @@ class DeviceStatusWidget extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.battery_std, size: 12, color: Colors.grey[600]),
-                  const SizedBox(width: 2),
+                  Icon(
+                    _getTabletBatteryIcon(level, isCharging),
+                    size: 14,
+                    color: _getTabletBatteryIconColor(level, isCharging),
+                  ),
+                  const SizedBox(width: 4),
                   // Show loading, battery indicator, or just icon based on state
                   if (isLoading)
                     SizedBox(
@@ -226,7 +239,7 @@ class DeviceStatusWidget extends StatelessWidget {
                       ),
                     )
                   else if (level != null)
-                    _buildBatteryIndicator(level, isCharging, size: 10),
+                    _buildBatteryIndicator(level, isCharging, size: 12),
                   // If level is null and not loading, show nothing (just the battery icon)
                 ],
               ),
@@ -286,6 +299,67 @@ class DeviceStatusWidget extends StatelessWidget {
         return StatusConfig(label: 'Error', color: Colors.red);
       case DeviceStatus.disconnected:
         return StatusConfig(label: 'Disconnected', color: Colors.grey);
+    }
+  }
+
+  IconData _getStatusIcon(DeviceStatus status) {
+    switch (status) {
+      case DeviceStatus.connected:
+        return Icons.check_circle;
+      case DeviceStatus.ready:
+        return Icons.check_circle;
+      case DeviceStatus.active:
+        return Icons.play_circle_filled;
+      case DeviceStatus.connecting:
+        return Icons.sync;
+      case DeviceStatus.syncing:
+        return Icons.sync;
+      case DeviceStatus.error:
+        return Icons.error;
+      case DeviceStatus.disconnected:
+        return Icons.cancel;
+    }
+  }
+
+  IconData _getTabletBatteryIcon(int? level, bool isCharging) {
+    if (isCharging) {
+      return Icons.battery_charging_full;
+    }
+
+    if (level == null) {
+      return Icons.battery_unknown;
+    }
+
+    if (level >= 90) {
+      return Icons.battery_full;
+    } else if (level >= 60) {
+      return Icons.battery_5_bar;
+    } else if (level >= 40) {
+      return Icons.battery_4_bar;
+    } else if (level >= 20) {
+      return Icons.battery_2_bar;
+    } else if (level >= 10) {
+      return Icons.battery_1_bar;
+    } else {
+      return Icons.battery_0_bar;
+    }
+  }
+
+  Color _getTabletBatteryIconColor(int? level, bool isCharging) {
+    if (isCharging) {
+      return Colors.green[600]!;
+    }
+
+    if (level == null) {
+      return Colors.grey[600]!;
+    }
+
+    if (level >= 50) {
+      return Colors.green[600]!;
+    } else if (level >= 20) {
+      return Colors.orange[600]!;
+    } else {
+      return Colors.red[600]!;
     }
   }
 }

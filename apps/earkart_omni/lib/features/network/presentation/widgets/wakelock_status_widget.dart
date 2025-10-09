@@ -4,8 +4,13 @@ import 'package:flutter/material.dart';
 /// Widget to display wakelock status
 class WakelockStatusWidget extends StatefulWidget {
   final bool showTooltip;
+  final double borderRadius;
 
-  const WakelockStatusWidget({super.key, this.showTooltip = true});
+  const WakelockStatusWidget({
+    super.key,
+    this.showTooltip = true,
+    this.borderRadius = 12.0,
+  });
 
   @override
   State<WakelockStatusWidget> createState() => _WakelockStatusWidgetState();
@@ -63,59 +68,65 @@ class _WakelockStatusWidgetState extends State<WakelockStatusWidget>
     }
   }
 
-  Widget _buildWakelockIcon(bool isEnabled) {
+  Widget _buildWakelockWidget(bool isEnabled) {
     final isForceEnabled = WakelockManager.isForceEnabled;
     return AnimatedBuilder(
       animation: _pulseAnimation,
       builder: (context, child) {
+        Color backgroundColor;
+        Color borderColor;
+        Color iconColor;
+
+        if (isEnabled) {
+          if (isForceEnabled) {
+            backgroundColor = Colors.green.shade50.withOpacity(
+              _pulseAnimation.value,
+            );
+            borderColor = Colors.green.shade100.withOpacity(
+              _pulseAnimation.value,
+            );
+            iconColor = Colors.green.shade600.withOpacity(
+              _pulseAnimation.value,
+            );
+          } else {
+            backgroundColor = Colors.amber.shade50.withOpacity(
+              _pulseAnimation.value,
+            );
+            borderColor = Colors.amber.shade100.withOpacity(
+              _pulseAnimation.value,
+            );
+            iconColor = Colors.amber.shade600.withOpacity(
+              _pulseAnimation.value,
+            );
+          }
+        } else {
+          backgroundColor = Colors.grey.shade50;
+          borderColor = Colors.grey.shade100;
+          iconColor = Colors.grey.shade600;
+        }
+
         return Container(
-          height: 20,
-          width: 20,
+          constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
-            color:
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+            border: Border.all(color: borderColor, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
                 isEnabled
                     ? isForceEnabled
-                        ? Colors.green.shade50.withOpacity(
-                          _pulseAnimation.value,
-                        )
-                        : Colors.amber.shade50.withOpacity(
-                          _pulseAnimation.value,
-                        )
-                    : Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color:
-                  isEnabled
-                      ? isForceEnabled
-                          ? Colors.green.shade400.withOpacity(
-                            _pulseAnimation.value,
-                          )
-                          : Colors.amber.shade300.withOpacity(
-                            _pulseAnimation.value,
-                          )
-                      : Colors.grey.shade300,
-              width: 1,
-            ),
-          ),
-          child: Center(
-            child: Icon(
-              isEnabled
-                  ? isForceEnabled
-                      ? Icons.security
-                      : Icons.lock_open
-                  : Icons.lock_outline,
-              size: 12,
-              color:
-                  isEnabled
-                      ? isForceEnabled
-                          ? Colors.green.shade700.withOpacity(
-                            _pulseAnimation.value,
-                          )
-                          : Colors.amber.shade700.withOpacity(
-                            _pulseAnimation.value,
-                          )
-                      : Colors.grey.shade500,
-            ),
+                        ? Icons.security
+                        : Icons.lock_open
+                    : Icons.lock_outline,
+                size: 14,
+                color: iconColor,
+              ),
+            ],
           ),
         );
       },
@@ -135,14 +146,14 @@ class _WakelockStatusWidgetState extends State<WakelockStatusWidget>
                     : 'Device is kept awake - Screen won\'t turn off'
                 : 'Device can sleep - Screen will turn off normally';
 
-        final iconWidget = _buildWakelockIcon(isEnabled);
+        final wakelockWidget = _buildWakelockWidget(isEnabled);
 
         // Only show tooltip if requested and overlay context is available
         if (widget.showTooltip && _hasOverlay()) {
-          return Tooltip(message: tooltipMessage, child: iconWidget);
+          return Tooltip(message: tooltipMessage, child: wakelockWidget);
         }
 
-        return iconWidget;
+        return wakelockWidget;
       },
     );
   }

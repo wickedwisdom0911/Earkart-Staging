@@ -1,4 +1,5 @@
 import 'package:earkart_omni/config/utils/hive_types.dart';
+import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:equatable/equatable.dart';
 import 'package:hive/hive.dart';
@@ -10,41 +11,56 @@ class DeviceEntity extends Equatable {
   @HiveField(0)
   final String id;
   @HiveField(1)
-  final String deviceCode;
+  final String? code;
   @HiveField(2)
-  final String? tabletID;
+  final int? codeSequence;
   @HiveField(3)
-  final String? deviceID;
+  final String? tabletID;
   @HiveField(4)
-  final String? tabletAppVersion;
+  final String? deviceID;
   @HiveField(5)
-  final String? centreId;
+  final String? otoscopeID;
   @HiveField(6)
-  final Status status;
+  final String? tabletAppVersion;
   @HiveField(7)
-  final DateTime createdAt;
+  final String? tabletAndroidVersion;
   @HiveField(8)
+  final String? centreId;
+  @HiveField(9)
+  final Status status;
+  @HiveField(10)
+  final DateTime createdAt;
+  @HiveField(11)
   final DateTime updatedAt;
+  @HiveField(12)
+  final CentreEntity? centre;
 
   const DeviceEntity({
     required this.id,
-    required this.deviceCode,
+    this.code,
+    this.codeSequence,
     this.tabletID,
     this.deviceID,
+    this.otoscopeID,
     this.tabletAppVersion,
+    this.tabletAndroidVersion,
     this.centreId,
     required this.status,
     required this.createdAt,
     required this.updatedAt,
+    this.centre,
   });
 
   factory DeviceEntity.fromJson(Map<String, dynamic> json) {
     return DeviceEntity(
       id: json['id'] ?? '',
-      deviceCode: json['deviceCode'] ?? '',
+      code: json['code'],
+      codeSequence: json['codeSequence'],
       tabletID: json['tabletID'],
       deviceID: json['deviceID'],
+      otoscopeID: json['otoscopeID'],
       tabletAppVersion: json['tabletAppVersion'],
+      tabletAndroidVersion: json['tabletAndroidVersion'],
       centreId: json['centreId'],
       status:
           json['status'] != null
@@ -58,55 +74,73 @@ class DeviceEntity extends Equatable {
           json['updatedAt'] != null
               ? DateTime.parse(json['updatedAt'])
               : DateTime.now(),
+      centre:
+          json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'deviceCode': deviceCode,
+      'code': code,
+      'codeSequence': codeSequence,
       'tabletID': tabletID,
       'deviceID': deviceID,
+      'otoscopeID': otoscopeID,
       'tabletAppVersion': tabletAppVersion,
+      'tabletAndroidVersion': tabletAndroidVersion,
       'centreId': centreId,
       'status': status.name.toUpperCase(),
+      'centre': centre?.toJson(),
     };
   }
 
   DeviceEntity copyWith({
     String? id,
-    String? deviceCode,
+    String? code,
+    int? codeSequence,
     String? tabletID,
     String? deviceID,
+    String? otoscopeID,
     String? tabletAppVersion,
+    String? tabletAndroidVersion,
     String? centreId,
     Status? status,
     DateTime? createdAt,
     DateTime? updatedAt,
+    CentreEntity? centre,
   }) {
     return DeviceEntity(
       id: id ?? this.id,
-      deviceCode: deviceCode ?? this.deviceCode,
+      code: code ?? this.code,
+      codeSequence: codeSequence ?? this.codeSequence,
       tabletID: tabletID ?? this.tabletID,
       deviceID: deviceID ?? this.deviceID,
+      otoscopeID: otoscopeID ?? this.otoscopeID,
       tabletAppVersion: tabletAppVersion ?? this.tabletAppVersion,
+      tabletAndroidVersion: tabletAndroidVersion ?? this.tabletAndroidVersion,
       centreId: centreId ?? this.centreId,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      centre: centre ?? this.centre,
     );
   }
 
   @override
   List<Object?> get props => [
     id,
-    deviceCode,
+    code,
+    codeSequence,
     tabletID,
     deviceID,
+    otoscopeID,
     tabletAppVersion,
+    tabletAndroidVersion,
     centreId,
     status,
     createdAt,
     updatedAt,
+    centre,
   ];
 }
