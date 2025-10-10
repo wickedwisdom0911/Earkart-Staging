@@ -24,6 +24,7 @@ import {
 import { TestStatus, Ear, TympType } from "@/models/enums";
 import { toast } from "sonner";
 import { ROUTES } from "@/lib/routes";
+import StickyReportNavigation from "@/components/ui/StickyReportNavigation";
 
 interface TympanogramPoint {
   pressure: number;
@@ -489,6 +490,23 @@ export default function TympanometryPage() {
     currentPressure,
     currentCompliance,
   });
+
+  // Since there is no screen share on this page, these are placeholders
+  const isScreenSharing = false;
+  const isScreenConnecting = false;
+  const isShowingReport = false;
+  const handleShowReport = () => {
+    // Placeholder for if screen sharing is added later
+    toast.info("This page does not have a screen sharing feature.");
+  };
+
+  const handleDoAnotherTest = () => {
+    router.push(ROUTES.CONSULTATION_TEST_SELECTION(params.consultationId as string));
+  };
+
+  const handleEndConsultation = () => {
+    router.push(`/consultation/${params.consultationId}/end-consultation`);
+  };
 
   return (
     <div className="p-6 lg:pr-80">
@@ -1121,6 +1139,16 @@ export default function TympanometryPage() {
           pressureMin={pressureMin}
           complianceMax={complianceMax}
           complianceMin={complianceMin}
+        />
+
+        <StickyReportNavigation
+          isScreenConnecting={isScreenConnecting}
+          isScreenSharing={isScreenSharing}
+          isShowingReport={isShowingReport}
+          onToggleShowReport={handleShowReport}
+          onShare={() => toast.info("Sharing is available from the report page.")}
+          onDoAnotherTest={handleDoAnotherTest}
+          onEndConsultation={handleEndConsultation}
         />
 
         {/* Tymp Type Selection (hidden on large screens) */}
