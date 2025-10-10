@@ -1,6 +1,7 @@
 {
   "name": "omni_frontend",
   "private": true,
+  "version": "1.0.1",
   "scripts": {
     "build": "NEXT_IGNORE_TYPE_ERRORS=true NEXTJS_SKIP_ESLINT=1 next build",
     "dev": "turbo run dev",

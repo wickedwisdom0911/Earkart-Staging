@@ -459,12 +459,13 @@ export default function PureTonePage() {
 
   // Emit masking-signal to backend with frequency, level (masking), signal (on/off), and earSide
   const sendMaskingSignal = useCallback(
-    (signal: boolean) => {
+    (signal: boolean, levelOverride?: number) => {
       if (!socket) return;
+      const levelToUse = levelOverride !== undefined ? levelOverride : maskingLevel;
       socket.emit("masking-signal", {
         consultationId: consultationId,
         frequency: selectedFrequency,
-        level: maskingLevel,
+        level: levelToUse,
         signal,
         earSide: selectedEar,
       });
@@ -601,9 +602,10 @@ export default function PureTonePage() {
       _sendAudiometrySignal();
     }
 
-    // If masking is active, (re)send masking signal with updated level
+    // If masking is active, update with the new level directly
     if (isMasking) {
-      sendMaskingSignal(true);
+      // Send masking signal with the new level immediately
+      sendMaskingSignal(true, level);
     }
   };
 

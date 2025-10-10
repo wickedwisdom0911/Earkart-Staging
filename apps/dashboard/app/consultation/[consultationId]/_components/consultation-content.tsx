@@ -112,7 +112,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
             patientName={patientName}
             isFullscreen={true}
             onBeforeLeaveCall={onBeforeLeaveCall}
-            delay={800} // 800ms delay for device to start camera
+            delay={1500} // 1500ms delay for device to start screen share
           />
         </div>
 
