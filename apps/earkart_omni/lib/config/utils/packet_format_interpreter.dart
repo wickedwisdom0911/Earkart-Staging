@@ -35,35 +35,24 @@ class PacketFormatInterpreter {
 
   /// Constructs a packet from a JSON payload
   Uint8List constructPacket(Map<String, dynamic> jsonPayload) {
-    _log('=== Starting Packet Construction ===');
-
     // Ensure JSON is properly enclosed in curly braces
     List<int> jsonBytes = utf8.encode(jsonEncode(jsonPayload));
-    // _log('JSON bytes: ${_bytesToHex(jsonBytes)}');
 
     // Create payload with null terminator
     List<int> payload = [...jsonBytes, 0x00];
-    // _log('Payload with null terminator: ${_bytesToHex(payload)}');
 
     // Calculate length (big-endian)
     int lengthHigh = (payload.length >> 8) & 0xFF;
     int lengthLow = payload.length & 0xFF;
-    // _log(
-    //   'Payload length: ${payload.length} (High: 0x${lengthHigh.toRadixString(16)}, Low: 0x${lengthLow.toRadixString(16)})',
-    // );
 
     int crc = calcCRC(payload);
-    // _log('Calculated CRC: 0x${crc.toRadixString(16)}');
 
     List<int> packet = [Stk, 0x42, lengthHigh, lengthLow, ...payload, crc, Etk];
 
     // Apply USB 512-byte buffer fix
     _applyUsbBufferFix(packet, context: 'JSON packet');
 
-    // _log('Final packet: ${_bytesToHex(packet)}');
-    _log('=== Packet Construction Complete ===\n');
     _log('[USB] Sent: ${jsonEncode(jsonPayload)}');
-    _log('[USB] Packet size: ${packet.length} bytes');
 
     return Uint8List.fromList(packet);
   }
@@ -74,9 +63,6 @@ class PacketFormatInterpreter {
     for (var byte in buf) {
       crc ^= byte;
     }
-    // _log(
-    //   'CRC calculation for ${_bytesToHex(buf)} = 0x${crc.toRadixString(16)}',
-    // );
     return crc;
   }
 
@@ -129,30 +115,16 @@ class PacketFormatInterpreter {
 
   /// Process incoming data and parse valid packets
   List<int>? onListenerDataReady(List<int> buffer) {
-    _log('=== Starting Data Processing ===');
-    // _log('Received buffer: ${_bytesToHex(buffer)}');
-    // _log('Buffer length: ${buffer.length} bytes');
-
-    if (_cache.isNotEmpty) {
-      // _log('Current cache: ${_bytesToHex(_cache)}');
-      _log('Cache length: ${_cache.length} bytes');
-    }
-
     if (buffer.isEmpty) {
-      _log('Empty buffer received');
       return null;
     }
 
     try {
       List<int> combinedBuffer = [..._cache, ...buffer];
-      // _log('Combined buffer with cache: ${_bytesToHex(combinedBuffer)}');
-      // _log('Combined buffer length: ${combinedBuffer.length} bytes');
       _cache.clear();
-      _log('Cache cleared');
 
       var position = 0;
       do {
-        // _log('\nProcessing at position: $position');
         int bytesToStk = 0;
         int packetLength = 0;
 
@@ -163,43 +135,29 @@ class PacketFormatInterpreter {
           bytesToStk++;
         }
 
-        // _log('Bytes to STK: $bytesToStk');
-        // _log('Found STK at position: $position');
-
         if (position >= combinedBuffer.length) {
-          _log('No STK found, caching entire buffer');
           _cache = List<int>.from(combinedBuffer);
-          _log('New cache content: ${_bytesToHex(_cache)}');
           return null;
         }
 
         // Check if we have enough bytes for the length field
         if (position + 4 > combinedBuffer.length) {
-          // _log('Insufficient bytes for length field, caching from STK');
           _cache = List<int>.from(combinedBuffer.sublist(position));
-          // _log('Cached data: ${_bytesToHex(_cache)}');
           return null;
         }
 
         // Get payload length
         int payloadLength =
             (combinedBuffer[position + 2] << 8) | combinedBuffer[position + 3];
-        _log('Payload length from packet: $payloadLength bytes');
-        _log('Total expected packet length: ${payloadLength + 6} bytes');
 
         if (position + payloadLength + 6 > combinedBuffer.length) {
-          _log('Insufficient bytes for complete packet, caching from STK');
-          _log('Position: $position, Buffer length: ${combinedBuffer.length}');
           _cache = List<int>.from(combinedBuffer.sublist(position));
-          // _log('Cached data: ${_bytesToHex(_cache)}');
           return null;
         }
 
         // Check for end token
         if (combinedBuffer[position + payloadLength + 5] != Etk) {
-          // _log('No ETK found at expected position, caching from STK');
           _cache = List<int>.from(combinedBuffer.sublist(position));
-          // _log('Cached data: ${_bytesToHex(_cache)}');
           return null;
         }
 
@@ -211,18 +169,15 @@ class PacketFormatInterpreter {
 
         if (result['valid'] == true) {
           packetLength = result['packetLength'];
-          _log('Valid packet found, length: $packetLength');
 
           var packet = combinedBuffer.sublist(
             position,
             position + packetLength,
           );
-          // _log('Extracted valid packet: ${_bytesToHex(packet)}');
 
           // Return first valid packet immediately
           return onIncomingData(packet);
         } else {
-          _log('Invalid packet at position $position');
           position++;
         }
       } while (position < combinedBuffer.length);
@@ -236,61 +191,35 @@ class PacketFormatInterpreter {
 
   /// Validate buffer and return packet information
   Map<String, dynamic> isBufferValid(List<int> buffer) {
-    _log('=== Starting Buffer Validation ===');
-    // _log('Buffer to validate: ${_bytesToHex(buffer)}');
-    // _log('Buffer length: ${buffer.length} bytes');
-
     try {
       if (buffer.isEmpty || buffer.length < 4) {
-        _log('Buffer too short (${buffer.length} bytes), minimum 4 required');
         return {'valid': false, 'packetLength': 0};
       }
 
       // Get payload length (big-endian)
       int payloadLength = (buffer[2] << 8) | buffer[3];
-      //       _log('''
-      // Decoded length details:
-      // - Raw bytes: High=0x${buffer[2].toRadixString(16)}, Low=0x${buffer[3].toRadixString(16)}
-      // - Calculated length: $payloadLength
-      // ''');
 
       if (payloadLength < 0 || payloadLength > 65535) {
-        _log('Invalid payload length: $payloadLength');
         return {'valid': false, 'packetLength': 0};
       }
 
       int totalLength = payloadLength + 6;
-      _log('Expected total packet length: $totalLength');
 
       if (totalLength > buffer.length) {
-        _log('Buffer too short: has ${buffer.length}, needs $totalLength');
         return {'valid': false, 'packetLength': 0};
       }
 
       if (buffer[0] != Stk || buffer[totalLength - 1] != Etk) {
-        _log('''
-Invalid tokens:
-- STK: Expected=0x4B, Got=0x${buffer[0].toRadixString(16)}
-- ETK: Expected=0x6B, Got=0x${buffer[totalLength - 1].toRadixString(16)}
-''');
         return {'valid': false, 'packetLength': 0};
       }
 
       try {
         List<int> payload = buffer.sublist(4, 4 + payloadLength);
-        // _log('Extracted payload: ${_bytesToHex(payload)}');
-        // _log('Payload length: ${payload.length} bytes');
 
         int expectedCrc = buffer[totalLength - 2];
         int calculatedCrc = calcCRC(payload);
-        //         _log('''
-        // CRC Validation:
-        // - Expected: 0x${expectedCrc.toRadixString(16)}
-        // - Calculated: 0x${calculatedCrc.toRadixString(16)}
-        // ''');
 
         if (calculatedCrc != expectedCrc) {
-          _log('CRC mismatch');
           return {'valid': false, 'packetLength': 0};
         }
       } catch (e) {
@@ -298,8 +227,6 @@ Invalid tokens:
         return {'valid': false, 'packetLength': 0};
       }
 
-      _log('Buffer validation successful');
-      _log('=== Validation Complete ===\n');
       return {'valid': true, 'packetLength': totalLength};
     } catch (e) {
       _log('Error in buffer validation: $e');
@@ -309,12 +236,18 @@ Invalid tokens:
 
   /// Handle incoming validated packet
   List<int> onIncomingData(List<int> packet) {
-    // _log('''
-    // === Processing Valid Packet ===
-    // - Full packet: ${_bytesToHex(packet)}
-    // - Length: ${packet.length}
-    // ''');
-    _log('=== Processing Complete ===\n');
+    // Extract and log the received payload
+    List<int>? payload = extractPayload(packet);
+    if (payload != null) {
+      try {
+        String payloadString = utf8.decode(payload);
+        _log('[USB] Received: $payloadString');
+      } catch (e) {
+        _log(
+          '[USB] Received: ${payload.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ')}',
+        );
+      }
+    }
     return packet;
   }
 
@@ -322,37 +255,26 @@ Invalid tokens:
   /// Returns null if the packet is invalid or too short
   List<int>? extractPayload(List<int> packet) {
     try {
-      _log('Attempting to extract payload from packet');
-
       // Check minimum packet length (STK + ID + LEN_LOW + LEN_HIGH + payload + CRC + ETK)
       if (packet.length < 7) {
-        _log('Packet too short: ${packet.length} bytes');
         return null;
       }
 
       // Verify start and end tokens
       if (packet[0] != Stk) {
-        _log('Invalid start token: 0x${packet[0].toRadixString(16)}');
         return null;
       }
 
       if (packet[packet.length - 1] != Etk) {
-        _log(
-          'Invalid end token: 0x${packet[packet.length - 1].toRadixString(16)}',
-        );
         return null;
       }
 
       // Extract payload length (big endian)
       int payloadLength = (packet[2] << 8) | packet[3]; // Changed to big-endian
-      _log('Decoded payload length: $payloadLength');
 
       // Verify packet length matches expected total length
       int expectedTotalLength =
           payloadLength + 6; // Header(4) + CRC(1) + ETK(1)
-      _log(
-        'Expected total length: $expectedTotalLength, Actual length: ${packet.length}',
-      );
 
       // Check for USB buffer fix (null byte after 512-byte packets)
       bool hasUsbBufferFix =
@@ -360,36 +282,24 @@ Invalid tokens:
           packet[packet.length - 1] == 0x00;
 
       if (packet.length != expectedTotalLength && !hasUsbBufferFix) {
-        _log(
-          'Length mismatch: Expected $expectedTotalLength, got ${packet.length}',
-        );
         return null;
       }
 
       // Extract just the payload (skipping header bytes and trailing CRC/ETK)
       if (4 + payloadLength > packet.length) {
-        _log('Payload bounds would exceed packet length');
         return null;
       }
 
       List<int> payload = packet.sublist(4, 4 + payloadLength);
-      // print(
-      //   'Extracted payload: ${payload.map((byte) => '0x${byte.toRadixString(16).padLeft(2, '0')}').join(' ')}',
-      // );
 
       // Verify CRC before returning payload
       int expectedCrc = packet[packet.length - 2];
       int calculatedCrc = calcCRC(payload);
-      // print(
-      //   'CRC check - Expected: 0x${expectedCrc.toRadixString(16)}, Calculated: 0x${calculatedCrc.toRadixString(16)}',
-      // );
 
       if (calculatedCrc != expectedCrc) {
-        _log('CRC mismatch');
         return null;
       }
 
-      _log('Successfully extracted payload of length: ${payload.length}');
       return payload;
     } catch (e) {
       _log('Error extracting payload: $e');
@@ -397,16 +307,9 @@ Invalid tokens:
     }
   }
 
-  /// Helper method to convert bytes to readable hex string
-  String _bytesToHex(List<int> bytes) {
-    if (bytes.isEmpty) return "[]";
-    return '[${bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(', ')}]';
-  }
-
   /// Clear the internal cache of incomplete packets
   void clearCache() {
     _cache.clear();
-    _log('Cache cleared');
   }
 
   /// Apply USB 512-byte buffer fix to prevent packets from getting stuck
@@ -414,9 +317,6 @@ Invalid tokens:
   void _applyUsbBufferFix(List<int> packet, {String context = 'packet'}) {
     if (packet.length == 512) {
       packet.add(0x00); // Add null byte after the complete packet
-      _log(
-        'Added null byte after $context to avoid 512-byte USB buffer issue (now ${packet.length} bytes)',
-      );
     }
   }
 }

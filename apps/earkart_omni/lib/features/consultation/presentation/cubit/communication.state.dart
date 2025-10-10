@@ -25,6 +25,8 @@ class CommunicationState with _$CommunicationState {
     ImpedanceStatus? impedanceStatus,
     ImpedanceData? impedanceData,
     @Default(false) bool isNewImpedanceData,
+    // R15C device serial number
+    String? r15cSerialNumber,
     String? error,
   }) = _CommunicationState;
 }

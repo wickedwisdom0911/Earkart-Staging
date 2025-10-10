@@ -21,9 +21,13 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
       emit(const DeviceRegistrationState.loading());
       final device = await getCurrentDeviceUsecase();
       if (device != null) {
-        emit(DeviceRegistrationState.success(device: device));
+        emit(DeviceRegistrationState.localDeviceFetched(device: device));
       } else {
-        emit(const DeviceRegistrationState.error(message: "Device not found"));
+        emit(
+          const DeviceRegistrationState.error(
+            message: "This Device is not Registered or synced properly!",
+          ),
+        );
       }
     } catch (e) {
       emit(DeviceRegistrationState.error(message: e.toString()));
@@ -35,7 +39,7 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
     try {
       final device = await getDeviceByValueUsecase(value);
       if (device != null) {
-        emit(DeviceRegistrationState.success(device: device));
+        emit(DeviceRegistrationState.getByValueSuccess(device: device));
       } else {
         emit(const DeviceRegistrationState.error(message: "Device not found"));
       }
@@ -44,10 +48,24 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
     }
   }
 
-  Future<void> setupDevice(DeviceEntity deviceData) async {
+  Future<void> setupDevice(
+    DeviceEntity deviceData, {
+    String? r15cSerialNumber,
+    String? tabletID,
+    String? tabletAndroidVersion,
+    String? tabletAppVersion,
+  }) async {
     emit(const DeviceRegistrationState.loading());
     try {
-      final device = await setupDeviceUsecase(deviceData);
+      // Create updated device entity with local device information
+      final updatedDevice = deviceData.copyWith(
+        deviceID: r15cSerialNumber,
+        tabletID: tabletID,
+        tabletAndroidVersion: tabletAndroidVersion,
+        tabletAppVersion: tabletAppVersion,
+      );
+
+      final device = await setupDeviceUsecase(updatedDevice);
       if (device != null) {
         emit(DeviceRegistrationState.success(device: device));
       } else {
@@ -60,5 +78,9 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
     } catch (e) {
       emit(DeviceRegistrationState.error(message: e.toString()));
     }
+  }
+
+  void resetToInitial() {
+    emit(const DeviceRegistrationState.initial());
   }
 }

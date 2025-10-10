@@ -2,6 +2,8 @@ import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/features/device/presentation/cubit/device_registration.cubit.dart';
 import 'package:earkart_omni/features/device/presentation/cubit/device_registration.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +37,8 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
   void initState() {
     super.initState();
     _getDeviceInfo();
+    // Load current device information
+    context.read<DeviceRegistrationCubit>().getCurrentDevice();
   }
 
   Future<void> _getDeviceInfo() async {
@@ -91,7 +95,7 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w600,
-            color: Colors.white,
+            color: Colors.black87,
           ),
         ),
       ),
@@ -191,20 +195,38 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
             );
           }
 
-          if (state is DeviceRegistrationSuccess && state.device != null) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCentreInfoSection(state.device!),
-                  const SizedBox(height: 16),
-                  _buildDeviceTechnicalDetailsSection(state.device!),
-                  const SizedBox(height: 16),
-                  _buildLocalDeviceInfoSection(state.device!),
-                  const SizedBox(height: 16),
-                ],
-              ),
+          // Handle different success states
+          DeviceEntity? device;
+          if (state is DeviceRegistrationGetByValueSuccess) {
+            device = state.device;
+          } else if (state is DeviceRegistrationLocalDeviceFetched) {
+            device = state.device;
+          } else if (state is DeviceRegistrationSuccess) {
+            device = state.device;
+          }
+
+          if (device != null) {
+            final currentDevice = device;
+            return BlocBuilder<CommunicationCubit, CommunicationState>(
+              builder: (context, communicationState) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildCentreInfoSection(currentDevice),
+                      const SizedBox(height: 16),
+                      _buildDeviceTechnicalDetailsSection(
+                        currentDevice,
+                        communicationState,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildLocalDeviceInfoSection(currentDevice),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                );
+              },
             );
           }
 
@@ -392,7 +414,10 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
     );
   }
 
-  Widget _buildDeviceTechnicalDetailsSection(DeviceEntity device) {
+  Widget _buildDeviceTechnicalDetailsSection(
+    DeviceEntity device,
+    CommunicationState communicationState,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -448,12 +473,13 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
               device.tabletID!,
               Icons.tablet_android_rounded,
             ),
-          if (device.deviceID != null)
-            _buildModernInfoRow(
-              'Audiometer ID',
-              device.deviceID!,
-              Icons.hearing_rounded,
-            ),
+          _buildModernInfoRow(
+            'Audiometer ID',
+            device.deviceID ??
+                communicationState.r15cSerialNumber ??
+                'Not Connected',
+            Icons.hearing_rounded,
+          ),
           if (device.otoscopeID != null)
             _buildModernInfoRow(
               'Otoscope ID',

@@ -29,6 +29,7 @@ import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/release_config.dart';
 import 'package:earkart_omni/config/widgets/app_loading_screen.dart';
 import 'package:earkart_omni/config/utils/error_handler.dart';
+import 'package:earkart_omni/config/utils/custom_logger.dart';
 
 class RootScreen extends StatefulWidget {
   static const routeName = '/';
@@ -38,7 +39,7 @@ class RootScreen extends StatefulWidget {
   State<RootScreen> createState() => _RootScreenState();
 }
 
-class _RootScreenState extends State<RootScreen> {
+class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
   bool checkedCentre = false;
   bool checkedPatient = false;
   bool checkedConsultation = false;
@@ -55,15 +56,13 @@ class _RootScreenState extends State<RootScreen> {
   @override
   void initState() {
     super.initState();
-
-    print('🚀 RootScreen initState - Starting initialization');
+    WidgetsBinding.instance.addObserver(this);
 
     // Setup loading timeout timer
     _setupLoadingTimeout();
 
     // Only check device registration first - no other APIs until device is registered
     context.read<DeviceRegistrationCubit>().getCurrentDevice();
-    print('📞 Called getCurrentDevice() - Device registration check only');
 
     // Grant permissions immediately since app is always device owner
     _grantPermissionsImmediately();
@@ -72,14 +71,10 @@ class _RootScreenState extends State<RootScreen> {
   void _setupLoadingTimeout() {
     _loadingTimeoutTimer = Timer(const Duration(seconds: 8), () {
       if (mounted && !checkedDevice) {
-        print('⏰ Loading timeout reached! Force completing device check');
-        print('   checkedDevice: $checkedDevice');
-
         setState(() {
           // Force complete device check only
           checkedDevice = true;
           device = null;
-          print('   ⚠️ Forced checkedDevice to true due to timeout');
         });
       }
     });
@@ -87,7 +82,6 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _grantPermissionsImmediately() async {
     // Since app is always device owner, auto-grant all permissions by default
-    print('🎯 App is device owner - auto-granting all permissions by default');
     await DeviceOwnerHelper.grantAllPermissions();
 
     // Print permission status for debugging
@@ -100,16 +94,12 @@ class _RootScreenState extends State<RootScreen> {
 
     // Check permissions again after a delay to see if they were properly granted
     Future.delayed(const Duration(seconds: 2), () async {
-      print('🔄 Re-checking permissions after delay...');
       await DeviceOwnerHelper.printPermissionSummary();
     });
 
     // Fallback: If for some reason device owner check fails, try normal permission flow
     final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
     if (!isDeviceOwner) {
-      print(
-        '⚠️ Unexpected: App is not device owner - using fallback permission flow',
-      );
       await _requestPermissionsAsFallback();
     }
   }
@@ -138,7 +128,6 @@ class _RootScreenState extends State<RootScreen> {
     try {
       // Check if device monitoring is enabled in release mode
       if (!ReleaseConfig.enableDeviceMonitoring) {
-        print('⚠️ Device monitoring is disabled in release mode');
         return;
       }
 
@@ -158,21 +147,46 @@ class _RootScreenState extends State<RootScreen> {
       // Force initial network check
       final networkCubit = di<NetworkCubit>();
       networkCubit.forceNetworkCheck();
-
-      print('✅ Global device monitoring started successfully');
-      print('✅ Global network monitoring started successfully');
     } catch (e) {
       // Log error but don't crash the app
-      print('Error starting global device monitoring: $e');
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // Cancel loading timeout timer
     _loadingTimeoutTimer?.cancel();
     _loadingTimeoutTimer = null;
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      // Close USB connections when app goes to background
+      try {
+        context.read<CommunicationCubit>().resetState();
+        di<ILogger>().info(
+          'USB connections closed due to app lifecycle change',
+        );
+      } catch (e) {
+        di<ILogger>().error(
+          'Error closing USB connections on lifecycle change: $e',
+        );
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      // Reinitialize devices when app comes back to foreground
+      try {
+        context.read<DeviceCubit>().forceDeviceCheck();
+        di<ILogger>().info('Device check triggered on app resume');
+      } catch (e) {
+        di<ILogger>().error('Error reinitializing devices on app resume: $e');
+      }
+    }
   }
 
   void _showPermissionDialog() {
@@ -208,22 +222,15 @@ class _RootScreenState extends State<RootScreen> {
       listeners: [
         BlocListener<AuthCubit, AuthState>(
           listener: (context, state) {
-            print('🔐 AuthCubit state changed: ${state.runtimeType}');
-
             if (state is AuthSuccess) {
-              print('✅ AuthSuccess - User: ${state.user?.email ?? 'null'}');
               setState(() {
                 checkedUser = true;
                 user = state.user;
               });
               // Only call getCentre after we have user data
               if (state.user != null) {
-                print('📞 Calling getCentre() for user: ${state.user!.email}');
                 context.read<AuthCubit>().getCentre();
               } else {
-                print(
-                  '⚠️ User is null, but there might be stale data - forcing logout',
-                );
                 // If no user but there's other data, force a logout to clear everything
                 setState(() {
                   checkedUser = true;
@@ -233,33 +240,23 @@ class _RootScreenState extends State<RootScreen> {
                 });
 
                 // Force logout to clear all data
-                print('🔐 Forcing logout due to null user with stale data');
                 context.read<AuthCubit>().logout();
               }
             }
             if (state is AuthCentreSuccess) {
-              print(
-                '✅ AuthCentreSuccess - Centre: ${state.centre?.entName ?? 'null'}',
-              );
               setState(() {
                 checkedCentre = true;
                 centre = state.centre;
               });
               // Now that we have centre data, we can safely call getCurrentConsultation
               if (state.centre != null) {
-                print(
-                  '📞 Calling getCurrentConsultation() for centre: ${state.centre!.entName}',
-                );
                 context.read<ConsultationCubit>().getCurrentConsultation();
-              } else {
-                print('⚠️ Centre is null, not calling getCurrentConsultation');
               }
             } else if (state is AuthError ||
                 state is AuthInitial ||
                 state is AuthCentreError ||
                 state is AuthLoggedOut) {
               if (state is AuthError) {
-                print('❌ Auth Error: ${state.message}');
                 ErrorHandler.handleAuthError(context, state.message);
                 // If user auth fails, mark all as checked with null
                 setState(() {
@@ -269,24 +266,16 @@ class _RootScreenState extends State<RootScreen> {
                   centre = null;
                 });
                 // Also call getCurrentConsultation to complete the loading cycle
-                print(
-                  '📞 Calling getCurrentConsultation() after auth error to complete loading',
-                );
                 context.read<ConsultationCubit>().getCurrentConsultation();
               } else if (state is AuthCentreError) {
-                print('❌ Centre Error: ${state.message}');
                 ErrorHandler.handleCentreError(context, state.message);
                 setState(() {
                   checkedCentre = true;
                   centre = null;
                 });
                 // Also call getCurrentConsultation to complete the loading cycle
-                print(
-                  '📞 Calling getCurrentConsultation() after centre error to complete loading',
-                );
                 context.read<ConsultationCubit>().getCurrentConsultation();
               } else if (state is AuthLoggedOut) {
-                print('🚪 User logged out - navigating to login screen');
                 setState(() {
                   checkedUser = true;
                   checkedCentre = true;
@@ -294,35 +283,24 @@ class _RootScreenState extends State<RootScreen> {
                   centre = null;
                 });
                 // Navigate to login screen when user is logged out
-                print('🔐 Navigating to login screen due to logout');
                 Navigator.pushNamedAndRemoveUntil(
                   context,
                   '/login',
                   (route) => false,
                 );
               } else if (state is AuthInitial) {
-                print('🔄 AuthInitial state - this might indicate a problem');
                 setState(() {
                   checkedCentre = true;
                   centre = null;
                 });
                 // Also call getCurrentConsultation to complete the loading cycle
-                print(
-                  '📞 Calling getCurrentConsultation() after AuthInitial to complete loading',
-                );
                 context.read<ConsultationCubit>().getCurrentConsultation();
               } else {
-                print(
-                  '⚠️ Unknown auth state, marking centre as checked with null',
-                );
                 setState(() {
                   checkedCentre = true;
                   centre = null;
                 });
                 // Also call getCurrentConsultation to complete the loading cycle
-                print(
-                  '📞 Calling getCurrentConsultation() after unknown auth state to complete loading',
-                );
                 context.read<ConsultationCubit>().getCurrentConsultation();
               }
             }
@@ -330,22 +308,12 @@ class _RootScreenState extends State<RootScreen> {
         ),
         BlocListener<PatientCubit, PatientState>(
           listener: (context, state) {
-            print('🏥 PatientCubit state changed: ${state.runtimeType}');
-
             if (state is CurrentPatientSuccess) {
-              print(
-                '✅ CurrentPatientSuccess - Patient: ${state.patient != null ? state.patient!.name : 'null'}',
-              );
               setState(() {
                 checkedPatient = true;
                 patient = state.patient;
               });
             } else if (state is PatientError || state is PatientInitial) {
-              if (state is PatientError) {
-                print('❌ Patient Error: ${state.message}');
-              } else {
-                print('🔄 PatientInitial state');
-              }
               setState(() {
                 checkedPatient = true;
                 patient = null;
@@ -355,12 +323,7 @@ class _RootScreenState extends State<RootScreen> {
         ),
         BlocListener<ConsultationCubit, ConsultationState>(
           listener: (context, state) {
-            print('💬 ConsultationCubit state changed: ${state.runtimeType}');
-
             if (state is CurrentConsultationSuccess) {
-              print(
-                '✅ CurrentConsultationSuccess - Consultation: ${state.consultation.id}',
-              );
               setState(() {
                 checkedConsultation = true;
                 consultation = state.consultation;
@@ -368,10 +331,7 @@ class _RootScreenState extends State<RootScreen> {
             } else if (state is ConsultationError ||
                 state is ConsultationInitial) {
               if (state is ConsultationError) {
-                print('❌ Consultation Error: ${state.message}');
                 ErrorHandler.handleConsultationError(context, state.message);
-              } else {
-                print('🔄 ConsultationInitial state');
               }
               setState(() {
                 checkedConsultation = true;
@@ -382,15 +342,8 @@ class _RootScreenState extends State<RootScreen> {
         ),
         BlocListener<DeviceRegistrationCubit, DeviceRegistrationState>(
           listener: (context, state) {
-            print(
-              '📱 DeviceRegistrationCubit state changed: ${state.runtimeType}',
-            );
-
             state.maybeWhen(
               success: (device) {
-                print(
-                  '✅ DeviceRegistrationSuccess - Device: ${device != null ? device.code : 'null'}',
-                );
                 setState(() {
                   checkedDevice = true;
                   this.device = device;
@@ -398,20 +351,29 @@ class _RootScreenState extends State<RootScreen> {
 
                 // Only after device is registered, start other API calls
                 if (device != null) {
-                  print('📞 Device registered - starting other API calls');
+                  context.read<AuthCubit>().getCurrentUser();
+                  context.read<PatientCubit>().getCurrentPatient();
+                }
+              },
+              localDeviceFetched: (device) {
+                setState(() {
+                  checkedDevice = true;
+                  this.device = device;
+                });
+
+                // Only after device is registered, start other API calls
+                if (device != null) {
                   context.read<AuthCubit>().getCurrentUser();
                   context.read<PatientCubit>().getCurrentPatient();
                 }
               },
               error: (message) {
-                print('❌ Device Registration Error: $message');
                 setState(() {
                   checkedDevice = true;
                   device = null;
                 });
               },
               orElse: () {
-                print('🔄 DeviceRegistrationInitial state');
                 setState(() {
                   checkedDevice = true;
                   device = null;
@@ -423,59 +385,29 @@ class _RootScreenState extends State<RootScreen> {
       ],
       child: Builder(
         builder: (context) {
-          // Debug logging to identify which operation is not completing
-          print('🔍 RootScreen build check:');
-          print(
-            '   checkedDevice: $checkedDevice (device: ${device != null ? device!.code : 'null'})',
-          );
-
           // First priority: Check device registration
           if (!checkedDevice) {
-            print(
-              '⏳ Device registration check in progress - showing AppLoadingScreen.compact()',
-            );
             return const AppLoadingScreen();
           }
 
           // If device is not registered, show device registration screen
           if (device == null) {
-            print(
-              '📱 Device not registered - navigating to device registration',
-            );
             return const DeviceRegistrationScreen();
           }
 
           // Device is registered, now check other operations
-          print('📱 Device registered - checking other operations');
-          print(
-            '   checkedUser: $checkedUser (user: ${user?.email ?? 'null'})',
-          );
-          print(
-            '   checkedCentre: $checkedCentre (centre: ${centre?.entName ?? 'null'})',
-          );
-          print(
-            '   checkedPatient: $checkedPatient (patient: ${patient != null ? patient!.name : 'null'})',
-          );
-          print(
-            '   checkedConsultation: $checkedConsultation (consultation: ${consultation?.id ?? 'null'})',
-          );
-
           if (!checkedCentre ||
               !checkedPatient ||
               !checkedConsultation ||
               !checkedUser) {
-            print(
-              '⏳ Other operations in progress - showing AppLoadingScreen.compact()',
-            );
             return const AppLoadingScreen();
           }
 
           // All operations completed - cancel timeout timer
           _loadingTimeoutTimer?.cancel();
           _loadingTimeoutTimer = null;
-          print('✅ All operations completed - proceeding with navigation');
 
-          // Navigation logic with detailed logging
+          // Navigation logic
           // Priority 1: If consultation exists, go to consultation screen
           if (consultation != null) {
             return const ConsultationScreen();

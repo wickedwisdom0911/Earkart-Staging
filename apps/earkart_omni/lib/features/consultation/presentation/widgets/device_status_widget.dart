@@ -130,53 +130,82 @@ class DeviceStatusWidget extends StatelessWidget {
       }
     }
 
-    return Tooltip(
-      message: tooltip + batteryInfo,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: statusConfig.color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(
-            color: statusConfig.color.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: statusConfig.color),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                deviceName,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: statusConfig.color,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(_getStatusIcon(status), size: 14, color: statusConfig.color),
-            // Show battery indicator for Audiometer (R15C) if connected and battery level is available
-            if (deviceName == 'Audiometer' &&
-                commState.isConnected &&
-                commState.batteryLevel != null) ...[
-              const SizedBox(width: 6),
-              _buildBatteryIndicator(
-                commState.batteryLevel!,
-                commState.isCharging ?? false,
-                size: 14,
-              ),
-            ],
-          ],
+    // Add tap functionality for Audiometer to send sync packet
+    Widget deviceContainer = Container(
+      constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: statusConfig.color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: statusConfig.color.withOpacity(0.3),
+          width: 1,
         ),
       ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 16, color: statusConfig.color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              deviceName,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: statusConfig.color,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(_getStatusIcon(status), size: 14, color: statusConfig.color),
+          // Show battery indicator for Audiometer (R15C) if connected and battery level is available
+          if (deviceName == 'Audiometer' &&
+              commState.isConnected &&
+              commState.batteryLevel != null) ...[
+            const SizedBox(width: 6),
+            _buildBatteryIndicator(
+              commState.batteryLevel!,
+              commState.isCharging ?? false,
+              size: 14,
+            ),
+          ],
+        ],
+      ),
     );
+
+    // Wrap with GestureDetector for Audiometer to handle tap
+    if (deviceName == 'Audiometer') {
+      deviceContainer = GestureDetector(
+        onTap: () {
+          final r15cStatus = _getR15CStatus(
+            context.read<DeviceCubit>().state,
+            commState,
+          );
+
+          // If device has error or is not synced, send startSyncProcess
+          if (r15cStatus == DeviceStatus.error ||
+              r15cStatus == DeviceStatus.disconnected ||
+              r15cStatus == DeviceStatus.connecting ||
+              r15cStatus == DeviceStatus.connected) {
+            context.read<CommunicationCubit>().startSyncProcess();
+          }
+          // If device is synced but has no transducer response, send query packet
+          else if (r15cStatus == DeviceStatus.syncing) {
+            context.read<CommunicationCubit>().sendQueryInfoPacket();
+          }
+          // For other states (ready, active), just send sync packet as before
+          else {
+            context.read<CommunicationCubit>().sendSyncPacket();
+          }
+        },
+        child: deviceContainer,
+      );
+    }
+
+    return Tooltip(message: tooltip + batteryInfo, child: deviceContainer);
   }
 
   Widget _buildTabletBatteryIndicator(BuildContext context) {

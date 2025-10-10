@@ -19,6 +19,7 @@ class Constants {
   static const languageDb = "language_db";
   static const consultationDb = "consultation_db";
   static final isProduction = dotenv.env['isProduction'] == 'true';
+  static final showApiLogs = dotenv.env['showApiLogs'] == 'true';
   static final baseUrl =
       isProduction ? dotenv.env['BASE_URL'] : dotenv.env['BASE_URL_DEV'];
   static final socketUrl =

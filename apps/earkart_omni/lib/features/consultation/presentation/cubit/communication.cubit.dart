@@ -34,6 +34,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   Timer? _syncRetryTimer;
   StreamSubscription<dynamic>? _batteryStreamSubscription;
   UsbDevice? _lastDevice;
+  Timer? _connectionMonitorTimer;
 
   static const int MAX_CONSECUTIVE_ERRORS = 15;
   static const int MAX_RETRY_ATTEMPTS = 3;
@@ -49,7 +50,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   Future<bool> initializePort(UsbDevice device) async {
     try {
-      di<ILogger>().debug('Initializing port for device: ${device.deviceId}');
       emit(state.copyWith(connectionStatus: 'Initializing...', error: null));
 
       // Close existing port if any
@@ -69,7 +69,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       await _configureFTDIDevice();
       _setupListener();
 
-      di<ILogger>().info('Device initialized successfully');
       emit(
         state.copyWith(
           isConnected: true,
@@ -80,6 +79,10 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
       // Automatically send sync packet after successful initialization
       await _sendSyncPacketIfNeeded();
+
+      // Start connection monitoring
+      _startConnectionMonitoring();
+
       return true;
     } catch (e) {
       di<ILogger>().error('Port initialization error: $e');
@@ -97,36 +100,46 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   Future<void> _cleanupPort() async {
     _subscription?.cancel();
     _subscription = null;
+
     if (_port != null) {
       try {
-        await _port!.close();
+        // Add timeout to prevent hanging
+        await _port!.close().timeout(
+          const Duration(seconds: 2),
+          onTimeout: () {
+            di<ILogger>().error('Port close timeout - forcing cleanup');
+            return false; // Return false to indicate timeout
+          },
+        );
+        di<ILogger>().info('USB port closed successfully');
       } catch (e) {
         di<ILogger>().error('Error closing port: $e');
+      } finally {
+        _port = null;
       }
-      _port = null;
     }
   }
 
   Future<void> _configureFTDIDevice() async {
     try {
-      di<ILogger>().debug('Configuring FTDI device...');
-      await Future.delayed(const Duration(milliseconds: 500));
-      await _port!.setDTR(false);
-      await Future.delayed(const Duration(milliseconds: 250));
-      await _port!.setDTR(true);
-      await Future.delayed(const Duration(milliseconds: 250));
-      await _port!.setRTS(true);
-      await Future.delayed(const Duration(milliseconds: 250));
-      await _port!.setFlowControl(UsbPort.FLOW_CONTROL_OFF);
+      // Reduced delays to prevent thread blocking
       await Future.delayed(const Duration(milliseconds: 100));
+      await _port!.setDTR(false);
+      await Future.delayed(const Duration(milliseconds: 50));
+      await _port!.setDTR(true);
+      await Future.delayed(const Duration(milliseconds: 50));
+      await _port!.setRTS(true);
+      await Future.delayed(const Duration(milliseconds: 50));
+      await _port!.setFlowControl(UsbPort.FLOW_CONTROL_OFF);
+      await Future.delayed(const Duration(milliseconds: 50));
       await _port!.setPortParameters(
         921600,
         UsbPort.DATABITS_8,
         UsbPort.STOPBITS_1,
         UsbPort.PARITY_NONE,
       );
-      await Future.delayed(const Duration(milliseconds: 500));
-      di<ILogger>().debug('FTDI device configured successfully');
+      await Future.delayed(const Duration(milliseconds: 100));
+      di<ILogger>().info('FTDI device configuration completed');
     } catch (e) {
       di<ILogger>().error('Device configuration error: $e');
       emit(state.copyWith(error: 'Device configuration error: $e'));
@@ -135,14 +148,12 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   void _setupListener() {
-    di<ILogger>().debug('Setting up USB listener...');
     _subscription?.cancel();
     _subscription = _port!.inputStream!.listen(
       (data) => unawaited(_handleIncomingData(data)),
       onError: _handleError,
       cancelOnError: false,
     );
-    di<ILogger>().debug('USB listener setup complete');
   }
 
   void _handleError(dynamic error) {
@@ -161,7 +172,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     if (data.isEmpty) return;
 
     try {
-      di<ILogger>().debug('Received data: ${data.length} bytes');
       List<int>? processedPacket = _packetInterpreter.onListenerDataReady(data);
       if (processedPacket != null) {
         await _handleProcessedPacket(processedPacket);
@@ -181,20 +191,15 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         payload,
       ).trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F]'), '');
 
-      di<ILogger>().debug('Processing packet: $jsonString');
-
       if (jsonString.contains("R15C")) {
-        di<ILogger>().info('Device synced successfully');
-
-        // Cancel sync retry timer since we're now synced
         _syncRetryTimer?.cancel();
-
         emit(
           state.copyWith(
             isSynced: true,
             connectionStatus: 'Synced',
             error: null,
             isInBeginMode: false,
+            r15cSerialNumber: jsonString,
           ),
         );
 
@@ -210,7 +215,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
       switch (json['PacketType']) {
         case 2: // Transducer Info
-          di<ILogger>().debug('Received transducer info');
           final transducerResponse = TransducerResponse.fromJson(json);
           emit(
             state.copyWith(
@@ -221,15 +225,12 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           );
           break;
         case 8: // Patient Response
-          di<ILogger>().debug('Received patient response');
           final isReleased = json['PatientResponseEvent']['Released'];
           emit(state.copyWith(isReleased: isReleased, error: null));
           break;
         case 12: // Acknowledgement
-          di<ILogger>().debug('Received acknowledgement');
           final acknowledgement = Acknowledgement.fromJson(json);
           if (acknowledgement.request?.name == "Begin") {
-            di<ILogger>().debug('Device is in begin mode');
             emit(
               state.copyWith(
                 isInBeginMode: true,
@@ -240,12 +241,10 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           }
           break;
         case 14: // Impedance Status
-          di<ILogger>().debug('Received impedance status');
           final impedanceStatus = ImpedanceStatus.fromJson(json);
           emit(state.copyWith(impedanceStatus: impedanceStatus, error: null));
           break;
         case 15: // Impedance Data
-          di<ILogger>().debug('Received impedance data');
           final impedanceData = ImpedanceData.fromJson(json);
           emit(
             state.copyWith(
@@ -258,7 +257,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           emit(state.copyWith(isNewImpedanceData: false));
           break;
         case 19: // Battery Status
-          di<ILogger>().debug('Received battery status');
           final isCharging = json['Battery']['Powered'];
           final batteryLevel = json['Battery']['Level'] as int?;
           emit(
@@ -276,7 +274,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   Future<void> sendCommand(Uint8List packet) async {
     if (_port == null) {
-      di<ILogger>().warning('Port not initialized; ignoring command');
       return;
     }
 
@@ -290,7 +287,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         const Duration(milliseconds: COMMAND_TIMEOUT_MS),
         () {
           if (!completer.isCompleted) {
-            di<ILogger>().warning('Command timeout occurred');
             completer.completeError('Command timeout');
             // Remove the timed-out command if still queued
             if (_commandQueue.isNotEmpty &&
@@ -344,7 +340,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   Future<void> sendSyncPacket() async {
-    di<ILogger>().debug('Sending sync packet');
     final packet = _packetInterpreter.sendSerialNumberQuery();
     await sendCommand(packet);
   }
@@ -352,9 +347,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   /// Automatically sends sync packet if device is not synced
   Future<void> _sendSyncPacketIfNeeded() async {
     if (!state.isSynced && state.isConnected) {
-      di<ILogger>().debug(
-        'Device not synced, sending sync packet automatically',
-      );
       await sendSyncPacket();
 
       // Set up retry timer if still not synced after delay
@@ -363,9 +355,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         const Duration(milliseconds: SYNC_RETRY_DELAY_MS),
         () {
           if (!state.isSynced && state.isConnected && !isClosed) {
-            di<ILogger>().debug(
-              'Sync retry: device still not synced, retrying...',
-            );
             _sendSyncPacketIfNeeded();
           }
         },
@@ -381,27 +370,18 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   /// Start the sync process for connected device
   Future<void> startSyncProcess() async {
     if (state.isConnected && !state.isSynced) {
-      di<ILogger>().info('Starting sync process for connected device');
       await _sendSyncPacketIfNeeded();
-    } else if (!state.isConnected) {
-      di<ILogger>().warning('Cannot start sync process: device not connected');
-    } else if (state.isSynced) {
-      di<ILogger>().info(
-        'Device already synced, no need to start sync process',
-      );
     }
   }
 
   /// Automatically sends query packet after successful sync
   Future<void> _sendQueryPacketAfterSync() async {
     if (state.isSynced) {
-      di<ILogger>().debug('Device synced, sending query packet automatically');
       await sendQueryInfoPacket();
     }
   }
 
   Future<void> sendQueryInfoPacket() async {
-    di<ILogger>().debug('Sending query info packet');
     final packet = _packetInterpreter.constructPacket({"PacketType": 1});
     await sendCommand(packet);
   }
@@ -542,7 +522,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   Future<void> sendBeginPacket(TestType testType) async {
     if (!state.isInBeginMode) {
-      di<ILogger>().debug('Sending begin packet for test type: $testType');
       final packet = _packetInterpreter.constructPacket({
         "PacketType": 5,
         "PacketName": "Begin",
@@ -553,10 +532,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         },
       });
       await sendCommand(packet);
-    } else {
-      di<ILogger>().debug(
-        'Device already in begin mode, skipping begin packet',
-      );
     }
   }
 
@@ -571,7 +546,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     required double pressureMin,
     required double pressureMax,
   }) async {
-    di<ILogger>().debug('Sending start impedance packet');
     final packet = _packetInterpreter.constructPacket({
       "PacketType": 10,
       "PacketName": "StartImpedance",
@@ -596,7 +570,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   Future<void> sendStopCommand() async {
-    di<ILogger>().debug('Sending stop command');
     final packet = _packetInterpreter.constructPacket({
       "PacketType": 11,
       "PacketName": "Stop",
@@ -606,7 +579,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   Future<void> sendExitPacket() async {
-    di<ILogger>().debug('Sending exit packet');
     await sendStopCommand();
     final packet = _packetInterpreter.constructPacket({
       "PacketType": 6,
@@ -623,10 +595,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       final isLoading = state.isTabletBatteryLoading;
 
       if (batteryLevel != null && !isLoading) {
-        di<ILogger>().info(
-          'Sending device status packet with tablet battery info: $batteryLevel%, charging: $isCharging',
-        );
-
         final packet = _packetInterpreter.constructPacket({
           "PacketType": 18,
           "Notify": true,
@@ -638,10 +606,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         });
         await sendCommand(packet);
       } else {
-        di<ILogger>().info(
-          'Sending device status packet without battery info (level: $batteryLevel, loading: $isLoading)',
-        );
-
         // Send packet without battery info when not available or loading
         final packet = _packetInterpreter.constructPacket({
           "PacketType": 18,
@@ -696,13 +660,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           ),
         );
 
-        if (!isLoading && level != null) {
-          di<ILogger>().debug(
-            'Tablet battery status updated: $level%, charging: ${isCharging ?? false}',
-          );
-        } else if (isLoading) {
-          di<ILogger>().debug('Tablet battery loading...');
-        }
+        // Battery status updated
       }
     } catch (e) {
       di<ILogger>().error('Error updating tablet battery status: $e');
@@ -722,12 +680,11 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   void clearImpedanceData() {
-    di<ILogger>().debug('Clearing impedance data');
     emit(state.copyWith(impedanceStatus: null, impedanceData: null));
   }
 
   void resetState() {
-    di<ILogger>().debug('Resetting communication state');
+    _stopConnectionMonitoring();
     _subscription?.cancel();
     _port?.close();
     _port = null;
@@ -786,8 +743,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           _updateTabletBatteryFromInfo(currentInfo);
         }
       }
-
-      di<ILogger>().info('Battery service initialized and monitoring started');
     } catch (e) {
       di<ILogger>().error('Failed to start tablet battery monitoring: $e');
       if (!isClosed) {
@@ -817,6 +772,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       command.timeoutTimer?.cancel();
     }
     _syncRetryTimer?.cancel();
+    _connectionMonitorTimer?.cancel();
     _batteryStreamSubscription?.cancel();
     _cleanupPort();
     return super.close();
@@ -832,7 +788,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         return await operation();
       } catch (e) {
         attempt++;
-        di<ILogger>().warning('Retry attempt $attempt failed: $e');
         if (attempt == maxAttempts) {
           di<ILogger>().error('Max retry attempts reached: $e');
           rethrow;
@@ -845,9 +800,37 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     return null;
   }
 
+  /// Start monitoring USB connection state
+  void _startConnectionMonitoring() {
+    _connectionMonitorTimer?.cancel();
+    _connectionMonitorTimer = Timer.periodic(const Duration(seconds: 5), (
+      timer,
+    ) {
+      if (_port != null) {
+        // Check if port is still valid by trying to send a simple command
+        try {
+          // If we can't access the port, it's likely disconnected
+          if (_port!.inputStream == null) {
+            di<ILogger>().warning('USB port lost, attempting reconnection');
+            _resetConnection();
+          }
+        } catch (e) {
+          di<ILogger>().warning('USB port lost, attempting reconnection: $e');
+          _resetConnection();
+        }
+      }
+    });
+  }
+
+  /// Stop connection monitoring
+  void _stopConnectionMonitoring() {
+    _connectionMonitorTimer?.cancel();
+    _connectionMonitorTimer = null;
+  }
+
   Future<void> _resetConnection() async {
     try {
-      di<ILogger>().info('Starting connection reset...');
+      _stopConnectionMonitoring();
       await _cleanupPort();
 
       emit(
@@ -885,6 +868,9 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         );
 
         await sendSyncPacket();
+
+        // Restart connection monitoring
+        _startConnectionMonitoring();
       } else {
         throw Exception('No known device to reset connection');
       }
