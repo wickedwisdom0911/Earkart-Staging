@@ -489,10 +489,14 @@ export default function HandleCentreDialog({
             control={form.control}
             name="centre.address"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="col-span-2">
                 <FormLabel>Address</FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="Enter address" />
+                  <Textarea
+                    {...field}
+                    placeholder="Enter full address"
+                    className="min-h-[80px] resize-y"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -833,21 +837,21 @@ export default function HandleCentreDialog({
   return (
     <Dialog open={isOpen} onOpenChange={toggleDialog}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-w-[98vw] max-h-[98vh] w-[98vw] h-[98vh] p-6 bg-gray-50 rounded-xl shadow-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold mb-4">
+      <DialogContent className="max-w-4xl w-full h-[90vh] flex flex-col p-0">
+        <DialogHeader className="p-6 pb-4">
+          <DialogTitle className="text-2xl font-bold">
             {isEdit ? "Edit Centre" : "Add Centre"}
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form
-            className="flex flex-col h-full"
+            className="flex flex-col h-full overflow-hidden"
             onSubmit={form.handleSubmit(handleSubmit)}
           >
-            <div className="bg-white flex-1 rounded-xl p-6 shadow overflow-y-auto max-h-[80vh]">
+            <div className="flex-grow overflow-y-auto px-6 pb-6 space-y-8">
               {renderAllFields()}
             </div>
-            <div className="flex justify-end gap-4 mt-6 pt-4 border-t border-gray-200">
+            <div className="flex justify-end gap-4 p-6 border-t bg-gray-50">
               <Button
                 type="button"
                 variant="outline"
@@ -866,7 +870,7 @@ export default function HandleCentreDialog({
                   : isEdit
                     ? "Update Centre"
                     : "Add Centre"}
-                {(isCreating || isUpdating) && <Loader2 className="w-4 h-4 ml-2" />}
+                {(isCreating || isUpdating) && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
               </Button>
             </div>
           </form>
