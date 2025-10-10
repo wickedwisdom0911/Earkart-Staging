@@ -56,7 +56,6 @@ class DeviceDetailsFromServer extends StatelessWidget {
       children: [
         _buildInfoRow('Device Code', device.code ?? 'Not Available'),
         _buildInfoRow('Audiometer ID', device.deviceID ?? 'Not Available'),
-        _buildInfoRow('Otoscope ID', device.otoscopeID ?? 'Not Available'),
         _buildInfoRow('Tablet ID', device.tabletID ?? 'Not Available'),
         _buildInfoRow('Status', device.status.name),
         if (device.centre != null) ...[

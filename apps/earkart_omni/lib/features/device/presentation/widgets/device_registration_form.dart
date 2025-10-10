@@ -11,12 +11,20 @@ class DeviceRegistrationForm extends StatelessWidget {
   final TextEditingController deviceCodeController;
   final DeviceEntity? device;
   final bool isDeviceFound;
+  final String? r15cSerialNumber;
+  final String? tabletID;
+  final String? tabletAndroidVersion;
+  final String? tabletAppVersion;
 
   const DeviceRegistrationForm({
     super.key,
     required this.deviceCodeController,
     required this.device,
     required this.isDeviceFound,
+    this.r15cSerialNumber,
+    this.tabletID,
+    this.tabletAndroidVersion,
+    this.tabletAppVersion,
   });
 
   @override
@@ -164,10 +172,14 @@ class DeviceRegistrationForm extends StatelessWidget {
   void _handleButtonPress(BuildContext context) {
     if (deviceCodeController.text.isNotEmpty) {
       if (isDeviceFound) {
-        // Call setup device when device is found
-        context.read<DeviceRegistrationCubit>().setupDevice(device!);
+        context.read<DeviceRegistrationCubit>().setupDevice(
+          device!,
+          r15cSerialNumber: r15cSerialNumber,
+          tabletID: tabletID,
+          tabletAndroidVersion: tabletAndroidVersion,
+          tabletAppVersion: tabletAppVersion,
+        );
       } else {
-        // Check device code initially
         context.read<DeviceRegistrationCubit>().getDeviceByValue(
           deviceCodeController.text,
         );

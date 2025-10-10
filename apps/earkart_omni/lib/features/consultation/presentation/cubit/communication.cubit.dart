@@ -186,15 +186,14 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       if (jsonString.contains("R15C")) {
         di<ILogger>().info('Device synced successfully');
 
-        // Cancel sync retry timer since we're now synced
         _syncRetryTimer?.cancel();
-
         emit(
           state.copyWith(
             isSynced: true,
             connectionStatus: 'Synced',
             error: null,
             isInBeginMode: false,
+            r15cSerialNumber: jsonString,
           ),
         );
 

@@ -1,7 +1,10 @@
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/features/device/presentation/widgets/centre_assignment_dialog.dart';
 import 'package:earkart_omni/features/device/presentation/widgets/device_registration_form.dart';
-import 'package:earkart_omni/features/device/presentation/widgets/device_information_panel.dart';
+import 'package:earkart_omni/features/device/presentation/widgets/local_device_information.dart';
+import 'package:earkart_omni/features/device/presentation/widgets/device_details_from_server.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/communication.cubit.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/communication.state.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/di.dart';
@@ -162,10 +165,18 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
           // Left side - Registration Form
           Expanded(
             flex: 1,
-            child: DeviceRegistrationForm(
-              deviceCodeController: deviceCodeController,
-              device: device,
-              isDeviceFound: isDeviceFound,
+            child: BlocBuilder<CommunicationCubit, CommunicationState>(
+              builder: (context, communicationState) {
+                return DeviceRegistrationForm(
+                  deviceCodeController: deviceCodeController,
+                  device: device,
+                  isDeviceFound: isDeviceFound,
+                  r15cSerialNumber: communicationState.r15cSerialNumber,
+                  tabletID: tabletID,
+                  tabletAndroidVersion: tabletAndroidVersion,
+                  tabletAppVersion: tabletAppVersion,
+                );
+              },
             ),
           ),
 
@@ -179,12 +190,18 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 32),
-                  DeviceInformationPanel(
+                  // Local Device Information Section
+                  LocalDeviceInformation(
                     tabletID: tabletID,
                     tabletAndroidVersion: tabletAndroidVersion,
                     tabletAppVersion: tabletAppVersion,
                     device: device,
                   ),
+
+                  const SizedBox(height: 20),
+
+                  // Device Details Section (from API)
+                  if (device != null) DeviceDetailsFromServer(device: device!),
                 ],
               ),
             ),

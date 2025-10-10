@@ -48,10 +48,24 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
     }
   }
 
-  Future<void> setupDevice(DeviceEntity deviceData) async {
+  Future<void> setupDevice(
+    DeviceEntity deviceData, {
+    String? r15cSerialNumber,
+    String? tabletID,
+    String? tabletAndroidVersion,
+    String? tabletAppVersion,
+  }) async {
     emit(const DeviceRegistrationState.loading());
     try {
-      final device = await setupDeviceUsecase(deviceData);
+      // Create updated device entity with local device information
+      final updatedDevice = deviceData.copyWith(
+        deviceID: r15cSerialNumber,
+        tabletID: tabletID,
+        tabletAndroidVersion: tabletAndroidVersion,
+        tabletAppVersion: tabletAppVersion,
+      );
+
+      final device = await setupDeviceUsecase(updatedDevice);
       if (device != null) {
         emit(DeviceRegistrationState.success(device: device));
       } else {
