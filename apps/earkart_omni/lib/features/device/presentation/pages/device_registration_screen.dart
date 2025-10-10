@@ -1,5 +1,7 @@
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
-import 'package:earkart_omni/config/widgets/gradient_button.dart';
+import 'package:earkart_omni/features/device/presentation/widgets/centre_assignment_dialog.dart';
+import 'package:earkart_omni/features/device/presentation/widgets/device_registration_form.dart';
+import 'package:earkart_omni/features/device/presentation/widgets/device_information_panel.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/di.dart';
@@ -31,6 +33,8 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
   String? tabletID;
   String? tabletAndroidVersion;
   String? tabletAppVersion;
+  bool isDeviceFound = false;
+  late VoidCallback _textControllerListener;
 
   // Platform channel for device owner operations
   static const platform = MethodChannel(
@@ -42,6 +46,22 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
     super.initState();
     context.read<DeviceRegistrationCubit>().getCurrentDevice();
     getPackageInfo();
+    _setupTextControllerListener();
+  }
+
+  void _setupTextControllerListener() {
+    _textControllerListener = () {
+      // Reset state to initial when text field is cleared or changed
+      if (isDeviceFound || device != null) {
+        setState(() {
+          isDeviceFound = false;
+          device = null; // Clear the device data
+        });
+        // Also reset the cubit state to initial
+        context.read<DeviceRegistrationCubit>().resetToInitial();
+      }
+    };
+    deviceCodeController.addListener(_textControllerListener);
   }
 
   void getPackageInfo() async {
@@ -109,290 +129,63 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
 
   @override
   void dispose() {
+    deviceCodeController.removeListener(_textControllerListener);
     deviceCodeController.dispose();
     super.dispose();
   }
 
+  void _showCentreAssignmentDialog(DeviceEntity device) {
+    CentreAssignmentDialog.show(
+      context: context,
+      device: device,
+      onConfirm: () {
+        Navigator.of(context).pop();
+        setState(() {
+          isDeviceFound = true;
+        });
+      },
+      onCancel: () {
+        Navigator.of(context).pop();
+        setState(() {
+          isDeviceFound = false;
+        });
+      },
+    );
+  }
+
   Widget _deviceRegistrationForm(DeviceRegistrationState state) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 32),
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Constants.primaryColor, Constants.secondaryColor],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Constants.secondaryColor.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.device_hub_rounded,
-                size: 48,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Title
-            Text(
-              'Device Registration',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: Constants.primaryColor,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Enter your device code to register',
-              style: TextStyle(
-                fontSize: 16,
-                color: Constants.secondaryColor,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-            const SizedBox(height: 40),
-
-            // Device Code Input
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: deviceCodeController,
-                decoration: InputDecoration(
-                  labelText: 'Device Code',
-                  hintText: 'Enter device code',
-                  prefixIcon: Icon(
-                    Icons.qr_code_rounded,
-                    color: Constants.secondaryColor,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                ),
-                onSubmitted: (value) {
-                  if (value.isNotEmpty) {
-                    context.read<DeviceRegistrationCubit>().getDeviceByValue(
-                      value,
-                    );
-                  }
-                },
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            GradientButton(
-              colors: [Constants.primaryColor, Constants.secondaryColor],
-              enabled:
-                  !state.maybeWhen(loading: () => true, orElse: () => false),
-              onPressed: () {
-                if (deviceCodeController.text.isNotEmpty) {
-                  context.read<DeviceRegistrationCubit>().getDeviceByValue(
-                    deviceCodeController.text,
-                  );
-                } else {
-                  Fluttertoast.showToast(msg: "Please enter device code");
-                }
-              },
-              child: state.maybeWhen(
-                loading:
-                    () => const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    ),
-                orElse:
-                    () => const Text(
-                      'Register Device',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-              ),
-            ),
-            const SizedBox(height: 40),
-
-            // Device Information and IDs Side by Side
-            if (tabletID != null) _buildDeviceInfoAndIdsSection(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDeviceInfoAndIdsSection() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Device IDs Section
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Device IDs',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Constants.primaryColor,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildDeviceIdRow(
-                  'Audiometer ID',
-                  device?.deviceID ?? 'Not Available',
-                ),
-                const SizedBox(height: 12),
-                _buildDeviceIdRow(
-                  'Otoscope ID',
-                  device?.otoscopeID ?? 'Not Available',
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        // Device Information Section
-        Expanded(child: _buildDeviceInfoSection()),
-      ],
-    );
-  }
-
-  Widget _buildDeviceIdRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 120,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: Constants.secondaryColor,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
-              color: Constants.primaryColor,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDeviceInfoSection() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Device Information',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Constants.primaryColor,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildInfoRow('Tablet ID', tabletID ?? 'Unknown'),
-          _buildInfoRow('Android Version', tabletAndroidVersion ?? 'Unknown'),
-          _buildInfoRow('App Version', tabletAppVersion ?? 'Unknown'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(24.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                color: Constants.secondaryColor,
-                fontWeight: FontWeight.w500,
-              ),
+          // Left side - Registration Form
+          Expanded(
+            flex: 1,
+            child: DeviceRegistrationForm(
+              deviceCodeController: deviceCodeController,
+              device: device,
+              isDeviceFound: isDeviceFound,
             ),
           ),
+
+          const SizedBox(width: 24),
+
+          // Right side - Device Information
           Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                color: Constants.primaryColor,
-                fontWeight: FontWeight.w400,
+            flex: 1,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 32),
+                  DeviceInformationPanel(
+                    tabletID: tabletID,
+                    tabletAndroidVersion: tabletAndroidVersion,
+                    tabletAppVersion: tabletAppVersion,
+                    device: device,
+                  ),
+                ],
               ),
             ),
           ),
@@ -407,22 +200,35 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
       backgroundColor: Constants.bg,
       appBar: GlassmorphismAppBar(
         title: const Text(
-          'Device Registration',
+          'Device Registration Needed',
           style: TextStyle(
             color: Colors.black87,
             fontSize: 24,
             fontWeight: FontWeight.w600,
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
+
         autoLeading: false,
       ),
       body: BlocListener<DeviceRegistrationCubit, DeviceRegistrationState>(
         listener: (context, state) {
           state.maybeWhen(
+            getByValueSuccess: (device) {
+              this.device = device;
+              if (device?.centre != null) {
+                // Show confirmation dialog if device is already assigned to a centre
+                _showCentreAssignmentDialog(device!);
+              } else {
+                // Device is not assigned to any centre, proceed normally
+                setState(() {
+                  isDeviceFound = true;
+                });
+                Fluttertoast.showToast(
+                  msg:
+                      "Device found! Click Register Device to complete registration.",
+                );
+              }
+            },
             success: (device) {
               this.device = device;
               if (device != null) {
@@ -437,6 +243,9 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
             },
             error: (message) {
               Fluttertoast.showToast(msg: message);
+              setState(() {
+                isDeviceFound = false;
+              });
             },
             orElse: () {},
           );

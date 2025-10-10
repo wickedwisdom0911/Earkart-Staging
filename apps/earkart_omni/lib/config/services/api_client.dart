@@ -2,7 +2,7 @@ import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/services/session_interceptor.dart';
 import 'package:earkart_omni/config/services/auth_interceptor.dart';
 import 'package:dio/dio.dart';
-// import 'package:pretty_dio_logger/pretty_dio_logger.dart';
+import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 
 class API {
   static final API _instance = API._internal();
@@ -29,7 +29,7 @@ class API {
     _dio.interceptors.add(AuthInterceptor());
 
     // Logger should be last to log all requests/responses
-    // _dio.interceptors.add(PrettyDioLogger());
+    _dio.interceptors.add(PrettyDioLogger());
   }
 
   Dio get getDio => _dio;

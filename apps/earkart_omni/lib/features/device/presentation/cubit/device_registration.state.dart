@@ -10,6 +10,12 @@ abstract class DeviceRegistrationState with _$DeviceRegistrationState {
   const factory DeviceRegistrationState.success({
     required DeviceEntity? device,
   }) = DeviceRegistrationSuccess;
+  const factory DeviceRegistrationState.localDeviceFetched({
+    required DeviceEntity? device,
+  }) = DeviceRegistrationLocalDeviceFetched;
+  const factory DeviceRegistrationState.getByValueSuccess({
+    required DeviceEntity? device,
+  }) = DeviceRegistrationGetByValueSuccess;
   const factory DeviceRegistrationState.error({required String message}) =
       DeviceRegistrationError;
 }

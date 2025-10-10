@@ -21,9 +21,13 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
       emit(const DeviceRegistrationState.loading());
       final device = await getCurrentDeviceUsecase();
       if (device != null) {
-        emit(DeviceRegistrationState.success(device: device));
+        emit(DeviceRegistrationState.localDeviceFetched(device: device));
       } else {
-        emit(const DeviceRegistrationState.error(message: "Device not found"));
+        emit(
+          const DeviceRegistrationState.error(
+            message: "This Device is not Registered or synced properly!",
+          ),
+        );
       }
     } catch (e) {
       emit(DeviceRegistrationState.error(message: e.toString()));
@@ -35,7 +39,7 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
     try {
       final device = await getDeviceByValueUsecase(value);
       if (device != null) {
-        emit(DeviceRegistrationState.success(device: device));
+        emit(DeviceRegistrationState.getByValueSuccess(device: device));
       } else {
         emit(const DeviceRegistrationState.error(message: "Device not found"));
       }
@@ -60,5 +64,9 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
     } catch (e) {
       emit(DeviceRegistrationState.error(message: e.toString()));
     }
+  }
+
+  void resetToInitial() {
+    emit(const DeviceRegistrationState.initial());
   }
 }
