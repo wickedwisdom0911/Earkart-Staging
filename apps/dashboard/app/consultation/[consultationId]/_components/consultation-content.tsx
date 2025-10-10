@@ -2,7 +2,7 @@
 import React from "react";
 import { VideoCall } from "./video-call";
 import { useOtoscopy } from "@/providers/otoscopy-provider";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useDevice } from "@/providers/device-provider";
 
 interface DelayedVideoCallProps {
@@ -29,7 +29,7 @@ const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({ delay, ...props }) 
       <div className="w-full h-full flex items-center justify-center text-white">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-lg">Preparing otoscopy camera...</p>
+          <p className="text-lg">Connecting to otoscope stream...</p>
         </div>
       </div>
     );
@@ -37,6 +37,7 @@ const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({ delay, ...props }) 
 
   return <VideoCall {...props} />;
 };
+
 
 interface ConsultationContentProps {
   consultationId: string;
@@ -52,46 +53,19 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
   onBeforeLeaveCall,
 }) => {
   const { isOtoscopyActive, stopOtoscopy } = useOtoscopy();
-  const pathname = usePathname();
-  const router = useRouter();
   const { deviceState } = useDevice();
-  const [videoRenderKey, setVideoRenderKey] = React.useState(0);
+  const pathname = usePathname();
   
-  // Check if we're on the specific video-otoscopy page
   const isVideoOtoscopyPage = pathname?.includes('/test/video-otoscopy');
   
-  // This is the crucial change. We now wait for the device camera to be ready.
   const isCameraOpen = deviceState.r15c.isCameraOpen;
   const shouldEnlargeVideo = isVideoOtoscopyPage && isOtoscopyActive && isCameraOpen;
 
-  // Debug logging
-  console.log("🔍 ConsultationContent Debug:", {
-    pathname,
-    isVideoOtoscopyPage,
-    isOtoscopyActive,
-    isCameraOpen,
-    shouldEnlargeVideo,
-    consultationId,
-    timestamp: new Date().toISOString()
-  });
-
-  // Log whenever the video position changes
-  React.useEffect(() => {
-    console.log("🎬 Video position changed:", {
-      shouldEnlargeVideo,
-      position: shouldEnlargeVideo ? 'ENLARGED' : 'NORMAL',
-      timestamp: new Date().toISOString()
-    });
-  }, [shouldEnlargeVideo]);
-
-  // Stop handler
   const [isStopping, setIsStopping] = React.useState(false);
   const handleStop = React.useCallback(async () => {
     try {
       setIsStopping(true);
       await stopOtoscopy();
-      // Force a re-render of the video component by changing its key
-      setVideoRenderKey(prevKey => prevKey + 1);
     } catch (e) {
       console.error("Error stopping otoscopy:", e);
     } finally {
@@ -99,20 +73,17 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     }
   }, [stopOtoscopy]);
 
-  // When video should be enlarged (only on video-otoscopy page when active)
+  // When video should be enlarged
   if (shouldEnlargeVideo) {
     return (
       <div className="fixed inset-0 z-50 bg-black">
-        {/* Full screen video without cropping */}
         <div className="w-screen h-screen">
-          {/* Add a small delay before rendering VideoCall to let device prepare */}
           <DelayedVideoCall
-            key={videoRenderKey}
             channel={consultationId}
             patientName={patientName}
             isFullscreen={true}
             onBeforeLeaveCall={onBeforeLeaveCall}
-            delay={1500} // 1500ms delay for device to start screen share
+            delay={1500} // 1.5 second delay
           />
         </div>
 
@@ -136,19 +107,15 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     );
   }
 
-  // Normal layout for all other cases (original layout restored)
+  // Normal layout for all other cases
   return (
     <div className="flex gap-2 overflow-hidden h-full w-full">
-      {/* Video Call on left - Normal layout */}
       <VideoCall
-        key={videoRenderKey}
         channel={consultationId}
         patientName={patientName}
         isFullscreen={false}
         onBeforeLeaveCall={onBeforeLeaveCall}
       />
-
-      {/* Main content on right */}
       <main className="flex-1 w-full overflow-y-scroll">
         {children}
       </main>

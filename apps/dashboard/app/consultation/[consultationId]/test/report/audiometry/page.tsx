@@ -768,6 +768,10 @@ export default function ReportPage() {
   };
 
   const handleDoAnotherTest = () => {
+    // Automatically hide the report if it's currently being shown
+    if (isShowingReport || isScreenSharing) {
+      handleShowReport(); // This will toggle it off
+    }
     router.push(ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string));
   };
 

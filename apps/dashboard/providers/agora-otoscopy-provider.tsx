@@ -65,37 +65,56 @@ export const AgoraOtoscopyProvider: React.FC<AgoraOtoscopyProviderProps> = ({ ch
         const agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         
         // Set up event handlers
-        agoraClient.on("user-joined", (user: any) => {
+        const handleUserPublished = (
+          user: IAgoraRTCRemoteUser,
+          mediaType: "audio" | "video"
+        ) => {
+          console.log(`👤 Remote user ${user.uid} published ${mediaType}`);
+          // The user object is automatically updated, so we just need to re-set the state
+          // to trigger a re-render.
+          setRemoteUsers((prev) => [...prev.filter((u) => u.uid !== user.uid), user]);
+          
+          // The correct check: is there a remote user publishing a video track?
+          if (mediaType === "video" && user.hasVideo) {
+            console.log("✅ Otoscopy stream detected!");
+          }
+        };
+
+        const handleUserUnpublished = (
+          user: IAgoraRTCRemoteUser,
+          mediaType: "audio" | "video"
+        ) => {
+          console.log(`👤 Remote user ${user.uid} unpublished ${mediaType}`);
+          // The user object is automatically updated, no need to filter manually
+          setRemoteUsers((prev) => [...prev]);
+
+          // If a video track is unpublished, the otoscopy stream is no longer ready.
+          if (mediaType === "video") {
+            console.log("❌ Otoscopy stream unpublished.");
+          }
+        };
+
+        const handleUserJoined = (user: IAgoraRTCRemoteUser) => {
           console.log("👤 Remote user joined otoscopy:", user.uid);
-          setRemoteUsers(prev => [...prev, user]);
-        });
+          setRemoteUsers((prev) => [...prev, user]);
+        };
 
-        agoraClient.on("user-left", (user: any, reason: any) => {
+        const handleUserLeft = (user: IAgoraRTCRemoteUser, reason: string) => {
           console.log("👋 Remote user left otoscopy:", user.uid, "reason:", reason);
-          setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
-        });
-
-        agoraClient.on("user-published", async (user: any, mediaType: any) => {
-          console.log("📺 Remote user published:", user.uid, "mediaType:", mediaType);
+          setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
           
-          // Subscribe to the remote user
-          await agoraClient.subscribe(user, mediaType);
-          
-          // Update remote users list
-            setRemoteUsers(prev => {
-            const existingUser = prev.find(u => u.uid === user.uid);
-            if (existingUser) {
-              return prev.map(u => u.uid === user.uid ? user : u);
-            } else {
-                return [...prev, user];
-              }
-            });
-        });
+          // If the user who left was the one with the video stream, the stream is no longer ready.
+          // We check all remaining users. If none have video, we set to false.
+          const remainingVideoUsers = client.remoteUsers.some(u => u.hasVideo);
+          if (!remainingVideoUsers) {
+            console.log("❌ Otoscopy stream user left.");
+          }
+        };
 
-        agoraClient.on("user-unpublished", (user: any, mediaType: any) => {
-          console.log("📺 Remote user unpublished:", user.uid, "mediaType:", mediaType);
-          setRemoteUsers(prev => prev.map(u => u.uid === user.uid ? user : u));
-        });
+        agoraClient.on("user-joined", handleUserJoined);
+        agoraClient.on("user-left", handleUserLeft);
+        agoraClient.on("user-published", handleUserPublished);
+        agoraClient.on("user-unpublished", handleUserUnpublished);
 
         agoraClient.on("connection-state-change", (curState: any, revState: any) => {
           console.log("🔗 Otoscopy connection state changed:", { curState, revState });

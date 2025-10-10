@@ -769,7 +769,13 @@ export default function TympanometryReportPage() {
         isShowingReport={isShowingReport}
         onToggleShowReport={handleShowReport}
         onShare={handleShareReport}
-        onDoAnotherTest={() => router.push(`/consultation/${consultationId}/test-selection`)}
+        onDoAnotherTest={() => {
+          // Automatically hide the report if it's currently being shown
+          if (isShowingReport || isScreenSharing) {
+            handleShowReport(); // This will toggle it off
+          }
+          router.push(`/consultation/${consultationId}/test-selection`);
+        }}
         onEndConsultation={() => router.push(`/consultation/${consultationId}/end-consultation`)}
       />
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
