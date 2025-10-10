@@ -143,7 +143,6 @@ class MainActivity: FlutterActivity() {
                 
                 // 1. Camera permissions
                 devicePolicyManager.setCameraDisabled(componentName, false)
-                Log.d("MainActivity", "Camera enabled")
                 
                 // 2. USB permissions - remove restrictions and grant specific permissions
                 enableUSBAccess()
@@ -181,7 +180,7 @@ class MainActivity: FlutterActivity() {
                 
 
                 
-                Log.d("MainActivity", "✅ ALL permissions granted for device owner")
+                Log.d("MainActivity", "All permissions granted for device owner")
                 
             } else {
                 Log.d("MainActivity", "❌ Not device owner - cannot grant permissions")
@@ -228,7 +227,6 @@ class MainActivity: FlutterActivity() {
                     }
                 }
                 
-                Log.d("MainActivity", "USB access enabled for device owner")
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error setting USB restrictions: ${e.message}")
             }
@@ -244,7 +242,7 @@ class MainActivity: FlutterActivity() {
             val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             
             if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
-                Log.d("MainActivity", "Device owner - granting USB permissions")
+                
                 
                 // For device owner apps, we can grant USB permissions automatically
                 // This is handled by the USB serial plugin, but we can ensure the environment is ready
@@ -282,14 +280,13 @@ class MainActivity: FlutterActivity() {
                             
                             for (opCode in usbOpCodes) {
                                 try {
-                                    setModeMethod.invoke(
-                                        appOpsManager,
-                                        opCode,
-                                        Process.myUid(),
-                                        packageName,
-                                        MODE_ALLOWED
-                                    )
-                                    Log.d("MainActivity", "USB AppOps permission granted for op code: $opCode")
+                        setModeMethod.invoke(
+                            appOpsManager,
+                            opCode,
+                            Process.myUid(),
+                            packageName,
+                            MODE_ALLOWED
+                        )
                                 } catch (e: Exception) {
                                     // Ignore errors for invalid op codes
                                 }
@@ -302,7 +299,6 @@ class MainActivity: FlutterActivity() {
                     Log.w("MainActivity", "Error granting USB AppOps permissions: ${e.message}")
                 }
                 
-                Log.d("MainActivity", "✅ USB permissions granted for device owner")
                 
             } else {
                 Log.d("MainActivity", "Not device owner - cannot grant USB permissions")
@@ -314,9 +310,7 @@ class MainActivity: FlutterActivity() {
 
     private fun grantStoragePermissions() {
         try {
-            Log.d("MainActivity", "Granting storage permissions")
             
-            // For device owner, we can grant MANAGE_EXTERNAL_STORAGE permission
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 try {
                     // Check if we can access external storage
@@ -341,8 +335,6 @@ class MainActivity: FlutterActivity() {
                 }
             }
             
-            // Device owner has full storage access by default
-            Log.d("MainActivity", "Storage permissions granted for device owner")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting storage permissions: ${e.message}")
         }
@@ -350,9 +342,6 @@ class MainActivity: FlutterActivity() {
 
     private fun grantNetworkPermissions() {
         try {
-            Log.d("MainActivity", "Granting network permissions")
-            // Device owner has full network access
-            // No additional configuration needed
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting network permissions: ${e.message}")
         }
@@ -360,9 +349,6 @@ class MainActivity: FlutterActivity() {
 
     private fun grantAudioPermissions() {
         try {
-            Log.d("MainActivity", "Granting audio permissions")
-            // Device owner has full audio access
-            // No additional configuration needed
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting audio permissions: ${e.message}")
         }
@@ -380,9 +366,6 @@ class MainActivity: FlutterActivity() {
 
     private fun grantBluetoothPermissions() {
         try {
-            Log.d("MainActivity", "Granting Bluetooth permissions")
-            // Device owner has full Bluetooth access
-            // No additional configuration needed
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting Bluetooth permissions: ${e.message}")
         }
@@ -393,7 +376,7 @@ class MainActivity: FlutterActivity() {
             val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
             
-            Log.d("MainActivity", "Granting system permissions")
+            
             
             // Enable system settings access
             devicePolicyManager.addUserRestriction(componentName, UserManager.DISALLOW_SAFE_BOOT)
@@ -410,7 +393,6 @@ class MainActivity: FlutterActivity() {
             // Grant device identifier permissions for device owner
             grantDeviceIdentifierPermissions()
             
-            Log.d("MainActivity", "System permissions granted")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting system permissions: ${e.message}")
         }
@@ -422,7 +404,6 @@ class MainActivity: FlutterActivity() {
             val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
             
             if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
-                Log.d("MainActivity", "Granting device identifier permissions as device owner")
                 
                 // Get AppOpsManager
                 val appOpsManager = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
@@ -454,9 +435,6 @@ class MainActivity: FlutterActivity() {
                             packageName,
                             MODE_ALLOWED
                         )
-                        
-                        Log.d("MainActivity", "✅ $permName permission granted successfully")
-                        
                     } catch (e: Exception) {
                         Log.e("MainActivity", "Error setting $permName permission via reflection: ${e.message}")
                     }
@@ -483,13 +461,9 @@ class MainActivity: FlutterActivity() {
                                         DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
                                     )
                                     
-                                    if (result) {
-                                        Log.d("MainActivity", "✅ $permission runtime permission granted via DevicePolicyManager")
-                                    } else {
+                                    if (!result) {
                                         Log.w("MainActivity", "Failed to grant $permission via DevicePolicyManager")
                                     }
-                                } else {
-                                    Log.d("MainActivity", "✅ $permission already granted via DevicePolicyManager")
                                 }
                             } catch (e: Exception) {
                                 Log.w("MainActivity", "Error granting $permission via DevicePolicyManager: ${e.message}")
@@ -541,8 +515,6 @@ class MainActivity: FlutterActivity() {
                         MODE_ALLOWED
                     )
                     
-                    Log.d("MainActivity", "✅ PROJECT_MEDIA permission granted successfully")
-                    
                 } catch (e: Exception) {
                     Log.e("MainActivity", "Error setting PROJECT_MEDIA permission via reflection: ${e.message}")
                     
@@ -552,9 +524,7 @@ class MainActivity: FlutterActivity() {
                         val process = runtime.exec(arrayOf("su", "-c", "cmd appops set $packageName PROJECT_MEDIA allow"))
                         val exitCode = process.waitFor()
                         
-                        if (exitCode == 0) {
-                            Log.d("MainActivity", "✅ PROJECT_MEDIA permission granted via shell command")
-                        } else {
+                        if (exitCode != 0) {
                             Log.e("MainActivity", "Shell command failed with exit code: $exitCode")
                         }
                     } catch (shellException: Exception) {
@@ -580,7 +550,6 @@ class MainActivity: FlutterActivity() {
             // Device owner automatically has app installation permissions
             // No additional configuration needed
             
-            Log.d("MainActivity", "App installation permissions granted")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting app installation permissions: ${e.message}")
         }
@@ -599,7 +568,6 @@ class MainActivity: FlutterActivity() {
             // Allow password management
             // Allow encryption management
             
-            Log.d("MainActivity", "Device management permissions granted")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting device management permissions: ${e.message}")
         }
@@ -615,7 +583,6 @@ class MainActivity: FlutterActivity() {
             // Device owner automatically has user management permissions
             // Allow user creation/deletion
             
-            Log.d("MainActivity", "User management permissions granted")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting user management permissions: ${e.message}")
         }
@@ -633,7 +600,6 @@ class MainActivity: FlutterActivity() {
             // Allow network log access
             // Allow bug report access
             
-            Log.d("MainActivity", "Security permissions granted")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting security permissions: ${e.message}")
         }
@@ -674,13 +640,11 @@ class MainActivity: FlutterActivity() {
                     val grantState = devicePolicyManager.getPermissionGrantState(componentName, packageName, permission)
                     val isGranted = grantState == DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
                     
-                    Log.d("MainActivity", "Granted runtime permission: $permission (verified: $isGranted)")
                 } catch (e: Exception) {
                     Log.e("MainActivity", "Error granting permission $permission: ${e.message}")
                 }
             }
             
-            Log.d("MainActivity", "Runtime permissions granted for device owner")
         } catch (e: Exception) {
             Log.e("MainActivity", "Error granting runtime permissions: ${e.message}")
         }
@@ -709,7 +673,6 @@ class MainActivity: FlutterActivity() {
                 // Request permissions using ActivityCompat (this will be auto-granted for device owner)
                 androidx.core.app.ActivityCompat.requestPermissions(this, permissions, 100)
                 
-                Log.d("MainActivity", "✅ Force granted all permissions using ActivityCompat")
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error in ActivityCompat permission request: ${e.message}")
             }
@@ -731,7 +694,6 @@ class MainActivity: FlutterActivity() {
             // For non-device owner, check runtime permissions
             val result = ContextCompat.checkSelfPermission(this, permission)
             val granted = result == PackageManager.PERMISSION_GRANTED
-            Log.d("MainActivity", "Permission $permission: ${if (granted) "GRANTED" else "DENIED"}")
             granted
         } catch (e: Exception) {
             Log.e("MainActivity", "Error checking permission $permission: ${e.message}")
@@ -785,7 +747,6 @@ class MainActivity: FlutterActivity() {
                 )
                 
                 result.success(resultMap)
-                Log.d("MainActivity", "Screen sharing bypassed successfully for device owner")
                 
             } else {
                 Log.d("MainActivity", "Not device owner - falling back to normal screen share request")
@@ -810,7 +771,6 @@ class MainActivity: FlutterActivity() {
                         "message" to "Screen sharing permission granted"
                     )
                     result.success(resultMap)
-                    Log.d("MainActivity", "Screen sharing permission granted")
                 } else {
                     result.error("SCREEN_SHARE_DENIED", "Screen sharing permission denied", null)
                     Log.d("MainActivity", "Screen sharing permission denied")
@@ -826,11 +786,7 @@ class MainActivity: FlutterActivity() {
             val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
             
             if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
-                Log.d("MainActivity", "Device owner detected - attempting to access device serial number")
-                Log.d("MainActivity", "Android Version: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-                
-                // First, grant all device identifier permissions
-                Log.d("MainActivity", "Pre-granting device identifier permissions...")
+               
                 grantDeviceIdentifierPermissions()
                 
                 // Wait a moment for permissions to take effect
@@ -841,10 +797,7 @@ class MainActivity: FlutterActivity() {
                 val hasReadPrivilegedPhoneState = checkSelfPermission("android.permission.READ_PRIVILEGED_PHONE_STATE") == PackageManager.PERMISSION_GRANTED
                 val hasAccessDeviceIdentifiers = checkSelfPermission("android.permission.ACCESS_DEVICE_IDENTIFIERS") == PackageManager.PERMISSION_GRANTED
                 
-                Log.d("MainActivity", "Permission Status After Granting:")
-                Log.d("MainActivity", "  READ_PHONE_STATE: $hasReadPhoneState")
-                Log.d("MainActivity", "  READ_PRIVILEGED_PHONE_STATE: $hasReadPrivilegedPhoneState")
-                Log.d("MainActivity", "  ACCESS_DEVICE_IDENTIFIERS: $hasAccessDeviceIdentifiers")
+    
                 
                 // Grant READ_DEVICE_IDENTIFIERS AppOps permission as device owner
                 try {
@@ -854,9 +807,7 @@ class MainActivity: FlutterActivity() {
                     val process = Runtime.getRuntime().exec("cmd appops set $packageName READ_DEVICE_IDENTIFIERS allow")
                     val exitCode = process.waitFor()
                     
-                    if (exitCode == 0) {
-                        Log.d("MainActivity", "✅ Successfully granted READ_DEVICE_IDENTIFIERS permission via shell")
-                    } else {
+                    if (exitCode != 0) {
                         Log.w("MainActivity", "❌ Shell command failed with exit code: $exitCode")
                         
                         // Method 2: Try reflection as fallback
@@ -880,7 +831,6 @@ class MainActivity: FlutterActivity() {
                                 packageName,
                                 MODE_ALLOWED
                             )
-                            Log.d("MainActivity", "✅ Granted READ_DEVICE_IDENTIFIERS permission via reflection")
                         } catch (reflectionException: Exception) {
                             Log.e("MainActivity", "❌ Reflection method also failed: ${reflectionException.message}")
                         }
@@ -896,7 +846,6 @@ class MainActivity: FlutterActivity() {
                     try {
                         val serialNumber = Build.getSerial()
                         if (serialNumber != null && serialNumber != "unknown" && serialNumber.isNotEmpty()) {
-                            Log.d("MainActivity", "✅ Successfully obtained device serial number: $serialNumber")
                             return serialNumber
                         } else {
                             Log.w("MainActivity", "❌ Build.getSerial() returned null, empty, or 'unknown'")
@@ -919,7 +868,6 @@ class MainActivity: FlutterActivity() {
                                 try {
                                     val retrySerial = Build.getSerial()
                                     if (retrySerial != null && retrySerial != "unknown" && retrySerial.isNotEmpty()) {
-                                        Log.d("MainActivity", "✅ Serial obtained after granting privileged permission: $retrySerial")
                                         return retrySerial
                                     }
                                 } catch (retryException: Exception) {
@@ -938,7 +886,6 @@ class MainActivity: FlutterActivity() {
                         @Suppress("DEPRECATION")
                         val serialNumber = Build.SERIAL
                         if (serialNumber != null && serialNumber != "unknown" && serialNumber.isNotEmpty()) {
-                            Log.d("MainActivity", "✅ Successfully obtained device serial (legacy): $serialNumber")
                             return serialNumber
                         } else {
                             Log.w("MainActivity", "❌ Build.SERIAL returned null, empty, or 'unknown'")
