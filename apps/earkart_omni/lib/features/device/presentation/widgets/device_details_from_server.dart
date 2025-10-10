@@ -60,11 +60,8 @@ class DeviceDetailsFromServer extends StatelessWidget {
         _buildInfoRow('Tablet ID', device.tabletID ?? 'Not Available'),
         _buildInfoRow('Status', device.status.name),
         if (device.centre != null) ...[
-          _buildInfoRow('Centre', device.centre?.entName ?? 'Not Available'),
-          _buildInfoRow(
-            'Centre ID',
-            device.centre?.id?.toString() ?? 'Not Available',
-          ),
+          _buildInfoRow('Centre', device.centre?.user?.name ?? 'Not Available'),
+          _buildInfoRow('Centre code', device.centre?.code ?? 'Not Available'),
         ],
       ],
     );
