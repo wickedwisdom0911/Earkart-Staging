@@ -1,0 +1,18 @@
+{
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.example.earkart_omni/.DeviceAdminReceiver",
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": "https://omni-two.s3.ap-south-1.amazonaws.com/mdm-apps/app-release.apk",
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM": "LVXW1utiqsnlFBxbqI1zcCCWqcqUyMLAdGR1RI26OME",
+
+  "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": true,
+  "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
+  "android.app.extra.PROVISIONING_SKIP_USER_SETUP": true,
+  "android.app.extra.PROVISIONING_SKIP_USER_CONSENT": true,
+  "android.app.extra.PROVISIONING_SKIP_EDUCATION_SCREENS": true,
+  "android.app.extra.PROVISIONING_SKIP_GOOGLE_SERVICES_SETUP": true,
+  "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
+    "PROVISIONING_MODE": "FULLY_MANAGED_DEVICE",
+    "app_name": "Earkart Omni",
+    "auto_launch": true,
+    "kiosk_mode": true
+  }
+}
