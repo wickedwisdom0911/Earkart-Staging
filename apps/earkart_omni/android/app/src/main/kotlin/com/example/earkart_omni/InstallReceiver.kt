@@ -8,7 +8,7 @@ import android.util.Log
 class InstallReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
-            android.content.pm.PackageInstaller.ACTION_INSTALL_COMPLETE -> {
+            "android.content.pm.action.INSTALL_COMPLETE" -> {
                 val status = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -1)
                 val packageName = intent.getStringExtra(android.content.pm.PackageInstaller.EXTRA_PACKAGE_NAME)
                 
