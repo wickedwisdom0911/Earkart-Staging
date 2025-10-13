@@ -25,6 +25,7 @@ import {
   GlobeIcon,
   Tablet,
   ClipboardList,
+  Smartphone,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -88,6 +89,11 @@ const adminSidebarItems: SidebarItem[] = [
     name: "Questionnaire",
     icon: <ClipboardList className="text-slate-600" />,
     url: ROUTES.QUESTIONNAIRE,
+  },
+  {
+    name: "MDM",
+    icon: <Smartphone className="text-slate-600" />,
+    url: ROUTES.MDM,
   },
   {
     name: "Users",
