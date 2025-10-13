@@ -1,0 +1,20 @@
+name: omni_stub
+description: "Lightweight Flutter stub app for Android Enterprise Device Owner provisioning"
+
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: false
