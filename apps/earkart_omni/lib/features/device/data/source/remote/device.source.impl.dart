@@ -5,6 +5,8 @@ import 'package:earkart_omni/features/device/data/source/local/device.entity.sou
 import 'package:earkart_omni/features/device/data/source/remote/device.source.interface.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/models/device/device.model.dart';
+import 'package:earkart_omni/models/app_provisioning/app_provisioning.entity.dart';
+import 'package:earkart_omni/models/app_provisioning/app_provisioning.model.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
 class DeviceDataSourceImpl extends IDeviceDataSource {
@@ -58,5 +60,21 @@ class DeviceDataSourceImpl extends IDeviceDataSource {
   @override
   Future<DeviceEntity?> getCurrentDevice() async {
     return deviceEntityDataSource.getDeviceEntity();
+  }
+
+  @override
+  Future<AppProvisioningEntity?> getTabletUpdate() async {
+    try {
+      final response = await dio.get(Constants.updateTabletUrl);
+      final result = AppProvisioningModel.fromJson(response.data);
+      if (result.success) {
+        return result.data;
+      }
+      return null;
+    } on DioException catch (e) {
+      final error = DioExceptions.fromDioError(e).toString();
+      Fluttertoast.showToast(msg: error);
+      rethrow;
+    }
   }
 }

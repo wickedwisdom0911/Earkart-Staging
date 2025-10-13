@@ -34,6 +34,10 @@ class DeviceEntity extends Equatable {
   final DateTime updatedAt;
   @HiveField(12)
   final CentreEntity? centre;
+  @HiveField(13)
+  final bool? pendingUpdate;
+  @HiveField(14)
+  final DateTime? lastUpdateChecked;
 
   const DeviceEntity({
     required this.id,
@@ -49,6 +53,8 @@ class DeviceEntity extends Equatable {
     required this.createdAt,
     required this.updatedAt,
     this.centre,
+    this.pendingUpdate,
+    this.lastUpdateChecked,
   });
 
   factory DeviceEntity.fromJson(Map<String, dynamic> json) {
@@ -76,6 +82,11 @@ class DeviceEntity extends Equatable {
               : DateTime.now(),
       centre:
           json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
+      pendingUpdate: json['pendingUpdate'],
+      lastUpdateChecked:
+          json['lastUpdateChecked'] != null
+              ? DateTime.parse(json['lastUpdateChecked'])
+              : null,
     );
   }
 
@@ -92,6 +103,8 @@ class DeviceEntity extends Equatable {
       'centreId': centreId,
       'status': status.name.toUpperCase(),
       'centre': centre?.toJson(),
+      'pendingUpdate': pendingUpdate,
+      'lastUpdateChecked': lastUpdateChecked?.toIso8601String(),
     };
   }
 
@@ -109,6 +122,8 @@ class DeviceEntity extends Equatable {
     DateTime? createdAt,
     DateTime? updatedAt,
     CentreEntity? centre,
+    bool? pendingUpdate,
+    DateTime? lastUpdateChecked,
   }) {
     return DeviceEntity(
       id: id ?? this.id,
@@ -124,6 +139,8 @@ class DeviceEntity extends Equatable {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       centre: centre ?? this.centre,
+      pendingUpdate: pendingUpdate ?? this.pendingUpdate,
+      lastUpdateChecked: lastUpdateChecked ?? this.lastUpdateChecked,
     );
   }
 
@@ -142,5 +159,7 @@ class DeviceEntity extends Equatable {
     createdAt,
     updatedAt,
     centre,
+    pendingUpdate,
+    lastUpdateChecked,
   ];
 }

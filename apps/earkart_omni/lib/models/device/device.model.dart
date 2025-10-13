@@ -55,6 +55,10 @@ class DeviceData extends DeviceEntity {
   final DateTime updatedAt;
   @override
   final CentreEntity? centre;
+  @override
+  final bool? pendingUpdate;
+  @override
+  final DateTime? lastUpdateChecked;
 
   const DeviceData({
     required this.id,
@@ -70,6 +74,8 @@ class DeviceData extends DeviceEntity {
     required this.createdAt,
     required this.updatedAt,
     this.centre,
+    this.pendingUpdate,
+    this.lastUpdateChecked,
   }) : super(
          id: id,
          code: code,
@@ -84,6 +90,8 @@ class DeviceData extends DeviceEntity {
          createdAt: createdAt,
          updatedAt: updatedAt,
          centre: centre,
+         pendingUpdate: pendingUpdate,
+         lastUpdateChecked: lastUpdateChecked,
        );
 
   factory DeviceData.fromJson(Map<String, dynamic> json) {
@@ -111,6 +119,11 @@ class DeviceData extends DeviceEntity {
               : DateTime.now(),
       centre:
           json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
+      pendingUpdate: json['pendingUpdate'],
+      lastUpdateChecked:
+          json['lastUpdateChecked'] != null
+              ? DateTime.parse(json['lastUpdateChecked'])
+              : null,
     );
   }
 
@@ -130,6 +143,8 @@ class DeviceData extends DeviceEntity {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'centre': centre?.toJson(),
+      'pendingUpdate': pendingUpdate,
+      'lastUpdateChecked': lastUpdateChecked?.toIso8601String(),
     };
   }
 }

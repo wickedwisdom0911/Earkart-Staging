@@ -23,6 +23,7 @@ import android.telephony.TelephonyManager
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.earkart_omni/device_owner"
+    private val INSTALLER_CHANNEL = "com.earkart.omni/installer"
     private val SCREEN_CAPTURE_REQUEST_CODE = 1001
     private var screenShareResult: MethodChannel.Result? = null
 
@@ -71,6 +72,18 @@ class MainActivity: FlutterActivity() {
                     result.success(serialNumber)
                 }
 
+                else -> result.notImplemented()
+            }
+        }
+        
+        // Installer channel for silent APK installation
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, INSTALLER_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "installApkSilently" -> {
+                    val apkPath = call.argument<String>("apkPath") ?: ""
+                    val success = installApkSilently(apkPath)
+                    result.success(success)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -918,6 +931,124 @@ class MainActivity: FlutterActivity() {
             Log.e("MainActivity", "❌ Critical error in getDeviceSerialNumber(): ${e.message}")
             e.printStackTrace()
             return "unknown"
+        }
+    }
+
+    /// Silent APK installation for device owner apps
+    private fun installApkSilently(apkPath: String): Boolean {
+        return try {
+            Log.d("MainActivity", "Attempting silent APK installation: $apkPath")
+            
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+            
+            if (!devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                Log.e("MainActivity", "App is not device owner - cannot perform silent installation")
+                return false
+            }
+            
+            val apkFile = File(apkPath)
+            if (!apkFile.exists()) {
+                Log.e("MainActivity", "APK file does not exist: $apkPath")
+                return false
+            }
+            
+            // Method 1: Use DevicePolicyManager.installSystemUpdate (for system updates)
+            try {
+                // This method is for system updates, but we can try it first
+                val inputStream = apkFile.inputStream()
+                val result = devicePolicyManager.installSystemUpdate(
+                    componentName,
+                    inputStream,
+                    apkFile.length(),
+                    null
+                )
+                inputStream.close()
+                
+                if (result == DevicePolicyManager.INSTALL_UPDATE_SUCCESS) {
+                    Log.d("MainActivity", "Silent installation successful via installSystemUpdate")
+                    return true
+                } else {
+                    Log.w("MainActivity", "installSystemUpdate failed with result: $result")
+                }
+            } catch (e: Exception) {
+                Log.w("MainActivity", "installSystemUpdate method failed: ${e.message}")
+            }
+            
+            // Method 2: Use shell command with device owner privileges
+            try {
+                Log.d("MainActivity", "Trying shell command installation...")
+                
+                // Use pm install command with device owner privileges
+                val process = Runtime.getRuntime().exec(arrayOf(
+                    "su", "-c", 
+                    "pm install -r -d --user 0 \"$apkPath\""
+                ))
+                
+                val exitCode = process.waitFor()
+                val output = process.inputStream.bufferedReader().readText()
+                val errorOutput = process.errorStream.bufferedReader().readText()
+                
+                Log.d("MainActivity", "Shell command exit code: $exitCode")
+                Log.d("MainActivity", "Shell command output: $output")
+                if (errorOutput.isNotEmpty()) {
+                    Log.d("MainActivity", "Shell command error: $errorOutput")
+                }
+                
+                if (exitCode == 0 && output.contains("Success")) {
+                    Log.d("MainActivity", "Silent installation successful via shell command")
+                    return true
+                } else {
+                    Log.w("MainActivity", "Shell command installation failed")
+                }
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Shell command method failed: ${e.message}")
+            }
+            
+            // Method 3: Use PackageInstaller API (Android 5.0+)
+            try {
+                Log.d("MainActivity", "Trying PackageInstaller API...")
+                
+                val packageInstaller = packageManager.packageInstaller
+                val sessionParams = android.content.pm.PackageInstaller.SessionParams(
+                    android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
+                )
+                sessionParams.setAppPackageName(packageName)
+                
+                val sessionId = packageInstaller.createSession(sessionParams)
+                val session = packageInstaller.openSession(sessionId)
+                
+                val inputStream = apkFile.inputStream()
+                val outputStream = session.openWrite("INSTALL", 0, apkFile.length())
+                
+                inputStream.copyTo(outputStream)
+                session.fsync(outputStream)
+                inputStream.close()
+                outputStream.close()
+                
+                // Create install intent
+                val intent = Intent(this, InstallReceiver::class.java)
+                val pendingIntent = android.app.PendingIntent.getBroadcast(
+                    this, 0, intent, 
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                )
+                
+                session.commit(pendingIntent.intentSender)
+                session.close()
+                
+                Log.d("MainActivity", "PackageInstaller session created successfully")
+                return true
+                
+            } catch (e: Exception) {
+                Log.w("MainActivity", "PackageInstaller API method failed: ${e.message}")
+            }
+            
+            Log.e("MainActivity", "All silent installation methods failed")
+            false
+            
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error during silent installation: ${e.message}")
+            false
         }
     }
 

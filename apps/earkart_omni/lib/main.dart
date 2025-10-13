@@ -25,6 +25,7 @@ import 'package:earkart_omni/features/lookup/data/source/local/city.entity.sourc
 import 'package:earkart_omni/features/lookup/data/source/local/district.entty.source.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/language.entity.source.dart';
 import 'package:earkart_omni/config/services/battery_service.dart';
+import 'package:earkart_omni/config/services/auto_update_service.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
@@ -67,6 +68,9 @@ Future<void> main() async {
 
   // Auto-grant device owner permissions if app is device owner
   await _initializeDeviceOwnerPermissions();
+
+  // Initialize auto-update service and perform startup checks
+  await _initializeAutoUpdate();
 
   // Start lookup data initialization in background (non-blocking)
   unawaited(_initLookupDataAsync());
@@ -128,6 +132,42 @@ Future<void> _initializeDeviceOwnerPermissions() async {
     developer.log(
       'Error initializing device owner permissions: $e - continuing startup',
       name: 'DeviceOwner',
+    );
+  }
+}
+
+/// Initialize auto-update service and perform startup checks
+Future<void> _initializeAutoUpdate() async {
+  try {
+    developer.log('Initializing auto-update service...', name: 'AutoUpdate');
+
+    final autoUpdateService = di<AutoUpdateService>();
+
+    // Perform device sync on startup
+    await autoUpdateService.syncDeviceOnStartup().timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {
+        developer.log(
+          'Device sync timed out - continuing startup',
+          name: 'AutoUpdate',
+        );
+        return false;
+      },
+    );
+
+    // Check and perform update if needed (run in background)
+    unawaited(
+      autoUpdateService.checkAndPerformUpdate().catchError((e) {
+        developer.log('Auto-update check failed: $e', name: 'AutoUpdate');
+        return false;
+      }),
+    );
+
+    developer.log('Auto-update service initialized', name: 'AutoUpdate');
+  } catch (e) {
+    developer.log(
+      'Error initializing auto-update service: $e - continuing startup',
+      name: 'AutoUpdate',
     );
   }
 }
@@ -415,6 +455,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           final deviceCubit = di<DeviceCubit>();
           deviceCubit.startDeviceMonitoring();
           deviceCubit.forceDeviceCheck();
+        } catch (_) {}
+
+        // Check for updates when app resumes (optional)
+        try {
+          final autoUpdateService = di<AutoUpdateService>();
+          unawaited(
+            autoUpdateService.checkAndPerformUpdate().catchError((e) {
+              developer.log(
+                'Resume update check failed: $e',
+                name: 'AutoUpdate',
+              );
+              return false;
+            }),
+          );
         } catch (_) {}
         break;
       case AppLifecycleState.paused:
