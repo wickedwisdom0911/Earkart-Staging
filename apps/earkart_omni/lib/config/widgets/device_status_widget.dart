@@ -220,12 +220,38 @@ class DeviceStatusWidget extends StatelessWidget {
       message: 'Turn off audiometer',
       child: GestureDetector(
         onTap: () async {
-          try {
-            await context.read<CommunicationCubit>().sendExitAndPowerOffPacket(
-              true,
-            );
-          } catch (e) {
-            context.read<CommunicationCubit>().resetState();
+          // Show confirmation dialog
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text('Turn Off Audiometer'),
+                content: const Text(
+                  'Are you sure you want to turn off the audiometer? This will power down the device.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    child: const Text('Turn Off'),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (confirmed == true) {
+            try {
+              await context
+                  .read<CommunicationCubit>()
+                  .sendExitAndPowerOffPacket(true);
+            } catch (e) {
+              context.read<CommunicationCubit>().resetState();
+            }
           }
         },
         child: Container(
