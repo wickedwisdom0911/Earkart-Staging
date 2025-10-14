@@ -432,7 +432,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (_isInitializing) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        home: const AppLoadingScreen(message: "Getting Omni Ready for You..."),
+        home: const AppLoadingScreen(
+          message: "Getting Omni 2.0 Ready for You...",
+        ),
       );
     }
 
@@ -463,7 +465,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         duration: const Duration(milliseconds: 300),
         child: GetMaterialApp(
           key: ValueKey(_isInitializing),
-          title: "EarKart Omni",
+          title: "EarKart Omni 2.0",
           debugShowCheckedModeBanner: false,
           theme: theme,
           navigatorKey: SessionManager.navigatorKey,

@@ -344,18 +344,29 @@ class _UpdateScreenState extends State<UpdateScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
           child: Column(
             children: [
               // Header
               _buildHeader(),
-              const SizedBox(height: 32),
+              const SizedBox(height: 48),
 
-              // Main content
-              Expanded(child: _buildMainContent()),
+              // Two-column layout
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left side - Information
+                    Expanded(flex: 1, child: _buildLeftContent()),
+                    const SizedBox(width: 32),
+                    // Right side - Progress
+                    Expanded(flex: 1, child: _buildRightContent()),
+                  ],
+                ),
+              ),
 
               // Action buttons
               _buildActionButtons(),
@@ -369,162 +380,228 @@ class _UpdateScreenState extends State<UpdateScreen>
   Widget _buildHeader() {
     return Column(
       children: [
-        AnimatedBuilder(
-          animation: _pulseAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _pulseAnimation.value,
-              child: Icon(_getStatusIcon(), size: 64, color: _getStatusColor()),
-            );
-          },
+        // Modern status icon with subtle animation
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            color: _getStatusColor().withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _pulseAnimation.value,
+                child: Icon(
+                  _getStatusIcon(),
+                  size: 40,
+                  color: _getStatusColor(),
+                ),
+              );
+            },
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
+
+        // Clean title
         Text(
           'App Update',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[900],
+          ),
         ),
         const SizedBox(height: 8),
-        Text(
-          'Version ${widget.updateInfo.versionName} (${widget.updateInfo.versionCode})',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: Colors.grey[600]),
-        ),
-        const SizedBox(height: 16),
 
-        // Version details card
+        // Minimal version info
         Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(20),
           ),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Version Name',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      Text(
-                        widget.updateInfo.versionName,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Version Code',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      Text(
-                        '${widget.updateInfo.versionCode}',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+          child: Text(
+            'v${widget.updateInfo.versionName}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildMainContent() {
+  Widget _buildLeftContent() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Status message
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Text(
-            _statusMessage,
-            style: Theme.of(context).textTheme.bodyLarge,
-            textAlign: TextAlign.center,
+        Text(
+          _statusMessage,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: Colors.grey[800],
+            fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
+
+        // Version information card
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Update Information',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Colors.grey[800],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildInfoRow('Version Name', widget.updateInfo.versionName),
+              const SizedBox(height: 12),
+              _buildInfoRow('Version Code', '${widget.updateInfo.versionCode}'),
+              const SizedBox(height: 12),
+              _buildInfoRow('Status', _getStatusText()),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
 
         // Release notes section
         if (widget.updateInfo.releaseNotes != null &&
             widget.updateInfo.releaseNotes!.isNotEmpty) ...[
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.shade200),
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey[200]!),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.description,
-                      color: Colors.blue.shade700,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'What\'s New',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Colors.blue.shade700,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                Text(
+                  'What\'s New',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Colors.grey[800],
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   widget.updateInfo.releaseNotes!,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.blue.shade800,
-                    height: 1.4,
+                    color: Colors.grey[700],
+                    height: 1.5,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
         ],
+
+        // Error message
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 24),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Error Details',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Colors.red[800],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(
+                    color: Colors.red[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+        ),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Colors.grey[800],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getStatusText() {
+    switch (_status) {
+      case UpdateStatus.initializing:
+        return 'Initializing';
+      case UpdateStatus.backingUp:
+        return 'Backing Up';
+      case UpdateStatus.downloading:
+        return 'Downloading';
+      case UpdateStatus.installing:
+        return 'Installing';
+      case UpdateStatus.completed:
+        return 'Completed';
+      case UpdateStatus.failed:
+        return 'Failed';
+      case UpdateStatus.manualUpdateRequired:
+        return 'Manual Required';
+      case UpdateStatus.rollingBack:
+        return 'Rolling Back';
+    }
+  }
+
+  Widget _buildRightContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Progress',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: Colors.grey[800],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 24),
 
         // Progress indicators
         if (_status == UpdateStatus.backingUp ||
@@ -532,28 +609,44 @@ class _UpdateScreenState extends State<UpdateScreen>
           _buildParallelProgress(),
         ] else if (_status == UpdateStatus.installing) ...[
           _buildInstallationProgress(),
+        ] else ...[
+          // Show current status when not in progress
+          _buildStatusCard(),
         ],
+      ],
+    );
+  }
 
-        const SizedBox(height: 24),
-
-        // Error message
-        if (_errorMessage != null) ...[
+  Widget _buildStatusCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        children: [
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.red.shade200),
+              color: _getStatusColor().withOpacity(0.1),
+              shape: BoxShape.circle,
             ),
-            child: Text(
-              _errorMessage!,
-              style: TextStyle(color: Colors.red.shade700),
-              textAlign: TextAlign.center,
+            child: Icon(_getStatusIcon(), size: 30, color: _getStatusColor()),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _getStatusText(),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Colors.grey[800],
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
-      ],
+      ),
     );
   }
 
@@ -588,52 +681,70 @@ class _UpdateScreenState extends State<UpdateScreen>
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
       ),
       child: Column(
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                color: isComplete ? Colors.green : Colors.blue,
-                size: 24,
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isComplete ? Colors.green[100] : Colors.blue[100],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: isComplete ? Colors.green[700] : Colors.blue[700],
+                  size: 20,
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Text(
                   title,
-                  style: Theme.of(context).textTheme.titleSmall,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Colors.grey[800],
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               if (isComplete)
-                const Icon(Icons.check_circle, color: Colors.green, size: 24),
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: const BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, color: Colors.white, size: 16),
+                ),
             ],
           ),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              isComplete ? Colors.green : Colors.blue,
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isComplete ? Colors.green : Colors.blue,
+              ),
+              minHeight: 6,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             '${(progress * 100).toStringAsFixed(0)}%',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -643,25 +754,33 @@ class _UpdateScreenState extends State<UpdateScreen>
   Widget _buildInstallationProgress() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
       ),
       child: Column(
         children: [
-          const CircularProgressIndicator(strokeWidth: 3),
-          const SizedBox(height: 16),
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.purple[100],
+              shape: BoxShape.circle,
+            ),
+            child: const CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
+            ),
+          ),
+          const SizedBox(height: 20),
           Text(
             'Installing update...',
-            style: Theme.of(context).textTheme.titleSmall,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Colors.grey[800],
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -672,101 +791,84 @@ class _UpdateScreenState extends State<UpdateScreen>
     return Column(
       children: [
         if (_status == UpdateStatus.manualUpdateRequired) ...[
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _handleManualUpdate,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Install Manually',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
+          _buildModernButton(
+            text: 'Install Manually',
+            onPressed: _handleManualUpdate,
+            backgroundColor: Colors.blue,
+            textColor: Colors.white,
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: () => widget.onUpdateFailed?.call(),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text('Cancel', style: TextStyle(fontSize: 16)),
-            ),
+          _buildModernButton(
+            text: 'Cancel',
+            onPressed: () => widget.onUpdateFailed?.call(),
+            backgroundColor: Colors.transparent,
+            textColor: Colors.grey[600]!,
+            isOutlined: true,
           ),
         ] else if (_status == UpdateStatus.completed) ...[
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => widget.onUpdateCompleted?.call(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Continue',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
+          _buildModernButton(
+            text: 'Continue',
+            onPressed: () => widget.onUpdateCompleted?.call(),
+            backgroundColor: Colors.green,
+            textColor: Colors.white,
           ),
         ] else if (_status == UpdateStatus.failed) ...[
           // Check if the error is related to download failure
           if (_errorMessage != null &&
               _errorMessage!.toLowerCase().contains('download')) ...[
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _retryUpdate,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  'Retry Download',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ),
+            _buildModernButton(
+              text: 'Retry Download',
+              onPressed: _retryUpdate,
+              backgroundColor: Colors.blue,
+              textColor: Colors.white,
             ),
             const SizedBox(height: 12),
           ],
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => widget.onUpdateFailed?.call(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Close',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
+          _buildModernButton(
+            text: 'Close',
+            onPressed: () => widget.onUpdateFailed?.call(),
+            backgroundColor: Colors.red,
+            textColor: Colors.white,
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildModernButton({
+    required String text,
+    required VoidCallback onPressed,
+    required Color backgroundColor,
+    required Color textColor,
+    bool isOutlined = false,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isOutlined ? Colors.transparent : backgroundColor,
+          foregroundColor: textColor,
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side:
+                isOutlined
+                    ? BorderSide(color: Colors.grey[300]!)
+                    : BorderSide.none,
+          ),
+          elevation: 0,
+          shadowColor: Colors.transparent,
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+      ),
     );
   }
 
