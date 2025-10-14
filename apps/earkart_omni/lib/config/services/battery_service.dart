@@ -71,12 +71,10 @@ class BatteryService {
   /// Initialize battery monitoring
   Future<void> initialize() async {
     if (_isInitialized) {
-      di<ILogger>().debug('Battery service already initialized, skipping');
       return;
     }
 
     final initStartTime = DateTime.now();
-    di<ILogger>().info('Starting battery service initialization...');
 
     try {
       // Emit loading state
@@ -88,13 +86,9 @@ class BatteryService {
 
       // Time the battery level retrieval
       final levelStartTime = DateTime.now();
-      di<ILogger>().debug('Starting initial battery level retrieval...');
       try {
         initialLevel = await _battery.batteryLevel;
         final levelDuration = DateTime.now().difference(levelStartTime);
-        di<ILogger>().info(
-          'Initial battery level retrieved: $initialLevel% (took ${levelDuration.inMilliseconds}ms)',
-        );
 
         if (levelDuration.inMilliseconds > 1000) {
           di<ILogger>().warning(
@@ -111,14 +105,10 @@ class BatteryService {
 
       // Time the battery state retrieval
       final stateStartTime = DateTime.now();
-      di<ILogger>().debug('Starting initial battery state retrieval...');
       try {
         final initialState = await _battery.batteryState;
         initialCharging = initialState == BatteryState.charging;
         final stateDuration = DateTime.now().difference(stateStartTime);
-        di<ILogger>().info(
-          'Initial battery state retrieved: $initialState (charging: $initialCharging) (took ${stateDuration.inMilliseconds}ms)',
-        );
 
         if (stateDuration.inMilliseconds > 1000) {
           di<ILogger>().warning(
@@ -166,9 +156,6 @@ class BatteryService {
                 isLoading: false,
               );
               _emitBatteryInfo(_currentBatteryInfo);
-              di<ILogger>().debug(
-                'Battery charging state changed: $newCharging, level: $freshLevel%',
-              );
             } catch (e) {
               // If we can't get fresh level, just update charging state
               _currentBatteryInfo = _currentBatteryInfo.copyWith(
@@ -215,7 +202,6 @@ class BatteryService {
               error: null, // Clear any previous errors
             );
             _emitBatteryInfo(_currentBatteryInfo);
-            di<ILogger>().debug('Battery level updated: $newLevel%');
           }
         } catch (e) {
           final periodicCheckDuration = DateTime.now().difference(
@@ -234,9 +220,6 @@ class BatteryService {
 
       _isInitialized = true;
       final totalInitDuration = DateTime.now().difference(initStartTime);
-      di<ILogger>().info(
-        'Battery service initialized successfully (total time: ${totalInitDuration.inMilliseconds}ms)',
-      );
 
       if (totalInitDuration.inMilliseconds > 2000) {
         di<ILogger>().warning(
