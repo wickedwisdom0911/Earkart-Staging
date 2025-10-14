@@ -94,6 +94,15 @@ class DeviceData extends DeviceEntity {
          lastUpdateChecked: lastUpdateChecked,
        );
 
+  static DateTime? _parseDateTime(dynamic value) {
+    try {
+      return DateTime.parse(value.toString());
+    } catch (e) {
+      print('Error parsing DateTime: $value, error: $e');
+      return null;
+    }
+  }
+
   factory DeviceData.fromJson(Map<String, dynamic> json) {
     return DeviceData(
       id: json['id'] ?? '',
@@ -121,8 +130,9 @@ class DeviceData extends DeviceEntity {
           json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
       pendingUpdate: json['pendingUpdate'],
       lastUpdateChecked:
-          json['lastUpdateChecked'] != null
-              ? DateTime.parse(json['lastUpdateChecked'])
+          json['lastUpdateChecked'] != null &&
+                  json['lastUpdateChecked'].toString().isNotEmpty
+              ? _parseDateTime(json['lastUpdateChecked'])
               : null,
     );
   }
@@ -144,7 +154,7 @@ class DeviceData extends DeviceEntity {
       'updatedAt': updatedAt.toIso8601String(),
       'centre': centre?.toJson(),
       'pendingUpdate': pendingUpdate,
-      'lastUpdateChecked': lastUpdateChecked?.toIso8601String(),
+      'lastUpdateChecked': lastUpdateChecked?.toUtc().toIso8601String(),
     };
   }
 }

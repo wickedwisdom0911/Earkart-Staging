@@ -105,22 +105,17 @@ class DeviceOwnerHelper {
   static Future<void> printPermissionSummary() async {
     final permissions = await checkCommonPermissions();
 
-    print('\n📋 Permission Status Summary:');
-    print('=' * 50);
-
     permissions.forEach((permission, granted) {
-      final status = granted ? '✅ GRANTED' : '❌ DENIED';
-      print('$permission: $status');
+      if (!granted) {
+        print('❌ Permission NOT granted: $permission');
+      }
     });
-
-    print('=' * 50);
   }
 
   /// Request screen sharing permission (standard method)
   static Future<Map<String, dynamic>?> requestScreenShare() async {
     try {
       final result = await platform.invokeMethod('requestScreenShare');
-      print('Screen share request result: $result');
       return Map<String, dynamic>.from(result);
     } on PlatformException catch (e) {
       print('Error requesting screen share: ${e.message}');
@@ -132,7 +127,6 @@ class DeviceOwnerHelper {
   static Future<Map<String, dynamic>?> bypassScreenShareDialog() async {
     try {
       final result = await platform.invokeMethod('bypassScreenShareDialog');
-      print('Screen share bypass result: $result');
       return Map<String, dynamic>.from(result);
     } on PlatformException catch (e) {
       print('Error bypassing screen share dialog: ${e.message}');
@@ -158,7 +152,6 @@ class DeviceOwnerHelper {
         await platform.invokeMethod('grantUSBPermissions');
         return true;
       } else {
-        print('⚠️ Not device owner - cannot grant USB permissions');
         return false;
       }
     } catch (e) {
@@ -173,14 +166,11 @@ class DeviceOwnerHelper {
       final bool isOwner = await isDeviceOwner();
 
       if (isOwner) {
-        print('🎯 Device owner detected - bypassing screen share dialog');
-
         // First, grant PROJECT_MEDIA permission
         await grantProjectMediaPermission();
 
         return await bypassScreenShareDialog();
       } else {
-        print('📱 Not device owner - using standard screen share request');
         return await requestScreenShare();
       }
     } catch (e) {

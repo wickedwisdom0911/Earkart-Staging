@@ -700,7 +700,6 @@ class MainActivity: FlutterActivity() {
             // If we're device owner, we have all permissions
             val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
-                Log.d("MainActivity", "Device owner - permission $permission automatically granted")
                 return true
             }
             
@@ -821,7 +820,6 @@ class MainActivity: FlutterActivity() {
                     val exitCode = process.waitFor()
                     
                     if (exitCode != 0) {
-                        Log.w("MainActivity", "❌ Shell command failed with exit code: $exitCode")
                         
                         // Method 2: Try reflection as fallback
                         try {
@@ -934,7 +932,7 @@ class MainActivity: FlutterActivity() {
         }
     }
 
-    /// Silent APK installation for device owner apps using DevicePolicyManager
+    /// Silent APK installation for device owner apps using PackageInstaller (no restart)
     private fun installApkSilently(apkPath: String): Boolean {
         return try {
             Log.d("MainActivity", "🚀 Starting silent APK installation: $apkPath")
@@ -955,34 +953,10 @@ class MainActivity: FlutterActivity() {
             
             Log.d("MainActivity", "✅ Device owner confirmed - proceeding with silent installation")
             
-            // Method 1: Use DevicePolicyManager.installSystemUpdate (for device owner apps)
-            try {
-                Log.d("MainActivity", "📦 Attempting installation via DevicePolicyManager...")
-                
-                // For device owner apps, we can use installSystemUpdate with proper parameters
-                val inputStream = apkFile.inputStream()
-                val result = devicePolicyManager.installSystemUpdate(
-                    componentName,
-                    inputStream,
-                    apkFile.length(),
-                    null // callback can be null for device owner
-                )
-                inputStream.close()
-                
-                Log.d("MainActivity", "DevicePolicyManager installation result: $result")
-                
-                // Check if installation was successful
-                if (result == DevicePolicyManager.INSTALL_UPDATE_SUCCESS) {
-                    Log.d("MainActivity", "✅ Silent installation successful via DevicePolicyManager")
-                    return true
-                } else {
-                    Log.w("MainActivity", "⚠️ DevicePolicyManager installation failed with result: $result")
-                }
-            } catch (e: Exception) {
-                Log.w("MainActivity", "⚠️ DevicePolicyManager method failed: ${e.message}")
-            }
+            // Skip DevicePolicyManager.installSystemUpdate as it can cause device restart
+            // Use PackageInstaller API instead for non-restart installation
             
-            // Method 2: Use PackageInstaller API with device owner privileges
+            // Method 1: Use PackageInstaller API with device owner privileges (no restart)
             try {
                 Log.d("MainActivity", "📦 Attempting installation via PackageInstaller API...")
                 
@@ -1040,7 +1014,7 @@ class MainActivity: FlutterActivity() {
                 Log.w("MainActivity", "⚠️ PackageInstaller API method failed: ${e.message}")
             }
             
-            // Method 3: Use direct package installation for device owner
+            // Method 2: Use direct package installation for device owner (no restart)
             try {
                 Log.d("MainActivity", "📦 Attempting direct package installation...")
                 
@@ -1067,7 +1041,12 @@ class MainActivity: FlutterActivity() {
                     outputStream.close()
                     
                     // For device owner, we can commit without user interaction
-                    session.commit(null) // null intent sender for device owner
+                    val intent = Intent(this, InstallReceiver::class.java)
+                    val pendingIntent = android.app.PendingIntent.getBroadcast(
+                        this, 0, intent, 
+                        android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                    )
+                    session.commit(pendingIntent.intentSender)
                     session.close()
                     
                     Log.d("MainActivity", "✅ Direct package installation completed")

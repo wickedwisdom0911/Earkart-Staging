@@ -51,7 +51,7 @@ import 'package:get/route_manager.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'package:earkart_omni/utils/device_owner_helper.dart';
+import 'package:earkart_omni/config/services/device_owner_helper.dart';
 
 Future<void> main() async {
   await dotenv.load(fileName: ".env");
@@ -71,25 +71,14 @@ Future<void> main() async {
 
   // Initialize auto-update service and perform startup checks
   await _initializeAutoUpdate();
-
-  // Start lookup data initialization in background (non-blocking)
-  unawaited(_initLookupDataAsync());
-
   runApp(const MyApp());
 }
 
 /// Initialize battery service
 Future<void> _initializeBatteryService() async {
   try {
-    developer.log('Initializing battery service...', name: 'BatteryService');
-
     final batteryService = di<BatteryService>();
     await batteryService.initialize();
-
-    developer.log(
-      'Battery service initialized successfully',
-      name: 'BatteryService',
-    );
   } catch (e) {
     developer.log(
       'Error initializing battery service: $e',
@@ -98,14 +87,8 @@ Future<void> _initializeBatteryService() async {
   }
 }
 
-/// Initialize device owner permissions automatically with timeout
 Future<void> _initializeDeviceOwnerPermissions() async {
   try {
-    developer.log(
-      'Initializing device owner permissions...',
-      name: 'DeviceOwner',
-    );
-
     // Add timeout to prevent hanging during startup
     await Future.wait([
       DeviceOwnerHelper.autoGrantPermissionsIfDeviceOwner(),
@@ -123,11 +106,6 @@ Future<void> _initializeDeviceOwnerPermissions() async {
         return [];
       },
     );
-
-    developer.log(
-      'Device owner permissions initialization complete',
-      name: 'DeviceOwner',
-    );
   } catch (e) {
     developer.log(
       'Error initializing device owner permissions: $e - continuing startup',
@@ -142,18 +120,6 @@ Future<void> _initializeAutoUpdate() async {
     developer.log('Initializing auto-update service...', name: 'AutoUpdate');
 
     final autoUpdateService = di<AutoUpdateService>();
-
-    // Perform device sync on startup
-    await autoUpdateService.syncDeviceOnStartup().timeout(
-      const Duration(seconds: 10),
-      onTimeout: () {
-        developer.log(
-          'Device sync timed out - continuing startup',
-          name: 'AutoUpdate',
-        );
-        return false;
-      },
-    );
 
     // Check and perform update if needed (run in background)
     unawaited(
@@ -362,38 +328,6 @@ Future<void> _initDataSources() async {
   await di<CityEntityDataSource>().init();
   await di<DistrictEntityDataSource>().init();
   await di<LanguageEntityDataSource>().init();
-}
-
-/// Initialize lookup data asynchronously with error handling and timeout
-Future<void> _initLookupDataAsync() async {
-  try {
-    developer.log(
-      'Starting async lookup data initialization...',
-      name: 'LookupData',
-    );
-
-    // Use timeout to prevent hanging during startup
-    await Future.wait([
-      di<LookupCubit>().getLanguages(),
-      di<LookupCubit>().getCountries(),
-    ]).timeout(
-      const Duration(seconds: 15),
-      onTimeout: () {
-        developer.log(
-          'Lookup data initialization timed out - app will continue',
-          name: 'LookupData',
-        );
-        return [];
-      },
-    );
-
-    developer.log('Lookup data initialization completed', name: 'LookupData');
-  } catch (e) {
-    developer.log(
-      'Lookup data initialization failed: $e - app will continue',
-      name: 'LookupData',
-    );
-  }
 }
 
 class MyApp extends StatefulWidget {

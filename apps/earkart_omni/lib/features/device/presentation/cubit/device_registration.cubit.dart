@@ -57,12 +57,12 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
   }) async {
     emit(const DeviceRegistrationState.loading());
     try {
-      // Create updated device entity with local device information
       final updatedDevice = deviceData.copyWith(
         deviceID: r15cSerialNumber,
         tabletID: tabletID,
         tabletAndroidVersion: tabletAndroidVersion,
         tabletAppVersion: tabletAppVersion,
+        lastUpdateChecked: DateTime.now(),
       );
 
       final device = await setupDeviceUsecase(updatedDevice);

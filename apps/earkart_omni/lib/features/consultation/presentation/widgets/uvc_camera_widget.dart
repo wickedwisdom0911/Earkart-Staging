@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
-import 'package:earkart_omni/utils/device_owner_helper.dart';
+import 'package:earkart_omni/config/services/device_owner_helper.dart';
 
 class UVCCameraWidget extends StatefulWidget {
   final Function(bool)? onCameraStateChanged;

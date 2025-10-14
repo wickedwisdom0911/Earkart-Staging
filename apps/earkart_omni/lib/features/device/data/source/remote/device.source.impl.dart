@@ -27,6 +27,8 @@ class DeviceDataSourceImpl extends IDeviceDataSource {
       );
       final result = DeviceModel.fromJson(response.data);
       if (result.success) {
+        deviceEntityDataSource.addDeviceEntity(result.data!);
+
         return result.data;
       }
       return null;
@@ -40,10 +42,8 @@ class DeviceDataSourceImpl extends IDeviceDataSource {
   @override
   Future<DeviceEntity?> setupDevice(DeviceEntity deviceEntity) async {
     try {
-      final response = await dio.post(
-        Constants.setupDeviceUrl,
-        data: deviceEntity.toJson(),
-      );
+      final jsonData = deviceEntity.toJson();
+      final response = await dio.post(Constants.setupDeviceUrl, data: jsonData);
       final result = DeviceModel.fromJson(response.data);
       if (result.success) {
         deviceEntityDataSource.addDeviceEntity(result.data!);

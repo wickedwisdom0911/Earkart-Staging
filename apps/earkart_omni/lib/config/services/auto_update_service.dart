@@ -1,29 +1,28 @@
 import 'dart:io';
 import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:earkart_omni/models/app_provisioning/app_provisioning.entity.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:earkart_omni/features/device/data/source/remote/device.source.interface.dart';
-import 'package:earkart_omni/features/device/data/source/local/device.entity.source.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:flutter/services.dart';
+import 'package:earkart_omni/config/services/update_screen.dart';
+import 'package:earkart_omni/config/services/session_manager.dart';
 
 /// Callback for download progress updates
 typedef DownloadProgressCallback = void Function(int received, int total);
 
 class AutoUpdateService {
   final IDeviceDataSource _deviceDataSource;
-  final DeviceEntityDataSource _deviceEntityDataSource;
   final Dio _dio;
 
   AutoUpdateService({
     required IDeviceDataSource deviceDataSource,
-    required DeviceEntityDataSource deviceEntityDataSource,
     required Dio dio,
   }) : _deviceDataSource = deviceDataSource,
-       _deviceEntityDataSource = deviceEntityDataSource,
        _dio = dio;
 
   /// Check if device needs update and perform auto-update if required
@@ -42,9 +41,11 @@ class AutoUpdateService {
         );
         return false;
       }
+      final deviceInfoFromServer = await _deviceDataSource.getDeviceByValue(
+        currentDevice.id,
+      );
 
-      // Check if update is pending
-      if (currentDevice.pendingUpdate != true) {
+      if (deviceInfoFromServer?.pendingUpdate != true) {
         developer.log('No pending update found', name: 'AutoUpdate');
         return false;
       }
@@ -62,7 +63,7 @@ class AutoUpdateService {
       }
 
       // Check if update is newer than current version
-      final currentVersion = await _getCurrentAppVersion();
+      final currentVersion = await getCurrentAppVersion();
       if (currentVersion == null) {
         developer.log(
           'Could not determine current app version',
@@ -71,9 +72,9 @@ class AutoUpdateService {
         return false;
       }
 
-      if (updateInfo.versionCode <= int.parse(currentVersion.buildNumber)) {
+      if (!isVersionNewer(updateInfo.versionName, currentVersion.version)) {
         developer.log(
-          'Available version (${updateInfo.versionCode}) is not newer than current version (${currentVersion.buildNumber})',
+          'Available version (${updateInfo.versionName}) is not newer than current version (${currentVersion.version})',
           name: 'AutoUpdate',
         );
         // Update the device to mark update as completed
@@ -86,7 +87,14 @@ class AutoUpdateService {
         name: 'AutoUpdate',
       );
 
-      // Download and install the update
+      // Show UpdateScreen for user visibility using global navigator key
+      final navigatorContext = SessionManager.navigatorKey.currentContext;
+      if (navigatorContext != null) {
+        await _showUpdateScreen(navigatorContext, updateInfo);
+        return true;
+      }
+
+      // Download and install the update (fallback for when no context)
       final success = await _downloadAndInstallUpdate(
         updateInfo,
         onProgress: onProgress,
@@ -110,65 +118,8 @@ class AutoUpdateService {
     }
   }
 
-  /// Sync device information with server on app startup
-  Future<bool> syncDeviceOnStartup() async {
-    try {
-      developer.log(
-        'Syncing device information on startup...',
-        name: 'AutoUpdate',
-      );
-
-      final currentDevice = await _deviceDataSource.getCurrentDevice();
-      if (currentDevice == null) {
-        developer.log(
-          'No current device found, skipping sync',
-          name: 'AutoUpdate',
-        );
-        return false;
-      }
-
-      // Get device info from server
-      final serverDevice = await _deviceDataSource.getDeviceByValue(
-        currentDevice.tabletID ?? '',
-      );
-      if (serverDevice == null) {
-        developer.log(
-          'Could not fetch device info from server',
-          name: 'AutoUpdate',
-        );
-        return false;
-      }
-
-      // Check if local device differs from server device
-      if (_devicesDiffer(currentDevice, serverDevice)) {
-        developer.log(
-          'Device information differs, syncing with server...',
-          name: 'AutoUpdate',
-        );
-
-        // Update local device with server information
-        await _deviceEntityDataSource.addDeviceEntity(serverDevice);
-
-        // Call setupDevice to sync with server
-        await _deviceDataSource.setupDevice(serverDevice);
-
-        developer.log(
-          'Device information synced successfully',
-          name: 'AutoUpdate',
-        );
-        return true;
-      }
-
-      developer.log('Device information is up to date', name: 'AutoUpdate');
-      return false;
-    } catch (e) {
-      developer.log('Error during device sync: $e', name: 'AutoUpdate');
-      return false;
-    }
-  }
-
   /// Get current app version information
-  Future<PackageInfo?> _getCurrentAppVersion() async {
+  Future<PackageInfo?> getCurrentAppVersion() async {
     try {
       return await PackageInfo.fromPlatform();
     } catch (e) {
@@ -180,24 +131,117 @@ class AutoUpdateService {
     }
   }
 
+  /// Compare semantic versions to determine if the first is newer than the second
+  bool isVersionNewer(String version1, String version2) {
+    try {
+      developer.log(
+        'Comparing versions: "$version1" vs "$version2"',
+        name: 'AutoUpdate',
+      );
+
+      final v1Parts = version1.split('.').map(int.parse).toList();
+      final v2Parts = version2.split('.').map(int.parse).toList();
+
+      developer.log(
+        'Parsed version parts: $v1Parts vs $v2Parts',
+        name: 'AutoUpdate',
+      );
+
+      // Ensure both version lists have the same length by padding with zeros
+      while (v1Parts.length < v2Parts.length) {
+        v1Parts.add(0);
+      }
+      while (v2Parts.length < v1Parts.length) {
+        v2Parts.add(0);
+      }
+
+      developer.log(
+        'Normalized version parts: $v1Parts vs $v2Parts',
+        name: 'AutoUpdate',
+      );
+
+      // Compare each part
+      for (int i = 0; i < v1Parts.length; i++) {
+        if (v1Parts[i] > v2Parts[i]) {
+          developer.log(
+            'Version "$version1" is newer than "$version2" (part $i: ${v1Parts[i]} > ${v2Parts[i]})',
+            name: 'AutoUpdate',
+          );
+          return true;
+        } else if (v1Parts[i] < v2Parts[i]) {
+          developer.log(
+            'Version "$version1" is older than "$version2" (part $i: ${v1Parts[i]} < ${v2Parts[i]})',
+            name: 'AutoUpdate',
+          );
+          return false;
+        }
+      }
+
+      // Versions are equal
+      developer.log(
+        'Versions "$version1" and "$version2" are equal',
+        name: 'AutoUpdate',
+      );
+      return false;
+    } catch (e) {
+      developer.log(
+        'Error comparing versions "$version1" and "$version2": $e',
+        name: 'AutoUpdate',
+      );
+      // If parsing fails, assume version1 is newer to be safe
+      return true;
+    }
+  }
+
+  /// Download APK with progress tracking (for parallel operations)
+  Future<void> downloadApkWithProgress(
+    String apkUrl,
+    String apkPath, {
+    DownloadProgressCallback? onProgress,
+  }) async {
+    // Download the APK with progress tracking
+    await _dio.download(
+      apkUrl,
+      apkPath,
+      onReceiveProgress: (received, total) {
+        if (total != -1) {
+          developer.log(
+            'Download progress: ${(received / total * 100).toStringAsFixed(1)}% ($received/$total bytes)',
+            name: 'AutoUpdate',
+          );
+          onProgress?.call(received, total);
+        }
+      },
+    );
+
+    developer.log(
+      'APK downloaded successfully to: $apkPath',
+      name: 'AutoUpdate',
+    );
+  }
+
   /// Download and install the APK update
   Future<bool> _downloadAndInstallUpdate(
     AppProvisioningEntity updateInfo, {
     DownloadProgressCallback? onProgress,
   }) async {
     try {
-      developer.log(
-        'Starting APK download from: ${updateInfo.apkUrl}',
-        name: 'AutoUpdate',
-      );
+      // Ensure the APK URL has proper protocol
+      String apkUrl = updateInfo.apkUrl;
+      if (!apkUrl.startsWith('http://') && !apkUrl.startsWith('https://')) {
+        apkUrl = 'https://$apkUrl';
+      }
+
+      developer.log('Starting APK download from: $apkUrl', name: 'AutoUpdate');
 
       // Get downloads directory
       final directory = await getApplicationDocumentsDirectory();
-      final apkPath = '${directory.path}/update_${updateInfo.versionCode}.apk';
+      final apkPath =
+          '${directory.path}/update_${updateInfo.versionName}_${updateInfo.versionCode}.apk';
 
       // Download the APK with progress tracking
       await _dio.download(
-        updateInfo.apkUrl,
+        apkUrl,
         apkPath,
         onReceiveProgress: (received, total) {
           if (total != -1) {
@@ -216,7 +260,7 @@ class AutoUpdateService {
       );
 
       // Try silent installation first (for device owner apps)
-      final silentInstallSuccess = await _performSilentInstallation(apkPath);
+      final silentInstallSuccess = await performSilentInstallation(apkPath);
 
       if (silentInstallSuccess) {
         developer.log(
@@ -284,7 +328,7 @@ class AutoUpdateService {
   }
 
   /// Perform silent APK installation using device owner privileges
-  Future<bool> _performSilentInstallation(String apkPath) async {
+  Future<bool> performSilentInstallation(String apkPath) async {
     try {
       developer.log(
         'Attempting silent APK installation: $apkPath',
@@ -317,6 +361,31 @@ class AutoUpdateService {
     }
   }
 
+  /// Show UpdateScreen for user visibility during automatic update
+  Future<void> _showUpdateScreen(
+    BuildContext context,
+    AppProvisioningEntity updateInfo,
+  ) async {
+    try {
+      await UpdateScreenHelper.showUpdateScreen(
+        context: context,
+        autoUpdateService: this,
+        updateInfo: updateInfo,
+        onUpdateCompleted: () {
+          developer.log(
+            'Update completed via UpdateScreen',
+            name: 'AutoUpdate',
+          );
+        },
+        onUpdateFailed: () {
+          developer.log('Update failed via UpdateScreen', name: 'AutoUpdate');
+        },
+      );
+    } catch (e) {
+      developer.log('Error showing UpdateScreen: $e', name: 'AutoUpdate');
+    }
+  }
+
   /// Mark update as completed by updating device information
   Future<void> _markUpdateAsCompleted(DeviceEntity currentDevice) async {
     try {
@@ -325,9 +394,7 @@ class AutoUpdateService {
         lastUpdateChecked: DateTime.now(),
       );
 
-      await _deviceEntityDataSource.addDeviceEntity(updatedDevice);
       await _deviceDataSource.setupDevice(updatedDevice);
-
       developer.log('Update marked as completed', name: 'AutoUpdate');
     } catch (e) {
       developer.log(
@@ -337,21 +404,13 @@ class AutoUpdateService {
     }
   }
 
-  /// Check if local and server device information differs
-  bool _devicesDiffer(DeviceEntity local, DeviceEntity server) {
-    return local.pendingUpdate != server.pendingUpdate ||
-        local.lastUpdateChecked != server.lastUpdateChecked ||
-        local.status != server.status ||
-        local.centreId != server.centreId;
-  }
-
   /// Backup current APK before updating
   Future<String?> backupCurrentApk() async {
     try {
       developer.log('Backing up current APK...', name: 'AutoUpdate');
 
       // Get current app info
-      final packageInfo = await _getCurrentAppVersion();
+      final packageInfo = await getCurrentAppVersion();
       if (packageInfo == null) {
         developer.log(
           'Could not get current app version for backup',
@@ -400,7 +459,7 @@ class AutoUpdateService {
     try {
       // This is a simplified implementation
       // In a real app, you'd need to get the actual APK path from the system
-      final packageInfo = await _getCurrentAppVersion();
+      final packageInfo = await getCurrentAppVersion();
       if (packageInfo == null) return null;
 
       // For now, return a placeholder path
@@ -428,7 +487,7 @@ class AutoUpdateService {
     AppProvisioningEntity updateInfo,
   ) async {
     try {
-      final packageInfo = await _getCurrentAppVersion();
+      final packageInfo = await getCurrentAppVersion();
       if (packageInfo == null) return false;
 
       // Check if the installed version matches the expected version
@@ -460,7 +519,7 @@ class AutoUpdateService {
       }
 
       // Attempt to install the backup APK
-      final success = await _performSilentInstallation(backupApkPath);
+      final success = await performSilentInstallation(backupApkPath);
 
       if (success) {
         developer.log('Rollback completed successfully', name: 'AutoUpdate');

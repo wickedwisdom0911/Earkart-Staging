@@ -57,6 +57,15 @@ class DeviceEntity extends Equatable {
     this.lastUpdateChecked,
   });
 
+  static DateTime? _parseDateTime(dynamic value) {
+    try {
+      return DateTime.parse(value.toString());
+    } catch (e) {
+      print('Error parsing DateTime: $value, error: $e');
+      return null;
+    }
+  }
+
   factory DeviceEntity.fromJson(Map<String, dynamic> json) {
     return DeviceEntity(
       id: json['id'] ?? '',
@@ -84,8 +93,9 @@ class DeviceEntity extends Equatable {
           json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
       pendingUpdate: json['pendingUpdate'],
       lastUpdateChecked:
-          json['lastUpdateChecked'] != null
-              ? DateTime.parse(json['lastUpdateChecked'])
+          json['lastUpdateChecked'] != null &&
+                  json['lastUpdateChecked'].toString().isNotEmpty
+              ? _parseDateTime(json['lastUpdateChecked'])
               : null,
     );
   }
@@ -102,9 +112,11 @@ class DeviceEntity extends Equatable {
       'tabletAndroidVersion': tabletAndroidVersion,
       'centreId': centreId,
       'status': status.name.toUpperCase(),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
       'centre': centre?.toJson(),
       'pendingUpdate': pendingUpdate,
-      'lastUpdateChecked': lastUpdateChecked?.toIso8601String(),
+      'lastUpdateChecked': lastUpdateChecked?.toUtc().toIso8601String(),
     };
   }
 

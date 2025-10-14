@@ -331,10 +331,6 @@ Future<void> setupDI() async {
 
   //auto-update
   di.registerLazySingleton<AutoUpdateService>(
-    () => AutoUpdateService(
-      deviceDataSource: di.call(),
-      deviceEntityDataSource: di.call(),
-      dio: di.call(),
-    ),
+    () => AutoUpdateService(deviceDataSource: di.call(), dio: di.call()),
   );
 }

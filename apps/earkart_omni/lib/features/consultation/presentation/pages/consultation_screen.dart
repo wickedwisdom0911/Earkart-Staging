@@ -27,7 +27,7 @@ import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/config/release_config.dart';
 import 'package:earkart_omni/config/utils/error_handler.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
-import 'package:earkart_omni/utils/device_owner_helper.dart';
+import 'package:earkart_omni/config/services/device_owner_helper.dart';
 import 'dart:async';
 
 class ConsultationScreen extends StatefulWidget {
