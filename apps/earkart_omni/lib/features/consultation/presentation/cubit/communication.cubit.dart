@@ -625,6 +625,16 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     }
   }
 
+  Future<void> sendExitAndPowerOffPacket(bool powerOff) async {
+    await sendStopCommand();
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 6,
+      "Exit": true,
+      "ShutDown": powerOff,
+    });
+    await sendCommand(packet);
+  }
+
   /// Get current tablet battery information
   Future<Map<String, dynamic>> getTabletBatteryInfo() async {
     try {

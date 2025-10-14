@@ -20,12 +20,18 @@ import android.os.Environment
 import android.os.Build
 import java.io.File
 import android.telephony.TelephonyManager
+import android.provider.Settings
+import android.media.AudioManager
+import android.view.WindowManager
+import android.net.Uri
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.earkart_omni/device_owner"
     private val INSTALLER_CHANNEL = "com.earkart.omni/installer"
     private val SCREEN_CAPTURE_REQUEST_CODE = 1001
+    private val WRITE_SETTINGS_REQUEST_CODE = 1002
     private var screenShareResult: MethodChannel.Result? = null
+    private var brightnessResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -70,6 +76,16 @@ class MainActivity: FlutterActivity() {
                 "getDeviceSerialNumber" -> {
                     val serialNumber = getDeviceSerialNumber()
                     result.success(serialNumber)
+                }
+                "setBrightnessToMax" -> {
+                    setBrightnessToMax(result)
+                }
+                "setVolumeToMax" -> {
+                    val success = setVolumeToMax()
+                    result.success(success)
+                }
+                "disableAdaptiveBrightness" -> {
+                    disableAdaptiveBrightness(result)
                 }
 
                 else -> result.notImplemented()
@@ -191,7 +207,11 @@ class MainActivity: FlutterActivity() {
                 // 12. Security permissions
                 grantSecurityPermissions()
                 
-
+                // 13. Auto-grant WRITE_SETTINGS permission for brightness control
+                autoGrantWriteSettingsPermission()
+                
+                // 14. Enable Bluetooth control
+                enableBluetoothControl()
                 
                 Log.d("MainActivity", "All permissions granted for device owner")
                 
@@ -215,7 +235,14 @@ class MainActivity: FlutterActivity() {
             try {
                 // Grant USB permissions for all devices
                 devicePolicyManager.addUserRestriction(componentName, UserManager.DISALLOW_USB_FILE_TRANSFER)
-                devicePolicyManager.addUserRestriction(componentName, UserManager.DISALLOW_CONFIG_BLUETOOTH)
+                
+                // Explicitly remove Bluetooth restrictions to allow users to turn off Bluetooth
+                try {
+                    devicePolicyManager.clearUserRestriction(componentName, UserManager.DISALLOW_CONFIG_BLUETOOTH)
+                    Log.d("MainActivity", "✅ Removed DISALLOW_CONFIG_BLUETOOTH restriction")
+                } catch (e: Exception) {
+                    Log.w("MainActivity", "Could not remove DISALLOW_CONFIG_BLUETOOTH: ${e.message}")
+                }
                 
                 // For device owner, we can also grant USB permissions programmatically
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -789,6 +816,25 @@ class MainActivity: FlutterActivity() {
                 }
                 screenShareResult = null
             }
+        } else if (requestCode == WRITE_SETTINGS_REQUEST_CODE) {
+            val result = brightnessResult
+            if (result != null) {
+                // Check if WRITE_SETTINGS permission was granted
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (Settings.System.canWrite(this)) {
+                        Log.d("MainActivity", "WRITE_SETTINGS permission granted, setting brightness...")
+                        // Permission granted, now set brightness
+                        setBrightnessToMax(result)
+                    } else {
+                        Log.w("MainActivity", "WRITE_SETTINGS permission denied")
+                        result.success(false)
+                    }
+                } else {
+                    // For older Android versions, assume permission is granted
+                    setBrightnessToMax(result)
+                }
+                brightnessResult = null
+            }
         }
     }
 
@@ -1063,6 +1109,267 @@ class MainActivity: FlutterActivity() {
             Log.e("MainActivity", "❌ Critical error during silent installation: ${e.message}")
             e.printStackTrace()
             false
+        }
+    }
+
+    /// Set device brightness to maximum
+    private fun setBrightnessToMax(result: MethodChannel.Result? = null) {
+        try {
+            Log.d("MainActivity", "Setting brightness to maximum")
+            
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+            
+            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                // For device owner, we can control system settings
+                try {
+                    // Check if we have WRITE_SETTINGS permission
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        if (!Settings.System.canWrite(this)) {
+                            Log.d("MainActivity", "WRITE_SETTINGS permission not granted, requesting...")
+                            brightnessResult = result
+                            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+                            intent.data = Uri.parse("package:$packageName")
+                            startActivityForResult(intent, WRITE_SETTINGS_REQUEST_CODE)
+                            return
+                        }
+                    }
+                    
+                    // Set brightness to maximum (255 is max brightness)
+                    val brightness = 255
+                    
+                    // Method 1: Use Settings.System (requires WRITE_SETTINGS permission)
+                    Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, brightness)
+                    
+                    // Method 2: Use WindowManager for current activity
+                    val layoutParams = window.attributes
+                    layoutParams.screenBrightness = 1.0f // 1.0f = 100% brightness
+                    window.attributes = layoutParams
+                    
+                    Log.d("MainActivity", "✅ Brightness set to maximum")
+                    result?.success(true)
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error setting brightness: ${e.message}")
+                    result?.success(false)
+                }
+            } else {
+                Log.w("MainActivity", "Not device owner - cannot set brightness")
+                result?.success(false)
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in setBrightnessToMax: ${e.message}")
+            result?.success(false)
+        }
+    }
+
+    /// Set device volume to maximum
+    private fun setVolumeToMax(): Boolean {
+        return try {
+            Log.d("MainActivity", "Setting volume to maximum")
+            
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+            
+            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                try {
+                    val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    
+                    // Set all volume streams to maximum
+                    val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0)
+                    
+                    val maxRingVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_RING)
+                    audioManager.setStreamVolume(AudioManager.STREAM_RING, maxRingVolume, 0)
+                    
+                    val maxAlarmVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+                    audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarmVolume, 0)
+                    
+                    val maxNotificationVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION)
+                    audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, maxNotificationVolume, 0)
+                    
+                    // Set system volume to maximum
+                    val maxSystemVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_SYSTEM)
+                    audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, maxSystemVolume, 0)
+                    
+                    Log.d("MainActivity", "✅ All volume streams set to maximum")
+                    true
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error setting volume: ${e.message}")
+                    false
+                }
+            } else {
+                Log.w("MainActivity", "Not device owner - cannot set volume")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in setVolumeToMax: ${e.message}")
+            false
+        }
+    }
+
+    /// Disable adaptive brightness
+    private fun disableAdaptiveBrightness(result: MethodChannel.Result? = null) {
+        try {
+            Log.d("MainActivity", "Disabling adaptive brightness")
+            
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+            
+            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                try {
+                    // Check if we have WRITE_SETTINGS permission
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        if (!Settings.System.canWrite(this)) {
+                            Log.d("MainActivity", "WRITE_SETTINGS permission not granted for adaptive brightness")
+                            result?.success(false)
+                            return
+                        }
+                    }
+                    
+                    // Disable adaptive brightness by setting it to manual mode
+                    Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+                    
+                    Log.d("MainActivity", "✅ Adaptive brightness disabled")
+                    result?.success(true)
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error disabling adaptive brightness: ${e.message}")
+                    result?.success(false)
+                }
+            } else {
+                Log.w("MainActivity", "Not device owner - cannot disable adaptive brightness")
+                result?.success(false)
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in disableAdaptiveBrightness: ${e.message}")
+            result?.success(false)
+        }
+    }
+
+    /// Auto-grant WRITE_SETTINGS permission for device owner
+    private fun autoGrantWriteSettingsPermission() {
+        try {
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+            
+            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                Log.d("MainActivity", "Device owner - auto-granting WRITE_SETTINGS permission")
+                
+                // For device owner, we can grant WRITE_SETTINGS permission automatically
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        // Use DevicePolicyManager to grant WRITE_SETTINGS permission
+                        devicePolicyManager.setPermissionGrantState(
+                            componentName,
+                            packageName,
+                            Manifest.permission.WRITE_SETTINGS,
+                            DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+                        )
+                        Log.d("MainActivity", "✅ WRITE_SETTINGS permission auto-granted for device owner")
+                    } catch (e: Exception) {
+                        Log.w("MainActivity", "Could not auto-grant WRITE_SETTINGS via DevicePolicyManager: ${e.message}")
+                        
+                        // Fallback: Try using shell command for device owner
+                        try {
+                            val process = Runtime.getRuntime().exec("cmd appops set $packageName WRITE_SETTINGS allow")
+                            val exitCode = process.waitFor()
+                            if (exitCode == 0) {
+                                Log.d("MainActivity", "✅ WRITE_SETTINGS permission granted via shell command")
+                            } else {
+                                Log.w("MainActivity", "Shell command failed with exit code: $exitCode")
+                            }
+                        } catch (shellException: Exception) {
+                            Log.w("MainActivity", "Shell command fallback failed: ${shellException.message}")
+                        }
+                    }
+                }
+            } else {
+                Log.w("MainActivity", "Not device owner - cannot auto-grant WRITE_SETTINGS permission")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error auto-granting WRITE_SETTINGS permission: ${e.message}")
+        }
+    }
+
+
+    /// Enable Bluetooth control for device owner
+    private fun enableBluetoothControl() {
+        try {
+            Log.d("MainActivity", "Enabling Bluetooth control")
+            
+            val devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
+            
+            if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
+                try {
+                    // Remove all Bluetooth-related restrictions
+                    val bluetoothRestrictions = listOf(
+                        UserManager.DISALLOW_CONFIG_BLUETOOTH,
+                        UserManager.DISALLOW_BLUETOOTH,
+                        UserManager.DISALLOW_BLUETOOTH_SHARING
+                    )
+                    
+                    for (restriction in bluetoothRestrictions) {
+                        try {
+                            devicePolicyManager.clearUserRestriction(componentName, restriction)
+                            Log.d("MainActivity", "✅ Removed restriction: $restriction")
+                        } catch (e: Exception) {
+                            Log.w("MainActivity", "Could not remove restriction $restriction: ${e.message}")
+                        }
+                    }
+                    
+                    // Also try to grant Bluetooth permissions via AppOps
+                    try {
+                        val appOpsManager = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                        val bluetoothOps = listOf(
+                            "android:bluetooth_connect",
+                            "android:bluetooth_scan",
+                            "android:bluetooth_advertise"
+                        )
+                        
+                        for (op in bluetoothOps) {
+                            try {
+                                val setModeMethod = AppOpsManager::class.java.getMethod(
+                                    "setMode",
+                                    Int::class.java,
+                                    Int::class.java,
+                                    String::class.java,
+                                    Int::class.java
+                                )
+                                
+                                // Try common Bluetooth op codes
+                                val bluetoothOpCodes = listOf(100, 101, 102, 103, 104)
+                                val MODE_ALLOWED = 0
+                                
+                                for (opCode in bluetoothOpCodes) {
+                                    try {
+                                        setModeMethod.invoke(
+                                            appOpsManager,
+                                            opCode,
+                                            Process.myUid(),
+                                            packageName,
+                                            MODE_ALLOWED
+                                        )
+                                    } catch (e: Exception) {
+                                        // Ignore errors for invalid op codes
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.w("MainActivity", "Could not grant Bluetooth AppOps permission for $op: ${e.message}")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("MainActivity", "Error granting Bluetooth AppOps permissions: ${e.message}")
+                    }
+                    
+                    Log.d("MainActivity", "✅ Bluetooth control enabled")
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error enabling Bluetooth control: ${e.message}")
+                }
+            } else {
+                Log.w("MainActivity", "Not device owner - cannot enable Bluetooth control")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in enableBluetoothControl: ${e.message}")
         }
     }
 

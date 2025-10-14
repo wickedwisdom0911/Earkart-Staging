@@ -32,6 +32,10 @@ class DeviceStatusWidget extends StatelessWidget {
                     commState,
                   ),
                 ),
+                if (r15cStatus != DeviceStatus.disconnected) ...[
+                  const SizedBox(width: 4),
+                  _buildTurnOffButton(context, commState),
+                ],
                 const SizedBox(width: 8),
                 Flexible(
                   child: _buildDeviceStatus(
@@ -206,6 +210,40 @@ class DeviceStatusWidget extends StatelessWidget {
     }
 
     return Tooltip(message: tooltip + batteryInfo, child: deviceContainer);
+  }
+
+  Widget _buildTurnOffButton(
+    BuildContext context,
+    CommunicationState commState,
+  ) {
+    return Tooltip(
+      message: 'Turn off audiometer',
+      child: GestureDetector(
+        onTap: () async {
+          try {
+            await context.read<CommunicationCubit>().sendExitAndPowerOffPacket(
+              true,
+            );
+          } catch (e) {
+            context.read<CommunicationCubit>().resetState();
+          }
+        },
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(borderRadius * 0.67),
+            border: Border.all(color: Colors.red.withOpacity(0.3), width: 1),
+          ),
+          child: Icon(
+            Icons.power_settings_new,
+            size: 14,
+            color: Colors.red[600],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildTabletBatteryIndicator(BuildContext context) {

@@ -106,6 +106,22 @@ Future<void> _initializeDeviceOwnerPermissions() async {
         return [];
       },
     );
+
+    // Configure device settings (brightness max, volume max, disable adaptive brightness)
+    // Run this in background to not block startup
+    DeviceOwnerHelper.configureDeviceSettings()
+        .then((success) {
+          developer.log(
+            'Device settings configuration: $success',
+            name: 'DeviceOwner',
+          );
+        })
+        .catchError((e) {
+          developer.log(
+            'Error configuring device settings: $e',
+            name: 'DeviceOwner',
+          );
+        });
   } catch (e) {
     developer.log(
       'Error initializing device owner permissions: $e - continuing startup',
