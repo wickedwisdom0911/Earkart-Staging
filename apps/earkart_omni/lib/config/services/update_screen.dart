@@ -232,6 +232,9 @@ class _UpdateScreenState extends State<UpdateScreen>
       _statusMessage = 'Update completed successfully!';
     });
 
+    // Mark update as completed in the system
+    _markUpdateAsCompleted();
+
     // Clean up backup APK after successful update
     if (_currentApkPath != null) {
       widget.autoUpdateService.cleanupBackupApk(_currentApkPath!);
@@ -261,8 +264,10 @@ class _UpdateScreenState extends State<UpdateScreen>
       _errorMessage = error;
     });
 
-    // Attempt automatic rollback
-    _attemptRollback();
+    // Only attempt rollback if we have a backup and the error is not a download failure
+    if (_currentApkPath != null && !error.toLowerCase().contains('download')) {
+      _attemptRollback();
+    }
   }
 
   /// Attempt automatic rollback to previous version
@@ -297,6 +302,32 @@ class _UpdateScreenState extends State<UpdateScreen>
         _statusMessage = 'Rollback failed: $e';
       });
     }
+  }
+
+  /// Mark update as completed in the system
+  Future<void> _markUpdateAsCompleted() async {
+    try {
+      await widget.autoUpdateService.markUpdateAsCompleted();
+      debugPrint('Update marked as completed in system');
+    } catch (e) {
+      debugPrint('Error marking update as completed: $e');
+    }
+  }
+
+  /// Retry the update process
+  Future<void> _retryUpdate() async {
+    setState(() {
+      _status = UpdateStatus.initializing;
+      _statusMessage = 'Retrying update...';
+      _errorMessage = null;
+      _downloadProgress = 0.0;
+      _backupProgress = 0.0;
+      _isBackupComplete = false;
+      _isDownloadComplete = false;
+    });
+
+    // Restart the update process
+    await _startUpdateProcess();
   }
 
   /// Manual update button handler
@@ -693,6 +724,29 @@ class _UpdateScreenState extends State<UpdateScreen>
             ),
           ),
         ] else if (_status == UpdateStatus.failed) ...[
+          // Check if the error is related to download failure
+          if (_errorMessage != null &&
+              _errorMessage!.toLowerCase().contains('download')) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _retryUpdate,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Retry Download',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(

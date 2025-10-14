@@ -404,6 +404,21 @@ class AutoUpdateService {
     }
   }
 
+  /// Mark update as completed (public method for UpdateScreen)
+  Future<void> markUpdateAsCompleted() async {
+    try {
+      final currentDevice = await _deviceDataSource.getCurrentDevice();
+      if (currentDevice != null) {
+        await _markUpdateAsCompleted(currentDevice);
+      }
+    } catch (e) {
+      developer.log(
+        'Error marking update as completed: $e',
+        name: 'AutoUpdate',
+      );
+    }
+  }
+
   /// Backup current APK before updating
   Future<String?> backupCurrentApk() async {
     try {
