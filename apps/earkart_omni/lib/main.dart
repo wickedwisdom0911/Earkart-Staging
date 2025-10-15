@@ -107,8 +107,6 @@ Future<void> _initializeDeviceOwnerPermissions() async {
       },
     );
 
-    // Configure device settings (brightness max, volume max, disable adaptive brightness)
-    // Run this in background to not block startup
     DeviceOwnerHelper.configureDeviceSettings()
         .then((success) {
           developer.log(

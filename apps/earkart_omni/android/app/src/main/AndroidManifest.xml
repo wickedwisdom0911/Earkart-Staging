@@ -65,7 +65,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
-        android:label="OMNI 2.0 by Earkart"
+        android:label="Earkart Omni 2.0"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         

@@ -29,9 +29,7 @@ class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.earkart_omni/device_owner"
     private val INSTALLER_CHANNEL = "com.earkart.omni/installer"
     private val SCREEN_CAPTURE_REQUEST_CODE = 1001
-    private val WRITE_SETTINGS_REQUEST_CODE = 1002
     private var screenShareResult: MethodChannel.Result? = null
-    private var brightnessResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -816,25 +814,6 @@ class MainActivity: FlutterActivity() {
                 }
                 screenShareResult = null
             }
-        } else if (requestCode == WRITE_SETTINGS_REQUEST_CODE) {
-            val result = brightnessResult
-            if (result != null) {
-                // Check if WRITE_SETTINGS permission was granted
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (Settings.System.canWrite(this)) {
-                        Log.d("MainActivity", "WRITE_SETTINGS permission granted, setting brightness...")
-                        // Permission granted, now set brightness
-                        setBrightnessToMax(result)
-                    } else {
-                        Log.w("MainActivity", "WRITE_SETTINGS permission denied")
-                        result.success(false)
-                    }
-                } else {
-                    // For older Android versions, assume permission is granted
-                    setBrightnessToMax(result)
-                }
-                brightnessResult = null
-            }
         }
     }
 
@@ -1121,24 +1100,14 @@ class MainActivity: FlutterActivity() {
             val componentName = ComponentName(this, DeviceAdminReceiver::class.java)
             
             if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
-                // For device owner, we can control system settings
+                // For device owner, we can control system settings directly without permission popup
                 try {
-                    // Check if we have WRITE_SETTINGS permission
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        if (!Settings.System.canWrite(this)) {
-                            Log.d("MainActivity", "WRITE_SETTINGS permission not granted, requesting...")
-                            brightnessResult = result
-                            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                            intent.data = Uri.parse("package:$packageName")
-                            startActivityForResult(intent, WRITE_SETTINGS_REQUEST_CODE)
-                            return
-                        }
-                    }
+                    Log.d("MainActivity", "Device owner - setting brightness directly without permission check")
                     
                     // Set brightness to maximum (255 is max brightness)
                     val brightness = 255
                     
-                    // Method 1: Use Settings.System (requires WRITE_SETTINGS permission)
+                    // Method 1: Use Settings.System directly (device owner has implicit permission)
                     Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, brightness)
                     
                     // Method 2: Use WindowManager for current activity
@@ -1146,7 +1115,7 @@ class MainActivity: FlutterActivity() {
                     layoutParams.screenBrightness = 1.0f // 1.0f = 100% brightness
                     window.attributes = layoutParams
                     
-                    Log.d("MainActivity", "✅ Brightness set to maximum")
+                    Log.d("MainActivity", "✅ Brightness set to maximum via device owner privileges")
                     result?.success(true)
                 } catch (e: Exception) {
                     Log.e("MainActivity", "Error setting brightness: ${e.message}")
@@ -1217,19 +1186,12 @@ class MainActivity: FlutterActivity() {
             
             if (devicePolicyManager.isDeviceOwnerApp(packageName)) {
                 try {
-                    // Check if we have WRITE_SETTINGS permission
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        if (!Settings.System.canWrite(this)) {
-                            Log.d("MainActivity", "WRITE_SETTINGS permission not granted for adaptive brightness")
-                            result?.success(false)
-                            return
-                        }
-                    }
+                    Log.d("MainActivity", "Device owner - disabling adaptive brightness directly without permission check")
                     
-                    // Disable adaptive brightness by setting it to manual mode
+                    // Disable adaptive brightness by setting it to manual mode (device owner has implicit permission)
                     Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
                     
-                    Log.d("MainActivity", "✅ Adaptive brightness disabled")
+                    Log.d("MainActivity", "✅ Adaptive brightness disabled via device owner privileges")
                     result?.success(true)
                 } catch (e: Exception) {
                     Log.e("MainActivity", "Error disabling adaptive brightness: ${e.message}")
