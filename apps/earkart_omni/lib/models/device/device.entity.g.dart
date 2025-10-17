@@ -32,13 +32,14 @@ class DeviceEntityAdapter extends TypeAdapter<DeviceEntity> {
       centre: fields[12] as CentreEntity?,
       pendingUpdate: fields[13] as bool?,
       lastUpdateChecked: fields[14] as DateTime?,
+      pendingLookup: fields[15] as bool?,
     );
   }
 
   @override
   void write(BinaryWriter writer, DeviceEntity obj) {
     writer
-      ..writeByte(15)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -68,7 +69,9 @@ class DeviceEntityAdapter extends TypeAdapter<DeviceEntity> {
       ..writeByte(13)
       ..write(obj.pendingUpdate)
       ..writeByte(14)
-      ..write(obj.lastUpdateChecked);
+      ..write(obj.lastUpdateChecked)
+      ..writeByte(15)
+      ..write(obj.pendingLookup);
   }
 
   @override

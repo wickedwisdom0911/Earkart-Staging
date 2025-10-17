@@ -281,10 +281,50 @@ enum LeadStatus {
   LEAD_UNQUALIFIED,
 }
 
+@HiveType(typeId: HiveTypes.appointmentStatusEnum)
+enum AppointmentStatus {
+  @HiveField(0)
+  requested,
+  @HiveField(1)
+  confirmed,
+  @HiveField(2)
+  rescheduled,
+  @HiveField(3)
+  cancelledByPatient,
+  @HiveField(4)
+  cancelledByCentre,
+  @HiveField(5)
+  completed,
+  @HiveField(6)
+  noShow,
+}
+
 leadStatusFromApi(String? value) {
   if (value == null) return LeadStatus.LEAD_GENERATED;
   return LeadStatus.values.firstWhere(
     (e) => e.name.toUpperCase() == value,
     orElse: () => LeadStatus.LEAD_GENERATED,
   );
+}
+
+appointmentStatusFromApi(String? value) {
+  if (value == null) return AppointmentStatus.requested;
+  switch (value.toUpperCase()) {
+    case 'REQUESTED':
+      return AppointmentStatus.requested;
+    case 'CONFIRMED':
+      return AppointmentStatus.confirmed;
+    case 'RESCHEDULED':
+      return AppointmentStatus.rescheduled;
+    case 'CANCELLED_BY_PATIENT':
+      return AppointmentStatus.cancelledByPatient;
+    case 'CANCELLED_BY_CENTRE':
+      return AppointmentStatus.cancelledByCentre;
+    case 'COMPLETED':
+      return AppointmentStatus.completed;
+    case 'NO_SHOW':
+      return AppointmentStatus.noShow;
+    default:
+      return AppointmentStatus.requested;
+  }
 }

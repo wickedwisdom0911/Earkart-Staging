@@ -36,4 +36,6 @@ class HiveTypes {
   static const int leadStatusEnum = 34;
   static const int centrePricingEntity = 35;
   static const int consultationPricingEntity = 36;
+  static const int appointmentEntity = 37;
+  static const int appointmentStatusEnum = 38;
 }

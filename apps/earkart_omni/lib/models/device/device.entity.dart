@@ -38,6 +38,8 @@ class DeviceEntity extends Equatable {
   final bool? pendingUpdate;
   @HiveField(14)
   final DateTime? lastUpdateChecked;
+  @HiveField(15)
+  final bool? pendingLookup;
 
   const DeviceEntity({
     required this.id,
@@ -55,6 +57,7 @@ class DeviceEntity extends Equatable {
     this.centre,
     this.pendingUpdate,
     this.lastUpdateChecked,
+    this.pendingLookup,
   });
 
   static DateTime? _parseDateTime(dynamic value) {
@@ -97,6 +100,7 @@ class DeviceEntity extends Equatable {
                   json['lastUpdateChecked'].toString().isNotEmpty
               ? _parseDateTime(json['lastUpdateChecked'])
               : null,
+      pendingLookup: json['pendingLookup'],
     );
   }
 
@@ -117,6 +121,7 @@ class DeviceEntity extends Equatable {
       'centre': centre?.toJson(),
       'pendingUpdate': pendingUpdate,
       'lastUpdateChecked': lastUpdateChecked?.toUtc().toIso8601String(),
+      'pendingLookup': pendingLookup,
     };
   }
 
@@ -136,6 +141,7 @@ class DeviceEntity extends Equatable {
     CentreEntity? centre,
     bool? pendingUpdate,
     DateTime? lastUpdateChecked,
+    bool? pendingLookup,
   }) {
     return DeviceEntity(
       id: id ?? this.id,
@@ -153,6 +159,7 @@ class DeviceEntity extends Equatable {
       centre: centre ?? this.centre,
       pendingUpdate: pendingUpdate ?? this.pendingUpdate,
       lastUpdateChecked: lastUpdateChecked ?? this.lastUpdateChecked,
+      pendingLookup: pendingLookup ?? this.pendingLookup,
     );
   }
 
@@ -173,5 +180,6 @@ class DeviceEntity extends Equatable {
     centre,
     pendingUpdate,
     lastUpdateChecked,
+    pendingLookup,
   ];
 }
