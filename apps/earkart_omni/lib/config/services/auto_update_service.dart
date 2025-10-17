@@ -33,7 +33,15 @@ class AutoUpdateService {
       developer.log('Starting auto-update check...', name: 'AutoUpdate');
 
       // Get current device info
-      final currentDevice = await _deviceDataSource.getCurrentDevice();
+      final currentDeviceResult = await _deviceDataSource.getCurrentDevice();
+      final currentDevice = currentDeviceResult.fold((failure) {
+        developer.log(
+          'Failed to get current device: ${failure.message}',
+          name: 'AutoUpdate',
+        );
+        return null;
+      }, (device) => device);
+
       if (currentDevice == null) {
         developer.log(
           'No current device found, skipping update check',
@@ -41,9 +49,17 @@ class AutoUpdateService {
         );
         return false;
       }
-      final deviceInfoFromServer = await _deviceDataSource.getDeviceByValue(
-        currentDevice.id,
-      );
+
+      final deviceInfoFromServerResult = await _deviceDataSource
+          .getDeviceByValue(currentDevice.id);
+
+      final deviceInfoFromServer = deviceInfoFromServerResult.fold((failure) {
+        developer.log(
+          'Failed to get device info from server: ${failure.message}',
+          name: 'AutoUpdate',
+        );
+        return null;
+      }, (device) => device);
 
       if (deviceInfoFromServer?.pendingUpdate != true) {
         developer.log('No pending update found', name: 'AutoUpdate');
@@ -56,7 +72,15 @@ class AutoUpdateService {
       );
 
       // Get available update info
-      final updateInfo = await _deviceDataSource.getTabletUpdate();
+      final updateInfoResult = await _deviceDataSource.getTabletUpdate();
+      final updateInfo = updateInfoResult.fold((failure) {
+        developer.log(
+          'Failed to get update info: ${failure.message}',
+          name: 'AutoUpdate',
+        );
+        return null;
+      }, (info) => info);
+
       if (updateInfo == null) {
         developer.log('No update information available', name: 'AutoUpdate');
         return false;
@@ -394,8 +418,18 @@ class AutoUpdateService {
         lastUpdateChecked: DateTime.now(),
       );
 
-      await _deviceDataSource.setupDevice(updatedDevice);
-      developer.log('Update marked as completed', name: 'AutoUpdate');
+      final result = await _deviceDataSource.setupDevice(updatedDevice);
+      result.fold(
+        (failure) {
+          developer.log(
+            'Error marking update as completed: ${failure.message}',
+            name: 'AutoUpdate',
+          );
+        },
+        (device) {
+          developer.log('Update marked as completed', name: 'AutoUpdate');
+        },
+      );
     } catch (e) {
       developer.log(
         'Error marking update as completed: $e',
@@ -407,7 +441,15 @@ class AutoUpdateService {
   /// Mark update as completed (public method for UpdateScreen)
   Future<void> markUpdateAsCompleted() async {
     try {
-      final currentDevice = await _deviceDataSource.getCurrentDevice();
+      final currentDeviceResult = await _deviceDataSource.getCurrentDevice();
+      final currentDevice = currentDeviceResult.fold((failure) {
+        developer.log(
+          'Failed to get current device for marking update: ${failure.message}',
+          name: 'AutoUpdate',
+        );
+        return null;
+      }, (device) => device);
+
       if (currentDevice != null) {
         await _markUpdateAsCompleted(currentDevice);
       }
@@ -597,7 +639,14 @@ class AutoUpdateService {
   /// Get update info for UI display
   Future<AppProvisioningEntity?> getUpdateInfo() async {
     try {
-      return await _deviceDataSource.getTabletUpdate();
+      final result = await _deviceDataSource.getTabletUpdate();
+      return result.fold((failure) {
+        developer.log(
+          'Error getting update info: ${failure.message}',
+          name: 'AutoUpdate',
+        );
+        return null;
+      }, (info) => info);
     } catch (e) {
       developer.log('Error getting update info: $e', name: 'AutoUpdate');
       return null;

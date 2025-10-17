@@ -1,3 +1,5 @@
+import 'package:dartz/dartz.dart';
+import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/features/device/domain/repositories/device.repository.interface.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 
@@ -6,7 +8,7 @@ class SetupDeviceUsecase {
 
   SetupDeviceUsecase({required this.deviceRepository});
 
-  Future<DeviceEntity?> call(DeviceEntity deviceEntity) async {
+  Future<Either<Failure, DeviceEntity>> call(DeviceEntity deviceEntity) async {
     return await deviceRepository.setupDevice(deviceEntity);
   }
 }

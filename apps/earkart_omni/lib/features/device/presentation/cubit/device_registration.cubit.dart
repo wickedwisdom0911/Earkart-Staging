@@ -4,6 +4,7 @@ import 'package:earkart_omni/features/device/domain/usecases/setup_device.usecas
 import 'package:earkart_omni/features/device/presentation/cubit/device_registration.state.dart';
 import 'package:earkart_omni/models/device/device.entity.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
   final GetDeviceByValueUsecase getDeviceByValueUsecase;
@@ -17,35 +18,39 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
   }) : super(const DeviceRegistrationState.initial());
 
   Future<void> getCurrentDevice() async {
-    try {
-      emit(const DeviceRegistrationState.loading());
-      final device = await getCurrentDeviceUsecase();
-      if (device != null) {
-        emit(DeviceRegistrationState.localDeviceFetched(device: device));
-      } else {
-        emit(
-          const DeviceRegistrationState.error(
-            message: "This Device is not Registered or synced properly!",
-          ),
-        );
-      }
-    } catch (e) {
-      emit(DeviceRegistrationState.error(message: e.toString()));
-    }
+    emit(const DeviceRegistrationState.loading());
+    final result = await getCurrentDeviceUsecase();
+    result.fold(
+      (failure) {
+        Fluttertoast.showToast(msg: failure.message);
+        emit(DeviceRegistrationState.error(message: failure.message));
+      },
+      (device) {
+        if (device != null) {
+          emit(DeviceRegistrationState.localDeviceFetched(device: device));
+        } else {
+          emit(
+            const DeviceRegistrationState.error(
+              message: "This Device is not Registered or synced properly!",
+            ),
+          );
+        }
+      },
+    );
   }
 
   Future<void> getDeviceByValue(String value) async {
     emit(const DeviceRegistrationState.loading());
-    try {
-      final device = await getDeviceByValueUsecase(value);
-      if (device != null) {
+    final result = await getDeviceByValueUsecase(value);
+    result.fold(
+      (failure) {
+        Fluttertoast.showToast(msg: failure.message);
+        emit(DeviceRegistrationState.error(message: failure.message));
+      },
+      (device) {
         emit(DeviceRegistrationState.getByValueSuccess(device: device));
-      } else {
-        emit(const DeviceRegistrationState.error(message: "Device not found"));
-      }
-    } catch (e) {
-      emit(DeviceRegistrationState.error(message: e.toString()));
-    }
+      },
+    );
   }
 
   Future<void> setupDevice(
@@ -56,28 +61,24 @@ class DeviceRegistrationCubit extends Cubit<DeviceRegistrationState> {
     String? tabletAppVersion,
   }) async {
     emit(const DeviceRegistrationState.loading());
-    try {
-      final updatedDevice = deviceData.copyWith(
-        deviceID: r15cSerialNumber,
-        tabletID: tabletID,
-        tabletAndroidVersion: tabletAndroidVersion,
-        tabletAppVersion: tabletAppVersion,
-        lastUpdateChecked: DateTime.now(),
-      );
+    final updatedDevice = deviceData.copyWith(
+      deviceID: r15cSerialNumber,
+      tabletID: tabletID,
+      tabletAndroidVersion: tabletAndroidVersion,
+      tabletAppVersion: tabletAppVersion,
+      lastUpdateChecked: DateTime.now(),
+    );
 
-      final device = await setupDeviceUsecase(updatedDevice);
-      if (device != null) {
+    final result = await setupDeviceUsecase(updatedDevice);
+    result.fold(
+      (failure) {
+        Fluttertoast.showToast(msg: failure.message);
+        emit(DeviceRegistrationState.error(message: failure.message));
+      },
+      (device) {
         emit(DeviceRegistrationState.success(device: device));
-      } else {
-        emit(
-          const DeviceRegistrationState.error(
-            message: "Failed to setup device",
-          ),
-        );
-      }
-    } catch (e) {
-      emit(DeviceRegistrationState.error(message: e.toString()));
-    }
+      },
+    );
   }
 
   void resetToInitial() {
