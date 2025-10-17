@@ -61,6 +61,16 @@ import 'package:earkart_omni/features/patients/domain/usecases/get_current_patie
 import 'package:earkart_omni/features/patients/domain/usecases/get_patients_by_value_usecase.dart';
 import 'package:earkart_omni/features/patients/domain/usecases/update_patient_usecase.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
+import 'package:earkart_omni/features/appointments/data/repositories/appointments.repository.impl.dart';
+import 'package:earkart_omni/features/appointments/data/source/local/appointments.entity.source.dart';
+import 'package:earkart_omni/features/appointments/data/source/remote/appointments.remote.source.dart';
+import 'package:earkart_omni/features/appointments/data/source/remote/appointments.remote.source.impl.dart';
+import 'package:earkart_omni/features/appointments/domain/repositories/appointments.repository.dart';
+import 'package:earkart_omni/features/appointments/domain/usecases/get-appointments.usecase.dart';
+import 'package:earkart_omni/features/appointments/domain/usecases/get_appointment_by_id.usecase.dart';
+import 'package:earkart_omni/features/appointments/domain/usecases/create_appointment.usecase.dart';
+import 'package:earkart_omni/features/appointments/domain/usecases/update_appointment.usecase.dart';
+import 'package:earkart_omni/features/appointments/presentation/cubit/appointments.cubit.dart';
 import 'package:earkart_omni/features/device/data/repositories/device.repository.impl.dart';
 import 'package:earkart_omni/features/device/data/source/local/device.entity.source.dart';
 import 'package:earkart_omni/features/device/data/source/remote/device.source.impl.dart';
@@ -205,6 +215,40 @@ Future<void> setupDI() async {
       getAllPatientByCentreCodeUsecase: di.call(),
       getPatientsByValueUsecase: di.call(),
       updatePatientUsecase: di.call(),
+    ),
+  );
+
+  //appointments
+  di.registerLazySingleton<AppointmentEntityDataSource>(
+    () => AppointmentEntityDataSource(),
+  );
+  di.registerLazySingleton<IAppointmentsRemoteSource>(
+    () => AppointmentsRemoteSourceImpl(
+      dio: di.call(),
+      appointmentEntityDataSource: di.call(),
+    ),
+  );
+  di.registerLazySingleton<IAppointmentsRepository>(
+    () => AppointmentsRepositoryImpl(remoteSource: di.call()),
+  );
+  di.registerLazySingleton<GetAppointmentsUsecase>(
+    () => GetAppointmentsUsecase(appointmentsRepository: di.call()),
+  );
+  di.registerLazySingleton<GetAppointmentByIdUsecase>(
+    () => GetAppointmentByIdUsecase(appointmentsRepository: di.call()),
+  );
+  di.registerLazySingleton<CreateAppointmentUsecase>(
+    () => CreateAppointmentUsecase(appointmentsRepository: di.call()),
+  );
+  di.registerLazySingleton<UpdateAppointmentUsecase>(
+    () => UpdateAppointmentUsecase(appointmentsRepository: di.call()),
+  );
+  di.registerLazySingleton<AppointmentsCubit>(
+    () => AppointmentsCubit(
+      getAppointmentsUsecase: di.call(),
+      getAppointmentByIdUsecase: di.call(),
+      createAppointmentUsecase: di.call(),
+      updateAppointmentUsecase: di.call(),
     ),
   );
 

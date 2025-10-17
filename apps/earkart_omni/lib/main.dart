@@ -7,6 +7,7 @@ import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/device/data/source/local/device.entity.source.dart';
+import 'package:earkart_omni/features/appointments/presentation/cubit/appointments.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
@@ -18,6 +19,7 @@ import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
+import 'package:earkart_omni/features/appointments/data/source/local/appointments.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/countries.entity.source.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/state.entity.source.dart';
@@ -26,6 +28,7 @@ import 'package:earkart_omni/features/lookup/data/source/local/district.entty.so
 import 'package:earkart_omni/features/lookup/data/source/local/language.entity.source.dart';
 import 'package:earkart_omni/config/services/battery_service.dart';
 import 'package:earkart_omni/config/services/auto_update_service.dart';
+import 'package:earkart_omni/models/appointments/appointments.entity.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
@@ -329,6 +332,8 @@ void _registerHiveAdapters() {
   Hive.registerAdapter(TympTypeAdapter());
   // Audiologist
   Hive.registerAdapter(AudiologistEntityAdapter());
+  Hive.registerAdapter(AppointmentEntityAdapter());
+  Hive.registerAdapter(AppointmentStatusAdapter());
 }
 
 Future<void> _initDataSources() async {
@@ -342,6 +347,7 @@ Future<void> _initDataSources() async {
   await di<CityEntityDataSource>().init();
   await di<DistrictEntityDataSource>().init();
   await di<LanguageEntityDataSource>().init();
+  await di<AppointmentEntityDataSource>().init();
 }
 
 class MyApp extends StatefulWidget {
@@ -463,6 +469,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ),
         BlocProvider<LookupCubit>(create: (context) => di.call<LookupCubit>()),
         BlocProvider<AgoraCubit>(create: (context) => di.call<AgoraCubit>()),
+        BlocProvider<AppointmentsCubit>(
+          create: (context) => di.call<AppointmentsCubit>(),
+        ),
 
         BlocProvider<DeviceCubit>(create: (context) => di.call<DeviceCubit>()),
         BlocProvider<CommunicationCubit>(
