@@ -5,6 +5,7 @@ export const ROUTES = {
   LANGUAGES: "/dashboard/settings/languages",
   DEVICES: "/dashboard/settings/devices",
   QUESTIONNAIRE : "/dashboard/settings/questionnaire" ,
+  MDM: "/dashboard/mdm",
   STATES: (code: string) => `/dashboard/settings/locations/${code}/states`,
   DISTRICTS: (code: string, stateCode: string) =>
     `/dashboard/settings/locations/${code}/states/${stateCode}/districts`,

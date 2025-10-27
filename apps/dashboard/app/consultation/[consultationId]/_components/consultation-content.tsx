@@ -9,11 +9,16 @@ interface DelayedVideoCallProps {
   channel: string;
   patientName: string;
   isFullscreen: boolean;
+  hideLocalUser: boolean;
   onBeforeLeaveCall?: () => Promise<void>;
   delay: number;
 }
 
-const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({ delay, ...props }) => {
+const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({
+  delay,
+  hideLocalUser,
+  ...props
+}) => {
   const [shouldRender, setShouldRender] = React.useState(false);
 
   React.useEffect(() => {
@@ -35,7 +40,7 @@ const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({ delay, ...props }) 
     );
   }
 
-  return <VideoCall {...props} />;
+  return <VideoCall {...props} hideLocalUser={hideLocalUser} />;
 };
 
 
@@ -84,6 +89,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
             isFullscreen={true}
             onBeforeLeaveCall={onBeforeLeaveCall}
             delay={1500} // 1.5 second delay
+            hideLocalUser={true}
           />
         </div>
 
@@ -115,10 +121,9 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
         patientName={patientName}
         isFullscreen={false}
         onBeforeLeaveCall={onBeforeLeaveCall}
+        hideLocalUser={false}
       />
-      <main className="flex-1 w-full overflow-y-scroll">
-        {children}
-      </main>
+      <main className="flex-1 w-full overflow-y-scroll">{children}</main>
     </div>
   );
 }; 

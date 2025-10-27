@@ -23,6 +23,7 @@ interface VideoCallProps {
   patientName: string;
   isFullscreen?: boolean;
   onBeforeLeaveCall?: () => Promise<void>;
+  hideLocalUser?: boolean;
 }
 
 const VideoCallSkeleton = () => {
@@ -96,6 +97,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   patientName,
   isFullscreen = false,
   onBeforeLeaveCall,
+  hideLocalUser = false,
 }) => {
   const localRef = useRef<HTMLDivElement>(null);
   const remoteRef = useRef<HTMLDivElement>(null);
@@ -480,61 +482,61 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         </div>
 
         {/* Local user (audiologist) - floating circle */}
-        <div className="absolute top-4 right-4 flex flex-col items-center gap-2">
-          <div
-            ref={localRef}
-            className="w-32 h-32 rounded-full overflow-hidden border-2 border-white shadow-lg bg-gray-900"
-          >
-            {localCameraTrack ? (
-              <LocalUser
-                audioTrack={localMicrophoneTrack as any}
-                cameraOn={true}
-                micOn={micOn}
-                playAudio={false}
-                videoTrack={localCameraTrack as any}
-                style={{ width: "100%", height: "100%" }}
+        {!hideLocalUser && (
+          <div className="absolute top-4 right-4 flex flex-col items-center gap-2">
+            <div
+              ref={localRef}
+              className="w-32 h-32 rounded-full overflow-hidden border-2 border-white shadow-lg bg-gray-900"
+            >
+              {localCameraTrack ? (
+                <LocalUser
+                  audioTrack={localMicrophoneTrack as any}
+                  cameraOn={true}
+                  micOn={micOn}
+                  playAudio={false}
+                  videoTrack={localCameraTrack as any}
+                  style={{ width: "100%", height: "100%" }}
+                >
+                  <div className="absolute bottom-1 left-1 text-white text-xs">
+                    You
+                  </div>
+                </LocalUser>
+              ) : (
+                <VideoPlaceholder name="You" size="small" isLoading={isReconnecting} />
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMic(!micOn)}
+                className={`
+                  p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
+                  z-10
+                  transition-colors duration-200
+                  ${micOn ? "text-white" : "text-red-500"}
+                `}
               >
-                <div className="absolute bottom-1 left-1 text-white text-xs">
-                  You
-                </div>
-              </LocalUser>
-            ) : (
-              <VideoPlaceholder name="You" size="small" isLoading={isReconnecting} />
-            )}
+                {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+              </button>
+              <button
+                onClick={handleLeave}
+                disabled={isLeaving}
+                className={`
+                  p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
+                  z-10
+                  transition-colors duration-200
+                  ${isLeaving ? "text-gray-500" : "text-red-500 hover:text-red-600"}
+                `}
+              >
+                <PhoneOff size={20} />
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMic(!micOn)}
-              className={`
-                p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
-                z-10
-                transition-colors duration-200
-                ${micOn ? "text-white" : "text-red-500"}
-              `}
-            >
-              {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-            </button>
-            <button
-              onClick={handleLeave}
-              disabled={isLeaving}
-              className={`
-                p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
-                z-10
-                transition-colors duration-200
-                ${isLeaving ? "text-gray-500" : "text-red-500 hover:text-red-600"}
-              `}
-            >
-              <PhoneOff size={20} />
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
 export const VideoCall: React.FC<VideoCallProps> = (props) => {
-  return (
-      <VideoCallContent {...props} />
-  );
+  return <VideoCallContent {...props} />;
 };
