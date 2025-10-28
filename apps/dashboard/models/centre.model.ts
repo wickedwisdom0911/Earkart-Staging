@@ -63,7 +63,16 @@ export const CreateCentreModelSchema = z.object({
 export const CentreModelSchema = z.object({
   success: z.boolean(),
   message: z.string(),
-  data: z.array(CentreModelDataSchema),
+  data: z.object({
+    data: z.array(CentreModelDataSchema.nullable()).nullable(),
+    total: z.number(),
+    limit: z.number(),
+    offset: z.number(),
+    page: z.number(),
+    totalPages: z.number(),
+    hasNext: z.boolean(),
+    hasPrevious: z.boolean(),
+  }).nullable(),
 });
 export const CreateCenterProfileSchema = z.object({
   user: userModelDataSchema,

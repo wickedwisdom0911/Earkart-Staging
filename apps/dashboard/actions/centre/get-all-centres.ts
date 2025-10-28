@@ -5,9 +5,21 @@ import { getBaseUrl } from "@/lib/environment";
 import { verifySession } from "@/lib/session";
 import { CentreModel, CentreModelSchema } from "@/models/centre.model";
 
-export default async function getAllCentres(): Promise<CentreModel> {
+export default async function getAllCentres(params?: {
+  cityId?: string;
+  districtId?: string;
+  stateId?: string;
+  countryId?: string;
+}): Promise<CentreModel> {
   const baseUrl = await getBaseUrl();
-  const url = `${baseUrl}centre/get-all`;
+  const searchParams = new URLSearchParams();
+
+  if (params?.cityId) searchParams.append("cityId", params.cityId);
+  if (params?.districtId) searchParams.append("districtId", params.districtId);
+  if (params?.stateId) searchParams.append("stateId", params.stateId);
+  if (params?.countryId) searchParams.append("countryId", params.countryId);
+
+  const url = `${baseUrl}centre/get-all?${searchParams.toString()}`;
   const user = await verifySession();
   if (!user?.token) {
     throw new Error("Unauthorized");
@@ -24,12 +36,15 @@ export default async function getAllCentres(): Promise<CentreModel> {
     CentreModelSchema
   );
   // Fix pricing for each centre in the array
-  if (response.data) {
-    response.data.forEach(centre => {
-      if (centre.pricing === undefined) {
+  if (response.data && response.data.data) {
+    response.data.data.forEach((centre) => {
+      if (centre && centre.pricing === undefined) {
         centre.pricing = [];
       }
     });
+  } else if (response.data) {
+    response.data.data = [];
   }
+
   return response as unknown as CentreModel;
 }

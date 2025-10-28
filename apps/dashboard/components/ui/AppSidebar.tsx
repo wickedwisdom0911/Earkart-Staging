@@ -26,6 +26,8 @@ import {
   Tablet,
   ClipboardList,
   Smartphone,
+  CalendarCheck,
+  Ticket,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -49,6 +51,11 @@ const adminSidebarItems: SidebarItem[] = [
     name: "Dashboard",
     icon: <PieChart className="text-slate-600" />,
     url: "/dashboard/overview",
+  },
+  {
+    name: "Appointments",
+    icon: <CalendarCheck className="text-slate-600" />,
+    url: ROUTES.APPOINTMENTS,
   },
   {
     name: "Active Consultations",
@@ -105,6 +112,11 @@ const adminSidebarItems: SidebarItem[] = [
     icon: <UserPlusIcon className="text-slate-600" />,
     url: "/dashboard/patients",
   },
+  {
+    name: "Coupons",
+    icon: <Ticket className="text-slate-600" />,
+    url: "/dashboard/coupons",  // Or just "/coupons" if that's your route
+  },
 ];
 
 const headAudiologistSidebarItems: SidebarItem[] = [
@@ -112,6 +124,11 @@ const headAudiologistSidebarItems: SidebarItem[] = [
     name: "Dashboard",
     icon: <PieChart className="text-slate-600" />,
     url: "/dashboard/overview",
+  },
+  {
+    name: "Appointments",
+    icon: <CalendarCheck className="text-slate-600" />,
+    url: ROUTES.APPOINTMENTS,
   },
   {
     name: "Active Consultations",
@@ -145,6 +162,11 @@ const audiologistSidebarItems: SidebarItem[] = [
     name: "Dashboard",
     icon: <PieChart className="text-slate-600" />,
     url: "/dashboard/overview",
+  },
+  {
+    name: "Appointments",
+    icon: <CalendarCheck className="text-slate-600" />,
+    url: ROUTES.APPOINTMENTS,
   },
   {
     name: "Active Consultations",
@@ -269,3 +291,5 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
+
+
