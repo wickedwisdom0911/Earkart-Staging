@@ -17,7 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import loginUser from "@/actions/auth/login-user";
+// import loginUser from "@/actions/auth/login-user";
 import { toast } from "sonner";
 import { 
   Dialog, 
@@ -43,6 +43,7 @@ function LoginPageInner() {
   const [isPending, setIsPending] = useState(false);
   const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
   const [showSecurityWarning, setShowSecurityWarning] = useState(false);
+  const [org, setOrg] = useState<"earkart" | "aiims">("earkart");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -74,11 +75,19 @@ function LoginPageInner() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsPending(true);
     try {
-      const formData = new FormData();
-      formData.append("email", values.email);
-      formData.append("password", values.password);
-
-      const result = await loginUser(formData);
+      // Persist org selection
+      if (typeof window !== "undefined") {
+        const isAiims = org === "aiims";
+        localStorage.setItem("isAiims", String(isAiims));
+        // Also set a cookie for server actions to read
+        document.cookie = `isAiims=${isAiims}; path=/`;
+      }
+      const resp = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: values.email, password: values.password, isAiims: org === "aiims" }),
+      });
+      const result = await resp.json();
       
       if (result.success) {
         router.push("/dashboard");
@@ -101,6 +110,24 @@ function LoginPageInner() {
         </div>
 
         <div className="space-y-6">
+          {/* Org selection cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setOrg("earkart")}
+              className={`p-4 border rounded-xl text-left transition cursor-pointer ${org === "earkart" ? "border-blue-600 ring-2 ring-blue-200" : "border-gray-200 hover:border-gray-300"}`}
+            >
+              <div className="font-semibold">Earkart employee</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrg("aiims")}
+              className={`p-4 border rounded-xl text-left transition cursor-pointer ${org === "aiims" ? "border-blue-600 ring-2 ring-blue-200" : "border-gray-200 hover:border-gray-300"}`}
+            >
+              <div className="font-semibold">AIIMS employee</div>
+            </button>
+          </div>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField

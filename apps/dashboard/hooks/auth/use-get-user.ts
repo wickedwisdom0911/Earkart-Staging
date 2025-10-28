@@ -5,7 +5,10 @@ export const useGetUser = () => {
   return useQuery({
     queryKey: ["current-user"],
     queryFn: async () => {
-      return await getCurrentUser();
+      const user = await getCurrentUser();
+      return user ?? null; // never undefined
     },
+    initialData: null,
+    retry: false,
   });
 };
