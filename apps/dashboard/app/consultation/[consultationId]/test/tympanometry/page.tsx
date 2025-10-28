@@ -150,7 +150,7 @@ export default function TympanometryPage() {
   const [peakCompliance, setPeakCompliance] = useState<number | null>(null);
   const [gradient, setGradient] = useState<number | null>(null);
   const [ecv, setECV] = useState<number | null>(null);
-  const [manualTympType, setManualTympType] = useState<TympType>(TympType.A);
+  const [manualTympType, setManualTympType] = useState<TympType | "">("");
   const [completedEars, setCompletedEars] = useState<Set<"L" | "R">>(new Set());
 
   // New state variables for controls
@@ -170,6 +170,12 @@ export default function TympanometryPage() {
       return;
     }
 
+    // Check if Tymp Type is selected
+    if (!manualTympType) {
+      toast.error("Please select a Tymp Type before saving results.");
+      return;
+    }
+
     const consultationData = consultation.data as ConsultationModelData;
 
     // Create tympanometry reading data
@@ -179,7 +185,7 @@ export default function TympanometryPage() {
       peakPressure: peakPressure ?? 0,
       staticCompliance: peakCompliance ?? 0,
       earCanalVolume: ecv ?? 0,
-      tympType: manualTympType,
+      tympType: manualTympType as TympType,
     };
 
     // Merge with any existing readings from consultation and our local cache,
@@ -244,6 +250,7 @@ export default function TympanometryPage() {
         setPeakCompliance(null);
         setGradient(null);
         setECV(null);
+        setManualTympType("");
       }
     } catch (error) {
       console.error("Failed to save tympanometry results:", error);
@@ -381,24 +388,7 @@ export default function TympanometryPage() {
     saveTympanometryResults,
   ]);
 
-  // Add debug logging for state changes
-  React.useEffect(() => {
-    console.log("State updated:", {
-      currentPressure,
-      currentCompliance,
-      isRunning,
-      isTestCompleted,
-      realTimeDataLength: realTimeData.length,
-      finalDataLength: finalData.length,
-    });
-  }, [
-    currentPressure,
-    currentCompliance,
-    isRunning,
-    isTestCompleted,
-    realTimeData.length,
-    finalData.length,
-  ]);
+
 
   // Start/Stop tympanometry test
   const startTest = useCallback(() => {
@@ -479,17 +469,10 @@ export default function TympanometryPage() {
     setPeakCompliance(null);
     setGradient(null);
     setECV(null);
+    setManualTympType("");
   }, []);
 
-  // Debug current state
-  console.log("Current state:", {
-    isRunning,
-    isTestCompleted,
-    realTimeDataLength: realTimeData.length,
-    finalDataLength: finalData.length,
-    currentPressure,
-    currentCompliance,
-  });
+
 
   // Since there is no screen share on this page, these are placeholders
   const isScreenSharing = false;
@@ -704,8 +687,9 @@ export default function TympanometryPage() {
               <select
                 className="w-full p-2 border rounded text-xs"
                 value={manualTympType}
-                onChange={(e) => setManualTympType(e.target.value as TympType)}
+                onChange={(e) => setManualTympType(e.target.value as TympType | "")}
               >
+                <option value="">Select Type</option>
                 <option value={TympType.A}>Type A - Normal</option>
                 <option value={TympType.As}>Type As - Shallow</option>
                 <option value={TympType.Ad}>Type Ad - Deep</option>
@@ -1141,15 +1125,7 @@ export default function TympanometryPage() {
           complianceMin={complianceMin}
         />
 
-        <StickyReportNavigation
-          isScreenConnecting={isScreenConnecting}
-          isScreenSharing={isScreenSharing}
-          isShowingReport={isShowingReport}
-          onToggleShowReport={handleShowReport}
-          onShare={() => toast.info("Sharing is available from the report page.")}
-          onDoAnotherTest={handleDoAnotherTest}
-          onEndConsultation={handleEndConsultation}
-        />
+        
 
         {/* Tymp Type Selection (hidden on large screens) */}
         <div className="mt-6 lg:hidden">
@@ -1157,8 +1133,9 @@ export default function TympanometryPage() {
           <select
             className="w-full p-2 border rounded max-w-xs"
             value={manualTympType}
-            onChange={(e) => setManualTympType(e.target.value as TympType)}
+            onChange={(e) => setManualTympType(e.target.value as TympType | "")}
           >
+            <option value="">Select Type</option>
             <option value={TympType.A}>Type A - Normal</option>
             <option value={TympType.As}>Type As - Shallow</option>
             <option value={TympType.Ad}>Type Ad - Deep</option>
