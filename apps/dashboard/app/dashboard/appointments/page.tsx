@@ -2,7 +2,7 @@
 
 import { AppointmentStats } from "./_components/appointment-stats";
 import { Card } from "@/components/ui/card";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import useGetAllCentres from "@/hooks/centre/use-get-all-centres";
 import { useGetAllAppointments } from "@/hooks/use-appointment";
 import {
@@ -19,6 +19,9 @@ import { Badge } from "@/components/ui/badge";
 
 export default function AppointmentsPage() {
   const [selectedCentre, setSelectedCentre] = useState<string | undefined>();
+  const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(10);
+  const enablePagination = false; // temporarily disable sending limit/offset to API
   
   const { data: centresData } = useGetAllCentres({});
   
@@ -27,7 +30,19 @@ export default function AppointmentsPage() {
     if (selectedCentre) {
       params.centreId = selectedCentre;
     }
+    if (enablePagination) {
+      const safeLimit = Number.isInteger(limit) ? Math.min(100, Math.max(1, limit)) : 10;
+      const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+      const safeOffset = (safePage - 1) * safeLimit;
+      params.limit = safeLimit;
+      params.offset = safeOffset;
+    }
     return params;
+  }, [selectedCentre, page, limit]);
+
+  useEffect(() => {
+    // reset to page 1 when filters change
+    setPage(1);
   }, [selectedCentre]);
   
   const { data: appointmentsData, isLoading } = useGetAllAppointments(
@@ -38,6 +53,11 @@ export default function AppointmentsPage() {
   );
 
   const hasFilters = !!selectedCentre;
+
+  const total = appointmentsData?.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / (Number.isInteger(limit) ? Math.min(100, Math.max(1, limit)) : 10)));
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
 
   const clearFilters = () => {
     setSelectedCentre(undefined);
@@ -72,6 +92,14 @@ export default function AppointmentsPage() {
     return grouped;
   }, [appointmentsData]);
 
+  // Flattened, time-sorted appointments for grid view
+  const flatSortedAppointments = useMemo(() => {
+    const items = appointmentsData?.data?.appointments || [];
+    return [...items].sort(
+      (a: any, b: any) => new Date(a.scheduledStart).getTime() - new Date(b.scheduledStart).getTime()
+    );
+  }, [appointmentsData]);
+
   const sortedDates = Object.keys(groupedAppointments).sort((a, b) => {
     return new Date(groupedAppointments[a][0].scheduledStart).getTime() - 
            new Date(groupedAppointments[b][0].scheduledStart).getTime();
@@ -85,8 +113,8 @@ export default function AppointmentsPage() {
   };
 
   return (
-    <div className="w-full h-screen bg-gray-50/50 overflow-y-auto">
-      <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8 pb-32">
+    <div className="w-full min-h-screen bg-gray-50/50">
+      <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8 pb-24">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -176,82 +204,122 @@ export default function AppointmentsPage() {
               </div>
             )}
 
-            {!isLoading && sortedDates.length > 0 && (
-              <div className="space-y-6">
-                {sortedDates.map((date) => (
-                  <div key={date} className="space-y-3">
-                    {/* Date Header */}
-                    <div className="flex items-center gap-2 pb-2 border-b">
-                      <Calendar className="w-4 h-4 text-gray-500" />
-                      <h3 className="font-semibold text-gray-900">{date}</h3>
-                      <span className="text-sm text-gray-500">
-                        ({groupedAppointments[date].length} {groupedAppointments[date].length === 1 ? 'appointment' : 'appointments'})
-                      </span>
-                    </div>
+            {!isLoading && flatSortedAppointments.length > 0 && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {flatSortedAppointments.map((appointment: any) => (
+                    <Card
+                      key={appointment.id}
+                      className="p-4 hover:shadow-md transition-shadow border-l-4"
+                      style={{
+                        borderLeftColor: appointment.status === "COMPLETED"
+                          ? "#10b981"
+                          : appointment.status?.startsWith("CANCELLED")
+                          ? "#ef4444"
+                          : "#3b82f6",
+                      }}
+                    >
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold text-gray-900">
+                            {appointment.patient?.name || "Unknown Patient"}
+                          </h4>
+                          <Badge variant={getStatusVariant(appointment.status)}>
+                            {appointment.status}
+                          </Badge>
+                        </div>
 
-                    {/* Appointments for this date */}
-                    <div className="space-y-2">
-                      {groupedAppointments[date].map((appointment: any) => (
-                        <Card
-                          key={appointment.id}
-                          className="p-4 hover:shadow-md transition-shadow border-l-4"
-                          style={{
-                            borderLeftColor: appointment.status === "COMPLETED" 
-                              ? "#10b981" 
-                              : appointment.status?.startsWith("CANCELLED")
-                              ? "#ef4444"
-                              : "#3b82f6"
-                          }}
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="font-semibold text-gray-900">
-                                  {appointment.patient?.name || "Unknown Patient"}
-                                </h4>
-                                <Badge variant={getStatusVariant(appointment.status)}>
-                                  {appointment.status}
-                                </Badge>
-                              </div>
-
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600">
-                                <div className="flex items-center gap-2">
-                                  <Clock className="w-4 h-4 text-gray-400" />
-                                  <span>
-                                    {new Date(appointment.scheduledStart).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}{" "}
-                                    -{" "}
-                                    {new Date(appointment.scheduledEnd).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}
-                                  </span>
-                                </div>
-
-                                {appointment.audiologist?.name && (
-                                  <div className="flex items-center gap-2">
-                                    <User className="w-4 h-4 text-gray-400" />
-                                    <span>{appointment.audiologist.name}</span>
-                                  </div>
-                                )}
-
-                                {appointment.centre?.name && (
-                                  <div className="flex items-center gap-2">
-                                    <MapPin className="w-4 h-4 text-gray-400" />
-                                    <span>{appointment.centre.name}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                        <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <span>
+                              {new Date(appointment.scheduledStart).toLocaleDateString([], {
+                                year: "numeric",
+                                month: "short",
+                                day: "2-digit",
+                              })}
+                              {" • "}
+                              {new Date(appointment.scheduledStart).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                              {" - "}
+                              {new Date(appointment.scheduledEnd).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
                           </div>
-                        </Card>
-                      ))}
+
+                          {appointment.audiologist?.name && (
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-gray-400" />
+                              <span>{appointment.audiologist.name}</span>
+                            </div>
+                          )}
+
+                          {appointment.centre?.name && (
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-gray-400" />
+                              <span>{appointment.centre.name}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                {enablePagination && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t mt-4">
+                  <div className="text-sm text-gray-600">
+                    {total > 0 ? (
+                      <span>
+                        Showing {(page - 1) * limit + 1}–
+                        {Math.min(page * limit, total)} of {total}
+                      </span>
+                    ) : (
+                      <span>Showing 0 of 0</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={String(limit)} onValueChange={(v) => {
+                      const next = parseInt(v, 10);
+                      const clamped = Number.isNaN(next) ? 10 : Math.min(100, Math.max(1, next));
+                      setLimit(clamped);
+                      setPage(1);
+                    }}>
+                      <SelectTrigger className="w-[110px]">
+                        <SelectValue placeholder="Rows" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[10, 20, 50, 100].map((n) => (
+                          <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" disabled={!canPrev} onClick={() => setPage((p) => {
+                        const current = Number.isInteger(p) && p > 0 ? p : 1;
+                        return Math.max(1, current - 1);
+                      })}>
+                        Prev
+                      </Button>
+                      <span className="text-sm text-gray-700 min-w-[80px] text-center">
+                        Page {page} / {totalPages}
+                      </span>
+                      <Button variant="outline" size="sm" disabled={!canNext} onClick={() => setPage((p) => {
+                        const current = Number.isInteger(p) && p > 0 ? p : 1;
+                        return current + 1;
+                      })}>
+                        Next
+                      </Button>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+                )}
+              </>
             )}
           </div>
         </Card>

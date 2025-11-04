@@ -204,7 +204,7 @@ export default function DashboardPage() {
         }
         
         setJoiningConsultationId(null);
-        router.push(ROUTES.CONSULTATION(data));
+        router.push(ROUTES?.CONSULTATION(data));
       }
     };
 

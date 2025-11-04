@@ -92,9 +92,31 @@ export async function getAllAppointments(params?: any): Promise<GetAllAppointmen
   
   // Only add query params if params object has keys
   if (params && Object.keys(params).length > 0) {
-    const searchParams = new URLSearchParams(params);
+    const sanitized: Record<string, string> = {};
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") return;
+      if (key === "limit") {
+        const n = Math.floor(Number(value));
+        const clamped = Math.min(100, Math.max(1, Number.isFinite(n) ? n : 10));
+        sanitized[key] = String(clamped);
+        return;
+      }
+      if (key === "offset") {
+        const n = Math.floor(Number(value));
+        const clamped = Math.max(0, Number.isFinite(n) ? n : 0);
+        sanitized[key] = String(clamped);
+        return;
+      }
+      sanitized[key] = String(value);
+    });
+    const searchParams = new URLSearchParams(sanitized);
     url = `${url}?${searchParams.toString()}`;
   }
+
+  // Debug: log final URL to verify limit/offset
+  try {
+    console.log("[getAllAppointments] URL:", url);
+  } catch {}
 
   const response = await apiRequest(url, {
     method: "GET",

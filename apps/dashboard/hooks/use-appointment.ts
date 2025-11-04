@@ -36,7 +36,13 @@ export const useCreateAppointment = () => {
 export const useGetAllAppointments = (params?: any, options?: any) => {
   return useQuery({
     queryKey: [APPOINTMENTS_QUERY_KEY, params],
-    queryFn: () => getAllAppointments(params),
+    queryFn: async () => {
+      const res = await getAllAppointments(params);
+      // Ensure we never return undefined to React Query
+      return (
+        res ?? { success: true, message: "", data: { appointments: [], total: 0 } }
+      );
+    },
     ...(options || {}),
   });
 };

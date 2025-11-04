@@ -13,4 +13,5 @@ export const ROUTES = {
   USERS: "/dashboard/users",
   PATIENTS: "/dashboard/patients",
   APPOINTMENTS: "/dashboard/appointments",
+  ANSWER_QUESTIONNAIRE: (consultationId: string) => `/consultation/${consultationId}/answer-questionnaire`,
 };
