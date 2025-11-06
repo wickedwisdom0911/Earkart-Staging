@@ -8,7 +8,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Loader2 } from "lucide-react";
 import { useState, useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/Badge";
 import { DateRange } from "react-day-picker";
 
 interface AppointmentCalendarProps {
