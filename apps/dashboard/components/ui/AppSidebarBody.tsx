@@ -20,10 +20,45 @@ import { usePathname } from "next/navigation";
 
 export default function AppSidebarBody({ item }: { item: SidebarItem }) {
   const pathname = usePathname();
+  
+  // If item has no sub-items, render as a simple link
+  if (!item.subItems) {
+    return (
+      <SidebarMenu key={item.name}>
+        <SidebarMenuItem>
+          <Link href={item.url || "#"}>
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full"
+            >
+              <SidebarMenuButton
+                isActive={
+                  item.url === "/dashboard"
+                    ? pathname === "/dashboard"
+                    : pathname.startsWith(item.url!)
+                }
+                className={cn(
+                  "h-full w-full py-4 cursor-pointer hover:bg-primary-400/90 transition-all duration-200"
+                )}
+              >
+                {item.icon}
+                <span className="ml-3 flex-1 flex items-start font-medium">
+                  {item.name}
+                </span>
+              </SidebarMenuButton>
+            </motion.div>
+          </Link>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
+  
+  // If item has sub-items, render with Collapsible
   return (
     <SidebarMenu key={item.name}>
       <Collapsible className={`group/${item.name}`}>
-        <SidebarMenuItem>
+        <SidebarMenuItem className="z-50">
           <CollapsibleTrigger asChild>
             <Link href={item.url || "#"}>
               <motion.div

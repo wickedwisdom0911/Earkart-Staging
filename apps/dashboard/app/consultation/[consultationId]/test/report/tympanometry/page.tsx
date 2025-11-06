@@ -467,7 +467,17 @@ export default function TympanometryReportPage() {
   };
 
   const handleShareReport = () => {
-    setIsShareDialogOpen(true);
+    // Check if user is AIIMS employee
+    const isAiims = typeof window !== 'undefined' && localStorage.getItem('isAiims') === 'true';
+    
+    if (isAiims) {
+      // For AIIMS employees, directly send to hardcoded number
+      console.log('🏥 AIIMS employee detected - sending report to hardcoded number');
+      sendReportToNumbers('919980936971'); // Hardcoded AIIMS number with country code
+    } else {
+      // For other users, show the dialog
+      setIsShareDialogOpen(true);
+    }
   };
 
   const getTympTypeDescription = (type: TympType): string => {

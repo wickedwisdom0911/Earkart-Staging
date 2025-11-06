@@ -19,7 +19,7 @@ export const CreateCityModelSchema = z.object({
 export const CityModelSchema = z.object({
   success: z.boolean(),
   message: z.string(),
-  data: z.array(CityModelDataSchema),
+  data: z.array(CityModelDataSchema).nullable(),
 });
 
 export type CityModelData = z.infer<typeof CityModelDataSchema>;

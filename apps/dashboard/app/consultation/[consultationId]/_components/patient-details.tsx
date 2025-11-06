@@ -36,6 +36,16 @@ export default function PatientDetails({
 }) {
   const router = useRouter();
   const { consultationId } = useParams();
+  
+  // Check if user is AIIMS employee
+  const [isAiims, setIsAiims] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const aiims = localStorage.getItem('isAiims') === 'true';
+      setIsAiims(aiims);
+    }
+  }, []);
+  
   const [countryId, setCountryId] = useState<string | null>(
     patient.city?.district?.state?.country?.id || null
   );
@@ -48,7 +58,13 @@ export default function PatientDetails({
 
   const form = useForm<PatientModelData>({
     resolver: zodResolver(patientModeldataSchema),
-    defaultValues: patient,
+    defaultValues: {
+      ...patient,
+      cityId: patient.cityId || null,
+      districtId: patient.districtId || null,
+      stateId: patient.stateId || null,
+      countryId: patient.countryId || null,
+    },
   });
   const { mutate: updatePatient, isPending } = useUpdatePatient();
   // Reset state/city/district when parent changes
@@ -74,6 +90,21 @@ export default function PatientDetails({
   }, [districtId, form]);
 
   function handleSubmit(data: PatientModelData) {
+    // Clean up location fields if not filled (set to null instead of empty string)
+    const cleanedData = {
+      ...data,
+      cityId: data.cityId || null,
+      districtId: data.districtId || null,
+      stateId: data.stateId || null,
+      countryId: data.countryId || null,
+      email: data.email || null,
+      gender: data.gender || null,
+      dob: data.dob || null,
+      age: data.age || null,
+      address: data.address || null,
+      pincode: data.pincode || null,
+    };
+
     // Check if any field has changed from the original patient data
     const changes: Record<
       string,
@@ -83,10 +114,10 @@ export default function PatientDetails({
       }
     > = {};
 
-    const hasChanges = Object.keys(data).some((key) => {
+    const hasChanges = Object.keys(cleanedData).some((key) => {
       const typedKey = key as keyof PatientModelData;
       const oldValue = patient[typedKey];
-      const newValue = data[typedKey];
+      const newValue = cleanedData[typedKey];
 
       // Skip comparing undefined/null values and empty strings
       if (oldValue === undefined || newValue === undefined) return false;
@@ -117,7 +148,7 @@ export default function PatientDetails({
 
     if (hasChanges) {
       updatePatient(
-        { ...data, id: patient.id },
+        { ...cleanedData, id: patient.id },
         {
           onSuccess: (result) => {
             if (result.success) {
@@ -126,11 +157,13 @@ export default function PatientDetails({
                 ROUTES.ANSWER_QUESTIONNAIRE(consultationId as string)
               );
             } else {
-              toast.error(result.message);
+              toast.error(result.message || "Failed to update patient");
             }
           },
-          onError: (error) => {
-            toast.error(error.message);
+          onError: (error: any) => {
+            console.error("Patient update error:", error);
+            const errorMessage = error?.message || error?.toString() || "Failed to update patient. Please try again.";
+            toast.error(errorMessage);
           },
         }
       );
@@ -152,18 +185,33 @@ export default function PatientDetails({
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Enter full name" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                {isAiims ? (
+                  <FormField
+                    control={form.control}
+                    name="code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Patient ID</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={patient.code || ""} disabled placeholder="Patient ID" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Enter full name" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <FormField
                   control={form.control}
@@ -172,7 +220,12 @@ export default function PatientDetails({
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input {...field} type="email" placeholder="Enter email" />
+                        <Input 
+                          {...field} 
+                          value={field.value || ""}
+                          type="email" 
+                          placeholder="Enter email" 
+                        />
                       </FormControl>
                     </FormItem>
                   )}
@@ -328,7 +381,7 @@ export default function PatientDetails({
                     <FormItem>
                       <FormLabel>Pincode</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Enter pincode" />
+                        <Input {...field} value={field.value || ""} placeholder="Enter pincode" />
                       </FormControl>
                     </FormItem>
                   )}
@@ -342,7 +395,7 @@ export default function PatientDetails({
                   <FormItem>
                     <FormLabel>Address</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Enter address" />
+                      <Input {...field} value={field.value || ""} placeholder="Enter address" />
                     </FormControl>
                   </FormItem>
                 )}

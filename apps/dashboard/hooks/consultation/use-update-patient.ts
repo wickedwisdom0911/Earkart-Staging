@@ -4,6 +4,16 @@ import { PatientModelData } from "@/models/patient.model";
 
 export const useUpdatePatient = () => {
   return useMutation({
-    mutationFn: async (data: PatientModelData) => await updatePatient(data),
+    mutationFn: async (data: PatientModelData) => {
+      try {
+        return await updatePatient(data);
+      } catch (error: any) {
+        // Re-throw with a user-friendly message
+        throw new Error(
+          error?.message || 
+          "Failed to update patient details. Please try again."
+        );
+      }
+    },
   });
 };
