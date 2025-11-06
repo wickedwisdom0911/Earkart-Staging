@@ -1040,6 +1040,8 @@ export default function ConsultationLayout({
                       timesliceMs: 5000,
                       maxConcurrentUploads: 3,
                       requireEntireScreen: true,
+                      captureSystemAudio: true, // Enable system audio to capture patient's voice
+                      captureMic: true, // Enable microphone for audiologist's voice
                     })
                   }
                   disabled={recordingState.isInitializing || recordingState.isRecovering || recordingState.isUploading}
