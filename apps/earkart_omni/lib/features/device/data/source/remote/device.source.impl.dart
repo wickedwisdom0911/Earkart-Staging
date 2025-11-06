@@ -25,7 +25,6 @@ class DeviceDataSourceImpl extends IDeviceDataSource {
       );
       final result = DeviceModel.fromJson(response.data);
       if (result.success) {
-        deviceEntityDataSource.addDeviceEntity(result.data!);
         return result.data;
       }
       return null;

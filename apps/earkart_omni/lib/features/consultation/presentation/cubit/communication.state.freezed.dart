@@ -33,7 +33,9 @@ mixin _$CommunicationState {
       throw _privateConstructorUsedError;
   ImpedanceStatus? get impedanceStatus => throw _privateConstructorUsedError;
   ImpedanceData? get impedanceData => throw _privateConstructorUsedError;
-  bool get isNewImpedanceData => throw _privateConstructorUsedError;
+  bool get isNewImpedanceData =>
+      throw _privateConstructorUsedError; // R15C device serial number
+  String? get r15cSerialNumber => throw _privateConstructorUsedError;
   String? get error => throw _privateConstructorUsedError;
 
   @JsonKey(ignore: true)
@@ -63,6 +65,7 @@ abstract class $CommunicationStateCopyWith<$Res> {
       ImpedanceStatus? impedanceStatus,
       ImpedanceData? impedanceData,
       bool isNewImpedanceData,
+      String? r15cSerialNumber,
       String? error});
 }
 
@@ -94,6 +97,7 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
     Object? impedanceStatus = freezed,
     Object? impedanceData = freezed,
     Object? isNewImpedanceData = null,
+    Object? r15cSerialNumber = freezed,
     Object? error = freezed,
   }) {
     return _then(_value.copyWith(
@@ -157,6 +161,10 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
           ? _value.isNewImpedanceData
           : isNewImpedanceData // ignore: cast_nullable_to_non_nullable
               as bool,
+      r15cSerialNumber: freezed == r15cSerialNumber
+          ? _value.r15cSerialNumber
+          : r15cSerialNumber // ignore: cast_nullable_to_non_nullable
+              as String?,
       error: freezed == error
           ? _value.error
           : error // ignore: cast_nullable_to_non_nullable
@@ -189,6 +197,7 @@ abstract class _$$CommunicationStateImplCopyWith<$Res>
       ImpedanceStatus? impedanceStatus,
       ImpedanceData? impedanceData,
       bool isNewImpedanceData,
+      String? r15cSerialNumber,
       String? error});
 }
 
@@ -218,6 +227,7 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
     Object? impedanceStatus = freezed,
     Object? impedanceData = freezed,
     Object? isNewImpedanceData = null,
+    Object? r15cSerialNumber = freezed,
     Object? error = freezed,
   }) {
     return _then(_$CommunicationStateImpl(
@@ -281,6 +291,10 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
           ? _value.isNewImpedanceData
           : isNewImpedanceData // ignore: cast_nullable_to_non_nullable
               as bool,
+      r15cSerialNumber: freezed == r15cSerialNumber
+          ? _value.r15cSerialNumber
+          : r15cSerialNumber // ignore: cast_nullable_to_non_nullable
+              as String?,
       error: freezed == error
           ? _value.error
           : error // ignore: cast_nullable_to_non_nullable
@@ -308,6 +322,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
       this.impedanceStatus,
       this.impedanceData,
       this.isNewImpedanceData = false,
+      this.r15cSerialNumber,
       this.error});
 
   @override
@@ -350,12 +365,15 @@ class _$CommunicationStateImpl implements _CommunicationState {
   @override
   @JsonKey()
   final bool isNewImpedanceData;
+// R15C device serial number
+  @override
+  final String? r15cSerialNumber;
   @override
   final String? error;
 
   @override
   String toString() {
-    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, isTabletBatteryLoading: $isTabletBatteryLoading, connectionStatus: $connectionStatus, isCameraOpen: $isCameraOpen, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, isNewImpedanceData: $isNewImpedanceData, error: $error)';
+    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, isTabletBatteryLoading: $isTabletBatteryLoading, connectionStatus: $connectionStatus, isCameraOpen: $isCameraOpen, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, isNewImpedanceData: $isNewImpedanceData, r15cSerialNumber: $r15cSerialNumber, error: $error)';
   }
 
   @override
@@ -394,6 +412,8 @@ class _$CommunicationStateImpl implements _CommunicationState {
                 other.impedanceData == impedanceData) &&
             (identical(other.isNewImpedanceData, isNewImpedanceData) ||
                 other.isNewImpedanceData == isNewImpedanceData) &&
+            (identical(other.r15cSerialNumber, r15cSerialNumber) ||
+                other.r15cSerialNumber == r15cSerialNumber) &&
             (identical(other.error, error) || other.error == error));
   }
 
@@ -415,6 +435,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
       impedanceStatus,
       impedanceData,
       isNewImpedanceData,
+      r15cSerialNumber,
       error);
 
   @JsonKey(ignore: true)
@@ -442,6 +463,7 @@ abstract class _CommunicationState implements CommunicationState {
       final ImpedanceStatus? impedanceStatus,
       final ImpedanceData? impedanceData,
       final bool isNewImpedanceData,
+      final String? r15cSerialNumber,
       final String? error}) = _$CommunicationStateImpl;
 
   @override
@@ -474,6 +496,8 @@ abstract class _CommunicationState implements CommunicationState {
   ImpedanceData? get impedanceData;
   @override
   bool get isNewImpedanceData;
+  @override // R15C device serial number
+  String? get r15cSerialNumber;
   @override
   String? get error;
   @override

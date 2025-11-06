@@ -21,6 +21,8 @@ mixin _$DeviceRegistrationState {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(DeviceEntity? device) success,
+    required TResult Function(DeviceEntity? device) localDeviceFetched,
+    required TResult Function(DeviceEntity? device) getByValueSuccess,
     required TResult Function(String message) error,
   }) =>
       throw _privateConstructorUsedError;
@@ -29,6 +31,8 @@ mixin _$DeviceRegistrationState {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(DeviceEntity? device)? success,
+    TResult? Function(DeviceEntity? device)? localDeviceFetched,
+    TResult? Function(DeviceEntity? device)? getByValueSuccess,
     TResult? Function(String message)? error,
   }) =>
       throw _privateConstructorUsedError;
@@ -37,6 +41,8 @@ mixin _$DeviceRegistrationState {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(DeviceEntity? device)? success,
+    TResult Function(DeviceEntity? device)? localDeviceFetched,
+    TResult Function(DeviceEntity? device)? getByValueSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) =>
@@ -46,6 +52,10 @@ mixin _$DeviceRegistrationState {
     required TResult Function(DeviceRegistrationInitial value) initial,
     required TResult Function(DeviceRegistrationLoading value) loading,
     required TResult Function(DeviceRegistrationSuccess value) success,
+    required TResult Function(DeviceRegistrationLocalDeviceFetched value)
+        localDeviceFetched,
+    required TResult Function(DeviceRegistrationGetByValueSuccess value)
+        getByValueSuccess,
     required TResult Function(DeviceRegistrationError value) error,
   }) =>
       throw _privateConstructorUsedError;
@@ -54,6 +64,10 @@ mixin _$DeviceRegistrationState {
     TResult? Function(DeviceRegistrationInitial value)? initial,
     TResult? Function(DeviceRegistrationLoading value)? loading,
     TResult? Function(DeviceRegistrationSuccess value)? success,
+    TResult? Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult? Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
     TResult? Function(DeviceRegistrationError value)? error,
   }) =>
       throw _privateConstructorUsedError;
@@ -62,6 +76,10 @@ mixin _$DeviceRegistrationState {
     TResult Function(DeviceRegistrationInitial value)? initial,
     TResult Function(DeviceRegistrationLoading value)? loading,
     TResult Function(DeviceRegistrationSuccess value)? success,
+    TResult Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
     TResult Function(DeviceRegistrationError value)? error,
     required TResult orElse(),
   }) =>
@@ -132,6 +150,8 @@ class _$DeviceRegistrationInitialImpl implements DeviceRegistrationInitial {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(DeviceEntity? device) success,
+    required TResult Function(DeviceEntity? device) localDeviceFetched,
+    required TResult Function(DeviceEntity? device) getByValueSuccess,
     required TResult Function(String message) error,
   }) {
     return initial();
@@ -143,6 +163,8 @@ class _$DeviceRegistrationInitialImpl implements DeviceRegistrationInitial {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(DeviceEntity? device)? success,
+    TResult? Function(DeviceEntity? device)? localDeviceFetched,
+    TResult? Function(DeviceEntity? device)? getByValueSuccess,
     TResult? Function(String message)? error,
   }) {
     return initial?.call();
@@ -154,6 +176,8 @@ class _$DeviceRegistrationInitialImpl implements DeviceRegistrationInitial {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(DeviceEntity? device)? success,
+    TResult Function(DeviceEntity? device)? localDeviceFetched,
+    TResult Function(DeviceEntity? device)? getByValueSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -169,6 +193,10 @@ class _$DeviceRegistrationInitialImpl implements DeviceRegistrationInitial {
     required TResult Function(DeviceRegistrationInitial value) initial,
     required TResult Function(DeviceRegistrationLoading value) loading,
     required TResult Function(DeviceRegistrationSuccess value) success,
+    required TResult Function(DeviceRegistrationLocalDeviceFetched value)
+        localDeviceFetched,
+    required TResult Function(DeviceRegistrationGetByValueSuccess value)
+        getByValueSuccess,
     required TResult Function(DeviceRegistrationError value) error,
   }) {
     return initial(this);
@@ -180,6 +208,10 @@ class _$DeviceRegistrationInitialImpl implements DeviceRegistrationInitial {
     TResult? Function(DeviceRegistrationInitial value)? initial,
     TResult? Function(DeviceRegistrationLoading value)? loading,
     TResult? Function(DeviceRegistrationSuccess value)? success,
+    TResult? Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult? Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
     TResult? Function(DeviceRegistrationError value)? error,
   }) {
     return initial?.call(this);
@@ -191,6 +223,10 @@ class _$DeviceRegistrationInitialImpl implements DeviceRegistrationInitial {
     TResult Function(DeviceRegistrationInitial value)? initial,
     TResult Function(DeviceRegistrationLoading value)? loading,
     TResult Function(DeviceRegistrationSuccess value)? success,
+    TResult Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
     TResult Function(DeviceRegistrationError value)? error,
     required TResult orElse(),
   }) {
@@ -250,6 +286,8 @@ class _$DeviceRegistrationLoadingImpl implements DeviceRegistrationLoading {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(DeviceEntity? device) success,
+    required TResult Function(DeviceEntity? device) localDeviceFetched,
+    required TResult Function(DeviceEntity? device) getByValueSuccess,
     required TResult Function(String message) error,
   }) {
     return loading();
@@ -261,6 +299,8 @@ class _$DeviceRegistrationLoadingImpl implements DeviceRegistrationLoading {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(DeviceEntity? device)? success,
+    TResult? Function(DeviceEntity? device)? localDeviceFetched,
+    TResult? Function(DeviceEntity? device)? getByValueSuccess,
     TResult? Function(String message)? error,
   }) {
     return loading?.call();
@@ -272,6 +312,8 @@ class _$DeviceRegistrationLoadingImpl implements DeviceRegistrationLoading {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(DeviceEntity? device)? success,
+    TResult Function(DeviceEntity? device)? localDeviceFetched,
+    TResult Function(DeviceEntity? device)? getByValueSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -287,6 +329,10 @@ class _$DeviceRegistrationLoadingImpl implements DeviceRegistrationLoading {
     required TResult Function(DeviceRegistrationInitial value) initial,
     required TResult Function(DeviceRegistrationLoading value) loading,
     required TResult Function(DeviceRegistrationSuccess value) success,
+    required TResult Function(DeviceRegistrationLocalDeviceFetched value)
+        localDeviceFetched,
+    required TResult Function(DeviceRegistrationGetByValueSuccess value)
+        getByValueSuccess,
     required TResult Function(DeviceRegistrationError value) error,
   }) {
     return loading(this);
@@ -298,6 +344,10 @@ class _$DeviceRegistrationLoadingImpl implements DeviceRegistrationLoading {
     TResult? Function(DeviceRegistrationInitial value)? initial,
     TResult? Function(DeviceRegistrationLoading value)? loading,
     TResult? Function(DeviceRegistrationSuccess value)? success,
+    TResult? Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult? Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
     TResult? Function(DeviceRegistrationError value)? error,
   }) {
     return loading?.call(this);
@@ -309,6 +359,10 @@ class _$DeviceRegistrationLoadingImpl implements DeviceRegistrationLoading {
     TResult Function(DeviceRegistrationInitial value)? initial,
     TResult Function(DeviceRegistrationLoading value)? loading,
     TResult Function(DeviceRegistrationSuccess value)? success,
+    TResult Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
     TResult Function(DeviceRegistrationError value)? error,
     required TResult orElse(),
   }) {
@@ -394,6 +448,8 @@ class _$DeviceRegistrationSuccessImpl implements DeviceRegistrationSuccess {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(DeviceEntity? device) success,
+    required TResult Function(DeviceEntity? device) localDeviceFetched,
+    required TResult Function(DeviceEntity? device) getByValueSuccess,
     required TResult Function(String message) error,
   }) {
     return success(device);
@@ -405,6 +461,8 @@ class _$DeviceRegistrationSuccessImpl implements DeviceRegistrationSuccess {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(DeviceEntity? device)? success,
+    TResult? Function(DeviceEntity? device)? localDeviceFetched,
+    TResult? Function(DeviceEntity? device)? getByValueSuccess,
     TResult? Function(String message)? error,
   }) {
     return success?.call(device);
@@ -416,6 +474,8 @@ class _$DeviceRegistrationSuccessImpl implements DeviceRegistrationSuccess {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(DeviceEntity? device)? success,
+    TResult Function(DeviceEntity? device)? localDeviceFetched,
+    TResult Function(DeviceEntity? device)? getByValueSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -431,6 +491,10 @@ class _$DeviceRegistrationSuccessImpl implements DeviceRegistrationSuccess {
     required TResult Function(DeviceRegistrationInitial value) initial,
     required TResult Function(DeviceRegistrationLoading value) loading,
     required TResult Function(DeviceRegistrationSuccess value) success,
+    required TResult Function(DeviceRegistrationLocalDeviceFetched value)
+        localDeviceFetched,
+    required TResult Function(DeviceRegistrationGetByValueSuccess value)
+        getByValueSuccess,
     required TResult Function(DeviceRegistrationError value) error,
   }) {
     return success(this);
@@ -442,6 +506,10 @@ class _$DeviceRegistrationSuccessImpl implements DeviceRegistrationSuccess {
     TResult? Function(DeviceRegistrationInitial value)? initial,
     TResult? Function(DeviceRegistrationLoading value)? loading,
     TResult? Function(DeviceRegistrationSuccess value)? success,
+    TResult? Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult? Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
     TResult? Function(DeviceRegistrationError value)? error,
   }) {
     return success?.call(this);
@@ -453,6 +521,10 @@ class _$DeviceRegistrationSuccessImpl implements DeviceRegistrationSuccess {
     TResult Function(DeviceRegistrationInitial value)? initial,
     TResult Function(DeviceRegistrationLoading value)? loading,
     TResult Function(DeviceRegistrationSuccess value)? success,
+    TResult Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
     TResult Function(DeviceRegistrationError value)? error,
     required TResult orElse(),
   }) {
@@ -470,6 +542,352 @@ abstract class DeviceRegistrationSuccess implements DeviceRegistrationState {
   DeviceEntity? get device;
   @JsonKey(ignore: true)
   _$$DeviceRegistrationSuccessImplCopyWith<_$DeviceRegistrationSuccessImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$DeviceRegistrationLocalDeviceFetchedImplCopyWith<$Res> {
+  factory _$$DeviceRegistrationLocalDeviceFetchedImplCopyWith(
+          _$DeviceRegistrationLocalDeviceFetchedImpl value,
+          $Res Function(_$DeviceRegistrationLocalDeviceFetchedImpl) then) =
+      __$$DeviceRegistrationLocalDeviceFetchedImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({DeviceEntity? device});
+}
+
+/// @nodoc
+class __$$DeviceRegistrationLocalDeviceFetchedImplCopyWithImpl<$Res>
+    extends _$DeviceRegistrationStateCopyWithImpl<$Res,
+        _$DeviceRegistrationLocalDeviceFetchedImpl>
+    implements _$$DeviceRegistrationLocalDeviceFetchedImplCopyWith<$Res> {
+  __$$DeviceRegistrationLocalDeviceFetchedImplCopyWithImpl(
+      _$DeviceRegistrationLocalDeviceFetchedImpl _value,
+      $Res Function(_$DeviceRegistrationLocalDeviceFetchedImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? device = freezed,
+  }) {
+    return _then(_$DeviceRegistrationLocalDeviceFetchedImpl(
+      device: freezed == device
+          ? _value.device
+          : device // ignore: cast_nullable_to_non_nullable
+              as DeviceEntity?,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$DeviceRegistrationLocalDeviceFetchedImpl
+    implements DeviceRegistrationLocalDeviceFetched {
+  const _$DeviceRegistrationLocalDeviceFetchedImpl({required this.device});
+
+  @override
+  final DeviceEntity? device;
+
+  @override
+  String toString() {
+    return 'DeviceRegistrationState.localDeviceFetched(device: $device)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$DeviceRegistrationLocalDeviceFetchedImpl &&
+            (identical(other.device, device) || other.device == device));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, device);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$DeviceRegistrationLocalDeviceFetchedImplCopyWith<
+          _$DeviceRegistrationLocalDeviceFetchedImpl>
+      get copyWith => __$$DeviceRegistrationLocalDeviceFetchedImplCopyWithImpl<
+          _$DeviceRegistrationLocalDeviceFetchedImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() initial,
+    required TResult Function() loading,
+    required TResult Function(DeviceEntity? device) success,
+    required TResult Function(DeviceEntity? device) localDeviceFetched,
+    required TResult Function(DeviceEntity? device) getByValueSuccess,
+    required TResult Function(String message) error,
+  }) {
+    return localDeviceFetched(device);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? initial,
+    TResult? Function()? loading,
+    TResult? Function(DeviceEntity? device)? success,
+    TResult? Function(DeviceEntity? device)? localDeviceFetched,
+    TResult? Function(DeviceEntity? device)? getByValueSuccess,
+    TResult? Function(String message)? error,
+  }) {
+    return localDeviceFetched?.call(device);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? initial,
+    TResult Function()? loading,
+    TResult Function(DeviceEntity? device)? success,
+    TResult Function(DeviceEntity? device)? localDeviceFetched,
+    TResult Function(DeviceEntity? device)? getByValueSuccess,
+    TResult Function(String message)? error,
+    required TResult orElse(),
+  }) {
+    if (localDeviceFetched != null) {
+      return localDeviceFetched(device);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(DeviceRegistrationInitial value) initial,
+    required TResult Function(DeviceRegistrationLoading value) loading,
+    required TResult Function(DeviceRegistrationSuccess value) success,
+    required TResult Function(DeviceRegistrationLocalDeviceFetched value)
+        localDeviceFetched,
+    required TResult Function(DeviceRegistrationGetByValueSuccess value)
+        getByValueSuccess,
+    required TResult Function(DeviceRegistrationError value) error,
+  }) {
+    return localDeviceFetched(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(DeviceRegistrationInitial value)? initial,
+    TResult? Function(DeviceRegistrationLoading value)? loading,
+    TResult? Function(DeviceRegistrationSuccess value)? success,
+    TResult? Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult? Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
+    TResult? Function(DeviceRegistrationError value)? error,
+  }) {
+    return localDeviceFetched?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(DeviceRegistrationInitial value)? initial,
+    TResult Function(DeviceRegistrationLoading value)? loading,
+    TResult Function(DeviceRegistrationSuccess value)? success,
+    TResult Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
+    TResult Function(DeviceRegistrationError value)? error,
+    required TResult orElse(),
+  }) {
+    if (localDeviceFetched != null) {
+      return localDeviceFetched(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class DeviceRegistrationLocalDeviceFetched
+    implements DeviceRegistrationState {
+  const factory DeviceRegistrationLocalDeviceFetched(
+          {required final DeviceEntity? device}) =
+      _$DeviceRegistrationLocalDeviceFetchedImpl;
+
+  DeviceEntity? get device;
+  @JsonKey(ignore: true)
+  _$$DeviceRegistrationLocalDeviceFetchedImplCopyWith<
+          _$DeviceRegistrationLocalDeviceFetchedImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$DeviceRegistrationGetByValueSuccessImplCopyWith<$Res> {
+  factory _$$DeviceRegistrationGetByValueSuccessImplCopyWith(
+          _$DeviceRegistrationGetByValueSuccessImpl value,
+          $Res Function(_$DeviceRegistrationGetByValueSuccessImpl) then) =
+      __$$DeviceRegistrationGetByValueSuccessImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({DeviceEntity? device});
+}
+
+/// @nodoc
+class __$$DeviceRegistrationGetByValueSuccessImplCopyWithImpl<$Res>
+    extends _$DeviceRegistrationStateCopyWithImpl<$Res,
+        _$DeviceRegistrationGetByValueSuccessImpl>
+    implements _$$DeviceRegistrationGetByValueSuccessImplCopyWith<$Res> {
+  __$$DeviceRegistrationGetByValueSuccessImplCopyWithImpl(
+      _$DeviceRegistrationGetByValueSuccessImpl _value,
+      $Res Function(_$DeviceRegistrationGetByValueSuccessImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? device = freezed,
+  }) {
+    return _then(_$DeviceRegistrationGetByValueSuccessImpl(
+      device: freezed == device
+          ? _value.device
+          : device // ignore: cast_nullable_to_non_nullable
+              as DeviceEntity?,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$DeviceRegistrationGetByValueSuccessImpl
+    implements DeviceRegistrationGetByValueSuccess {
+  const _$DeviceRegistrationGetByValueSuccessImpl({required this.device});
+
+  @override
+  final DeviceEntity? device;
+
+  @override
+  String toString() {
+    return 'DeviceRegistrationState.getByValueSuccess(device: $device)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$DeviceRegistrationGetByValueSuccessImpl &&
+            (identical(other.device, device) || other.device == device));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, device);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$DeviceRegistrationGetByValueSuccessImplCopyWith<
+          _$DeviceRegistrationGetByValueSuccessImpl>
+      get copyWith => __$$DeviceRegistrationGetByValueSuccessImplCopyWithImpl<
+          _$DeviceRegistrationGetByValueSuccessImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() initial,
+    required TResult Function() loading,
+    required TResult Function(DeviceEntity? device) success,
+    required TResult Function(DeviceEntity? device) localDeviceFetched,
+    required TResult Function(DeviceEntity? device) getByValueSuccess,
+    required TResult Function(String message) error,
+  }) {
+    return getByValueSuccess(device);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? initial,
+    TResult? Function()? loading,
+    TResult? Function(DeviceEntity? device)? success,
+    TResult? Function(DeviceEntity? device)? localDeviceFetched,
+    TResult? Function(DeviceEntity? device)? getByValueSuccess,
+    TResult? Function(String message)? error,
+  }) {
+    return getByValueSuccess?.call(device);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? initial,
+    TResult Function()? loading,
+    TResult Function(DeviceEntity? device)? success,
+    TResult Function(DeviceEntity? device)? localDeviceFetched,
+    TResult Function(DeviceEntity? device)? getByValueSuccess,
+    TResult Function(String message)? error,
+    required TResult orElse(),
+  }) {
+    if (getByValueSuccess != null) {
+      return getByValueSuccess(device);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(DeviceRegistrationInitial value) initial,
+    required TResult Function(DeviceRegistrationLoading value) loading,
+    required TResult Function(DeviceRegistrationSuccess value) success,
+    required TResult Function(DeviceRegistrationLocalDeviceFetched value)
+        localDeviceFetched,
+    required TResult Function(DeviceRegistrationGetByValueSuccess value)
+        getByValueSuccess,
+    required TResult Function(DeviceRegistrationError value) error,
+  }) {
+    return getByValueSuccess(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(DeviceRegistrationInitial value)? initial,
+    TResult? Function(DeviceRegistrationLoading value)? loading,
+    TResult? Function(DeviceRegistrationSuccess value)? success,
+    TResult? Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult? Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
+    TResult? Function(DeviceRegistrationError value)? error,
+  }) {
+    return getByValueSuccess?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(DeviceRegistrationInitial value)? initial,
+    TResult Function(DeviceRegistrationLoading value)? loading,
+    TResult Function(DeviceRegistrationSuccess value)? success,
+    TResult Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
+    TResult Function(DeviceRegistrationError value)? error,
+    required TResult orElse(),
+  }) {
+    if (getByValueSuccess != null) {
+      return getByValueSuccess(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class DeviceRegistrationGetByValueSuccess
+    implements DeviceRegistrationState {
+  const factory DeviceRegistrationGetByValueSuccess(
+          {required final DeviceEntity? device}) =
+      _$DeviceRegistrationGetByValueSuccessImpl;
+
+  DeviceEntity? get device;
+  @JsonKey(ignore: true)
+  _$$DeviceRegistrationGetByValueSuccessImplCopyWith<
+          _$DeviceRegistrationGetByValueSuccessImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
 
@@ -544,6 +962,8 @@ class _$DeviceRegistrationErrorImpl implements DeviceRegistrationError {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(DeviceEntity? device) success,
+    required TResult Function(DeviceEntity? device) localDeviceFetched,
+    required TResult Function(DeviceEntity? device) getByValueSuccess,
     required TResult Function(String message) error,
   }) {
     return error(message);
@@ -555,6 +975,8 @@ class _$DeviceRegistrationErrorImpl implements DeviceRegistrationError {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(DeviceEntity? device)? success,
+    TResult? Function(DeviceEntity? device)? localDeviceFetched,
+    TResult? Function(DeviceEntity? device)? getByValueSuccess,
     TResult? Function(String message)? error,
   }) {
     return error?.call(message);
@@ -566,6 +988,8 @@ class _$DeviceRegistrationErrorImpl implements DeviceRegistrationError {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(DeviceEntity? device)? success,
+    TResult Function(DeviceEntity? device)? localDeviceFetched,
+    TResult Function(DeviceEntity? device)? getByValueSuccess,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -581,6 +1005,10 @@ class _$DeviceRegistrationErrorImpl implements DeviceRegistrationError {
     required TResult Function(DeviceRegistrationInitial value) initial,
     required TResult Function(DeviceRegistrationLoading value) loading,
     required TResult Function(DeviceRegistrationSuccess value) success,
+    required TResult Function(DeviceRegistrationLocalDeviceFetched value)
+        localDeviceFetched,
+    required TResult Function(DeviceRegistrationGetByValueSuccess value)
+        getByValueSuccess,
     required TResult Function(DeviceRegistrationError value) error,
   }) {
     return error(this);
@@ -592,6 +1020,10 @@ class _$DeviceRegistrationErrorImpl implements DeviceRegistrationError {
     TResult? Function(DeviceRegistrationInitial value)? initial,
     TResult? Function(DeviceRegistrationLoading value)? loading,
     TResult? Function(DeviceRegistrationSuccess value)? success,
+    TResult? Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult? Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
     TResult? Function(DeviceRegistrationError value)? error,
   }) {
     return error?.call(this);
@@ -603,6 +1035,10 @@ class _$DeviceRegistrationErrorImpl implements DeviceRegistrationError {
     TResult Function(DeviceRegistrationInitial value)? initial,
     TResult Function(DeviceRegistrationLoading value)? loading,
     TResult Function(DeviceRegistrationSuccess value)? success,
+    TResult Function(DeviceRegistrationLocalDeviceFetched value)?
+        localDeviceFetched,
+    TResult Function(DeviceRegistrationGetByValueSuccess value)?
+        getByValueSuccess,
     TResult Function(DeviceRegistrationError value)? error,
     required TResult orElse(),
   }) {

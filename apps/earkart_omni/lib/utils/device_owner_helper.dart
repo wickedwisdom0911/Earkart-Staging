@@ -30,7 +30,6 @@ class DeviceOwnerHelper {
   static Future<void> grantAllPermissions() async {
     try {
       await platform.invokeMethod('grantAllPermissions');
-      print('✅ ALL permissions granted for device owner');
 
       // Wait a moment for permissions to be applied
       await Future.delayed(const Duration(milliseconds: 500));
@@ -145,7 +144,6 @@ class DeviceOwnerHelper {
   static Future<bool> grantProjectMediaPermission() async {
     try {
       await platform.invokeMethod('grantProjectMediaPermission');
-      print('✅ PROJECT_MEDIA permission granted successfully');
       return true;
     } on PlatformException catch (e) {
       print('Error granting PROJECT_MEDIA permission: ${e.message}');
@@ -158,7 +156,6 @@ class DeviceOwnerHelper {
       final bool isOwner = await isDeviceOwner();
       if (isOwner) {
         await platform.invokeMethod('grantUSBPermissions');
-        print('✅ USB permissions granted for device owner');
         return true;
       } else {
         print('⚠️ Not device owner - cannot grant USB permissions');
