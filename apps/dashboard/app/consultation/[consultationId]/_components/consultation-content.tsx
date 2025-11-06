@@ -4,6 +4,7 @@ import { VideoCall } from "./video-call";
 import { useOtoscopy } from "@/providers/otoscopy-provider";
 import { usePathname } from "next/navigation";
 import { useDevice } from "@/providers/device-provider";
+import { ShareScreenButton } from "./share-screen-button";
 
 interface DelayedVideoCallProps {
   channel: string;
@@ -12,11 +13,13 @@ interface DelayedVideoCallProps {
   hideLocalUser: boolean;
   onBeforeLeaveCall?: () => Promise<void>;
   delay: number;
+  showOtoscopyOnly?: boolean;
 }
 
 const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({
   delay,
   hideLocalUser,
+  showOtoscopyOnly = false,
   ...props
 }) => {
   const [shouldRender, setShouldRender] = React.useState(false);
@@ -31,16 +34,17 @@ const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({
 
   if (!shouldRender) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-white">
+      <div className="w-full h-full flex items-center justify-center text-white bg-black">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-lg">Connecting to otoscope stream...</p>
+          <p className="text-sm text-gray-400 mt-2">Please wait while the R15C camera initializes</p>
         </div>
       </div>
     );
   }
 
-  return <VideoCall {...props} hideLocalUser={hideLocalUser} />;
+  return <VideoCall {...props} hideLocalUser={hideLocalUser} showOtoscopyOnly={showOtoscopyOnly} />;
 };
 
 
@@ -88,8 +92,9 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
             patientName={patientName}
             isFullscreen={true}
             onBeforeLeaveCall={onBeforeLeaveCall}
-            delay={1500} // 1.5 second delay
+            delay={500} // 0.5 second delay - reduced for faster response
             hideLocalUser={true}
+            showOtoscopyOnly={true} // Only show otoscopy stream, not patient camera
           />
         </div>
 
@@ -99,6 +104,11 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
             <span className="font-medium">🔬 OTOSCOPY FULL SCREEN</span>
           </div>
+        </div>
+
+        {/* Top-center Share Screen button */}
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+          <ShareScreenButton />
         </div>
 
         {/* Top-right stop button */}
@@ -115,7 +125,12 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
 
   // Normal layout for all other cases
   return (
-    <div className="flex gap-2 overflow-hidden h-full w-full">
+    <div className="flex gap-2 overflow-hidden h-full w-full relative">
+      {/* Share Screen Button - Fixed at top right */}
+      <div className="absolute top-2 right-2 z-20">
+        <ShareScreenButton />
+      </div>
+      
       <VideoCall
         channel={consultationId}
         patientName={patientName}

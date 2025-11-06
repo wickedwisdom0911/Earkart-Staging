@@ -24,6 +24,7 @@ interface VideoCallProps {
   isFullscreen?: boolean;
   onBeforeLeaveCall?: () => Promise<void>;
   hideLocalUser?: boolean;
+  showOtoscopyOnly?: boolean; // New prop to show only otoscopy stream
 }
 
 const VideoCallSkeleton = () => {
@@ -98,6 +99,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   isFullscreen = false,
   onBeforeLeaveCall,
   hideLocalUser = false,
+  showOtoscopyOnly = false,
 }) => {
   const localRef = useRef<HTMLDivElement>(null);
   const remoteRef = useRef<HTMLDivElement>(null);
@@ -453,7 +455,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         </div>
       )}
       <div className="flex flex-col h-full w-full gap-1 mb-2">
-        {/* Remote user (patient) - full screen */}
+        {/* Remote user (patient or otoscopy) - full screen */}
         <div
           ref={remoteRef}
           className={`w-full h-full bg-gray-900 overflow-hidden ${
@@ -461,23 +463,32 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           }`}
         >
           {remoteUsers.length > 0 ? (
-            remoteUsers.map((user) => (
-              <RemoteUser
-                key={user.uid}
-                user={user}
-                style={{ 
-                  width: "100%", 
-                  height: "100%",
-                  transform: "scaleX(-1)" // Flip patient video horizontally to fix mirroring
-                }}
-              >
-                <div className="absolute bottom-3 left-3 text-white text-sm">
-                  {patientName}
-                </div>
-              </RemoteUser>
-            ))
+            remoteUsers.map((user) => {
+              // Force re-render when video track changes
+              const videoTrackId = user.videoTrack?.getTrackId?.();
+              
+              return (
+                <RemoteUser
+                  key={`${user.uid}-${videoTrackId || 'no-video'}`}
+                  user={user}
+                  playVideo={true}
+                  style={{ 
+                    width: "100%", 
+                    height: "100%",
+                    transform: showOtoscopyOnly ? "none" : "scaleX(-1)"
+                  }}
+                >
+                  <div className="absolute bottom-3 left-3 text-white text-sm bg-black/50 px-2 py-1 rounded">
+                    {showOtoscopyOnly ? `🔬 Otoscopy` : patientName}
+                  </div>
+                </RemoteUser>
+              );
+            })
           ) : (
-            <VideoPlaceholder name={patientName} isLoading={isReconnecting} />
+            <VideoPlaceholder 
+              name={showOtoscopyOnly ? "Waiting for otoscopy stream..." : patientName} 
+              isLoading={isReconnecting || showOtoscopyOnly} 
+            />
           )}
         </div>
 
@@ -514,6 +525,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                   transition-colors duration-200
                   ${micOn ? "text-white" : "text-red-500"}
                 `}
+                title={micOn ? "Mute" : "Unmute"}
               >
                 {micOn ? <Mic size={20} /> : <MicOff size={20} />}
               </button>
@@ -526,6 +538,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                   transition-colors duration-200
                   ${isLeaving ? "text-gray-500" : "text-red-500 hover:text-red-600"}
                 `}
+                title="End Call"
               >
                 <PhoneOff size={20} />
               </button>

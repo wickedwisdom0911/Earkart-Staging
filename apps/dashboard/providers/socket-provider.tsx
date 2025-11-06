@@ -9,6 +9,7 @@ import React, {
   useState,
 } from "react";
 import { io, Socket } from "socket.io-client";
+import { usePathname } from "next/navigation";
 
 const SocketContext = createContext<Socket | null>(null);
 
@@ -17,12 +18,20 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const { data: user } = useGetUser();
   const { data: socketUrl, isLoading: socketUrlLoading } = useGetSocketUrl();
+  const pathname = usePathname();
 
   useEffect(() => {
     // Don't initialize socket if user token is missing or socket URL is still loading
     if (!user?.token || socketUrlLoading || !socketUrl) return;
 
     const initializeSocket = async () => {
+      // If socket exists but is disconnected, and we're on dashboard, force reconnect
+      if (socketRef.current && !socketRef.current.connected && pathname === '/dashboard') {
+        console.log("🔄 Forcing socket reconnection on dashboard");
+        socketRef.current.connect();
+        return;
+      }
+
       if (!socketRef.current) {
         socketRef.current = io(socketUrl, {
           auth: {
@@ -36,15 +45,28 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
         socketRef.current.on("connect", () => {
-          console.log("Connected to socket -", socketRef.current?.id);
+          console.log("✅ Connected to socket -", socketRef.current?.id);
         });
 
         socketRef.current.on("disconnect", (reason) => {
-          console.log("Socket disconnected:", reason);
+          console.log("❌ Socket disconnected:", reason);
+          
+          // If on dashboard and socket disconnects, try to reconnect
+          if (pathname === '/dashboard') {
+            console.log("🔄 Dashboard detected, will attempt reconnection");
+          }
+        });
+
+        socketRef.current.on("reconnect", (attemptNumber) => {
+          console.log("✅ Socket reconnected after", attemptNumber, "attempts");
         });
 
         socketRef.current.on("reconnect_attempt", (attempt) => {
-          console.log("Reconnection attempt:", attempt);
+          console.log("🔄 Reconnection attempt:", attempt);
+        });
+
+        socketRef.current.on("reconnect_failed", () => {
+          console.error("❌ Socket reconnection failed");
         });
 
         setSocket(socketRef.current);
@@ -54,11 +76,14 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     initializeSocket();
 
     return () => {
-      socketRef.current?.disconnect();
-      socketRef.current = null;
-      setSocket(null);
+      // Only disconnect if not on dashboard
+      if (pathname !== '/dashboard') {
+        socketRef.current?.disconnect();
+        socketRef.current = null;
+        setSocket(null);
+      }
     };
-  }, [user, socketUrl, socketUrlLoading]);
+  }, [user, socketUrl, socketUrlLoading, pathname]);
 
   return (
     <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>

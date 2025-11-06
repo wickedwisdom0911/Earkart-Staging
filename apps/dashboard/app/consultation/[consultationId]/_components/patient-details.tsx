@@ -36,6 +36,16 @@ export default function PatientDetails({
 }) {
   const router = useRouter();
   const { consultationId } = useParams();
+  
+  // Check if user is AIIMS employee
+  const [isAiims, setIsAiims] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const aiims = localStorage.getItem('isAiims') === 'true';
+      setIsAiims(aiims);
+    }
+  }, []);
+  
   const [countryId, setCountryId] = useState<string | null>(
     patient.city?.district?.state?.country?.id || null
   );
@@ -175,18 +185,33 @@ export default function PatientDetails({
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Enter full name" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                {isAiims ? (
+                  <FormField
+                    control={form.control}
+                    name="code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Patient ID</FormLabel>
+                        <FormControl>
+                          <Input {...field} value={patient.code || ""} disabled placeholder="Patient ID" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Enter full name" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <FormField
                   control={form.control}
