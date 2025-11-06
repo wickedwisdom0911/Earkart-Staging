@@ -44,7 +44,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self' data:",
-              "media-src 'self' data: blob:"
+              "media-src 'self' data: blob: https://*.cloudfront.net"
             ].join("; "),
           },
         ],

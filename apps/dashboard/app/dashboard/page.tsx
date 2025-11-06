@@ -23,11 +23,15 @@ import {
   AlertCircle,
   XCircle,
   Download,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import getConsultation from "@/actions/consultations/get_consultation";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { VideoPlayer } from "@/components/VideoPlayer";
 
 // Removed RecordingLink component – we will use consultation.recordings provided by API
 
@@ -48,6 +52,15 @@ export default function DashboardPage() {
   const [joiningConsultationId, setJoiningConsultationId] = useState<
     string | null
   >(null);
+  // NEW: Track selected recording for video player
+  const [selectedRecording, setSelectedRecording] = useState<{
+    url: string;
+    title: string;
+    playlist?: Array<{ url: string; title: string }>;
+    currentIndex?: number;
+  } | null>(null);
+  // NEW: Track which consultation's recordings are expanded
+  const [expandedRecordings, setExpandedRecordings] = useState<Set<string>>(new Set());
 
   // Add update consultation mutation
   const { mutate: updateConsultationMutation } = useUpdateConsultation();
@@ -244,6 +257,18 @@ export default function DashboardPage() {
     socket?.emit("join_consultation", { consultationId });
   };
 
+  const toggleRecordings = (consultationId: string) => {
+    setExpandedRecordings((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(consultationId)) {
+        newSet.delete(consultationId);
+      } else {
+        newSet.add(consultationId);
+      }
+      return newSet;
+    });
+  };
+
   const renderConsultationCard = (consultation: ConsultationModelData) => {
     const dateStr = consultation.createdAt
       ? format(new Date(consultation.createdAt), "dd MMM yyyy, hh:mm a")
@@ -434,66 +459,150 @@ export default function DashboardPage() {
               // 🐛 DEBUG: Console log recordings data
          
               
+              const isExpanded = expandedRecordings.has(consultation.id);
+              
+              // Create playlist data for "Play All" feature
+              const playlist = allRecordings
+                .filter(rec => !!rec.recordingUrl)
+                .map((recording, index) => {
+                  const timestamp = recording.createdAt 
+                    ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
+                    : `Part ${index + 1}`;
+                  const fileName = (recording as any).fileName || (recording as any).name || '';
+                  const mimeType = (recording as any).mimeType || '';
+                  const isScreenRecording = fileName.includes('.webm') || 
+                                          mimeType?.includes('video/webm') || 
+                                          fileName.includes('consultation-') ||
+                                          fileName.includes('session-');
+                  const recordingType = isScreenRecording ? '🖥️ Screen' : '🎥 Video';
+                  
+                  return {
+                    url: normalizePlaybackUrl(recording.recordingUrl) || recording.recordingUrl,
+                    title: `${recordingType} Recording ${index + 1} - ${timestamp}`
+                  };
+                });
+              
               return allRecordings.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <div className="text-sm font-medium text-gray-700 mb-2">
-                    Recordings ({allRecordings.length} available):
-                  </div>
-                  {allRecordings.map((recording, index) => {
-                    const timestamp = recording.createdAt 
-                      ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
-                      : `Part ${index + 1}`;
-                    
-                    // Get recording info directly from the recording object
-                    const fileName = (recording as any).fileName || (recording as any).name || '';
-                    const mimeType = (recording as any).mimeType || '';
-                    const status = (recording as any).status || 'unknown';
-                    
-                    // Detect screen recording by filename pattern or mimeType
-                    const isScreenRecording = fileName.includes('.webm') || 
-                                            mimeType?.includes('video/webm') || 
-                                            fileName.includes('consultation-') ||
-                                            fileName.includes('session-');
-                    const recordingType = isScreenRecording ? 'Screen Recording' : 'Audio Recording';
-                    const hasUrl = !!recording.recordingUrl;
-                    
-                    // If no URL, show as disabled item instead of link
-                    if (!hasUrl) {
-                      return (
-                        <div
-                          key={recording.id || `recording-${index}`}
-                          className="flex items-center justify-between px-3 py-2 border rounded-lg text-sm bg-gray-50 border-gray-200 text-gray-500"
-                        >
-                          <span className="flex items-center">
-                            <PlayCircle className="h-4 w-4 mr-2 opacity-50" />
-                            {recordingType} {index + 1} - {timestamp}
-                          </span>
-                          <span className="text-xs">Processing...</span>
+                <div className="mt-3 space-y-3">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => toggleRecordings(consultation.id)}
+                      className="flex-1 flex items-center justify-between px-3 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 border border-indigo-200 rounded-lg transition-all duration-200 group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-semibold text-indigo-800">
+                          🎥 Recordings
                         </div>
-                      );
-                    }
-                    
-                    return (
-                      <a
-                        key={recording.id || `recording-${index}`}
-                        href={normalizePlaybackUrl(recording.recordingUrl) || recording.recordingUrl}
-                        download={`consultation-${consultation.id}-${isScreenRecording ? 'screen' : 'audio'}-${index + 1}.webm`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-center justify-between px-3 py-2 border rounded-lg transition-colors duration-200 text-sm ${
-                          isScreenRecording 
-                            ? 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 hover:text-blue-800'
-                            : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700 hover:text-emerald-800'
-                        }`}
-                      >
-                        <span className="flex items-center">
-                          <PlayCircle className="h-4 w-4 mr-2" />
-                          {recordingType} {index + 1} - {timestamp}
+                        <div className="text-xs bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full font-medium">
+                          {allRecordings.length}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-indigo-600">
+                        <span className="text-xs font-medium">
+                          {isExpanded ? 'Hide' : 'Show'}
                         </span>
-                        <Download className="h-3 w-3" />
-                      </a>
-                    );
-                  })}
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                        )}
+                      </div>
+                    </button>
+                    {playlist.length > 1 && (
+                      <button
+                        onClick={() => {
+                          console.log('🎬 Playing all recordings as playlist:', playlist);
+                          setSelectedRecording({
+                            url: playlist[0].url,
+                            title: `All Recordings (1/${playlist.length})`,
+                            playlist: playlist,
+                            currentIndex: 0
+                          });
+                        }}
+                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg"
+                        title="Play all recordings in sequence"
+                      >
+                        <PlayCircle className="h-4 w-4" />
+                        <span className="text-xs font-medium">Play All</span>
+                      </button>
+                    )}
+                  </div>
+                  {isExpanded && (
+                    <div className="grid grid-cols-1 gap-2 animate-in slide-in-from-top-2 duration-200">
+                    {allRecordings.map((recording, index) => {
+                      const timestamp = recording.createdAt 
+                        ? format(new Date(recording.createdAt), 'MMM dd, HH:mm')
+                        : `Part ${index + 1}`;
+                      
+                      // Get recording info directly from the recording object
+                      const fileName = (recording as any).fileName || (recording as any).name || '';
+                      const mimeType = (recording as any).mimeType || '';
+                      const status = (recording as any).status || 'unknown';
+                      
+                      // Detect screen recording by filename pattern or mimeType
+                      const isScreenRecording = fileName.includes('.webm') || 
+                                              mimeType?.includes('video/webm') || 
+                                              fileName.includes('consultation-') ||
+                                              fileName.includes('session-');
+                      const recordingType = isScreenRecording ? '🖥️ Screen' : '🎥 Video';
+                      const hasUrl = !!recording.recordingUrl;
+                      
+                      // If no URL, show as disabled item instead of link
+                      if (!hasUrl) {
+                        return (
+                          <div
+                            key={recording.id || `recording-${index}`}
+                            className="flex items-center justify-between px-3 py-2.5 border rounded-lg text-sm bg-gray-50 border-gray-200 text-gray-500"
+                          >
+                            <span className="flex items-center gap-2">
+                              <PlayCircle className="h-5 w-5 opacity-50" />
+                              <div className="flex flex-col">
+                                <span className="font-medium">{recordingType} Recording {index + 1}</span>
+                                <span className="text-xs opacity-75">{timestamp}</span>
+                              </div>
+                            </span>
+                            <span className="text-xs font-medium">Processing...</span>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <button
+                          key={recording.id || `recording-${index}`}
+                          onClick={() => {
+                            const rawUrl = recording.recordingUrl;
+                            const normalizedUrl = normalizePlaybackUrl(rawUrl);
+                            console.log('🎬 Opening recording:', {
+                              rawUrl,
+                              normalizedUrl,
+                              fileName,
+                              mimeType,
+                              recording
+                            });
+                            setSelectedRecording({
+                              url: normalizedUrl || rawUrl,
+                              title: `${recordingType} Recording ${index + 1} - ${timestamp}`
+                            });
+                          }}
+                          className={`flex items-center justify-between px-3 py-2.5 border-2 rounded-lg transition-all duration-200 text-sm w-full group hover:scale-[1.02] ${
+                            isScreenRecording 
+                              ? 'bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border-blue-300 text-blue-800 shadow-sm hover:shadow-md'
+                              : 'bg-gradient-to-r from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 border-emerald-300 text-emerald-800 shadow-sm hover:shadow-md'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <PlayCircle className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                            <div className="flex flex-col items-start">
+                              <span className="font-semibold">{recordingType} Recording {index + 1}</span>
+                              <span className="text-xs opacity-75">{timestamp}</span>
+                            </div>
+                          </span>
+                          <PlayCircle className="h-4 w-4 group-hover:scale-125 transition-transform" />
+                        </button>
+                      );
+                    })}
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -556,6 +665,97 @@ export default function DashboardPage() {
           );
         })}
       </div>
+
+      {/* Video Player Dialog - Large Full Screen */}
+      <Dialog open={!!selectedRecording} onOpenChange={() => setSelectedRecording(null)}>
+        <DialogContent className="max-w-[95vw] w-full h-[95vh] max-h-[95vh] p-0">
+          <div className="flex flex-col h-full">
+            <DialogHeader className="px-6 py-4 border-b bg-gray-900">
+              <div className="flex items-center justify-between">
+                <DialogTitle className="text-lg text-white">{selectedRecording?.title}</DialogTitle>
+                <div className="flex gap-2">
+                  <a
+                    href={selectedRecording?.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center gap-1.5"
+                  >
+                    <Video className="h-3.5 w-3.5" />
+                    Open in new tab
+                  </a>
+                  <a
+                    href={selectedRecording?.url}
+                    download
+                    className="text-sm px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors flex items-center gap-1.5"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download
+                  </a>
+                </div>
+              </div>
+            </DialogHeader>
+            <div className="flex-1 bg-black flex items-center justify-center p-4">
+              {selectedRecording && (
+                <div className="w-full h-full">
+                  <VideoPlayer 
+                    url={selectedRecording.url}
+                    playlist={selectedRecording.playlist}
+                    currentIndex={selectedRecording.currentIndex}
+                    onPlaylistNext={() => {
+                      if (selectedRecording.playlist && selectedRecording.currentIndex !== undefined) {
+                        const nextIndex = selectedRecording.currentIndex + 1;
+                        if (nextIndex < selectedRecording.playlist.length) {
+                          const nextVideo = selectedRecording.playlist[nextIndex];
+                          console.log(`⏭️ Playing next video: ${nextIndex + 1}/${selectedRecording.playlist.length}`);
+                          setSelectedRecording({
+                            url: nextVideo.url,
+                            title: `All Recordings (${nextIndex + 1}/${selectedRecording.playlist.length})`,
+                            playlist: selectedRecording.playlist,
+                            currentIndex: nextIndex
+                          });
+                        }
+                      }
+                    }}
+                    onError={(error) => {
+                      console.error('Video playback error:', error);
+                      toast.error('Video playback failed. Try downloading the file instead.', {
+                        action: {
+                          label: 'Download',
+                          onClick: () => {
+                            const a = document.createElement('a');
+                            a.href = selectedRecording.url;
+                            a.download = 'recording.webm';
+                            a.click();
+                          }
+                        }
+                      });
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="px-4 py-2 bg-gray-900 border-t border-gray-800">
+              <div className="text-xs text-gray-400 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-300">💡 Tip:</span>
+                  <span>
+                    {selectedRecording?.playlist && selectedRecording?.playlist.length > 1
+                      ? `Videos will play automatically in sequence (${selectedRecording.currentIndex! + 1}/${selectedRecording.playlist.length})`
+                      : 'Use playback controls to adjust speed, volume, and quality'}
+                  </span>
+                </div>
+                {selectedRecording?.playlist && selectedRecording?.playlist.length > 1 && (
+                  <div className="flex items-center gap-1 text-gray-300 font-medium">
+                    <span>{selectedRecording.currentIndex! + 1}</span>
+                    <span>/</span>
+                    <span>{selectedRecording.playlist.length}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardBodyWrapper>
   );
 }

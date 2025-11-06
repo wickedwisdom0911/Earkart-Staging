@@ -132,6 +132,11 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Prevent browser extensions from causing hydration mismatches */
+  html, body, * {
+    user-select: inherit !important;
+  }
 }
 /* Hide scrollbars on all platforms */
 body,
