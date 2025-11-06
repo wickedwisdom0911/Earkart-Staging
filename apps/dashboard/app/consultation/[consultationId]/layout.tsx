@@ -1020,29 +1020,14 @@ export default function ConsultationLayout({
                 {recordingState.error?.includes("Entire Screen") && (
                   <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">
                     Please select "Entire Screen" in the picker and try again.
-                  </div>
-                )}
-                {recordingState.isUploading && (
-                  <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
-                    Finalizing previous recording… You can start a new one as soon as it completes.
-                  </div>
-                )}
-                {hasAttemptedAutoStart && (
-                  <div className="mb-4 text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-gray-200">
-                    Auto-start attempted. If you need to start again, click the button below.
-                  </div>
-                )}
-                <button
-                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-60 hover:bg-blue-700 transition-colors duration-200 font-semibold text-lg shadow-lg"
-                  onClick={() =>
-                    startRecording({
-                      filename: `consultation-${consultationId}-${Date.now()}.webm`,
-                      timesliceMs: 5000,
+
                       maxConcurrentUploads: 3,
                       requireEntireScreen: true,
                       captureSystemAudio: true, // Enable system audio to capture patient's voice
                       captureMic: true, // Enable microphone for audiologist's voice
                     })
+                      filename: `consultation-${consultationId}-${Date.now()}.webm`,
+                      timesliceMs: 5000,
                   }
                   disabled={recordingState.isInitializing || recordingState.isRecovering || recordingState.isUploading}
                 >
@@ -1068,4 +1053,19 @@ export default function ConsultationLayout({
       />
     </OtoscopyProvider>
   );
-}
+}                  </div>
+                )}
+                {recordingState.isUploading && (
+                  <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
+                    Finalizing previous recording… You can start a new one as soon as it completes.
+                  </div>
+                )}
+                {hasAttemptedAutoStart && (
+                  <div className="mb-4 text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-gray-200">
+                    Auto-start attempted. If you need to start again, click the button below.
+                  </div>
+                )}
+                <button
+                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-60 hover:bg-blue-700 transition-colors duration-200 font-semibold text-lg shadow-lg"
+                  onClick={() =>
+                    startRecording({

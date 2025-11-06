@@ -15,7 +15,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Calendar, Filter, X, Clock, User, MapPin, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/Badge";
 
 export default function AppointmentsPage() {
   const [selectedCentre, setSelectedCentre] = useState<string | undefined>();
