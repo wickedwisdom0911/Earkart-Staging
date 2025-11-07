@@ -88,16 +88,16 @@ export const CouponDataSchema = z.object({
   code: z.string(),
   description: z.string(),
   type: z.nativeEnum(CouponTypeEnum),
-  value: z.number(),
-  maxDiscount: z.number(),
-  minOrderAmount: z.number(),
+  value: z.number().nullish(),
+  maxDiscount: z.number().nullish(),
+  minOrderAmount: z.number().nullish(),
   startAt: z.string(),
   endAt: z.string(),
   usageLimitPerUser: z.number().optional(),
   usageLimitTotal: z.number().optional(),
   usedCount: z.number().optional(),
-  applicableCentreId: z.string().optional(),
-  applicablePricingId: z.string().optional(),
+  applicableCentreId: z.string().nullish(),
+  applicablePricingId: z.string().nullish(),
   status: z.nativeEnum(CouponStatusEnum).optional(),
   createdBy: z.string().optional(),
   updatedBy: z.string().optional(),
@@ -160,7 +160,14 @@ export const CouponModelSchema = z.object({
   data: z.array(CouponDataSchema),
 });
 
+export const DeleteCouponModelSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  data: z.object({}).nullish(),
+});
+
 export type CouponDataModel = z.infer<typeof CouponDataSchema>;
 export type CreateCouponModel = z.infer<typeof CreateCouponModelSchema>;
 export type CouponListResponse = z.infer<typeof CouponListResponseSchema>;
 export type CouponModel = z.infer<typeof CouponModelSchema>;
+export type DeleteCouponModel = z.infer<typeof DeleteCouponModelSchema>;

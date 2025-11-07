@@ -35,16 +35,32 @@ export default async function getAllCentres(params?: {
     },
     CentreModelSchema
   );
-  // Fix pricing for each centre in the array
-  if (response.data && response.data.data) {
-    response.data.data.forEach((centre) => {
-      if (centre && centre.pricing === undefined) {
-        centre.pricing = [];
-      }
-    });
-  } else if (response.data) {
+  
+  // Ensure we always have a valid data structure
+  if (!response.data) {
+    response.data = {
+      data: [],
+      total: 0,
+      limit: 0,
+      offset: 0,
+      page: 0,
+      totalPages: 0,
+      hasNext: false,
+      hasPrevious: false,
+    };
+  }
+  
+  // Ensure data.data is always an array
+  if (!response.data.data || !Array.isArray(response.data.data)) {
     response.data.data = [];
   }
+  
+  // Fix pricing for each centre in the array
+  response.data.data.forEach((centre) => {
+    if (centre && centre.pricing === undefined) {
+      centre.pricing = [];
+    }
+  });
 
   return response as unknown as CentreModel;
 }

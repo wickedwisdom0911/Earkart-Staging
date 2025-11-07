@@ -54,6 +54,17 @@ const PatientRegistrationForm = ({
   const form = useForm<PatientFormData>({
     resolver: zodResolver(CreatePatientRequestSchema),
     defaultValues: {
+      name: "",
+      contactNumber: "",
+      email: "",
+      gender: undefined,
+      languageId: "",
+      countryId: "",
+      stateId: "",
+      districtId: "",
+      cityId: "",
+      address: "",
+      pincode: "",
       status: "ACTIVE",
     },
   });
@@ -459,8 +470,30 @@ const AppointmentBookingForm = ({
   const createAppointmentMutation = useCreateAppointment();
   const router = useRouter();
 
+  // Get today's date in YYYY-MM-DD format for min date validation
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const minDate = getTodayDate();
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // Validate date is not in the past
+    const selectedDate = new Date(formData.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
+    
+    if (selectedDate < today) {
+      toast.error("Cannot book appointments for past dates. Please select today or a future date.");
+      return;
+    }
+    
     const scheduledStart = new Date(`${formData.date}T${formData.time}`);
     if (isNaN(scheduledStart.getTime())) {
       toast.error("Invalid date or time selected.");
@@ -500,6 +533,7 @@ const AppointmentBookingForm = ({
         <input
           type="date"
           value={formData.date}
+          min={minDate}
           onChange={(e) => setFormData({ ...formData, date: e.target.value })}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
           required
@@ -555,6 +589,11 @@ const AppointmentBookingForm = ({
 export default function AppointmentPage() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [selectedCentreId, setSelectedCentreId] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleRegistrationSuccess = (
     newPatient: Patient,
@@ -566,15 +605,19 @@ export default function AppointmentPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="absolute top-0 left-0 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-      <div
-        className="absolute top-0 right-0 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"
-        style={{ animationDelay: "2s" }}
-      ></div>
-      <div
-        className="absolute bottom-0 left-1/2 w-72 h-72 bg-pink-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"
-        style={{ animationDelay: "4s" }}
-      ></div>
+      {isMounted && (
+        <>
+          <div className="absolute top-0 left-0 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
+          <div
+            className="absolute top-0 right-0 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"
+            style={{ animationDelay: "2s" }}
+          ></div>
+          <div
+            className="absolute bottom-0 left-1/2 w-72 h-72 bg-pink-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"
+            style={{ animationDelay: "4s" }}
+          ></div>
+        </>
+      )}
 
       <main className="relative z-10 w-full max-w-4xl">
         <Card className="backdrop-blur-sm bg-white/90 shadow-2xl border-0">

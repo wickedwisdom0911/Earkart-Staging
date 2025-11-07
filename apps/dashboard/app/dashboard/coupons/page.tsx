@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCreateCoupon } from "@/hooks/coupons/use-create-coupon";
+import { useDeleteCoupon } from "@/hooks/coupons/use-delete-coupon";
 import { CouponDataModel, CouponTypeEnum, CouponStatusEnum } from "@/models/coupon.model";
 import { toast } from "sonner";
 import useGetCoupons from "@/hooks/coupons/use-get-coupons";
@@ -62,8 +63,8 @@ const CouponFormSchema = z
       .optional()
       .nullable()
       .transform((val) => val ?? undefined),
-    applicableCentreId: z.string().optional(),
-    applicablePricingId: z.string().optional(),
+    applicableCentreId: z.string().nullish(),
+    applicablePricingId: z.string().nullish(),
     status: z.nativeEnum(CouponStatusEnum).optional(),
   })
   .refine((data) => new Date(data.endAt) > new Date(data.startAt), {
@@ -112,11 +113,22 @@ const formFieldNames: (keyof CouponFormData)[] = [
 export default function CouponPage() {
   const { data, isLoading, error } = useGetCoupons();
   const { mutate: createCoupon, isPending: isCreating } = useCreateCoupon();
+  const { mutate: deleteCoupon, isPending: isDeleting } = useDeleteCoupon();
+
+  // Debug: Log the data structure
+  console.log("🔍 Coupon Data:", data);
+  console.log("🔍 Is Loading:", isLoading);
+  console.log("🔍 Error:", error);
 
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Partial<CouponFormData>>(initialFormData);
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Partial<Record<keyof CouponFormData, boolean>>>({});
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; couponId: string | null; couponCode: string | null }>({
+    show: false,
+    couponId: null,
+    couponCode: null,
+  });
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -224,6 +236,39 @@ export default function CouponPage() {
     setFormData(initialFormData);
     setErrors({});
     setTouched({});
+  };
+
+  const handleDeleteClick = (couponId: string, couponCode: string) => {
+    setDeleteConfirm({ show: true, couponId, couponCode });
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!deleteConfirm.couponId) return;
+
+    deleteCoupon(deleteConfirm.couponId, {
+      onSuccess: (response) => {
+        if (response.success) {
+          toast.success("Success!", {
+            description: response.message || "Coupon deleted successfully",
+          });
+          setDeleteConfirm({ show: false, couponId: null, couponCode: null });
+        } else {
+          toast.error("Failed to delete coupon", {
+            description: response?.message || "An error occurred",
+          });
+        }
+      },
+      onError: (error) => {
+        console.log("❌ Delete Error:", error);
+        toast.error("Error", {
+          description: error.message || "Failed to delete coupon. Please try again.",
+        });
+      },
+    });
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirm({ show: false, couponId: null, couponCode: null });
   };
 
   const getFieldError = (fieldName: keyof CouponFormData) => {
@@ -575,6 +620,9 @@ export default function CouponPage() {
                     <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-700">
                       Status
                     </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-700">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -625,11 +673,20 @@ export default function CouponPage() {
                             {coupon.status}
                           </span>
                         </td>
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => handleDeleteClick(coupon.id || "", coupon.code)}
+                            disabled={isDeleting}
+                            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isDeleting ? "Deleting..." : "Delete"}
+                          </button>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center">
+                      <td colSpan={7} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center justify-center text-slate-500">
                           <span className="mb-2 text-4xl">🎟️</span>
                           <p className="text-lg font-medium">No coupons found</p>
@@ -640,6 +697,43 @@ export default function CouponPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm.show && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-2xl">
+              <div className="mb-6 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+                  <span className="text-3xl">🗑️</span>
+                </div>
+                <h2 className="mb-2 text-xl font-semibold text-slate-900">Delete Coupon</h2>
+                <p className="text-sm text-slate-600">
+                  Are you sure you want to delete the coupon{" "}
+                  <span className="font-semibold text-slate-900">{deleteConfirm.couponCode}</span>?
+                  <br />
+                  This action cannot be undone.
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDeleteCancel}
+                  disabled={isDeleting}
+                  className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-3 font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  disabled={isDeleting}
+                  className="flex-1 rounded-lg bg-red-600 px-4 py-3 font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                >
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
             </div>
           </div>
         )}
