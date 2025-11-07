@@ -18,12 +18,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/Badge";
 
 export default function AppointmentsPage() {
+  console.log("🎯 Appointments Page Rendered");
+  
   const [selectedCentre, setSelectedCentre] = useState<string | undefined>();
   const [page, setPage] = useState<number>(1);
   const [limit, setLimit] = useState<number>(10);
   const enablePagination = false; // temporarily disable sending limit/offset to API
   
   const { data: centresData } = useGetAllCentres({});
+  console.log("📍 Centres Data:", centresData);
   
   const appointmentParams = useMemo(() => {
     const params: any = {};
@@ -51,6 +54,9 @@ export default function AppointmentsPage() {
       enabled: true,
     }
   );
+  
+  console.log("📅 Appointments Data:", appointmentsData);
+  console.log("⏳ Is Loading:", isLoading);
 
   const hasFilters = !!selectedCentre;
 

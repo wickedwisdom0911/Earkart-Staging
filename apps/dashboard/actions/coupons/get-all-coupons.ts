@@ -28,7 +28,7 @@ export default async function getAllCoupons(params: GetCouponsParams = {}) {
   const url = `${baseUrl}coupon/get-all${query ? "?" + query : ""}`;
   
   try {
-    return await apiRequest(
+    const response = await apiRequest(
       url,
       {
         method: "GET",
@@ -38,6 +38,11 @@ export default async function getAllCoupons(params: GetCouponsParams = {}) {
       },
       CouponListResponseSchema
     );
+    
+    // Normalize the response structure for the UI
+    // Response is: { success, message, data: { data: [...], total, ... } }
+    // Return just the inner data object: { data: [...], total, ... }
+    return response?.data ?? { data: [], total: 0, limit: 0, offset: 0, page: 0, totalPages: 0 };
   } catch (e) {
     // Fallback to a more flexible schema when backend wraps arrays
     const flexible = await apiRequest(
