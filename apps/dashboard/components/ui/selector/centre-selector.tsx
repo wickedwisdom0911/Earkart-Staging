@@ -32,8 +32,16 @@ export default function CentreSelector({
 }: CentreSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const { data, isLoading, isError } = useGetAllCentres();
+  
+  // Debug logging
+  console.log("🏢 CentreSelector - Raw data:", data);
+  
   const centres: CentreModelData[] = React.useMemo(
-    () => data?.data || [],
+    () => {
+      const centresArray = data?.data?.data?.filter((c): c is CentreModelData => c !== null) || [];
+      console.log("🏢 CentreSelector - Centres array:", centresArray);
+      return centresArray;
+    },
     [data]
   );
 
@@ -81,7 +89,7 @@ export default function CentreSelector({
                   : "No centre found."}
             </CommandEmpty>
             <CommandGroup>
-              {centres.map((centre) => (
+              {Array.isArray(centres) && centres.map((centre) => (
                 <CommandItem
                   key={centre.id}
                   value={centre.id}
