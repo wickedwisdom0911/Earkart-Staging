@@ -36,8 +36,24 @@ export default async function getAllCentres(params?: {
     CentreModelSchema
   );
   
+  // Normalize the response to ensure consistent structure
+  // Handle case where data is a direct array
+  if (Array.isArray(response.data)) {
+    const centresArray = response.data;
+    response.data = {
+      data: centresArray,
+      total: centresArray.length,
+      limit: centresArray.length,
+      offset: 0,
+      page: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrevious: false,
+    };
+  }
+  
   // Ensure we always have a valid data structure
-  if (!response.data) {
+  if (!response.data || typeof response.data !== 'object' || Array.isArray(response.data)) {
     response.data = {
       data: [],
       total: 0,
