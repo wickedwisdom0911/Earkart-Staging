@@ -451,7 +451,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       {showRefreshHint && (
         <div className="mb-4 p-2 bg-blue-100 text-blue-700 rounded-md flex items-center gap-2">
           <User className="w-4 h-4" />
-          Patient not visible? Try refreshing the page.
+          Patient not visible ? Try refreshing the page.
         </div>
       )}
       <div className="flex flex-col h-full w-full gap-1 mb-2">
