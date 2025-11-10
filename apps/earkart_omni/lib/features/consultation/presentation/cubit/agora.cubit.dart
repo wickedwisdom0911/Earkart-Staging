@@ -388,13 +388,8 @@ class AgoraCubit extends Cubit<AgoraState> {
       await _engine!.enableVideo();
       di<ILogger>().info('[VIDEO_CALL] Video enabled successfully');
 
-      di<ILogger>().info('[VIDEO_CALL] Enabling audio for video call');
-      await _engine!.enableAudio();
       di<ILogger>().info('[VIDEO_CALL] Audio enabled successfully');
 
-      // Configure audio profile for high-quality audio
-      // audioProfileMusicHighQuality uses 48 kHz sampling rate, music encoding,
-      // two channels, and maximum encoding rate 128 Kbps
       di<ILogger>().info(
         '[VIDEO_CALL] Setting high-quality audio profile configuration',
       );
@@ -402,53 +397,16 @@ class AgoraCubit extends Cubit<AgoraState> {
         profile: AudioProfileType.audioProfileMusicHighQuality,
         scenario: AudioScenarioType.audioScenarioGameStreaming,
       );
+      await _engine!.setAdvancedAudioOptions(
+        options: const AdvancedAudioOptions(audioProcessingChannels: 2),
+      );
+
       di<ILogger>().info(
         '[VIDEO_CALL] High-quality audio profile configured successfully',
       );
 
-      // Optional: Disable 3A for sound card users (if needed)
-      // Sound cards usually have built-in audio processing, so disabling 3A
-      // prevents over-processing and interference
-      di<ILogger>().info('[VIDEO_CALL] Disabling 3A for sound card users');
-      await _engine!.setParameters(
-        '{"che.audio.aec.enable":false}',
-      ); // Turn off echo cancellation
-      await _engine!.setParameters(
-        '{"che.audio.ans.enable":false}',
-      ); // Turn off noise reduction
-      await _engine!.setParameters(
-        '{"che.audio.agc.enable":false}',
-      ); // Turn off gain control
-      di<ILogger>().info('[VIDEO_CALL] 3A disabled successfully');
-
-      // Optional: Enable stereo capture for sound card users
-      // This uses two channels to collect and send stereo sound
-      // Note: Call this before joinChannel, enableAudio, and enableLocalAudio
-      // Uncomment the following lines if you need stereo capture for sound card users:
-      di<ILogger>().info(
-        '[VIDEO_CALL] Enabling stereo capture for sound card users',
-      );
-      await _engine!.setAdvancedAudioOptions(
-        options: const AdvancedAudioOptions(audioProcessingChannels: 2),
-      );
-      di<ILogger>().info('[VIDEO_CALL] Stereo capture enabled successfully');
-
-      // Note: The audioProfileMusicHighQuality profile already sets optimal audio parameters
-      // (48 kHz, stereo, 128 Kbps max), so custom parameters below may override these settings.
-      // Consider removing or adjusting these if you want to use the profile's defaults.
-      di<ILogger>().info('[VIDEO_CALL] Setting audio parameters');
-      await _engine!.setParameters(
-        '{"che.audio.custom_bitrate": ${AgoraReleaseConfig.agoraAudioBitrate}}',
-      );
-      await _engine!.setParameters(
-        '{"che.audio.custom_sample_rate": ${AgoraReleaseConfig.agoraAudioSampleRate}}',
-      );
-      await _engine!.setParameters(
-        '{"che.audio.custom_channels": ${AgoraReleaseConfig.agoraAudioChannels}}',
-      );
-      di<ILogger>().info(
-        '[VIDEO_CALL] Audio parameters configured successfully',
-      );
+      di<ILogger>().info('[VIDEO_CALL] Enabling audio for video call');
+      await _engine!.enableAudio();
 
       di<ILogger>().info('[VIDEO_CALL] Setting video encoder configuration');
       await _engine!.setVideoEncoderConfiguration(
