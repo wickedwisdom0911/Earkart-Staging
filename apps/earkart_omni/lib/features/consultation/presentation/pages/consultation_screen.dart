@@ -1138,8 +1138,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
           BlocListener<CommunicationCubit, CommunicationState>(
             listener: (context, state) {
-              if (!state.isReleased) {
-                _emitPatientResponseEvent(state.isReleased);
+              if (state.patientResponse == true) {
+                _emitPatientResponseEvent(state.patientResponse);
               }
 
               // Handle impedance status
@@ -1406,7 +1406,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     final hasChanges =
         last.isConnected != newState.isConnected ||
         last.isSynced != newState.isSynced ||
-        last.isReleased != newState.isReleased ||
+        last.patientResponse != newState.patientResponse ||
         last.isInBeginMode != newState.isInBeginMode ||
         last.batteryLevel != newState.batteryLevel ||
         last.isCharging != newState.isCharging ||
@@ -1558,7 +1558,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "deviceState": {
           "isConnected": state.isConnected,
           "isSynced": state.isSynced,
-          "isReleased": state.isReleased,
+          "isReleased": state.patientResponse,
           "isInBeginMode": state.isInBeginMode,
           "batteryLevel": state.batteryLevel,
           "isCharging": state.isCharging,
@@ -1642,7 +1642,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
     socket.emit("patient-response", {
       "consultationId": consultation?.id,
-      "patientResponse": !isReleased,
+      "patientResponse": isReleased,
     });
   }
 

@@ -10,7 +10,7 @@ class CommunicationState with _$CommunicationState {
   const factory CommunicationState({
     @Default(false) bool isConnected,
     @Default(false) bool isSynced,
-    @Default(false) bool isReleased,
+    @Default(false) bool patientResponse,
     @Default(true) bool isInBeginMode,
     // Device battery (R15C) - null when not available
     int? batteryLevel,

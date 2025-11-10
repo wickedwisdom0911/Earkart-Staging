@@ -225,8 +225,9 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           );
           break;
         case 8: // Patient Response
-          final isReleased = json['PatientResponseEvent']['Released'];
-          emit(state.copyWith(isReleased: isReleased, error: null));
+          final patientResponse = json['PatientResponseEvent']['Released'];
+          emit(state.copyWith(patientResponse: !patientResponse, error: null));
+
           break;
         case 12: // Acknowledgement
           final acknowledgement = Acknowledgement.fromJson(json);
@@ -696,7 +697,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       const CommunicationState(
         isConnected: false,
         isSynced: false,
-        isReleased: false,
+        patientResponse: false,
         connectionStatus: 'Disconnected',
         transducerResponse: null,
         impedanceStatus: null,

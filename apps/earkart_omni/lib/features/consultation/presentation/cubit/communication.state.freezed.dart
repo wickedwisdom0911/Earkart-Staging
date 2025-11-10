@@ -18,7 +18,7 @@ final _privateConstructorUsedError = UnsupportedError(
 mixin _$CommunicationState {
   bool get isConnected => throw _privateConstructorUsedError;
   bool get isSynced => throw _privateConstructorUsedError;
-  bool get isReleased => throw _privateConstructorUsedError;
+  bool get patientResponse => throw _privateConstructorUsedError;
   bool get isInBeginMode =>
       throw _privateConstructorUsedError; // Device battery (R15C) - null when not available
   int? get batteryLevel => throw _privateConstructorUsedError;
@@ -52,7 +52,7 @@ abstract class $CommunicationStateCopyWith<$Res> {
   $Res call(
       {bool isConnected,
       bool isSynced,
-      bool isReleased,
+      bool patientResponse,
       bool isInBeginMode,
       int? batteryLevel,
       bool? isCharging,
@@ -84,7 +84,7 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
   $Res call({
     Object? isConnected = null,
     Object? isSynced = null,
-    Object? isReleased = null,
+    Object? patientResponse = null,
     Object? isInBeginMode = null,
     Object? batteryLevel = freezed,
     Object? isCharging = freezed,
@@ -109,9 +109,9 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
           ? _value.isSynced
           : isSynced // ignore: cast_nullable_to_non_nullable
               as bool,
-      isReleased: null == isReleased
-          ? _value.isReleased
-          : isReleased // ignore: cast_nullable_to_non_nullable
+      patientResponse: null == patientResponse
+          ? _value.patientResponse
+          : patientResponse // ignore: cast_nullable_to_non_nullable
               as bool,
       isInBeginMode: null == isInBeginMode
           ? _value.isInBeginMode
@@ -184,7 +184,7 @@ abstract class _$$CommunicationStateImplCopyWith<$Res>
   $Res call(
       {bool isConnected,
       bool isSynced,
-      bool isReleased,
+      bool patientResponse,
       bool isInBeginMode,
       int? batteryLevel,
       bool? isCharging,
@@ -214,7 +214,7 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
   $Res call({
     Object? isConnected = null,
     Object? isSynced = null,
-    Object? isReleased = null,
+    Object? patientResponse = null,
     Object? isInBeginMode = null,
     Object? batteryLevel = freezed,
     Object? isCharging = freezed,
@@ -239,9 +239,9 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
           ? _value.isSynced
           : isSynced // ignore: cast_nullable_to_non_nullable
               as bool,
-      isReleased: null == isReleased
-          ? _value.isReleased
-          : isReleased // ignore: cast_nullable_to_non_nullable
+      patientResponse: null == patientResponse
+          ? _value.patientResponse
+          : patientResponse // ignore: cast_nullable_to_non_nullable
               as bool,
       isInBeginMode: null == isInBeginMode
           ? _value.isInBeginMode
@@ -309,7 +309,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
   const _$CommunicationStateImpl(
       {this.isConnected = false,
       this.isSynced = false,
-      this.isReleased = false,
+      this.patientResponse = false,
       this.isInBeginMode = true,
       this.batteryLevel,
       this.isCharging,
@@ -333,7 +333,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
   final bool isSynced;
   @override
   @JsonKey()
-  final bool isReleased;
+  final bool patientResponse;
   @override
   @JsonKey()
   final bool isInBeginMode;
@@ -373,7 +373,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
 
   @override
   String toString() {
-    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, isReleased: $isReleased, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, isTabletBatteryLoading: $isTabletBatteryLoading, connectionStatus: $connectionStatus, isCameraOpen: $isCameraOpen, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, isNewImpedanceData: $isNewImpedanceData, r15cSerialNumber: $r15cSerialNumber, error: $error)';
+    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, patientResponse: $patientResponse, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, isTabletBatteryLoading: $isTabletBatteryLoading, connectionStatus: $connectionStatus, isCameraOpen: $isCameraOpen, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, isNewImpedanceData: $isNewImpedanceData, r15cSerialNumber: $r15cSerialNumber, error: $error)';
   }
 
   @override
@@ -385,8 +385,8 @@ class _$CommunicationStateImpl implements _CommunicationState {
                 other.isConnected == isConnected) &&
             (identical(other.isSynced, isSynced) ||
                 other.isSynced == isSynced) &&
-            (identical(other.isReleased, isReleased) ||
-                other.isReleased == isReleased) &&
+            (identical(other.patientResponse, patientResponse) ||
+                other.patientResponse == patientResponse) &&
             (identical(other.isInBeginMode, isInBeginMode) ||
                 other.isInBeginMode == isInBeginMode) &&
             (identical(other.batteryLevel, batteryLevel) ||
@@ -422,7 +422,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
       runtimeType,
       isConnected,
       isSynced,
-      isReleased,
+      patientResponse,
       isInBeginMode,
       batteryLevel,
       isCharging,
@@ -450,7 +450,7 @@ abstract class _CommunicationState implements CommunicationState {
   const factory _CommunicationState(
       {final bool isConnected,
       final bool isSynced,
-      final bool isReleased,
+      final bool patientResponse,
       final bool isInBeginMode,
       final int? batteryLevel,
       final bool? isCharging,
@@ -471,7 +471,7 @@ abstract class _CommunicationState implements CommunicationState {
   @override
   bool get isSynced;
   @override
-  bool get isReleased;
+  bool get patientResponse;
   @override
   bool get isInBeginMode;
   @override // Device battery (R15C) - null when not available
