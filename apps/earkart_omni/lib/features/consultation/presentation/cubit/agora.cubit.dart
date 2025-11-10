@@ -388,32 +388,25 @@ class AgoraCubit extends Cubit<AgoraState> {
       await _engine!.enableVideo();
       di<ILogger>().info('[VIDEO_CALL] Video enabled successfully');
 
-      di<ILogger>().info('[VIDEO_CALL] Enabling audio for video call');
-      await _engine!.enableAudio();
       di<ILogger>().info('[VIDEO_CALL] Audio enabled successfully');
 
-      // Configure audio profile to prevent buffer size issues
-      di<ILogger>().info('[VIDEO_CALL] Setting audio profile configuration');
+      di<ILogger>().info(
+        '[VIDEO_CALL] Setting high-quality audio profile configuration',
+      );
       await _engine!.setAudioProfile(
-        profile: AudioProfileType.audioProfileDefault,
+        profile: AudioProfileType.audioProfileMusicHighQuality,
         scenario: AudioScenarioType.audioScenarioGameStreaming,
       );
-      di<ILogger>().info('[VIDEO_CALL] Audio profile configured successfully');
+      await _engine!.setAdvancedAudioOptions(
+        options: const AdvancedAudioOptions(audioProcessingChannels: 2),
+      );
 
-      // Set audio parameters to prevent buffer overflow
-      di<ILogger>().info('[VIDEO_CALL] Setting audio parameters');
-      await _engine!.setParameters(
-        '{"che.audio.custom_bitrate": ${AgoraReleaseConfig.agoraAudioBitrate}}',
-      );
-      await _engine!.setParameters(
-        '{"che.audio.custom_sample_rate": ${AgoraReleaseConfig.agoraAudioSampleRate}}',
-      );
-      await _engine!.setParameters(
-        '{"che.audio.custom_channels": ${AgoraReleaseConfig.agoraAudioChannels}}',
-      );
       di<ILogger>().info(
-        '[VIDEO_CALL] Audio parameters configured successfully',
+        '[VIDEO_CALL] High-quality audio profile configured successfully',
       );
+
+      di<ILogger>().info('[VIDEO_CALL] Enabling audio for video call');
+      await _engine!.enableAudio();
 
       di<ILogger>().info('[VIDEO_CALL] Setting video encoder configuration');
       await _engine!.setVideoEncoderConfiguration(
@@ -651,7 +644,7 @@ class AgoraCubit extends Cubit<AgoraState> {
     });
   }
 
-  /// Handle audio buffer size errors by reconfiguring audio settings
+  /// Handle audio buffer size errors by reconfiguring audio
   Future<void> _handleAudioBufferError() async {
     try {
       di<ILogger>().info(

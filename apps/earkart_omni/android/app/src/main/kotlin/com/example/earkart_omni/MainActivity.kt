@@ -202,7 +202,8 @@ class MainActivity: FlutterActivity() {
             try {
                 // Grant USB permissions for all devices
                 devicePolicyManager.addUserRestriction(componentName, UserManager.DISALLOW_USB_FILE_TRANSFER)
-                devicePolicyManager.addUserRestriction(componentName, UserManager.DISALLOW_CONFIG_BLUETOOTH)
+                // Remove Bluetooth restriction to allow normal Bluetooth usage
+                devicePolicyManager.clearUserRestriction(componentName, UserManager.DISALLOW_CONFIG_BLUETOOTH)
                 
                 // For device owner, we can also grant USB permissions programmatically
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

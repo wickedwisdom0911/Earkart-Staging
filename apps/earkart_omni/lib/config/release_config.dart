@@ -80,10 +80,11 @@ class AgoraReleaseConfig {
   /// Whether to enable Agora resource cleanup on errors
   static bool get enableAgoraResourceCleanup => true;
 
-  /// Audio configuration for stability
-  static int get agoraAudioBitrate => 32;
-  static int get agoraAudioSampleRate => 16000;
-  static int get agoraAudioChannels => 1;
+  /// Audio configuration for high-quality audio
+  /// audioProfileMusicHighQuality uses: 48 kHz, stereo (2 channels), 128 Kbps max
+  static int get agoraAudioBitrate => 128; // Increased from 32
+  static int get agoraAudioSampleRate => 48000; // Increased from 16000
+  static int get agoraAudioChannels => 2; // Changed from 1 (mono) to 2 (stereo)
   static bool get enableAgoraAudioOptimization => true;
 }
 
