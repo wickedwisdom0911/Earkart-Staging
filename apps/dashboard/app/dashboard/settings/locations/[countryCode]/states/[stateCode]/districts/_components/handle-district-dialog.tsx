@@ -122,9 +122,6 @@ export default function HandleDistrictDialog({
               <Button
                 type="submit"
                 className="w-1/2 cursor-pointer"
-                onClick={() => {
-                  form.handleSubmit(onSubmit);
-                }}
                 disabled={isCreating || isUpdating}
               >
                 {isEdit ? "Update District" : "Add District"}

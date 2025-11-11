@@ -15,6 +15,7 @@ import { RecordingRecoveryBanner } from "@/components/recording/recording-recove
 import { chunkStorage } from "@/lib/indexeddb-chunks";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { SessionStatus } from "@/models/enums";
+import { RedirectLoadingModal } from "@/components/ui/redirect-loading-modal";
 
 // Import debug utilities in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -57,6 +58,7 @@ export default function ConsultationLayout({
   // State for managing recovery banner visibility
   const [showRecoveryBanner, setShowRecoveryBanner] = useState(true);
   const [networkIssues, setNetworkIssues] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   
   // State to prevent infinite recording loops and double prompts
   const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(() => {
@@ -361,6 +363,9 @@ export default function ConsultationLayout({
     const handleEnd = async () => {
       try {
         console.log("🏁 [END] Consultation ending - saving video before navigation");
+        
+        // Show redirect modal immediately
+        setIsRedirecting(true);
         
         // IMMEDIATE socket disconnect to prevent rejoin
         socket.disconnect();
@@ -1031,10 +1036,12 @@ export default function ConsultationLayout({
                   className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-60 hover:bg-blue-700 transition-colors duration-200 font-semibold text-lg shadow-lg"
                   onClick={() =>
                     startRecording({
-                      filename: `consultation-${consultationId}-${Date.now()}.webm`,
-                      timesliceMs: 5000,
                       maxConcurrentUploads: 3,
                       requireEntireScreen: true,
+                      captureSystemAudio: true, // Enable system audio to capture patient's voice
+                      captureMic: true, // Enable microphone for audiologist's voice
+                      filename: `consultation-${consultationId}-${Date.now()}.webm`,
+                      timesliceMs: 5000,
                     })
                   }
                   disabled={recordingState.isInitializing || recordingState.isRecovering || recordingState.isUploading}
@@ -1052,6 +1059,13 @@ export default function ConsultationLayout({
           )}
         </AgoraRTCProvider>
       </AgoraOtoscopyProvider>
+      
+      {/* Redirect Loading Modal */}
+      <RedirectLoadingModal 
+        isOpen={isRedirecting}
+        message="Please Wait"
+        submessage="Finalizing recording and redirecting to dashboard. Please do not refresh or close this window."
+      />
     </OtoscopyProvider>
   );
 }

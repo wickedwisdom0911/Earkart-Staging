@@ -768,7 +768,11 @@ export default function ReportPage() {
   };
 
   const handleDoAnotherTest = () => {
-    router.push(ROUTES.CONSULTATION_TEST_SELECTION(consultationId as string));
+    // Automatically hide the report if it's currently being shown
+    if (isShowingReport || isScreenSharing) {
+      handleShowReport(); // This will toggle it off
+    }
+    router.push(`/consultation/${consultationId}/test-selection`);
   };
 
   const handleShowReport = async () => {
@@ -1092,7 +1096,17 @@ export default function ReportPage() {
   };
 
   const handleShareReport = () => {
-    setIsShareDialogOpen(true);
+    // Check if user is AIIMS employee
+    const isAiims = typeof window !== 'undefined' && localStorage.getItem('isAiims') === 'true';
+    
+    if (isAiims) {
+      // For AIIMS employees, directly send to hardcoded number
+      console.log('🏥 AIIMS employee detected - sending report to hardcoded number');
+      sendReportToNumbers('919980936971'); // Hardcoded AIIMS number with country code
+    } else {
+      // For other users, show the dialog
+      setIsShareDialogOpen(true);
+    }
   };
 
   return (
@@ -1386,8 +1400,8 @@ export default function ReportPage() {
           <div className="px-8 mb-6 space-y-4 print:hidden">
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Diagnosis Section */}
-              <div>
-                <div className="text-sm font-bold mb-2">Diagnosis :</div>
+              <div className="flex flex-col items-center">
+                <div className="text-sm font-bold mb-2 self-start">Diagnosis :</div>
                 <Select
                   value=""
                   onValueChange={(value) => {
@@ -1405,7 +1419,7 @@ export default function ReportPage() {
                     }));
                   }}
                 >
-                  <SelectTrigger className="h-12 border border-gray-400 bg-gray-50 w-full max-w-md rounded-md">
+                  <SelectTrigger className="h-12 border border-gray-400 bg-gray-50 w-full max-w-md rounded-md mx-auto">
                     <SelectValue placeholder="Select ear..." className="text-gray-600 text-sm" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1430,8 +1444,8 @@ export default function ReportPage() {
               </div>
 
               {/* Suggestive of Diagnosis Section */}
-              <div>
-                <div className="text-sm font-bold mb-2">Suggestive of Diagnosis :</div>
+              <div className="flex flex-col items-center">
+                <div className="text-sm font-bold mb-2 self-start">Suggestive of Diagnosis :</div>
                 <Select
                   value={formData.suggestiveOf}
                   onValueChange={(value) => {
@@ -1449,7 +1463,7 @@ export default function ReportPage() {
                     }));
                   }}
                 >
-                  <SelectTrigger className="h-16 border border-gray-400 bg-gray-50 w-full max-w-lg rounded-md">
+                  <SelectTrigger className="h-16 border border-gray-400 bg-gray-50 w-full max-w-lg rounded-md mx-auto">
                     <SelectValue placeholder="Select suggestive diagnosis..." className="text-gray-600 text-sm leading-tight">
                       {formData.suggestiveOf ? "Diagnosis selected" : "Select suggestive diagnosis..."}
                     </SelectValue>
@@ -1480,8 +1494,8 @@ export default function ReportPage() {
                 />
               </div>
               
-              <div>
-                <div className="text-sm font-bold mb-2">Recommendation :</div>
+              <div className="flex flex-col items-center">
+                <div className="text-sm font-bold mb-2 self-start">Recommendation :</div>
                 <Select
                   value={formData.recommendation}
                   onValueChange={(value) => {
@@ -1500,7 +1514,7 @@ export default function ReportPage() {
                     }));
                   }}
                 >
-                  <SelectTrigger className="h-12 border border-gray-400 bg-gray-50 w-full max-w-md rounded-md">
+                  <SelectTrigger className="h-12 border border-gray-400 bg-gray-50 w-full max-w-md rounded-md mx-auto">
                     <SelectValue placeholder="Select recommendation..." className="text-gray-600">
                       {formData.recommendation ? "Recommendation selected" : "Select recommendation..."}
                     </SelectValue>
@@ -1531,13 +1545,20 @@ export default function ReportPage() {
                 />
               </div>
               
-              <div className="flex justify-end">
+              <div className="flex justify-center gap-3">
                 <Button 
                   type="submit" 
                   disabled={updateConsultationMutation.isPending}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   {updateConsultationMutation.isPending ? "Saving..." : "Save Diagnosis"}
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={handleShareReport} 
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  Submit Report
                 </Button>
               </div>
             </form>

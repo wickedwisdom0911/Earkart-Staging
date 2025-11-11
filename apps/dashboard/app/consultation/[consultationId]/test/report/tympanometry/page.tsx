@@ -467,7 +467,17 @@ export default function TympanometryReportPage() {
   };
 
   const handleShareReport = () => {
-    setIsShareDialogOpen(true);
+    // Check if user is AIIMS employee
+    const isAiims = typeof window !== 'undefined' && localStorage.getItem('isAiims') === 'true';
+    
+    if (isAiims) {
+      // For AIIMS employees, directly send to hardcoded number
+      console.log('🏥 AIIMS employee detected - sending report to hardcoded number');
+      sendReportToNumbers('919980936971'); // Hardcoded AIIMS number with country code
+    } else {
+      // For other users, show the dialog
+      setIsShareDialogOpen(true);
+    }
   };
 
   const getTympTypeDescription = (type: TympType): string => {
@@ -769,7 +779,13 @@ export default function TympanometryReportPage() {
         isShowingReport={isShowingReport}
         onToggleShowReport={handleShowReport}
         onShare={handleShareReport}
-        onDoAnotherTest={() => router.push(`/consultation/${consultationId}/test-selection`)}
+        onDoAnotherTest={() => {
+          // Automatically hide the report if it's currently being shown
+          if (isShowingReport || isScreenSharing) {
+            handleShowReport(); // This will toggle it off
+          }
+          router.push(`/consultation/${consultationId}/test-selection`);
+        }}
         onEndConsultation={() => router.push(`/consultation/${consultationId}/end-consultation`)}
       />
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>

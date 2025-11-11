@@ -5,9 +5,21 @@ import { getBaseUrl } from "@/lib/environment";
 import { verifySession } from "@/lib/session";
 import { CentreModel, CentreModelSchema } from "@/models/centre.model";
 
-export default async function getAllCentres(): Promise<CentreModel> {
+export default async function getAllCentres(params?: {
+  cityId?: string;
+  districtId?: string;
+  stateId?: string;
+  countryId?: string;
+}): Promise<CentreModel> {
   const baseUrl = await getBaseUrl();
-  const url = `${baseUrl}centre/get-all`;
+  const searchParams = new URLSearchParams();
+
+  if (params?.cityId) searchParams.append("cityId", params.cityId);
+  if (params?.districtId) searchParams.append("districtId", params.districtId);
+  if (params?.stateId) searchParams.append("stateId", params.stateId);
+  if (params?.countryId) searchParams.append("countryId", params.countryId);
+
+  const url = `${baseUrl}centre/get-all?${searchParams.toString()}`;
   const user = await verifySession();
   if (!user?.token) {
     throw new Error("Unauthorized");
@@ -23,13 +35,48 @@ export default async function getAllCentres(): Promise<CentreModel> {
     },
     CentreModelSchema
   );
-  // Fix pricing for each centre in the array
-  if (response.data) {
-    response.data.forEach(centre => {
-      if (centre.pricing === undefined) {
-        centre.pricing = [];
-      }
-    });
+  
+  // Normalize the response to ensure consistent structure
+  // Handle case where data is a direct array
+  if (Array.isArray(response.data)) {
+    const centresArray = response.data;
+    response.data = {
+      data: centresArray,
+      total: centresArray.length,
+      limit: centresArray.length,
+      offset: 0,
+      page: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrevious: false,
+    };
   }
+  
+  // Ensure we always have a valid data structure
+  if (!response.data || typeof response.data !== 'object' || Array.isArray(response.data)) {
+    response.data = {
+      data: [],
+      total: 0,
+      limit: 0,
+      offset: 0,
+      page: 0,
+      totalPages: 0,
+      hasNext: false,
+      hasPrevious: false,
+    };
+  }
+  
+  // Ensure data.data is always an array
+  if (!response.data.data || !Array.isArray(response.data.data)) {
+    response.data.data = [];
+  }
+  
+  // Fix pricing for each centre in the array
+  response.data.data.forEach((centre) => {
+    if (centre && centre.pricing === undefined) {
+      centre.pricing = [];
+    }
+  });
+
   return response as unknown as CentreModel;
 }

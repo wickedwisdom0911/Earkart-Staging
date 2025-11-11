@@ -1221,6 +1221,57 @@ export default function PureTonePage() {
     toast.info(`${mode === "AC" ? "Air Conduction" : "Bone Conduction"} results cleared.`);
   };
 
+  // Copy test results from one ear to another
+  const copyEarResults = (fromEar: "L" | "R", toEar: "L" | "R", mode: "AC" | "BC" | "BOTH") => {
+    const sourceResults = mode === "AC" 
+      ? acTestResults.filter(r => r.ear === fromEar)
+      : mode === "BC"
+      ? bcTestResults.filter(r => r.ear === fromEar)
+      : [...acTestResults, ...bcTestResults].filter(r => r.ear === fromEar);
+
+    if (sourceResults.length === 0) {
+      toast.error(`No ${mode === "BOTH" ? "" : mode + " "}results found for ${fromEar === "L" ? "left" : "right"} ear to copy`);
+      return;
+    }
+
+    // Create copies with the target ear
+    const copiedResults = sourceResults.map(result => ({
+      ...result,
+      ear: toEar
+    }));
+
+    // Remove existing results for target ear in the same mode/frequencies to avoid duplicates
+    let updatedAcResults = [...acTestResults];
+    let updatedBcResults = [...bcTestResults];
+
+    copiedResults.forEach(copied => {
+      if (copied.mode === "AC") {
+        // Remove existing AC result at same frequency for target ear
+        updatedAcResults = updatedAcResults.filter(r => 
+          !(r.ear === toEar && r.x === copied.x)
+        );
+        updatedAcResults.push(copied);
+      } else {
+        // Remove existing BC result at same frequency for target ear
+        updatedBcResults = updatedBcResults.filter(r => 
+          !(r.ear === toEar && r.x === copied.x)
+        );
+        updatedBcResults.push(copied);
+      }
+    });
+
+    // Update state
+    setAcTestResults(updatedAcResults);
+    setBcTestResults(updatedBcResults);
+    setTestResults([...updatedAcResults, ...updatedBcResults]);
+
+    // Persist to backend
+    persistResultsToBackend(updatedAcResults, updatedBcResults);
+
+    const modeText = mode === "BOTH" ? "all" : mode;
+    toast.success(`Copied ${copiedResults.length} ${modeText} result(s) from ${fromEar === "L" ? "left" : "right"} to ${toEar === "L" ? "left" : "right"} ear`);
+  };
+
   // Handle audiogram click
   const handleAudiogramClick = (x: number, y: number) => {
     const newFrequency = FREQUENCIES[x];
@@ -1317,184 +1368,224 @@ export default function PureTonePage() {
         </div>
 
         {/* Controls panel: full-width below on mobile, fixed-width column on desktop */}
-        <div className="mt-3 lg:mt-0 w-full lg:w-56 xl:w-64">
+        <div className="mt-3 lg:mt-0 w-full lg:w-80 xl:w-96">
           <div className="bg-white shadow-lg rounded-lg p-2.5 border max-h-[40vh] overflow-y-auto lg:max-h-[calc(100vh-6rem)]">
-          <div className="mb-2">
-            <label className="block text-xs font-medium mb-1">Ear</label>
-            <div className="flex gap-1.5">
-              {availableEarSides.map((ear: "L" | "R") => (
+            {/* Grid layout for compact controls */}
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              {/* Ear Selection */}
+              <div>
+                <label className="block text-xs font-medium mb-1">Ear</label>
+                <div className="flex gap-1">
+                  {availableEarSides.map((ear: "L" | "R") => (
+                    <button
+                      key={ear}
+                      className={`flex-1 px-2 py-1 rounded text-xs ${
+                        selectedEar === ear
+                          ? ear === "L"
+                            ? "bg-blue-500 text-white"
+                            : "bg-red-500 text-white"
+                          : "bg-gray-200"
+                      }`}
+                      onClick={() => {
+                        setSelectedEar(ear);
+                        if (isMasking) {
+                          sendMaskingSignal(true);
+                        }
+                      }}
+                    >
+                      {ear === "L" ? "Left" : "Right"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mode Selection */}
+              <div>
+                <label className="block text-xs font-medium mb-1">Mode</label>
+                <div className="flex gap-1">
+                  <button
+                    className={`flex-1 px-2 py-1 rounded text-xs ${
+                      selectedMode === "AC" ? "bg-blue-500 text-white" : "bg-gray-200"
+                    }`}
+                    onClick={() => setSelectedMode("AC")}
+                  >
+                    Air
+                  </button>
+                  <button
+                    className={`flex-1 px-2 py-1 rounded text-xs ${
+                      selectedMode === "BC" ? "bg-blue-500 text-white" : "bg-gray-200"
+                    }`}
+                    onClick={() => setSelectedMode("BC")}
+                  >
+                    Bone
+                  </button>
+                </div>
+              </div>
+
+              {/* Frequency */}
+              <div>
+                <label className="block text-xs font-medium mb-1">Freq (Hz)</label>
+                <select
+                  className="w-full p-1.5 border rounded text-xs"
+                  value={selectedFrequency}
+                  onChange={(e) => handleFrequencyChange(Number(e.target.value))}
+                >
+                  {availableFrequencies.map((freq) => (
+                    <option key={freq} value={freq}>{freq}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Level */}
+              <div>
+                <label className="block text-xs font-medium mb-1">Level (dB)</label>
+                <select
+                  className="w-full p-1.5 border rounded text-xs"
+                  value={selectedLevel}
+                  onChange={(e) => handleLevelChange(Number(e.target.value))}
+                >
+                  {availableLevels.map((level) => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Signal Type */}
+              <div>
+                <label className="block text-xs font-medium mb-1">Signal</label>
+                <select
+                  className="w-full p-1.5 border rounded text-xs"
+                  value={selectedSignalType}
+                  onChange={(e) => handleSignalTypeChange(e.target.value as SignalType)}
+                >
+                  {availableSignalTypes.map((type: SignalType) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Pulsed Toggle */}
+              <div>
+                <label className="block text-xs font-medium mb-1">Tone</label>
                 <button
-                  key={ear}
-                  className={`flex-1 px-2 py-1 rounded text-xs ${
-                    selectedEar === ear
-                      ? ear === "L"
-                        ? "bg-blue-500 text-white"
-                        : "bg-red-500 text-white"
-                      : "bg-gray-200"
-                  }`}
+                  className={`w-full px-2 py-1.5 rounded text-xs ${isPulsed ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
                   onClick={() => {
-                    setSelectedEar(ear);
-                    // If masking is active, re-emit for the new ear side
-                    if (isMasking) {
-                      sendMaskingSignal(true);
-                    }
+                    setIsPulsed((prev) => !prev);
+                    if (isPlaying) { _endAudiometrySignal(); _sendAudiometrySignal(); }
                   }}
                 >
-                  {ear === "L" ? "Left" : "Right"}
+                  {isPulsed ? 'Pulsed' : 'Steady'}
                 </button>
-              ))}
+              </div>
             </div>
-          </div>
-          <div className="mb-2">
-            <label className="block text-xs font-medium mb-1">Mode</label>
-            <div className="flex gap-1.5">
-              <button
-                className={`flex-1 px-2 py-1 rounded text-xs ${
-                  selectedMode === "AC" ? "bg-blue-500 text-white" : "bg-gray-200"
-                }`}
-                onClick={() => setSelectedMode("AC")}
-              >
-                Air
-              </button>
-              <button
-                className={`flex-1 px-2 py-1 rounded text-xs ${
-                  selectedMode === "BC" ? "bg-blue-500 text-white" : "bg-gray-200"
-                }`}
-                onClick={() => setSelectedMode("BC")}
-              >
-                Bone
-              </button>
-            </div>
-          </div>
-          <div className="mb-2">
-            <label className="block text-xs font-medium mb-1">Freq (Hz)</label>
-            <select
-              className="w-full p-1.5 border rounded text-xs"
-              value={selectedFrequency}
-              onChange={(e) => handleFrequencyChange(Number(e.target.value))}
-            >
-              {availableFrequencies.map((freq) => (
-                <option key={freq} value={freq}>{freq}</option>
-              ))}
-            </select>
-          </div>
-          <div className="mb-2">
-            <label className="block text-xs font-medium mb-1">Level (dB)</label>
-            <select
-              className="w-full p-1.5 border rounded text-xs"
-              value={selectedLevel}
-              onChange={(e) => handleLevelChange(Number(e.target.value))}
-            >
-              {availableLevels.map((level) => (
-                <option key={level} value={level}>{level}</option>
-              ))}
-            </select>
-          </div>
-          <div className="mb-2">
-            <label className="block text-xs font-medium mb-1">Signal</label>
-            <select
-              className="w-full p-1.5 border rounded text-xs"
-              value={selectedSignalType}
-              onChange={(e) => handleSignalTypeChange(e.target.value as SignalType)}
-            >
-              {availableSignalTypes.map((type: SignalType) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-          </div>
-          <div className="mb-2">
-            <button
-              className={`w-full px-2 py-1 rounded text-xs ${isPulsed ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-              onClick={() => {
-                setIsPulsed((prev) => !prev);
-                if (isPlaying) { _endAudiometrySignal(); _sendAudiometrySignal(); }
-              }}
-            >
-              {isPulsed ? 'Pulsed' : 'Steady'}
-            </button>
-          </div>
-          <div className="mb-2">
-            <label className="block text-xs font-medium mb-1">Masking</label>
-            <div className="flex items-center gap-1.5">
-              <button
-                className={`px-2 py-1 rounded text-xs ${isMasking ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
-                onClick={() => {
-                  const next = !isMasking;
-                  setIsMasking(next);
-                  // Emit masking start/stop immediately
-                  sendMaskingSignal(next);
-                }}
-              >
-                {isMasking ? 'On' : 'Off'}
-              </button>
-              <select
-                className="flex-1 p-1.5 border rounded text-xs"
-                value={maskingLevel}
-                onChange={(e) => handleMaskingLevelChange(Number(e.target.value))}
-              >
-                {availableLevels.map((level) => (
-                  <option key={level} value={level}>{level}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <button
-            className={`w-full px-3 py-1.5 rounded text-xs mb-2 ${isPlaying ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} text-white`}
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave}
-          >
-            {isPlaying ? 'Release' : 'Hold Play'}
-          </button>
 
-          <div className="flex flex-col gap-1.5">
-            <button
-              className="w-full px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
-              onClick={addResponse}
-            >
-              Response
-            </button>
-            <button
-              className="w-full px-3 py-1.5 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs"
-              onClick={addNoResponse}
-            >
-              No Response
-            </button>
-            <button
-              className={`w-full px-3 py-1.5 rounded text-xs ${recentResults.length > 0 ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
-              onClick={() => undoLastResult()}
-              disabled={recentResults.length === 0}
-            >
-              Undo{recentResults.length > 0 ? ` (${recentResults.length})` : ''}
-            </button>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="w-full px-3 py-1.5 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs flex items-center justify-center gap-1">
-                  Clear
-                  <ChevronDown size={12} />
+            {/* Masking - Full Width */}
+            <div className="mb-2">
+              <label className="block text-xs font-medium mb-1">Masking</label>
+              <div className="flex items-center gap-1.5">
+                <button
+                  className={`px-3 py-1.5 rounded text-xs ${isMasking ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
+                  onClick={() => {
+                    const next = !isMasking;
+                    setIsMasking(next);
+                    sendMaskingSignal(next);
+                  }}
+                >
+                  {isMasking ? 'On' : 'Off'}
                 </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => clearEarResults('L')}>Left Ear</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => clearEarResults('R')}>Right Ear</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => clearModeResults('AC')}>Air Conduction</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => clearModeResults('BC')}>Bone Conduction</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={clearTest} className="text-red-600">All Results</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <select
+                  className="flex-1 p-1.5 border rounded text-xs"
+                  value={maskingLevel}
+                  onChange={(e) => handleMaskingLevelChange(Number(e.target.value))}
+                >
+                  {availableLevels.map((level) => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
+            {/* Play Button - Full Width */}
             <button
-              className="w-full px-3 py-1.5 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
-              onClick={handleSubmit}
+              className={`w-full px-3 py-2 rounded text-xs mb-2 font-medium ${isPlaying ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} text-white`}
+              onMouseDown={handleMouseDown}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
             >
-              Submit Test
+              {isPlaying ? '🔊 Release to Stop' : '🎵 Hold to Play'}
             </button>
-          </div>
+
+            {/* Action Buttons - Grid Layout */}
+            <div className="grid grid-cols-2 gap-1.5 mb-2">
+              <button
+                className="px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                onClick={addResponse}
+              >
+                ✓ Response
+              </button>
+              <button
+                className="px-3 py-1.5 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs"
+                onClick={addNoResponse}
+              >
+                ✗ No Response
+              </button>
+              <button
+                className={`px-3 py-1.5 rounded text-xs ${recentResults.length > 0 ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
+                onClick={() => undoLastResult()}
+                disabled={recentResults.length === 0}
+              >
+                ↶ Undo{recentResults.length > 0 ? ` (${recentResults.length})` : ''}
+              </button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs flex items-center justify-center gap-1">
+                    📋 Copy
+                    <ChevronDown size={12} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuLabel>Copy AC (Air Conduction)</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => copyEarResults('L', 'R', 'AC')}>Left AC → Right</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => copyEarResults('R', 'L', 'AC')}>Right AC → Left</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Copy BC (Bone Conduction)</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => copyEarResults('L', 'R', 'BC')}>Left BC → Right</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => copyEarResults('R', 'L', 'BC')}>Right BC → Left</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Copy All (AC + BC)</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => copyEarResults('L', 'R', 'BOTH')}>Left All → Right</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => copyEarResults('R', 'L', 'BOTH')}>Right All → Left</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="px-3 py-1.5 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs flex items-center justify-center gap-1">
+                    🗑️ Clear
+                    <ChevronDown size={12} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => clearEarResults('L')}>Left Ear</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearEarResults('R')}>Right Ear</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => clearModeResults('AC')}>Air Conduction</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => clearModeResults('BC')}>Bone Conduction</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={clearTest} className="text-red-600">All Results</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <button
+                className="col-span-2 px-3 py-1.5 bg-red-500 text-white rounded hover:bg-red-600 text-xs font-medium"
+                onClick={handleSubmit}
+              >
+                ✅ Submit Test
+              </button>
+            </div>
           </div>
         </div>
       </div>

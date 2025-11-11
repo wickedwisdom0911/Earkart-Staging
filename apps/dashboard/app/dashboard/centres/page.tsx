@@ -11,6 +11,14 @@ import { CentreModelData } from "@/models/centre.model";
 
 export default function CentresPage() {
   const { data, isLoading, error } = useGetAllCentres();
+  
+  // Debug logging
+  console.log("🏢 Centres Data:", data);
+  console.log("🏢 Centres Data Structure:", data?.data);
+  
+  // Safely get centres array
+  const centres = data?.data?.data?.filter((c): c is CentreModelData => c !== null) || [];
+  
   return (
     <DashboardBodyWrapper
       pageTitle="Centres"
@@ -26,9 +34,14 @@ export default function CentresPage() {
     >
       {isLoading && <div>Loading...</div>}
       {error && <div>Error: {error.message}</div>}
-      {data && (
+      {!isLoading && !error && centres.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          No centres found. Create your first centre to get started.
+        </div>
+      )}
+      {centres.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-          {data.data.map((centre: CentreModelData) => (
+          {centres.map((centre: CentreModelData) => (
             <div
               key={centre.id}
               className={`relative rounded-xl shadow-md p-6 flex flex-col gap-3 border hover:shadow-lg transition-shadow min-h-[220px] ${

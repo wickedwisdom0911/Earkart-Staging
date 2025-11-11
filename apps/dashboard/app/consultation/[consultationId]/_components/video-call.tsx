@@ -23,6 +23,8 @@ interface VideoCallProps {
   patientName: string;
   isFullscreen?: boolean;
   onBeforeLeaveCall?: () => Promise<void>;
+  hideLocalUser?: boolean;
+  showOtoscopyOnly?: boolean; // New prop to show only otoscopy stream
 }
 
 const VideoCallSkeleton = () => {
@@ -96,6 +98,8 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   patientName,
   isFullscreen = false,
   onBeforeLeaveCall,
+  hideLocalUser = false,
+  showOtoscopyOnly = false,
 }) => {
   const localRef = useRef<HTMLDivElement>(null);
   const remoteRef = useRef<HTMLDivElement>(null);
@@ -447,11 +451,11 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       {showRefreshHint && (
         <div className="mb-4 p-2 bg-blue-100 text-blue-700 rounded-md flex items-center gap-2">
           <User className="w-4 h-4" />
-          Patient not visible? Try refreshing the page.
+          Patient not visible ? Try refreshing the page.
         </div>
       )}
       <div className="flex flex-col h-full w-full gap-1 mb-2">
-        {/* Remote user (patient) - full screen */}
+        {/* Remote user (patient or otoscopy) - full screen */}
         <div
           ref={remoteRef}
           className={`w-full h-full bg-gray-900 overflow-hidden ${
@@ -459,82 +463,93 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           }`}
         >
           {remoteUsers.length > 0 ? (
-            remoteUsers.map((user) => (
-              <RemoteUser
-                key={user.uid}
-                user={user}
-                style={{ 
-                  width: "100%", 
-                  height: "100%",
-                  transform: "scaleX(-1)" // Flip patient video horizontally to fix mirroring
-                }}
-              >
-                <div className="absolute bottom-3 left-3 text-white text-sm">
-                  {patientName}
-                </div>
-              </RemoteUser>
-            ))
+            remoteUsers.map((user) => {
+              // Force re-render when video track changes
+              const videoTrackId = user.videoTrack?.getTrackId?.();
+              
+              return (
+                <RemoteUser
+                  key={`${user.uid}-${videoTrackId || 'no-video'}`}
+                  user={user}
+                  playVideo={true}
+                  style={{ 
+                    width: "100%", 
+                    height: "100%",
+                    transform: showOtoscopyOnly ? "none" : "scaleX(-1)"
+                  }}
+                >
+                  <div className="absolute bottom-3 left-3 text-white text-sm bg-black/50 px-2 py-1 rounded">
+                    {showOtoscopyOnly ? `🔬 Otoscopy` : patientName}
+                  </div>
+                </RemoteUser>
+              );
+            })
           ) : (
-            <VideoPlaceholder name={patientName} isLoading={isReconnecting} />
+            <VideoPlaceholder 
+              name={showOtoscopyOnly ? "Waiting for otoscopy stream..." : patientName} 
+              isLoading={isReconnecting || showOtoscopyOnly} 
+            />
           )}
         </div>
 
         {/* Local user (audiologist) - floating circle */}
-        <div className="absolute top-4 right-4 flex flex-col items-center gap-2">
-          <div
-            ref={localRef}
-            className="w-32 h-32 rounded-full overflow-hidden border-2 border-white shadow-lg bg-gray-900"
-          >
-            {localCameraTrack ? (
-              <LocalUser
-                audioTrack={localMicrophoneTrack as any}
-                cameraOn={true}
-                micOn={micOn}
-                playAudio={false}
-                videoTrack={localCameraTrack as any}
-                style={{ width: "100%", height: "100%" }}
+        {!hideLocalUser && (
+          <div className="absolute top-4 right-4 flex flex-col items-center gap-2">
+            <div
+              ref={localRef}
+              className="w-32 h-32 rounded-full overflow-hidden border-2 border-white shadow-lg bg-gray-900"
+            >
+              {localCameraTrack ? (
+                <LocalUser
+                  audioTrack={localMicrophoneTrack as any}
+                  cameraOn={true}
+                  micOn={micOn}
+                  playAudio={false}
+                  videoTrack={localCameraTrack as any}
+                  style={{ width: "100%", height: "100%" }}
+                >
+                  <div className="absolute bottom-1 left-1 text-white text-xs">
+                    You
+                  </div>
+                </LocalUser>
+              ) : (
+                <VideoPlaceholder name="You" size="small" isLoading={isReconnecting} />
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMic(!micOn)}
+                className={`
+                  p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
+                  z-10
+                  transition-colors duration-200
+                  ${micOn ? "text-white" : "text-red-500"}
+                `}
+                title={micOn ? "Mute" : "Unmute"}
               >
-                <div className="absolute bottom-1 left-1 text-white text-xs">
-                  You
-                </div>
-              </LocalUser>
-            ) : (
-              <VideoPlaceholder name="You" size="small" isLoading={isReconnecting} />
-            )}
+                {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+              </button>
+              <button
+                onClick={handleLeave}
+                disabled={isLeaving}
+                className={`
+                  p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
+                  z-10
+                  transition-colors duration-200
+                  ${isLeaving ? "text-gray-500" : "text-red-500 hover:text-red-600"}
+                `}
+                title="End Call"
+              >
+                <PhoneOff size={20} />
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMic(!micOn)}
-              className={`
-                p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
-                z-10
-                transition-colors duration-200
-                ${micOn ? "text-white" : "text-red-500"}
-              `}
-            >
-              {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-            </button>
-            <button
-              onClick={handleLeave}
-              disabled={isLeaving}
-              className={`
-                p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
-                z-10
-                transition-colors duration-200
-                ${isLeaving ? "text-gray-500" : "text-red-500 hover:text-red-600"}
-              `}
-            >
-              <PhoneOff size={20} />
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
 export const VideoCall: React.FC<VideoCallProps> = (props) => {
-  return (
-      <VideoCallContent {...props} />
-  );
+  return <VideoCallContent {...props} />;
 };

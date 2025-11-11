@@ -3,13 +3,15 @@
   "private": true,
   "version": "1.0.1",
   "scripts": {
-    "build": "NEXT_IGNORE_TYPE_ERRORS=true NEXTJS_SKIP_ESLINT=1 next build",
+    "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "@types/qrcode.react": "^3.0.0",
+    "cross-env": "^10.1.0",
     "prettier": "^3.5.0",
     "turbo": "^2.4.4",
     "typescript": "5.7.3"
@@ -17,5 +19,8 @@
   "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "qrcode.react": "^4.2.0"
   }
 }

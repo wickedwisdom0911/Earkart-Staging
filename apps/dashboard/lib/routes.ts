@@ -1,0 +1,17 @@
+export const ROUTES = {
+  LOGIN: "/login",
+  DASHBOARD: "/dashboard",
+  OVERVIEW: "/dashboard/overview",
+  ANALYTICS: "/dashboard/analytics",
+  AUDIOLOGISTS: "/dashboard/audiologists",
+  CENTRES: "/dashboard/centres",
+  LOCATIONS: "/dashboard/settings/locations",
+  LANGUAGES: "/dashboard/settings/languages",
+  DEVICES: "/dashboard/settings/devices",
+  QUESTIONNAIRE: "/dashboard/settings/questionnaire",
+  MDM: "/dashboard/mdm",
+  USERS: "/dashboard/users",
+  PATIENTS: "/dashboard/patients",
+  APPOINTMENTS: "/dashboard/appointments",
+  ANSWER_QUESTIONNAIRE: (consultationId: string) => `/consultation/${consultationId}/answer-questionnaire`,
+};
