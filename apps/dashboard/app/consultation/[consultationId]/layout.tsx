@@ -1014,12 +1014,19 @@ export default function ConsultationLayout({
             >
               <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl border border-gray-200">
                 <h3 className="text-2xl font-bold mb-4 text-gray-800">Recording Required</h3>
+           
                 <p className="text-base text-gray-700 mb-6 leading-relaxed">
-                  To continue this consultation, please start recording and select <b className="text-blue-600">Entire Screen</b> in the share picker.
+                  To continue this consultation, please start recording, select <b className="text-blue-600">Entire Screen</b>, and enable <b className="text-blue-600">System Audio</b> in the share picker.
                 </p>
+
                 {recordingState.error?.includes("Entire Screen") && (
                   <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">
                     Please select "Entire Screen" in the picker and try again.
+                  </div>
+                )}
+                {recordingState.error?.includes("System audio") && (
+                  <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">
+                    {recordingState.error}
                   </div>
                 )}
                 {recordingState.isUploading && (

@@ -70,11 +70,10 @@ export const AgoraOtoscopyProvider: React.FC<AgoraOtoscopyProviderProps> = ({ ch
           mediaType: "audio" | "video"
         ) => {
           console.log(`👤 Remote user ${user.uid} published ${mediaType}`);
-          // The user object is automatically updated, so we just need to re-set the state
-          // to trigger a re-render.
-          setRemoteUsers((prev) => [...prev.filter((u) => u.uid !== user.uid), user]);
+          // The user object is automatically updated. We just need to trigger a re-render.
+          // By creating a new array reference from the client's remoteUsers, we ensure React detects the change.
+          setRemoteUsers([...agoraClient.remoteUsers]);
           
-          // The correct check: is there a remote user publishing a video track?
           if (mediaType === "video" && user.hasVideo) {
             console.log("✅ Otoscopy stream detected!");
           }
@@ -85,10 +84,9 @@ export const AgoraOtoscopyProvider: React.FC<AgoraOtoscopyProviderProps> = ({ ch
           mediaType: "audio" | "video"
         ) => {
           console.log(`👤 Remote user ${user.uid} unpublished ${mediaType}`);
-          // The user object is automatically updated, no need to filter manually
-          setRemoteUsers((prev) => [...prev]);
+          // Same as above, trigger a re-render using the client's authoritative state.
+          setRemoteUsers([...agoraClient.remoteUsers]);
 
-          // If a video track is unpublished, the otoscopy stream is no longer ready.
           if (mediaType === "video") {
             console.log("❌ Otoscopy stream unpublished.");
           }

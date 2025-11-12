@@ -434,6 +434,34 @@ export function useScreenRecordingUpload(consultationId: string) {
 			});
 			mediaStreamRef.current = screenStream;
 
+			// Enforce system audio if requested
+			if (includeSystemAudio && screenStream.getAudioTracks().length === 0) {
+				// Stop all tracks from the failed attempt
+				screenStream.getTracks().forEach(track => track.stop());
+				mediaStreamRef.current = null;
+				
+				// Abort initiated multipart upload and clean up session
+				try {
+					const toAbort = uploadIdRef.current;
+					if (toAbort) {
+						await abortRecordingUpload({ uploadId: toAbort });
+						await chunkStorage.clearSession(consultationId);
+					}
+				} catch {}
+				
+				uploadIdRef.current = null;
+				uploadedPartsRef.current = [];
+				chunkCounterRef.current = 0;
+				currentSessionRef.current = null;
+				
+				setState((s) => ({ 
+					...s, 
+					isInitializing: false, 
+					error: "System audio not selected. Please enable audio sharing in the prompt." 
+				}));
+				return;
+			}
+
 			// Listen for user stopping from browser UI (track ended / stream inactive)
 			try {
 				const vTrack = screenStream.getVideoTracks()[0] || null;
