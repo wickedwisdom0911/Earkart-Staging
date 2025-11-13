@@ -28,6 +28,7 @@ type StartOptions = {
 	requireEntireScreen?: boolean; // enforce that user selects Entire Screen in the picker
 	captureMic?: boolean; // default true - include microphone audio
 	captureSystemAudio?: boolean; // default false - include system/tab audio (if supported by browser)
+	existingMicTrack?: MediaStreamTrack; // ADD THIS
 };
 
 export type ScreenRecordingState = {
@@ -515,13 +516,20 @@ export function useScreenRecordingUpload(consultationId: string) {
 			const wantsMic = opts?.captureMic !== false; // default true
 			if (wantsMic) {
 				try {
-					const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-					micStreamRef.current = mic;
+                    // Use existing track if provided (from Agora)
+                    if (opts?.existingMicTrack) {
+                        console.log("🎤 Using existing Agora microphone track");
+                        micStreamRef.current = new MediaStream([opts.existingMicTrack]);
+                    } else {
+                        console.log("🎤 Requesting new microphone access");
+                        const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                        micStreamRef.current = mic;
+                    }
 
 					// Get all tracks from both streams
 					const screenVideoTracks = screenStream.getVideoTracks();
 					const screenAudioTracks = screenStream.getAudioTracks();
-					const micAudioTracks = mic.getAudioTracks();
+					const micAudioTracks = micStreamRef.current.getAudioTracks();
 					
 					// Combine them into a new stream
 					finalStream = new MediaStream([
