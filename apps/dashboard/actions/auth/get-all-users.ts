@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/api";
 import { getBaseUrl } from "@/lib/environment";
 import { verifySession } from "@/lib/session";
 
-import { UsersModel, usersModelSchema } from "@/models/user.model";
+import { UsersModel, UsersApiResponseSchema } from "@/models/user.model";
 
 export default async function getAllUsers(): Promise<UsersModel> {
   const baseUrl = await getBaseUrl();
@@ -19,9 +19,10 @@ export default async function getAllUsers(): Promise<UsersModel> {
       headers: {
         Authorization: `Bearer ${user.token}`,
       },
+      cache: 'no-store',
     },
-    usersModelSchema
+    UsersApiResponseSchema
   );
 
-  return response;
+  return response.data;
 }

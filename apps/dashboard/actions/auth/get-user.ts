@@ -5,7 +5,7 @@ import { getBaseUrl } from "@/lib/environment";
 import { verifySession } from "@/lib/session";
 
 import { Role } from "@/models/enums";
-import { UsersModel, usersModelSchema } from "@/models/user.model";
+import { UsersModel, UsersApiResponseSchema } from "@/models/user.model";
 
 export default async function getUsersByRole(
   role: Role
@@ -25,9 +25,10 @@ export default async function getUsersByRole(
       headers: {
         Authorization: `Bearer ${user.token}`,
       },
+      cache: 'no-store',
     },
-    usersModelSchema
+    UsersApiResponseSchema
   );
 
-  return response;
+  return response.data;
 }
