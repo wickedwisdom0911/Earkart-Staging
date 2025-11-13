@@ -517,13 +517,29 @@ export function useScreenRecordingUpload(consultationId: string) {
 				try {
 					const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
 					micStreamRef.current = mic;
+
+					// Get all tracks from both streams
+					const screenVideoTracks = screenStream.getVideoTracks();
+					const screenAudioTracks = screenStream.getAudioTracks();
+					const micAudioTracks = mic.getAudioTracks();
+					
+					// Combine them into a new stream
 					finalStream = new MediaStream([
-						...screenStream.getVideoTracks(),
-						...screenStream.getAudioTracks(),
-						...mic.getAudioTracks(),
+						...screenVideoTracks,
+						...screenAudioTracks,
+						...micAudioTracks,
 					]);
+
+					console.log("🎤 Microphone captured and merged into the recording stream.");
+					console.log("📊 Final stream tracks:", {
+						video: finalStream.getVideoTracks().length,
+						audio: finalStream.getAudioTracks().length,
+					});
+
 				} catch (e) {
-					console.warn("Mic capture failed; proceeding without mic:", e);
+					console.warn("🎤 Mic capture failed; proceeding without mic:", e);
+					// Set a specific error if mic capture fails, so the user knows.
+					setState((s) => ({ ...s, error: "Microphone capture failed. Your voice will not be in the recording." }));
 				}
 			}
 
