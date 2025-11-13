@@ -16,20 +16,22 @@ import { chunkStorage } from "@/lib/indexeddb-chunks";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { SessionStatus } from "@/models/enums";
 import { RedirectLoadingModal } from "@/components/ui/redirect-loading-modal";
+import { TracksProvider, useTracks } from "@/providers/tracks-provider";
 
 // Import debug utilities in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   import("@/utils/recording-debug");
 }
 
-export default function ConsultationLayout({
+const ConsultationLayoutContent = ({
   children,
 }: {
   children: React.ReactNode;
-}) {
+}) => {
   const { consultationId } = useParams() as { consultationId: string };
   const router = useRouter();
   const socket = useSocket();
+  const { micTrack } = useTracks();
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC
   const {
@@ -1047,6 +1049,7 @@ export default function ConsultationLayout({
                       requireEntireScreen: true,
                       captureSystemAudio: true, // Enable system audio to capture patient's voice
                       captureMic: true, // Enable microphone for audiologist's voice
+                      existingMicTrack: micTrack?.getMediaStreamTrack(), // Pass the existing track here!
                       filename: `consultation-${consultationId}-${Date.now()}.webm`,
                       timesliceMs: 5000,
                     })
@@ -1074,5 +1077,17 @@ export default function ConsultationLayout({
         submessage="Finalizing recording and redirecting to dashboard. Please do not refresh or close this window."
       />
     </OtoscopyProvider>
+  );
+}
+
+export default function ConsultationLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <TracksProvider>
+      <ConsultationLayoutContent>{children}</ConsultationLayoutContent>
+    </TracksProvider>
   );
 }
