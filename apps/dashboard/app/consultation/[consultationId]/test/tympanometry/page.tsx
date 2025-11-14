@@ -25,6 +25,14 @@ import { TestStatus, Ear, TympType } from "@/models/enums";
 import { toast } from "sonner";
 import { ROUTES } from "@/lib/routes";
 import StickyReportNavigation from "@/components/ui/StickyReportNavigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface TympanogramPoint {
   pressure: number;
@@ -152,6 +160,10 @@ export default function TympanometryPage() {
   const [ecv, setECV] = useState<number | null>(null);
   const [manualTympType, setManualTympType] = useState<TympType | "">("");
   const [completedEars, setCompletedEars] = useState<Set<"L" | "R">>(new Set());
+  
+  // State for save confirmation dialog
+  const [showSaveConfirmDialog, setShowSaveConfirmDialog] = useState(false);
+  const [pendingEarSwitch, setPendingEarSwitch] = useState<"L" | "R" | null>(null);
 
   // New state variables for controls
   const [pressureMin, setPressureMin] = useState(-150);
@@ -272,6 +284,48 @@ export default function TympanometryPage() {
     completedEars,
     localReadings,
   ]);
+
+  // Handle ear switching with save confirmation
+  const handleEarSwitch = useCallback((newEar: "L" | "R") => {
+    // Check if current ear has unsaved results
+    if (isTestCompleted && !completedEars.has(selectedEar) && newEar !== selectedEar) {
+      // Ask user if they want to save
+      setPendingEarSwitch(newEar);
+      setShowSaveConfirmDialog(true);
+    } else {
+      // Safe to switch
+      setSelectedEar(newEar);
+    }
+  }, [isTestCompleted, completedEars, selectedEar]);
+
+  // Handle save confirmation dialog
+  const handleSaveConfirmation = useCallback(async (shouldSave: boolean) => {
+    if (shouldSave && pendingEarSwitch) {
+      // Save current ear results
+      await saveTympanometryResults();
+    } else {
+      // Reset test state if not saving
+      setRealTimeData([]);
+      setFinalData([]);
+      setIsTestCompleted(false);
+      setCurrentPressure(0);
+      setCurrentCompliance(0);
+      setPeakPressure(null);
+      setPeakCompliance(null);
+      setGradient(null);
+      setECV(null);
+      setManualTympType("");
+    }
+    
+    // Switch to pending ear
+    if (pendingEarSwitch) {
+      setSelectedEar(pendingEarSwitch);
+    }
+    
+    // Close dialog
+    setShowSaveConfirmDialog(false);
+    setPendingEarSwitch(null);
+  }, [pendingEarSwitch, saveTympanometryResults]);
 
   // Update real-time data when receiving impedance status
   React.useEffect(() => {
@@ -492,9 +546,54 @@ export default function TympanometryPage() {
   };
 
   return (
-    <div className="p-6 lg:pr-80">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-4">Tympanometry</h1>
+    <>
+      {/* Save Confirmation Dialog */}
+      <Dialog open={showSaveConfirmDialog} onOpenChange={setShowSaveConfirmDialog}>
+        <DialogContent className="z-[100]">
+          <DialogHeader>
+            <DialogTitle>Unsaved Test Results</DialogTitle>
+            <DialogDescription>
+              You have unsaved test results for the {selectedEar === "L" ? "Left" : "Right"} ear.
+              Do you want to save them before switching?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-yellow-700">
+                    If you don't save, the test data for this ear will be lost.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => handleSaveConfirmation(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Don't Save
+            </button>
+            <button
+              onClick={() => handleSaveConfirmation(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+            >
+              Save & Continue
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Main Content */}
+      <div className="p-6 lg:pr-80">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold mb-4">Tympanometry</h1>
 
         {/* Status Indicator */}
         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -531,44 +630,44 @@ export default function TympanometryPage() {
         </div>
 
         {/* Floating Controls (Right-side) */}
-        <div className="fixed right-4 top-1/2 -translate-y-1/2 z-40 w-72 hidden lg:block print:hidden">
-          <div className="bg-white shadow-lg rounded-lg p-3 w-64 border">
+        <div className="fixed right-4 top-1/2 -translate-y-1/2 z-10 w-64 hidden lg:block print:hidden">
+          <div className="bg-white shadow-lg rounded-lg p-2 border">
             {/* Ear Selection */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Ear</label>
-              <div className="flex gap-2">
+            <div className="mb-2">
+              <label className="block text-[10px] font-medium mb-1">Ear</label>
+              <div className="flex gap-1">
                 <button
-                  className={`px-3 py-1 rounded text-xs ${
+                  className={`flex-1 px-2 py-1 rounded text-[10px] ${
                     selectedEar === "L"
                       ? "bg-blue-500 text-white"
                       : completedEars.has("L")
                         ? "bg-green-500 text-white"
                         : "bg-gray-200"
                   }`}
-                  onClick={() => setSelectedEar("L")}
+                  onClick={() => handleEarSwitch("L")}
                 >
-                  Left
+                  L
                 </button>
                 <button
-                  className={`px-3 py-1 rounded text-xs ${
+                  className={`flex-1 px-2 py-1 rounded text-[10px] ${
                     selectedEar === "R"
                       ? "bg-blue-500 text-white"
                       : completedEars.has("R")
                         ? "bg-green-500 text-white"
                         : "bg-gray-200"
                   }`}
-                  onClick={() => setSelectedEar("R")}
+                  onClick={() => handleEarSwitch("R")}
                 >
-                  Right
+                  R
                 </button>
               </div>
             </div>
 
             {/* Probe Tone */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Probe tone</label>
+            <div className="mb-2">
+              <label className="block text-[10px] font-medium mb-1">Probe tone</label>
               <select
-                className="w-full p-2 border rounded text-xs"
+                className="w-full p-1 border rounded text-[10px]"
                 value={selectedProbeTone}
                 onChange={(e) => setSelectedProbeTone(Number(e.target.value))}
               >
@@ -581,41 +680,41 @@ export default function TympanometryPage() {
             </div>
 
             {/* Pressure Range */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Pressure range</label>
-              <div className="flex items-center gap-2">
-                <button className="px-2 py-1 bg-gray-200 rounded text-xs" onClick={() => setPressureMin(Math.max(-400, pressureMin - 5))}>-</button>
-                <span className="w-16 text-center text-xs">{pressureMin} daPa</span>
-                <button className="px-2 py-1 bg-gray-200 rounded text-xs" onClick={() => setPressureMin(Math.min(pressureMax - 5, pressureMin + 5))}>+</button>
-                <span className="mx-1 text-xs">to</span>
-                <button className="px-2 py-1 bg-gray-200 rounded text-xs" onClick={() => setPressureMax(Math.max(pressureMin + 5, pressureMax - 5))}>-</button>
-                <span className="w-16 text-center text-xs">{pressureMax} daPa</span>
-                <button className="px-2 py-1 bg-gray-200 rounded text-xs" onClick={() => setPressureMax(Math.min(400, pressureMax + 5))}>+</button>
+            <div className="mb-2">
+              <label className="block text-[10px] font-medium mb-1">Pressure range</label>
+              <div className="flex items-center gap-1">
+                <button className="px-1 py-0.5 bg-gray-200 rounded text-[10px]" onClick={() => setPressureMin(Math.max(-400, pressureMin - 5))}>-</button>
+                <span className="w-12 text-center text-[10px]">{pressureMin}</span>
+                <button className="px-1 py-0.5 bg-gray-200 rounded text-[10px]" onClick={() => setPressureMin(Math.min(pressureMax - 5, pressureMin + 5))}>+</button>
+                <span className="text-[10px]">to</span>
+                <button className="px-1 py-0.5 bg-gray-200 rounded text-[10px]" onClick={() => setPressureMax(Math.max(pressureMin + 5, pressureMax - 5))}>-</button>
+                <span className="w-12 text-center text-[10px]">{pressureMax}</span>
+                <button className="px-1 py-0.5 bg-gray-200 rounded text-[10px]" onClick={() => setPressureMax(Math.min(400, pressureMax + 5))}>+</button>
               </div>
             </div>
 
             {/* Compliance Range */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Compliance range</label>
-              <div className="flex items-center gap-2">
-                <button className="px-2 py-1 bg-gray-200 rounded text-xs" onClick={() => setComplianceMin(Math.max(0, complianceMin - 0.05))}>-</button>
-                <span className="w-16 text-center text-xs">{complianceMin.toFixed(2)} ml</span>
-                <button className="px-2 py-1 bg-gray-200 rounded text-xs" onClick={() => setComplianceMin(Math.min(complianceMax - 0.05, complianceMin + 0.05))}>+</button>
-                <span className="mx-1 text-xs">to</span>
-                <button className="px-2 py-1 bg-gray-200 rounded text-xs" onClick={() => setComplianceMax(Math.max(complianceMin + 0.05, complianceMax - 0.05))}>-</button>
-                <span className="w-16 text-center text-xs">{complianceMax.toFixed(2)} ml</span>
-                <button className="px-2 py-1 bg-gray-200 rounded text-xs" onClick={() => setComplianceMax(Math.min(2.0, complianceMax + 0.05))}>+</button>
+            <div className="mb-2">
+              <label className="block text-[10px] font-medium mb-1">Compliance range</label>
+              <div className="flex items-center gap-1">
+                <button className="px-1 py-0.5 bg-gray-200 rounded text-[10px]" onClick={() => setComplianceMin(Math.max(0, complianceMin - 0.05))}>-</button>
+                <span className="w-12 text-center text-[10px]">{complianceMin.toFixed(2)}</span>
+                <button className="px-1 py-0.5 bg-gray-200 rounded text-[10px]" onClick={() => setComplianceMin(Math.min(complianceMax - 0.05, complianceMin + 0.05))}>+</button>
+                <span className="text-[10px]">to</span>
+                <button className="px-1 py-0.5 bg-gray-200 rounded text-[10px]" onClick={() => setComplianceMax(Math.max(complianceMin + 0.05, complianceMax - 0.05))}>-</button>
+                <span className="w-12 text-center text-[10px]">{complianceMax.toFixed(2)}</span>
+                <button className="px-1 py-0.5 bg-gray-200 rounded text-[10px]" onClick={() => setComplianceMax(Math.min(2.0, complianceMax + 0.05))}>+</button>
               </div>
             </div>
 
             {/* Range Presets */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Range presets</label>
-              <div className="flex gap-2 flex-wrap">
+            <div className="mb-2">
+              <label className="block text-[10px] font-medium mb-1">Presets</label>
+              <div className="grid grid-cols-2 gap-1">
                 {RANGE_PRESETS.map((preset) => (
                   <button
                     key={preset.label}
-                    className={`px-3 py-1 rounded text-xs ${
+                    className={`px-2 py-0.5 rounded text-[10px] ${
                       start === preset.start && stop === preset.stop
                         ? "bg-blue-500 text-white"
                         : "bg-gray-200"
@@ -632,76 +731,76 @@ export default function TympanometryPage() {
             </div>
 
             {/* Speed */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Speed</label>
-              <div className="flex gap-2">
+            <div className="mb-2">
+              <label className="block text-[10px] font-medium mb-1">Speed</label>
+              <div className="flex gap-1">
                 <button
-                  className={`px-3 py-1 rounded text-xs ${autoSpeed ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+                  className={`flex-1 px-2 py-0.5 rounded text-[10px] ${autoSpeed ? "bg-blue-500 text-white" : "bg-gray-200"}`}
                   onClick={() => setAutoSpeed(true)}
                 >
                   Auto
                 </button>
                 <button
-                  className={`px-3 py-1 rounded text-xs ${!autoSpeed ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+                  className={`flex-1 px-2 py-0.5 rounded text-[10px] ${!autoSpeed ? "bg-blue-500 text-white" : "bg-gray-200"}`}
                   onClick={() => setAutoSpeed(false)}
                 >
-                  Fast (200)
+                  Fast
                 </button>
               </div>
             </div>
 
             {/* Live Measurements */}
-            <div className="mb-3">
-              <div className="text-xs font-medium mb-1">Live</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="mb-2">
+              <div className="text-[10px] font-medium mb-1">Live</div>
+              <div className="grid grid-cols-2 gap-1 text-[10px]">
                 <div>
-                  <div className="text-[10px] text-gray-500">Pressure</div>
+                  <div className="text-[9px] text-gray-500">Pressure</div>
                   <div className="font-semibold">{currentPressure} daPa</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-gray-500">Compliance</div>
+                  <div className="text-[9px] text-gray-500">Compliance</div>
                   <div className="font-semibold">{currentCompliance?.toFixed(2) ?? "0.00"} ml</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-gray-500">Peak P</div>
-                  <div className="font-semibold">{peakPressure !== null ? `${peakPressure} daPa` : "--"}</div>
+                  <div className="text-[9px] text-gray-500">Peak P</div>
+                  <div className="font-semibold">{peakPressure !== null ? `${peakPressure}` : "--"}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-gray-500">Peak C</div>
-                  <div className="font-semibold">{peakCompliance !== null ? `${peakCompliance.toFixed(2)} ml` : "--"}</div>
+                  <div className="text-[9px] text-gray-500">Peak C</div>
+                  <div className="font-semibold">{peakCompliance !== null ? `${peakCompliance.toFixed(2)}` : "--"}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-gray-500">Gradient</div>
-                  <div className="font-semibold">{gradient !== null ? `${gradient.toFixed(2)} ml/daPa` : "--"}</div>
+                  <div className="text-[9px] text-gray-500">Gradient</div>
+                  <div className="font-semibold">{gradient !== null ? `${gradient.toFixed(2)}` : "--"}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-gray-500">ECV</div>
-                  <div className="font-semibold">{ecv !== null ? `${ecv.toFixed(2)} ml` : "--"}</div>
+                  <div className="text-[9px] text-gray-500">ECV</div>
+                  <div className="font-semibold">{ecv !== null ? `${ecv.toFixed(2)}` : "--"}</div>
                 </div>
               </div>
             </div>
 
             {/* Tymp Type */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Tymp Type</label>
+            <div className="mb-2">
+              <label className="block text-[10px] font-medium mb-1">Tymp Type</label>
               <select
-                className="w-full p-2 border rounded text-xs"
+                className="w-full p-1 border rounded text-[10px]"
                 value={manualTympType}
                 onChange={(e) => setManualTympType(e.target.value as TympType | "")}
               >
-                <option value="">Select Type</option>
-                <option value={TympType.A}>Type A - Normal</option>
-                <option value={TympType.As}>Type As - Shallow</option>
-                <option value={TympType.Ad}>Type Ad - Deep</option>
-                <option value={TympType.B}>Type B - Flat</option>
-                <option value={TympType.C}>Type C - Negative Pressure</option>
+                <option value="">Select</option>
+                <option value={TympType.A}>A - Normal</option>
+                <option value={TympType.As}>As - Shallow</option>
+                <option value={TympType.Ad}>Ad - Deep</option>
+                <option value={TympType.B}>B - Flat</option>
+                <option value={TympType.C}>C - Negative</option>
               </select>
             </div>
 
             {/* Actions */}
-            <div className="flex gap-2 mb-2">
+            <div className="flex gap-1 mb-2">
               <button
-                className={`px-4 py-2 rounded text-xs flex items-center gap-2 ${
+                className={`flex-1 px-2 py-1 rounded text-[10px] ${
                   isRunning ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"
                 } text-white`}
                 onClick={startTest}
@@ -709,7 +808,7 @@ export default function TympanometryPage() {
                 {isRunning ? "Stop" : "Start"}
               </button>
               <button
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+                className="flex-1 px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-[10px]"
                 onClick={resetTest}
               >
                 Clear
@@ -717,7 +816,7 @@ export default function TympanometryPage() {
             </div>
             {completedEars.size > 0 && (
               <button
-                className="w-full mb-2 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 text-xs"
+                className="w-full mb-2 px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 text-[10px]"
                 onClick={() => {
                   setCompletedEars(new Set());
                   setLocalReadings([]);
@@ -731,24 +830,22 @@ export default function TympanometryPage() {
 
             {(isTestCompleted || finalData.length > 0) && (
               <button
-                className={`w-full px-4 py-2 rounded text-xs ${
+                className={`w-full px-2 py-1 rounded text-[10px] ${
                   updateConsultationMutation.isPending ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-                } text-white`}
+                } text-white mb-1`}
                 onClick={saveTympanometryResults}
                 disabled={updateConsultationMutation.isPending}
               >
                 {updateConsultationMutation.isPending
-                  ? "Submitting..."
+                  ? "Saving..."
                   : completedEars.size === 1
-                    ? "Save & Next Ear"
-                    : completedEars.size === 0
-                    ? "Save & Next Ear"
-                    : "Save Results"}
+                    ? "Save Results (Last Ear)"
+                    : "Save & Next Ear"}
               </button>
             )}
             {completedEars.size >= 1 && (
               <button
-                className="w-full mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                className="w-full px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-[10px]"
                 onClick={() =>
                   router.push(
                     ROUTES.TYM_REPORT(params.consultationId as string)
@@ -774,7 +871,7 @@ export default function TympanometryPage() {
                       ? "bg-green-500 text-white"
                       : "bg-gray-200"
                 }`}
-                onClick={() => setSelectedEar("L")}
+                onClick={() => handleEarSwitch("L")}
               >
                 {completedEars.has("L") && (
                   <svg
@@ -800,7 +897,7 @@ export default function TympanometryPage() {
                       ? "bg-green-500 text-white"
                       : "bg-gray-200"
                 }`}
-                onClick={() => setSelectedEar("R")}
+                onClick={() => handleEarSwitch("R")}
               >
                 {completedEars.has("R") && (
                   <svg
@@ -1171,8 +1268,8 @@ export default function TympanometryPage() {
               {updateConsultationMutation.isPending
                 ? "Submitting..."
                 : completedEars.size === 1
-                  ? "Save & Continue to Next Ear"
-                  : "Complete Test & View Report"}
+                  ? "Save Results (Last Ear)"
+                  : "Save & Continue to Next Ear"}
             </button>
             {completedEars.size >= 1 && (
               <button
@@ -1197,5 +1294,6 @@ export default function TympanometryPage() {
         )}
       </div>
     </div>
+    </>
   );
 }

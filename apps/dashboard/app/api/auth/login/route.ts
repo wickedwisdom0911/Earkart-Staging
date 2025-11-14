@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBaseUrl } from "@/lib/environment";
 import { apiRequest } from "@/lib/api";
 import { createSession } from "@/lib/session";
-import { userModelSchema } from "@/models/user.model";
+import { userModelDataSchema } from "@/models/user.model";
+
 
 export async function POST(req: NextRequest) {
   try {
