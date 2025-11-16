@@ -85,6 +85,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 	const trackEndHandlerRef = useRef<(() => void) | null>(null);
 	const streamInactiveHandlerRef = useRef<(() => void) | null>(null);
 	const uploadIdRef = useRef<string | null>(null);
+	const s3KeyRef = useRef<string | null>(null);
 	const partSizeRef = useRef<number>(10 * 1024 * 1024); // default 10MB until server returns
 	const nextPartNumberRef = useRef<number>(1);
 	const isStoppingRef = useRef<boolean>(false);
