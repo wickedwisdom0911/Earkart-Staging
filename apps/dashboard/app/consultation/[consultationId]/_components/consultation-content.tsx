@@ -87,14 +87,12 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     return (
       <div className="fixed inset-0 z-50 bg-black">
         <div className="w-screen h-screen">
-          <DelayedVideoCall
+          <VideoCall
             channel={consultationId}
             patientName={patientName}
             isFullscreen={true}
             onBeforeLeaveCall={onBeforeLeaveCall}
-            delay={500} // 0.5 second delay - reduced for faster response
             hideLocalUser={true}
-            showOtoscopyOnly={true} // Only show otoscopy stream, not patient camera
           />
         </div>
 
