@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getBaseUrl } from "@/lib/environment";
 import { apiRequest } from "@/lib/api";
 import { createSession } from "@/lib/session";
-import { userModelDataSchema } from "@/models/user.model";
+import { UserApiResponseSchema } from "@/models/user.model";
 
 
 export async function POST(req: NextRequest) {
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
-      userModelSchema
+      UserApiResponseSchema
     );
 
     if (response.success && response.data) {
