@@ -475,20 +475,17 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                   style={{ 
                     width: "100%", 
                     height: "100%",
-                    transform: showOtoscopyOnly ? "none" : "scaleX(-1)"
+                    transform: "scaleX(-1)"
                   }}
                 >
-                  <div className="absolute bottom-3 left-3 text-white text-sm bg-black/50 px-2 py-1 rounded">
-                    {showOtoscopyOnly ? `🔬 Otoscopy` : patientName}
+                  <div className="absolute bottom-3 left-3 text-white text-sm">
+                    {patientName}
                   </div>
                 </RemoteUser>
               );
             })
           ) : (
-            <VideoPlaceholder 
-              name={showOtoscopyOnly ? "Waiting for otoscopy stream..." : patientName} 
-              isLoading={isReconnecting || showOtoscopyOnly} 
-            />
+            <VideoPlaceholder name={patientName} isLoading={isReconnecting} />
           )}
         </div>
 
