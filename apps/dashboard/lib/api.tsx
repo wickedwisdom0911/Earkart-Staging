@@ -4,15 +4,19 @@ import { ZodError, ZodSchema } from "zod";
 import { handleZodError } from "@/utils/zodErrorHandling";
 import { isProduction } from "./environment";
 
-export async function apiRequest<T>(
+interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
+export async function apiRequest<T extends ApiResponse<any>>(
   url: string,
   options: RequestInit,
   schema: ZodSchema<T>
 ): Promise<T> {
   try {
     const response = await fetch(url, options);
-
-
     
     if (!response.ok) {
       let errorData;
@@ -29,22 +33,14 @@ export async function apiRequest<T>(
     
     const result = await response.json();
 
-    // Add debug logging for consultation API responses
-    if (url.includes('consultation')) {
-      console.log('🔍 API Response for consultation:', {
-        url,
-        resultKeys: Object.keys(result || {}),
-        success: result?.success,
-        message: result?.message,
-        dataType: typeof result?.data,
-        dataIsArray: Array.isArray(result?.data),
-        dataKeys: result?.data ? Object.keys(result.data) : null,
-        firstItemKeys: Array.isArray(result?.data) && result.data[0] ? Object.keys(result.data[0]) : null
-      });
+    const parsedResult = schema.parse(result);
+
+    if (!parsedResult.success) {
+      throw new Error(parsedResult.message || "API request failed");
     }
 
-    // Validate using the provided schema
-    return schema.parse(result);
+    return parsedResult;
+
   } catch (error) {
     if (error instanceof ZodError) {
       console.error('🔴 Validation Error:', {

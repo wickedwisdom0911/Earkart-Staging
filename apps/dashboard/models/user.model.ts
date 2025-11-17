@@ -2,33 +2,50 @@ import { z } from "zod";
 import { StatusEnum, Role, Gender } from "./enums";
 
 export const userModelDataSchema = z.object({
-  id: z.string().optional(),
+  id: z.string(),
   email: z.string().email(),
+  password: z.string().min(6),
   name: z.string(),
-  password: z.string().optional(),
   role: z.nativeEnum(Role),
   status: z.nativeEnum(StatusEnum),
   gender: z.nativeEnum(Gender),
-  dob: z.string(), 
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-  token: z.string().nullable().optional(),
+  dob: z.coerce.date().optional().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  token: z.string().optional().nullable(),
 });
 
-export type UserModelData = z.infer<typeof userModelDataSchema>;
+export type User = z.infer<typeof userModelDataSchema>;
 
-export const userModelSchema = z.object({
+export const CreateUserDtoSchema = userModelDataSchema.pick({
+  email: true,
+  password: true,
+  name: true,
+  role: true,
+  gender: true,
+  status: true,
+  dob: true,
+}).extend({
+  dob: z.string().optional().nullable(),
+});
+
+export type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;
+
+export type RegisterUserPayload = Omit<CreateUserDto, 'dob'> & {
+  dob: Date | null;
+};
+
+export const UserApiResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
   data: userModelDataSchema.nullable(),
 });
 
-export type UserModel = z.infer<typeof userModelSchema>;
-
-export const usersModelSchema = z.object({
+export const UsersApiResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
   data: z.array(userModelDataSchema),
 });
 
-export type UsersModel = z.infer<typeof usersModelSchema>;
+export type UsersModel = z.infer<typeof UsersApiResponseSchema>["data"];
+export type UserModel = z.infer<typeof UserApiResponseSchema>["data"];

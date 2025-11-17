@@ -16,22 +16,20 @@ import { chunkStorage } from "@/lib/indexeddb-chunks";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { SessionStatus } from "@/models/enums";
 import { RedirectLoadingModal } from "@/components/ui/redirect-loading-modal";
-import { TracksProvider, useTracks } from "@/providers/tracks-provider";
 
 // Import debug utilities in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   import("@/utils/recording-debug");
 }
 
-const ConsultationLayoutContent = ({
+export default function ConsultationLayout({
   children,
 }: {
   children: React.ReactNode;
-}) => {
+}) {
   const { consultationId } = useParams() as { consultationId: string };
   const router = useRouter();
   const socket = useSocket();
-  const { micTrack } = useTracks();
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC
   const {
@@ -1017,9 +1015,19 @@ const ConsultationLayoutContent = ({
               <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl border border-gray-200">
                 <h3 className="text-2xl font-bold mb-4 text-gray-800">Recording Required</h3>
            
-                <p className="text-base text-gray-700 mb-6 leading-relaxed">
-                  To continue this consultation, please start recording, select <b className="text-blue-600">Entire Screen</b>, and enable <b className="text-blue-600">System Audio</b> in the share picker.
-                </p>
+                <div className="text-base text-gray-700 mb-6 leading-relaxed space-y-3">
+                  <p>To continue this consultation, please start recording and follow these steps:</p>
+                  <ol className="list-decimal list-inside space-y-2 ml-2">
+                    <li>Select <b className="text-blue-600">Entire Screen</b> in the picker</li>
+                    <li>Check the <b className="text-blue-600">"Share tab audio"</b> or <b className="text-blue-600">"Share system audio"</b> checkbox</li>
+                    <li>Your microphone will be automatically included</li>
+                  </ol>
+                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mt-3">
+                    <p className="text-sm text-yellow-800">
+                      <b>Important:</b> The audio checkbox ensures the patient's voice is recorded, even when wearing headphones.
+                    </p>
+                  </div>
+                </div>
 
                 {recordingState.error?.includes("Entire Screen") && (
                   <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">
@@ -1049,7 +1057,6 @@ const ConsultationLayoutContent = ({
                       requireEntireScreen: true,
                       captureSystemAudio: true, // Enable system audio to capture patient's voice
                       captureMic: true, // Enable microphone for audiologist's voice
-                      existingMicTrack: micTrack?.getMediaStreamTrack(), // Pass the existing track here!
                       filename: `consultation-${consultationId}-${Date.now()}.webm`,
                       timesliceMs: 5000,
                     })
@@ -1077,17 +1084,5 @@ const ConsultationLayoutContent = ({
         submessage="Finalizing recording and redirecting to dashboard. Please do not refresh or close this window."
       />
     </OtoscopyProvider>
-  );
-}
-
-export default function ConsultationLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <TracksProvider>
-      <ConsultationLayoutContent>{children}</ConsultationLayoutContent>
-    </TracksProvider>
   );
 }

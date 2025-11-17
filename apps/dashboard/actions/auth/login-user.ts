@@ -3,7 +3,7 @@
 import { apiRequest } from "@/lib/api";
 import { getBaseUrl } from "@/lib/environment";
 import { createSession } from "@/lib/session";
-import { UserModel, userModelSchema } from "@/models/user.model";
+import { UserApiResponseSchema, UserModel } from "@/models/user.model";
 
 export default async function loginUser(
   formData: FormData
@@ -41,7 +41,7 @@ export default async function loginUser(
         },
         body: JSON.stringify(requestBody),
       },
-      userModelSchema
+      UserApiResponseSchema
     );
 
     console.log(" API Response:", {

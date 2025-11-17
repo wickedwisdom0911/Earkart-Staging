@@ -107,7 +107,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
         </div>
 
         {/* Top-center Share Screen button */}
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+        <div className="absolute top-1 left-1/2 transform -translate-x-1/2 z-10">
           <ShareScreenButton />
         </div>
 
