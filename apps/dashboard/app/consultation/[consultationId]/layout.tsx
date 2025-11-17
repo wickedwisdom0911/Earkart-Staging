@@ -1014,12 +1014,29 @@ export default function ConsultationLayout({
             >
               <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl border border-gray-200">
                 <h3 className="text-2xl font-bold mb-4 text-gray-800">Recording Required</h3>
-                <p className="text-base text-gray-700 mb-6 leading-relaxed">
-                  To continue this consultation, please start recording and select <b className="text-blue-600">Entire Screen</b> in the share picker.
-                </p>
+           
+                <div className="text-base text-gray-700 mb-6 leading-relaxed space-y-3">
+                  <p>To continue this consultation, please start recording and follow these steps:</p>
+                  <ol className="list-decimal list-inside space-y-2 ml-2">
+                    <li>Select <b className="text-blue-600">Entire Screen</b> in the picker</li>
+                    <li>Check the <b className="text-blue-600">"Share tab audio"</b> or <b className="text-blue-600">"Share system audio"</b> checkbox</li>
+                    <li>Your microphone will be automatically included</li>
+                  </ol>
+                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mt-3">
+                    <p className="text-sm text-yellow-800">
+                      <b>Important:</b> The audio checkbox ensures the patient's voice is recorded, even when wearing headphones.
+                    </p>
+                  </div>
+                </div>
+
                 {recordingState.error?.includes("Entire Screen") && (
                   <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">
                     Please select "Entire Screen" in the picker and try again.
+                  </div>
+                )}
+                {recordingState.error?.includes("System audio") && (
+                  <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">
+                    {recordingState.error}
                   </div>
                 )}
                 {recordingState.isUploading && (

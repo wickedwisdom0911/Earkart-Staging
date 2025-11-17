@@ -87,14 +87,12 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     return (
       <div className="fixed inset-0 z-50 bg-black">
         <div className="w-screen h-screen">
-          <DelayedVideoCall
+          <VideoCall
             channel={consultationId}
             patientName={patientName}
             isFullscreen={true}
             onBeforeLeaveCall={onBeforeLeaveCall}
-            delay={500} // 0.5 second delay - reduced for faster response
             hideLocalUser={true}
-            showOtoscopyOnly={true} // Only show otoscopy stream, not patient camera
           />
         </div>
 
@@ -107,7 +105,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
         </div>
 
         {/* Top-center Share Screen button */}
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+        <div className="absolute top-1 left-1/2 transform -translate-x-1/2 z-10">
           <ShareScreenButton />
         </div>
 
