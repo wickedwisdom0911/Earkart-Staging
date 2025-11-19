@@ -1,5 +1,5 @@
 "use client";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { SidebarItem } from "./AppSidebar";
@@ -14,41 +14,47 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "./sidebar";
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function AppSidebarBody({ item }: { item: SidebarItem }) {
   const pathname = usePathname();
+  const router = useRouter();
+  
+  console.log("Rendering sidebar item:", item);
   
   // If item has no sub-items, render as a simple link
   if (!item.subItems) {
     return (
       <SidebarMenu key={item.name}>
         <SidebarMenuItem>
-          <Link href={item.url || "#"}>
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full"
-            >
-              <SidebarMenuButton
-                isActive={
-                  item.url === "/dashboard"
-                    ? pathname === "/dashboard"
-                    : pathname.startsWith(item.url!)
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full"
+          >
+            <SidebarMenuButton
+              isActive={
+                item.url === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : pathname.startsWith(item.url!)
+              }
+              className={cn(
+                "h-full w-full py-4 cursor-pointer hover:bg-primary-400/90 transition-all duration-200"
+              )}
+              onClick={() => {
+                if (item.url) {
+                  console.log(`Redirecting to: ${item.url}`);
+                  router.push(item.url);
                 }
-                className={cn(
-                  "h-full w-full py-4 cursor-pointer hover:bg-primary-400/90 transition-all duration-200"
-                )}
-              >
-                {item.icon}
-                <span className="ml-3 flex-1 flex items-start font-medium">
-                  {item.name}
-                </span>
-              </SidebarMenuButton>
-            </motion.div>
-          </Link>
+              }}
+            >
+              {item.icon}
+              <span className="ml-3 flex-1 flex items-start font-medium">
+                {item.name}
+              </span>
+            </SidebarMenuButton>
+          </motion.div>
         </SidebarMenuItem>
       </SidebarMenu>
     );

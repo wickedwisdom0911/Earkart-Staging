@@ -13,5 +13,6 @@ export const ROUTES = {
   USERS: "/dashboard/users",
   PATIENTS: "/dashboard/patients",
   APPOINTMENTS: "/dashboard/appointments",
+  ALL_CONSULTATIONS: "/dashboard/all-consultations",
   ANSWER_QUESTIONNAIRE: (consultationId: string) => `/consultation/${consultationId}/answer-questionnaire`,
 };
