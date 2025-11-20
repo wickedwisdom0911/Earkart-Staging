@@ -28,7 +28,9 @@ class PatientRemoteSourceImpl implements IPatientSource {
     PatientEntity patient,
   ) async {
     try {
-      final patientData = patient.copyWith();
+      final patientData = patient.copyWith(
+        centreId: centreEntityDataSource.getCentreEntity()?.id,
+      );
       final response = await dio.post(
         Constants.patientUrl,
         data: patientData.toJson(),

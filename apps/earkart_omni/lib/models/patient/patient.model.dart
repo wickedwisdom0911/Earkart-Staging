@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/language/language.entity.dart';
 import 'package:earkart_omni/models/locations/locations.entity.dart';
@@ -59,8 +60,7 @@ class PatientModelData extends PatientEntity {
     super.address,
     super.cityId,
     super.pincode,
-    super.createdBy,
-    super.updatedBy,
+    super.centreId,
     super.createdAt,
     super.updatedAt,
     required super.languageId,
@@ -77,6 +77,7 @@ class PatientModelData extends PatientEntity {
     super.city,
     super.state,
     super.country,
+    super.centre,
   });
 
   factory PatientModelData.fromJson(Map<String, dynamic> json) {
@@ -98,8 +99,7 @@ class PatientModelData extends PatientEntity {
       address: json['address'],
       cityId: json['cityId'],
       pincode: json['pincode'],
-      createdBy: json['createdBy'],
-      updatedBy: json['updatedBy'],
+      centreId: json['centreId'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
       languageId: json['languageId'],
@@ -127,6 +127,8 @@ class PatientModelData extends PatientEntity {
           json['country'] != null
               ? CountryEntity.fromJson(json['country'])
               : null,
+      centre:
+          json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
     );
   }
 
@@ -145,8 +147,7 @@ class PatientModelData extends PatientEntity {
       'address': address,
       'cityId': cityId,
       'pincode': pincode,
-      'createdBy': createdBy,
-      'updatedBy': updatedBy,
+      'centreId': centreId,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       'languageId': languageId,
@@ -163,6 +164,7 @@ class PatientModelData extends PatientEntity {
       'city': city?.toJson(),
       'state': state?.toJson(),
       'country': country?.toJson(),
+      'centre': centre?.toJson(),
     };
   }
 }

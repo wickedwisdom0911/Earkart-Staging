@@ -7,8 +7,36 @@ class AppointmentEntityDataSource {
   late Box<AppointmentEntity> _appointmentEntityBox;
 
   Future<void> init() async {
-    await Hive.openBox<AppointmentEntity>(_boxName);
-    _appointmentEntityBox = Hive.box<AppointmentEntity>(_boxName);
+    try {
+      await Hive.openBox<AppointmentEntity>(_boxName);
+      _appointmentEntityBox = Hive.box<AppointmentEntity>(_boxName);
+    } catch (e) {
+      print("Error opening appointment box, clearing corrupted data: $e");
+      try {
+        try {
+          await Hive.deleteBoxFromDisk(_boxName);
+        } catch (deleteError) {
+          print(
+            "Note: Could not delete box files (may not exist): $deleteError",
+          );
+        }
+        await Hive.openBox<AppointmentEntity>(_boxName);
+        _appointmentEntityBox = Hive.box<AppointmentEntity>(_boxName);
+        print("Successfully cleared corrupted data and reopened box");
+      } catch (clearError) {
+        print("Failed to clear corrupted data: $clearError");
+        try {
+          await Hive.deleteFromDisk();
+          await Hive.initFlutter();
+          await Hive.openBox<AppointmentEntity>(_boxName);
+          _appointmentEntityBox = Hive.box<AppointmentEntity>(_boxName);
+          print("Successfully cleared all Hive data and reopened box");
+        } catch (finalError) {
+          print("Final attempt failed: $finalError");
+          rethrow;
+        }
+      }
+    }
   }
 
   Box<AppointmentEntity> getBox() {
@@ -28,7 +56,7 @@ class AppointmentEntityDataSource {
   }
 
   Future<void> clearBox() async {
-    print("Clearning appointments box....");
+    print("Clearing appointments box....");
     await _appointmentEntityBox.deleteAll(_appointmentEntityBox.keys);
   }
 }

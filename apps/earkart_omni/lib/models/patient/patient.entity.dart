@@ -1,4 +1,5 @@
 import 'package:earkart_omni/config/utils/hive_types.dart';
+import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/language/language.entity.dart';
 import 'package:earkart_omni/models/locations/locations.entity.dart';
@@ -41,37 +42,37 @@ class PatientEntity extends Equatable {
   @HiveField(14)
   final String? pincode;
   @HiveField(15)
-  final String? createdBy;
+  final String? centreId;
   @HiveField(16)
-  final String? updatedBy;
-  @HiveField(17)
   final DateTime? createdAt;
-  @HiveField(18)
+  @HiveField(17)
   final DateTime? updatedAt;
-  @HiveField(19)
+  @HiveField(18)
   final String languageId;
-  @HiveField(20)
+  @HiveField(19)
   final Status? status;
-  @HiveField(21)
+  @HiveField(20)
   final LeadStatus? leadStatus;
-  @HiveField(22)
+  @HiveField(21)
   final String? handledBy;
 
   // Relations (use dynamic or Object? as placeholder)
-  @HiveField(23)
+  @HiveField(22)
   final DistrictEntity? district; // DistrictEntity
-  @HiveField(24)
+  @HiveField(23)
   final UserEntity? creator; // UserEntity
-  @HiveField(25)
+  @HiveField(24)
   final UserEntity? updater; // UserEntity
-  @HiveField(26)
+  @HiveField(25)
   final LanguageEntity? language; // LanguageEntity
-  @HiveField(27)
+  @HiveField(26)
   final CityEntity? city; // CityEntity - added missing field
-  @HiveField(28)
+  @HiveField(27)
   final StateEntity? state;
-  @HiveField(29)
+  @HiveField(28)
   final CountryEntity? country;
+  @HiveField(29)
+  final CentreEntity? centre;
 
   const PatientEntity({
     this.id,
@@ -86,8 +87,7 @@ class PatientEntity extends Equatable {
     this.address,
     this.cityId,
     this.pincode,
-    this.createdBy,
-    this.updatedBy,
+    this.centreId,
     this.createdAt,
     this.updatedAt,
     required this.languageId,
@@ -104,6 +104,7 @@ class PatientEntity extends Equatable {
     this.city,
     this.state,
     this.country,
+    this.centre,
   });
 
   factory PatientEntity.fromJson(Map<String, dynamic> json) {
@@ -125,8 +126,7 @@ class PatientEntity extends Equatable {
       address: json['address'],
       cityId: json['cityId'],
       pincode: json['pincode'],
-      createdBy: json['createdBy'],
-      updatedBy: json['updatedBy'],
+      centreId: json['centreId'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
       languageId: json['languageId'],
@@ -154,6 +154,8 @@ class PatientEntity extends Equatable {
           json['country'] != null
               ? CountryEntity.fromJson(json['country'])
               : null,
+      centre:
+          json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
     );
   }
 
@@ -171,8 +173,7 @@ class PatientEntity extends Equatable {
       'address': address,
       'cityId': cityId,
       'pincode': pincode,
-      'createdBy': createdBy,
-      'updatedBy': updatedBy,
+      'centreId': centreId,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       'languageId': languageId,
@@ -186,6 +187,7 @@ class PatientEntity extends Equatable {
       'districtId': districtId,
       'stateId': stateId,
       'countryId': countryId,
+      'centre': centre?.toJson(),
     };
   }
 
@@ -201,8 +203,7 @@ class PatientEntity extends Equatable {
     String? address,
     String? cityId,
     String? pincode,
-    String? createdBy,
-    String? updatedBy,
+    String? centreId,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? languageId,
@@ -219,6 +220,7 @@ class PatientEntity extends Equatable {
     CityEntity? city,
     StateEntity? state,
     CountryEntity? country,
+    CentreEntity? centre,
   }) {
     return PatientEntity(
       id: id ?? this.id,
@@ -233,8 +235,7 @@ class PatientEntity extends Equatable {
       address: address ?? this.address,
       cityId: cityId ?? this.cityId,
       pincode: pincode ?? this.pincode,
-      createdBy: createdBy ?? this.createdBy,
-      updatedBy: updatedBy ?? this.updatedBy,
+      centreId: centreId ?? this.centreId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       languageId: languageId ?? this.languageId,
@@ -251,6 +252,7 @@ class PatientEntity extends Equatable {
       city: city ?? this.city,
       state: state ?? this.state,
       country: country ?? this.country,
+      centre: centre ?? this.centre,
     );
   }
 
@@ -268,8 +270,7 @@ class PatientEntity extends Equatable {
     address,
     cityId,
     pincode,
-    createdBy,
-    updatedBy,
+    centreId,
     createdAt,
     updatedAt,
     languageId,
@@ -283,5 +284,6 @@ class PatientEntity extends Equatable {
     city,
     state,
     country,
+    centre,
   ];
 }
