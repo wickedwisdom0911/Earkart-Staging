@@ -74,7 +74,12 @@ export default function DashboardPage() {
         recordingUrl: (c as any).recordingUrl
       })));
       
-      setAllConsulations(consultations?.data);
+      // Filter to show only active consultations (exclude completed and cancelled)
+      const activeConsultations = consultations.data.filter(
+        (c) => c.status !== SessionStatus.COMPLETED && c.status !== SessionStatus.CANCELLED
+      );
+      
+      setAllConsulations(activeConsultations);
       
       // Recording details are now included in the consultation response
       
@@ -434,14 +439,14 @@ export default function DashboardPage() {
             <span className="text-3xl">💬🩺🏥</span>
             <div className="flex flex-col">
               <span className="text-lg md:text-xl font-semibold text-primary-800 dark:text-primary-100">
-                You will see all the{" "}
+                New and{" "}
                 <span className="text-primary-600 dark:text-primary-300 font-bold">
-                  Active Consultation Rooms
+                  Active Consultations
                 </span>{" "}
-                and requests here
+                will appear here
               </span>
               <span className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                Stay tuned for your next patient! 🚀
+                For all consultations including completed ones, visit "All Consultations" page 📋
               </span>
             </div>
           </div>

@@ -39,6 +39,7 @@ type StartOptions = {
 	requireEntireScreen?: boolean; // enforce that user selects Entire Screen in the picker
 	captureMic?: boolean; // default true - include microphone audio
 	captureSystemAudio?: boolean; // default false - include system/tab audio (if supported by browser)
+	agoraClient?: any; // Agora RTC client to capture remote audio from
 };
 
 export type PersistentRecordingState = {
@@ -80,10 +81,13 @@ export function usePersistentScreenRecording(consultationId: string) {
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const mediaStreamRef = useRef<MediaStream | null>(null);
 	const micStreamRef = useRef<MediaStream | null>(null);
+	const audioContextRef = useRef<AudioContext | null>(null);
 	const trackedVideoRef = useRef<MediaStreamTrack | null>(null);
 	const trackedStreamRef = useRef<MediaStream | null>(null);
 	const trackEndHandlerRef = useRef<(() => void) | null>(null);
 	const streamInactiveHandlerRef = useRef<(() => void) | null>(null);
+	const remoteAudioNodesRef = useRef<Map<string, { source: MediaStreamAudioSourceNode; stream: MediaStream }>>(new Map());
+	const agoraAudioCleanupRef = useRef<(() => void) | null>(null);
 	const uploadIdRef = useRef<string | null>(null);
 	const s3KeyRef = useRef<string | null>(null);
 	const partSizeRef = useRef<number>(10 * 1024 * 1024); // default 10MB until server returns
@@ -760,20 +764,163 @@ export function usePersistentScreenRecording(consultationId: string) {
 				}
 			}
 
-			// Optionally capture microphone and merge tracks into a single mixed stream
+			// Optionally capture microphone and remote audio, then mix them properly
 			let finalStream: MediaStream = screenStream;
 			const wantsMic = opts?.captureMic !== false; // default true
-			if (wantsMic) {
+			
+			// Check if we have Agora remote audio to capture
+			const agoraClient = opts?.agoraClient;
+			const hasAgoraAudio = Boolean(agoraClient);
+			
+			if (wantsMic || hasAgoraAudio) {
 				try {
-					const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-					micStreamRef.current = mic;
+					console.log("🎵 Setting up audio mixing...", { wantsMic, hasAgoraAudio });
+					
+					// Create Web Audio context for mixing
+					const audioContext = new AudioContext();
+					audioContextRef.current = audioContext; // Store for cleanup
+					const audioDestination = audioContext.createMediaStreamDestination();
+					
+					// 1. Add microphone audio
+					if (wantsMic) {
+						try {
+							const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+							micStreamRef.current = mic;
+							const micSource = audioContext.createMediaStreamSource(mic);
+							micSource.connect(audioDestination);
+							console.log("🎤 Microphone audio connected to mixer");
+						} catch (e) {
+							console.warn("🎤 Mic capture failed:", e);
+						}
+					}
+					
+					// Ensure audio context is running (autoplay restrictions)
+					if (audioContext.state === "suspended") {
+						try {
+							await audioContext.resume();
+						} catch (resumeErr) {
+							console.warn("⚠️ Failed to resume AudioContext before mixing:", resumeErr);
+						}
+					}
+
+					// Helper to attach remote user audio into the mixer (runs now + whenever tracks change)
+					const attachRemoteAudio = async (remoteUser: any) => {
+						try {
+							if (!remoteUser?.uid) return;
+
+							const key = String(remoteUser.uid);
+							if (remoteAudioNodesRef.current.has(key)) {
+								return; // Already connected
+							}
+
+							// Ensure we are subscribed so audioTrack exists
+							if (agoraClient?.subscribe) {
+								try {
+									await agoraClient.subscribe(remoteUser, "audio");
+								} catch (subscribeErr) {
+									console.warn("🔊 Failed to subscribe to remote audio:", subscribeErr);
+								}
+							}
+
+							const track = remoteUser.audioTrack?.getMediaStreamTrack?.();
+							if (!track) {
+								console.warn("🔊 Remote audio track not ready for user:", remoteUser.uid);
+								return;
+							}
+
+							const remoteStream = new MediaStream([track]);
+							const remoteSource = audioContext.createMediaStreamSource(remoteStream);
+							remoteSource.connect(audioDestination);
+							remoteAudioNodesRef.current.set(key, { source: remoteSource, stream: remoteStream });
+							console.log("🔊 Remote audio connected to mixer from user:", remoteUser.uid);
+						} catch (err) {
+							console.warn("🔊 attachRemoteAudio failed:", err);
+						}
+					};
+
+					// Clean up helper for remote audio nodes
+					const detachRemoteAudio = (remoteUser: any) => {
+						const key = String(remoteUser?.uid);
+						const existing = remoteAudioNodesRef.current.get(key);
+						if (existing) {
+							try { existing.source.disconnect(); } catch {}
+							try { existing.stream.getTracks().forEach((t) => t.stop()); } catch {}
+							remoteAudioNodesRef.current.delete(key);
+							console.log("🔇 Remote audio disconnected from mixer for user:", remoteUser?.uid);
+						}
+					};
+
+					// 2. Add remote audio from Agora (patient's voice)
+					if (hasAgoraAudio && agoraClient) {
+						try {
+							// Attach currently connected users
+							const remoteUsers = agoraClient.remoteUsers || [];
+							console.log("👥 Attaching existing remote users for audio mix:", remoteUsers.length);
+							for (const remoteUser of remoteUsers) {
+								attachRemoteAudio(remoteUser);
+							}
+
+							// Wire up listeners so late joins/track changes also get mixed
+							const handleUserPublished = async (user: any, mediaType: string) => {
+								if (mediaType !== "audio") return;
+								await attachRemoteAudio(user);
+							};
+
+							const handleUserUnpublished = (user: any, mediaType: string) => {
+								if (mediaType !== "audio") return;
+								detachRemoteAudio(user);
+							};
+
+							const handleUserLeft = (user: any) => detachRemoteAudio(user);
+
+							agoraClient.on?.("user-published", handleUserPublished);
+							agoraClient.on?.("user-unpublished", handleUserUnpublished);
+							agoraClient.on?.("user-left", handleUserLeft);
+
+							agoraAudioCleanupRef.current = () => {
+								agoraClient.off?.("user-published", handleUserPublished);
+								agoraClient.off?.("user-unpublished", handleUserUnpublished);
+								agoraClient.off?.("user-left", handleUserLeft);
+								remoteAudioNodesRef.current.forEach(({ source }) => {
+									try { source.disconnect(); } catch {}
+								});
+								remoteAudioNodesRef.current.clear();
+							};
+						} catch (e) {
+							console.warn("🔊 Failed to capture remote audio:", e);
+						}
+					}
+					
+					// 3. Add screen audio if present (tab audio)
+					const screenAudioTracks = screenStream.getAudioTracks();
+					if (screenAudioTracks.length > 0) {
+						try {
+							const screenAudioSource = audioContext.createMediaStreamSource(
+								new MediaStream(screenAudioTracks)
+							);
+							screenAudioSource.connect(audioDestination);
+							console.log("🖥️ Screen audio connected to mixer");
+						} catch (e) {
+							console.warn("🖥️ Failed to add screen audio to mixer:", e);
+						}
+					}
+					
+					// Combine video from screen with mixed audio
+					const mixedAudioTracks = audioDestination.stream.getAudioTracks();
 					finalStream = new MediaStream([
 						...screenStream.getVideoTracks(),
-						...screenStream.getAudioTracks(),
-						...mic.getAudioTracks(),
+						...mixedAudioTracks,
 					]);
+					
+					console.log("✅ Audio mixing complete. Final stream tracks:", {
+						video: finalStream.getVideoTracks().length,
+						audio: finalStream.getAudioTracks().length,
+					});
+					
 				} catch (e) {
-					console.warn("Mic capture failed; proceeding without mic:", e);
+					console.error("❌ Audio mixing failed:", e);
+					console.warn("Falling back to screen stream only");
+					finalStream = screenStream;
 				}
 			}
 
@@ -856,6 +1003,18 @@ export function usePersistentScreenRecording(consultationId: string) {
 			mediaRecorderRef.current = null;
 			try { mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
 			mediaStreamRef.current = null;
+			try { micStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+			micStreamRef.current = null;
+			try { 
+				if (audioContextRef.current) {
+					audioContextRef.current.close();
+					audioContextRef.current = null;
+				}
+			} catch {}
+			try {
+				agoraAudioCleanupRef.current?.();
+			} catch {}
+			agoraAudioCleanupRef.current = null;
 			// Remove listeners
 			try { trackEndHandlerRef.current?.(); } catch {}
 			trackEndHandlerRef.current = null;

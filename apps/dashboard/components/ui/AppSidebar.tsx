@@ -28,6 +28,7 @@ import {
   Smartphone,
   CalendarCheck,
   Ticket,
+  List,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -55,12 +56,17 @@ const adminSidebarItems: SidebarItem[] = [
   {
     name: "Appointments",
     icon: <CalendarCheck className="text-slate-600" />,
-    url: ROUTES.APPOINTMENTS,
+    url: "/dashboard/appointments",
   },
   {
     name: "Active Consultations",
     icon: <HomeIcon className="text-slate-600" />,
     url: "/dashboard",
+  },
+  {
+    name: "All Consultations",
+    icon: <List className="text-slate-600" />,
+    url: "/dashboard/all-consultations",
   },
   {
     name: "Analytics",
@@ -128,12 +134,17 @@ const headAudiologistSidebarItems: SidebarItem[] = [
   {
     name: "Appointments",
     icon: <CalendarCheck className="text-slate-600" />,
-    url: ROUTES.APPOINTMENTS,
+    url: "/dashboard/appointments",
   },
   {
     name: "Active Consultations",
     icon: <HomeIcon className="text-slate-600" />,
     url: "/dashboard",
+  },
+  {
+    name: "All Consultations",
+    icon: <List className="text-slate-600" />,
+    url: "/dashboard/all-consultations",
   },
   {
     name: "Analytics",
@@ -149,12 +160,12 @@ const headAudiologistSidebarItems: SidebarItem[] = [
     name: "Questionnaire",
     icon: <ClipboardList className="text-slate-600" />,
     url: ROUTES.QUESTIONNAIRE,
-},
-{
-  name: "Patients",
-  icon: <UserPlusIcon className="text-slate-600" />,
-  url: "/dashboard/patients",
-},
+  },
+  {
+    name: "Patients",
+    icon: <UserPlusIcon className="text-slate-600" />,
+    url: "/dashboard/patients",
+  },
 ];
 
 const audiologistSidebarItems: SidebarItem[] = [
@@ -166,12 +177,17 @@ const audiologistSidebarItems: SidebarItem[] = [
   {
     name: "Appointments",
     icon: <CalendarCheck className="text-slate-600" />,
-    url: ROUTES.APPOINTMENTS,
+    url: "/dashboard/appointments",
   },
   {
     name: "Active Consultations",
     icon: <HomeIcon className="text-slate-600" />,
     url: "/dashboard",
+  },
+  {
+    name: "All Consultations",
+    icon: <List className="text-slate-600" />,
+    url: "/dashboard/all-consultations",
   },
   {
     name: "Analytics",

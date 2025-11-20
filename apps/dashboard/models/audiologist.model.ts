@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { WeekDays } from "./enums";
 import { PaymentCycle } from "./enums";
-import { userModelDataSchema } from "./user.model";
+import { userModelDataSchema, CreateUserDtoSchema } from "./user.model";
 import { LanguageModelDataSchema } from "./language.model";
 import { CityModelDataSchema } from "./city.model";
 export const AudiologistModelDataSchema = z.object({
@@ -71,10 +71,17 @@ export const createAudiologistModelSchema = z.object({
 export const AudiologistModelSchema = z.object({
   success: z.boolean(),
   message: z.string(),
-  data: z.array(AudiologistModelDataSchema),
+  data: z.array(AudiologistModelDataSchema).nullable(),
 });
+// Schema for user data in create/update operations (allows optional id, createdAt, updatedAt)
+const CreateAudiologistUserSchema = CreateUserDtoSchema.extend({
+  id: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
 export const CreateAudiologistProfileSchema = z.object({
-  user: userModelDataSchema,
+  user: CreateAudiologistUserSchema,
   audiologist: AudiologistFormSchema,
 });
 export const AudiologistActivitySchema = z.object({

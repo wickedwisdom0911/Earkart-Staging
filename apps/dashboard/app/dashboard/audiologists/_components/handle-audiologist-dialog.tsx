@@ -186,6 +186,8 @@ export default function HandleAudiologistDialog({
     }
   };
   const handleSubmit = (data: CreateAudiologistProfile) => {
+    console.log("Form submitted with data:", data);
+    
     if (isEdit) {
       if (data.audiologist.cityId === "") {
         data.audiologist.cityId = data.audiologist.city?.id || "";
@@ -200,6 +202,8 @@ export default function HandleAudiologistDialog({
           onSuccess: (response) => {
             if (response.success) {
               toast.success("Audiologist updated successfully");
+              form.reset();
+              toggleDialog();
             } else {
               toast.error("Failed to update audiologist " + response.message);
             }
@@ -214,6 +218,8 @@ export default function HandleAudiologistDialog({
         onSuccess: (response) => {
           if (response.success) {
             toast.success("Audiologist created successfully");
+            form.reset();
+            toggleDialog();
           } else {
             toast.error("Failed to create audiologist " + response.message);
           }
@@ -674,7 +680,17 @@ export default function HandleAudiologistDialog({
         <Form {...form}>
           <form
             className="flex flex-1  flex-col h-full"
-            onSubmit={form.handleSubmit(handleSubmit)}
+            onSubmit={form.handleSubmit(handleSubmit, (errors) => {
+              console.error("Form validation errors:", errors);
+              const firstError = Object.values(errors)[0];
+              if (firstError?.message) {
+                toast.error("Validation Error", {
+                  description: firstError.message,
+                });
+              } else {
+                toast.error("Please fill in all required fields correctly");
+              }
+            })}
           >
             <div className="bg-white  flex-1 rounded-xl p-4 shadow flex flex-col gap-8 transition-all duration-300 max-h-[80%] overflow-y-auto">
               {step === 0 && renderUserFields()}

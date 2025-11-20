@@ -1057,6 +1057,7 @@ export default function ConsultationLayout({
                       requireEntireScreen: true,
                       captureSystemAudio: true, // Enable system audio to capture patient's voice
                       captureMic: true, // Enable microphone for audiologist's voice
+                      agoraClient: agoraClient, // Pass Agora client to capture remote audio directly
                       filename: `consultation-${consultationId}-${Date.now()}.webm`,
                       timesliceMs: 5000,
                     })
