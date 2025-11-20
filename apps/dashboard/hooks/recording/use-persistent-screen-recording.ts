@@ -86,6 +86,8 @@ export function usePersistentScreenRecording(consultationId: string) {
 	const trackedStreamRef = useRef<MediaStream | null>(null);
 	const trackEndHandlerRef = useRef<(() => void) | null>(null);
 	const streamInactiveHandlerRef = useRef<(() => void) | null>(null);
+	const remoteAudioNodesRef = useRef<Map<string, { source: MediaStreamAudioSourceNode; stream: MediaStream }>>(new Map());
+	const agoraAudioCleanupRef = useRef<(() => void) | null>(null);
 	const uploadIdRef = useRef<string | null>(null);
 	const s3KeyRef = useRef<string | null>(null);
 	const partSizeRef = useRef<number>(10 * 1024 * 1024); // default 10MB until server returns
@@ -767,7 +769,8 @@ export function usePersistentScreenRecording(consultationId: string) {
 			const wantsMic = opts?.captureMic !== false; // default true
 			
 			// Check if we have Agora remote audio to capture
-			const hasAgoraAudio = opts?.agoraClient && opts.agoraClient.remoteUsers?.length > 0;
+			const agoraClient = opts?.agoraClient;
+			const hasAgoraAudio = Boolean(agoraClient);
 			
 			if (wantsMic || hasAgoraAudio) {
 				try {
@@ -791,24 +794,98 @@ export function usePersistentScreenRecording(consultationId: string) {
 						}
 					}
 					
-					// 2. Add remote audio from Agora (patient's voice)
-					if (hasAgoraAudio) {
+					// Ensure audio context is running (autoplay restrictions)
+					if (audioContext.state === "suspended") {
 						try {
-							const remoteUsers = opts.agoraClient.remoteUsers;
-							console.log("👥 Found remote users:", remoteUsers.length);
-							
-							for (const remoteUser of remoteUsers) {
-								if (remoteUser.audioTrack) {
-									// Get the MediaStreamTrack from Agora's audio track
-									const audioTrack = remoteUser.audioTrack.getMediaStreamTrack();
-									if (audioTrack) {
-										const remoteStream = new MediaStream([audioTrack]);
-										const remoteSource = audioContext.createMediaStreamSource(remoteStream);
-										remoteSource.connect(audioDestination);
-										console.log("🔊 Remote audio connected to mixer from user:", remoteUser.uid);
-									}
+							await audioContext.resume();
+						} catch (resumeErr) {
+							console.warn("⚠️ Failed to resume AudioContext before mixing:", resumeErr);
+						}
+					}
+
+					// Helper to attach remote user audio into the mixer (runs now + whenever tracks change)
+					const attachRemoteAudio = async (remoteUser: any) => {
+						try {
+							if (!remoteUser?.uid) return;
+
+							const key = String(remoteUser.uid);
+							if (remoteAudioNodesRef.current.has(key)) {
+								return; // Already connected
+							}
+
+							// Ensure we are subscribed so audioTrack exists
+							if (agoraClient?.subscribe) {
+								try {
+									await agoraClient.subscribe(remoteUser, "audio");
+								} catch (subscribeErr) {
+									console.warn("🔊 Failed to subscribe to remote audio:", subscribeErr);
 								}
 							}
+
+							const track = remoteUser.audioTrack?.getMediaStreamTrack?.();
+							if (!track) {
+								console.warn("🔊 Remote audio track not ready for user:", remoteUser.uid);
+								return;
+							}
+
+							const remoteStream = new MediaStream([track]);
+							const remoteSource = audioContext.createMediaStreamSource(remoteStream);
+							remoteSource.connect(audioDestination);
+							remoteAudioNodesRef.current.set(key, { source: remoteSource, stream: remoteStream });
+							console.log("🔊 Remote audio connected to mixer from user:", remoteUser.uid);
+						} catch (err) {
+							console.warn("🔊 attachRemoteAudio failed:", err);
+						}
+					};
+
+					// Clean up helper for remote audio nodes
+					const detachRemoteAudio = (remoteUser: any) => {
+						const key = String(remoteUser?.uid);
+						const existing = remoteAudioNodesRef.current.get(key);
+						if (existing) {
+							try { existing.source.disconnect(); } catch {}
+							try { existing.stream.getTracks().forEach((t) => t.stop()); } catch {}
+							remoteAudioNodesRef.current.delete(key);
+							console.log("🔇 Remote audio disconnected from mixer for user:", remoteUser?.uid);
+						}
+					};
+
+					// 2. Add remote audio from Agora (patient's voice)
+					if (hasAgoraAudio && agoraClient) {
+						try {
+							// Attach currently connected users
+							const remoteUsers = agoraClient.remoteUsers || [];
+							console.log("👥 Attaching existing remote users for audio mix:", remoteUsers.length);
+							for (const remoteUser of remoteUsers) {
+								attachRemoteAudio(remoteUser);
+							}
+
+							// Wire up listeners so late joins/track changes also get mixed
+							const handleUserPublished = async (user: any, mediaType: string) => {
+								if (mediaType !== "audio") return;
+								await attachRemoteAudio(user);
+							};
+
+							const handleUserUnpublished = (user: any, mediaType: string) => {
+								if (mediaType !== "audio") return;
+								detachRemoteAudio(user);
+							};
+
+							const handleUserLeft = (user: any) => detachRemoteAudio(user);
+
+							agoraClient.on?.("user-published", handleUserPublished);
+							agoraClient.on?.("user-unpublished", handleUserUnpublished);
+							agoraClient.on?.("user-left", handleUserLeft);
+
+							agoraAudioCleanupRef.current = () => {
+								agoraClient.off?.("user-published", handleUserPublished);
+								agoraClient.off?.("user-unpublished", handleUserUnpublished);
+								agoraClient.off?.("user-left", handleUserLeft);
+								remoteAudioNodesRef.current.forEach(({ source }) => {
+									try { source.disconnect(); } catch {}
+								});
+								remoteAudioNodesRef.current.clear();
+							};
 						} catch (e) {
 							console.warn("🔊 Failed to capture remote audio:", e);
 						}
@@ -934,6 +1011,10 @@ export function usePersistentScreenRecording(consultationId: string) {
 					audioContextRef.current = null;
 				}
 			} catch {}
+			try {
+				agoraAudioCleanupRef.current?.();
+			} catch {}
+			agoraAudioCleanupRef.current = null;
 			// Remove listeners
 			try { trackEndHandlerRef.current?.(); } catch {}
 			trackEndHandlerRef.current = null;
