@@ -22,28 +22,65 @@ class NetworkStatusWidget extends StatefulWidget {
 
 class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
   bool _isExpanded = false;
+  OverlayEntry? _overlayEntry;
+  final GlobalKey _widgetKey = GlobalKey();
 
   void _toggleExpanded() {
+    if (_isExpanded) {
+      _closeExpanded();
+    } else {
+      _showOverlay();
+    }
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) return;
+
+    final overlay = Overlay.of(context);
+    final renderBox =
+        _widgetKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (renderBox == null) return;
+
+    final size = renderBox.size;
+    final offset = renderBox.localToGlobal(Offset.zero);
+
+    _overlayEntry = OverlayEntry(
+      builder:
+          (overlayContext) => _NetworkOverlayWidget(
+            onClose: _closeExpanded,
+            borderRadius: widget.borderRadius,
+            anchorPosition: Offset(
+              offset.dx + size.width,
+              offset.dy + size.height + 8,
+            ),
+          ),
+    );
+
+    overlay.insert(_overlayEntry!);
     setState(() {
-      _isExpanded = !_isExpanded;
+      _isExpanded = true;
     });
   }
 
   void _closeExpanded() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
     setState(() {
       _isExpanded = false;
     });
   }
 
   @override
-  Widget build(BuildContext context) {
-    return _isExpanded
-        ? _buildExpandedView(context)
-        : _buildCompactView(context);
+  void dispose() {
+    _closeExpanded();
+    super.dispose();
   }
 
-  Widget _buildCompactView(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
+      key: _widgetKey,
       onTap: _toggleExpanded,
       child: BlocBuilder<NetworkCubit, NetworkState>(
         builder: (context, state) {
@@ -70,51 +107,6 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
           );
         },
       ),
-    );
-  }
-
-  Widget _buildExpandedView(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none, // Allow overflow
-      children: [
-        // Background barrier (tap to close) - make it more explicit
-        Positioned.fill(
-          child: GestureDetector(
-            onTap: () {
-              _closeExpanded();
-            },
-            child: Container(color: Colors.transparent),
-          ),
-        ),
-
-        // Compact view
-        GestureDetector(
-          onTap: () {
-            _closeExpanded();
-          },
-          child: BlocBuilder<NetworkCubit, NetworkState>(
-            builder: (context, state) {
-              return _buildNetworkWidget(state);
-            },
-          ),
-        ),
-
-        // Popup positioned below and to the right
-        Positioned(
-          top: 30, // Start below the compact widget
-          right: 0, // Align with the right edge
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 300, maxHeight: 600),
-            child: _ExpandedNetworkPopup(
-              onClose: () {
-                _closeExpanded();
-              },
-              networkState: context.read<NetworkCubit>().state,
-              borderRadius: widget.borderRadius,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -153,6 +145,62 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
     } else {
       return const SizedBox.shrink();
     }
+  }
+}
+
+class _NetworkOverlayWidget extends StatelessWidget {
+  final VoidCallback onClose;
+  final double borderRadius;
+  final Offset anchorPosition;
+
+  const _NetworkOverlayWidget({
+    required this.onClose,
+    required this.anchorPosition,
+    this.borderRadius = 16.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+
+    // Calculate position - align to right edge, below anchor
+    double left = anchorPosition.dx - 300; // Popup width is max 300
+    double top = anchorPosition.dy;
+
+    // Ensure popup stays within screen bounds
+    if (left < 8) left = 8; // Minimum margin from left
+    if (left + 300 > screenSize.width - 8) {
+      left = screenSize.width - 300 - 8; // Align to right with margin
+    }
+    if (top + 600 > screenSize.height - 8) {
+      top = screenSize.height - 600 - 8; // Adjust if too low
+    }
+
+    return Stack(
+      children: [
+        // Background barrier (tap to close)
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: onClose,
+            child: Container(color: Colors.transparent),
+          ),
+        ),
+        // Popup positioned relative to anchor
+        Positioned(
+          left: left,
+          top: top,
+          child: BlocBuilder<NetworkCubit, NetworkState>(
+            builder: (context, networkState) {
+              return _ExpandedNetworkPopup(
+                onClose: onClose,
+                networkState: networkState,
+                borderRadius: borderRadius,
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 }
 

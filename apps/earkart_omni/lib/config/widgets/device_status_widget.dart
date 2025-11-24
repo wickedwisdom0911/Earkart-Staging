@@ -71,21 +71,25 @@ class DeviceStatusWidget extends StatelessWidget {
       return DeviceStatus.disconnected;
     }
 
-    // Check communication state
+    // Check communication state - prioritize error state
     if (commState.error != null) {
       return DeviceStatus.error;
     }
 
+    // Check if in begin mode - this takes priority over sync status
     if (commState.isInBeginMode) {
       return DeviceStatus.active;
     }
 
+    // Check if synced and has transducer response - this is the ready state
+    // We check transducerResponse first to ensure we catch the ready state
+    // even if there are timing issues with state updates
+    if (commState.isSynced && commState.transducerResponse != null) {
+      return DeviceStatus.ready;
+    }
+
+    // If synced but no transducer response yet, show as syncing
     if (commState.isSynced) {
-      // If synced and has transducer response, show as ready (green)
-      if (commState.transducerResponse != null) {
-        return DeviceStatus.ready;
-      }
-      // If synced but no transducer response yet, show as syncing (purple)
       return DeviceStatus.syncing;
     }
 
