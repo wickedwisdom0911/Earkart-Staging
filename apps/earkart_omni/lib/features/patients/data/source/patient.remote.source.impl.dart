@@ -118,7 +118,6 @@ class PatientRemoteSourceImpl implements IPatientSource {
         options: Options(
           headers: {
             "Content-Type": "application/json",
-
             "Authorization":
                 "Bearer ${userEntityDataSource.getUserEntity()?.token}",
           },

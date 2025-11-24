@@ -1,5 +1,6 @@
 import 'package:earkart_omni/features/appointments/presentation/pages/appointments_screen.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/features/consultation/presentation/pages/all_consultations_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
 import 'package:earkart_omni/features/device/presentation/pages/device_info_screen.dart';
@@ -118,13 +119,9 @@ Route<dynamic> generateRoute(RouteSettings settings) {
         ),
       );
     case AppointmentsScreen.routeName:
-      return router(
-        Builder(
-          builder: (context) {
-            return const AppointmentsScreen();
-          },
-        ),
-      );
+      return router(const AppointmentsScreen());
+    case AllConsultationsScreen.routeName:
+      return router(const AllConsultationsScreen());
     default:
       return CupertinoPageRoute(
         settings: settings,

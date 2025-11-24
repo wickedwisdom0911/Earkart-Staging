@@ -56,6 +56,7 @@ dependencies:
     path: packages/flutter_uvc_camera
   flutter_webrtc: ^1.0.0
   webrtc_interface: ^1.2.2+hotfix.2
+  syncfusion_flutter_pdfviewer: ^28.1.50
 
 dev_dependencies:
   flutter_test:
