@@ -32,6 +32,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   bool _processing = false;
   // Removed single global command timeout in favor of per-command timers
   Timer? _syncRetryTimer;
+  bool _isSyncing = false; // Prevent concurrent sync attempts
+  DateTime? _lastSyncAttempt; // Throttle sync attempts
   StreamSubscription<dynamic>? _batteryStreamSubscription;
   UsbDevice? _lastDevice;
   Timer? _connectionMonitorTimer;
@@ -41,6 +43,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   static const int RETRY_DELAY_MS = 500;
   static const int COMMAND_TIMEOUT_MS = 2000;
   static const int SYNC_RETRY_DELAY_MS = 3000; // 3 seconds
+  static const int SYNC_THROTTLE_MS =
+      2000; // Minimum time between sync attempts
   int _errorCount = 0;
 
   CommunicationCubit() : super(const CommunicationState()) {
@@ -191,8 +195,20 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         payload,
       ).trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F]'), '');
 
+      // Log all received packets during sync attempts for debugging
+      if (!state.isSynced && _isSyncing) {
+        di<ILogger>().debug(
+          '[SYNC] Received packet during sync attempt: ${jsonString.substring(0, jsonString.length > 100 ? 100 : jsonString.length)}',
+        );
+      }
+
       if (jsonString.contains("R15C")) {
+        di<ILogger>().info(
+          '[SYNC] Received R15C response, device synced successfully',
+        );
+        di<ILogger>().debug('[SYNC] Response data: $jsonString');
         _syncRetryTimer?.cancel();
+        _isSyncing = false; // Reset syncing flag
         emit(
           state.copyWith(
             isSynced: true,
@@ -341,13 +357,48 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   Future<void> sendSyncPacket() async {
-    final packet = _packetInterpreter.sendSerialNumberQuery();
-    await sendCommand(packet);
+    // Prevent concurrent sync attempts
+    if (_isSyncing) {
+      di<ILogger>().debug(
+        '[SYNC] Sync already in progress, skipping duplicate sync packet',
+      );
+      return;
+    }
+
+    // Throttle sync attempts to prevent flooding
+    final now = DateTime.now();
+    if (_lastSyncAttempt != null) {
+      final timeSinceLastSync = now.difference(_lastSyncAttempt!);
+      if (timeSinceLastSync.inMilliseconds < SYNC_THROTTLE_MS) {
+        di<ILogger>().debug(
+          '[SYNC] Throttling sync attempt (last sync was ${timeSinceLastSync.inMilliseconds}ms ago)',
+        );
+        return;
+      }
+    }
+
+    _isSyncing = true;
+    _lastSyncAttempt = now;
+
+    try {
+      di<ILogger>().info('[SYNC] Sending sync packet to device');
+      final packet = _packetInterpreter.sendSerialNumberQuery();
+      await sendCommand(packet);
+      di<ILogger>().info('[SYNC] Sync packet sent successfully');
+    } catch (e) {
+      di<ILogger>().error('[SYNC] Error sending sync packet: $e');
+      rethrow;
+    } finally {
+      // Reset syncing flag after a delay to allow response processing
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _isSyncing = false;
+      });
+    }
   }
 
   /// Automatically sends sync packet if device is not synced
   Future<void> _sendSyncPacketIfNeeded() async {
-    if (!state.isSynced && state.isConnected) {
+    if (!state.isSynced && state.isConnected && !_isSyncing) {
       await sendSyncPacket();
 
       // Set up retry timer if still not synced after delay
@@ -355,11 +406,17 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       _syncRetryTimer = Timer(
         const Duration(milliseconds: SYNC_RETRY_DELAY_MS),
         () {
-          if (!state.isSynced && state.isConnected && !isClosed) {
+          if (!state.isSynced &&
+              state.isConnected &&
+              !isClosed &&
+              !_isSyncing) {
+            di<ILogger>().debug('[SYNC] Retrying sync after delay');
             _sendSyncPacketIfNeeded();
           }
         },
       );
+    } else if (_isSyncing) {
+      di<ILogger>().debug('[SYNC] Sync already in progress, skipping retry');
     }
   }
 
@@ -783,6 +840,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       command.timeoutTimer?.cancel();
     }
     _syncRetryTimer?.cancel();
+    _isSyncing = false; // Reset sync flag
+    _lastSyncAttempt = null; // Reset sync throttle
     _connectionMonitorTimer?.cancel();
     _batteryStreamSubscription?.cancel();
     _cleanupPort();
@@ -843,6 +902,9 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     try {
       _stopConnectionMonitoring();
       await _cleanupPort();
+      _syncRetryTimer?.cancel();
+      _isSyncing = false; // Reset sync flag
+      _lastSyncAttempt = null; // Reset sync throttle
 
       emit(
         state.copyWith(

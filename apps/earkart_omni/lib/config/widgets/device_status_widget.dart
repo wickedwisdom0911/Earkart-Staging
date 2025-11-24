@@ -76,8 +76,10 @@ class DeviceStatusWidget extends StatelessWidget {
       return DeviceStatus.error;
     }
 
-    // Check if in begin mode - this takes priority over sync status
-    if (commState.isInBeginMode) {
+    // Check if in begin mode - this takes priority over ALL other states
+    // Also check connectionStatus for "begin" as a fallback in case isInBeginMode flag is not set
+    if (commState.isInBeginMode ||
+        commState.connectionStatus.toLowerCase() == 'begin') {
       return DeviceStatus.active;
     }
 
@@ -187,14 +189,30 @@ class DeviceStatusWidget extends StatelessWidget {
     // Wrap with GestureDetector for Audiometer to handle tap
     if (deviceName == 'Audiometer') {
       deviceContainer = GestureDetector(
-        onTap: () {
+        onTap: () async {
+          final currentCommState = context.read<CommunicationCubit>().state;
           final r15cStatus = _getR15CStatus(
             context.read<DeviceCubit>().state,
-            commState,
+            currentCommState,
           );
 
+          // If device is in begin mode (active), send exit packet and then sync
+          if (r15cStatus == DeviceStatus.active ||
+              currentCommState.isInBeginMode ||
+              currentCommState.connectionStatus.toLowerCase() == 'begin') {
+            try {
+              await context.read<CommunicationCubit>().sendExitPacket();
+              // Wait a bit for the exit to complete before syncing
+              await Future.delayed(const Duration(milliseconds: 1000));
+              // Sync again after exit
+              context.read<CommunicationCubit>().startSyncProcess();
+            } catch (e) {
+              // If exit fails, still try to sync
+              context.read<CommunicationCubit>().startSyncProcess();
+            }
+          }
           // If device has error or is not synced, send startSyncProcess
-          if (r15cStatus == DeviceStatus.error ||
+          else if (r15cStatus == DeviceStatus.error ||
               r15cStatus == DeviceStatus.disconnected ||
               r15cStatus == DeviceStatus.connecting ||
               r15cStatus == DeviceStatus.connected) {
@@ -204,7 +222,7 @@ class DeviceStatusWidget extends StatelessWidget {
           else if (r15cStatus == DeviceStatus.syncing) {
             context.read<CommunicationCubit>().sendQueryInfoPacket();
           }
-          // For other states (ready, active), just send sync packet as before
+          // For other states (ready), just send sync packet as before
           else {
             context.read<CommunicationCubit>().sendSyncPacket();
           }

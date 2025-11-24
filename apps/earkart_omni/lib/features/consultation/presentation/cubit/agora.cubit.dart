@@ -53,6 +53,7 @@ class AgoraCubit extends Cubit<AgoraState> {
   QualityType? _currentNetworkQuality;
   QualityType? _lastAppliedQuality;
   Timer? _qualityAdjustmentTimer;
+  bool _isAdjustingQuality = false; // Prevent concurrent adjustments
   static const Duration _qualityAdjustmentDebounce = Duration(seconds: 3);
 
   AgoraCubit(this.getAgoraTokenUsecase) : super(AgoraState.initial()) {
@@ -1222,6 +1223,14 @@ class AgoraCubit extends Cubit<AgoraState> {
 
   /// Adjust video and audio quality based on current network quality
   Future<void> _adjustQualityBasedOnNetwork() async {
+    // Prevent concurrent adjustments
+    if (_isAdjustingQuality) {
+      di<ILogger>().info(
+        '[QUALITY] Adjustment already in progress, skipping duplicate adjustment',
+      );
+      return;
+    }
+
     if (_currentNetworkQuality == null ||
         _currentNetworkQuality == _lastAppliedQuality) {
       return;
@@ -1231,17 +1240,30 @@ class AgoraCubit extends Cubit<AgoraState> {
       return;
     }
 
+    _isAdjustingQuality = true;
     try {
-      final qualityProfile = _getQualityProfile(_currentNetworkQuality!);
-      _lastAppliedQuality = _currentNetworkQuality;
+      // Capture current quality at the start to ensure consistency
+      final qualityToApply = _currentNetworkQuality!;
+      final qualityProfile = _getQualityProfile(qualityToApply);
+
+      // Update last applied quality before applying to prevent duplicate work
+      _lastAppliedQuality = qualityToApply;
 
       // Adjust video quality
       await _applyVideoQuality(qualityProfile);
 
       // Adjust audio quality
       await _applyAudioQuality(qualityProfile);
+
+      di<ILogger>().info(
+        '[QUALITY] Successfully adjusted quality to profile: $qualityProfile',
+      );
     } catch (e) {
       di<ILogger>().error('Error adjusting quality: $e');
+      // Reset last applied quality on error so it can be retried
+      _lastAppliedQuality = null;
+    } finally {
+      _isAdjustingQuality = false;
     }
   }
 
@@ -1262,7 +1284,7 @@ class AgoraCubit extends Cubit<AgoraState> {
 
   /// Apply video quality settings based on profile
   Future<void> _applyVideoQuality(_QualityProfile profile) async {
-    if (_engine == null) return;
+    if (_engine == null || _isDisposed || !_isInitialized) return;
 
     final VideoEncoderConfiguration config;
     final String frameRateParam;
@@ -1303,7 +1325,7 @@ class AgoraCubit extends Cubit<AgoraState> {
 
   /// Apply audio quality settings based on profile
   Future<void> _applyAudioQuality(_QualityProfile profile) async {
-    if (_engine == null) return;
+    if (_engine == null || _isDisposed || !_isInitialized) return;
 
     final AudioProfileType audioProfile;
     final AudioScenarioType audioScenario;
@@ -1334,10 +1356,11 @@ class AgoraCubit extends Cubit<AgoraState> {
 
   @override
   Future<void> close() {
-    _isDisposed = true;
+    // Cancel timers before setting disposed flag to prevent race conditions
     _agoraStateSubscription?.cancel();
     _retryTimer?.cancel();
     _qualityAdjustmentTimer?.cancel();
+    _isDisposed = true;
     leaveChannel();
     if (_isInitialized) {
       try {
