@@ -2,12 +2,12 @@ import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
+import 'package:earkart_omni/features/consultation/presentation/widgets/pdf_viewer_widget.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class AllConsultationsScreen extends StatefulWidget {
   const AllConsultationsScreen({super.key});
@@ -55,33 +55,37 @@ class _AllConsultationsScreenState extends State<AllConsultationsScreen> {
                     children: [
                       Icon(
                         Icons.error_outline,
-                        size: 64,
+                        size: 56,
                         color: Colors.red.shade300,
                       ),
                       const SizedBox(height: 16),
                       Text(
                         'Error loading consultations',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: Colors.grey.shade800,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text(
                         state.message,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 13,
                           color: Colors.grey.shade600,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: _onRefresh,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Constants.secondaryColor,
                           foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
                         ),
                         child: const Text('Retry'),
                       ),
@@ -353,28 +357,21 @@ class DetailedConsultationCard extends StatelessWidget {
   ) {
     return InkWell(
       onTap: () => _viewPdfReport(context, label, pdfUrl),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Constants.secondaryColor.withOpacity(0.3),
-            width: 1.5,
+            color: Constants.secondaryColor.withAlpha(20),
+            width: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Constants.secondaryColor.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: Constants.secondaryColor),
+            Icon(icon, size: 14, color: Constants.secondaryColor),
             const SizedBox(width: 6),
             Text(
               label,
@@ -385,7 +382,7 @@ class DetailedConsultationCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.picture_as_pdf, size: 14, color: Colors.red.shade400),
+            Icon(Icons.picture_as_pdf, size: 12, color: Colors.red.shade400),
           ],
         ),
       ),
@@ -416,31 +413,31 @@ class DetailedConsultationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withAlpha(4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row with patient info and status
+          // Header with patient and status
           Row(
             children: [
               CircleAvatar(
-                radius: 24,
+                radius: 20,
                 backgroundColor: Constants.accentColor,
                 child: Icon(
                   Icons.person,
                   color: Constants.secondaryColor,
-                  size: 24,
+                  size: 20,
                 ),
               ),
               const SizedBox(width: 12),
@@ -451,17 +448,17 @@ class DetailedConsultationCard extends StatelessWidget {
                     Text(
                       consultation.patient?.name ?? 'Unknown Patient',
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: Colors.black87,
                       ),
                     ),
                     if (consultation.patient?.contactNumber != null) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         consultation.patient!.contactNumber,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 12,
                           color: Colors.grey.shade600,
                         ),
                       ),
@@ -471,17 +468,17 @@ class DetailedConsultationCard extends StatelessWidget {
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+                  horizontal: 10,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(consultation.status).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
+                  color: _getStatusColor(consultation.status).withAlpha(10),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
                   _getStatusText(consultation.status),
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: _getStatusColor(consultation.status),
                   ),
@@ -489,63 +486,54 @@ class DetailedConsultationCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           // Date and time
           Row(
             children: [
-              Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
-              const SizedBox(width: 8),
+              Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade500),
+              const SizedBox(width: 6),
               Text(
                 _formatDate(consultation.createdAt),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
               ),
               if (consultation.createdAt != null) ...[
-                const SizedBox(width: 16),
-                Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
+                Icon(Icons.access_time, size: 14, color: Colors.grey.shade500),
+                const SizedBox(width: 6),
                 Text(
                   _formatTime(consultation.createdAt),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                 ),
               ],
             ],
           ),
-          const SizedBox(height: 16),
-          // Additional details row
-          Wrap(
-            spacing: 16,
-            runSpacing: 12,
-            children: [
-              // Audiologist
-              if (consultation.audiologist?.user?.name != null)
-                _buildDetailChip(
-                  icon: Icons.person_outline,
-                  label: 'Audiologist',
-                  value: consultation.audiologist!.user!.name,
-                ),
-              // Centre
-              if (consultation.centre != null)
-                _buildDetailChip(
-                  icon: Icons.business_outlined,
-                  label: 'Centre',
-                  value: consultation.centre!.entName,
-                ),
-            ],
-          ),
-          // Tests performed indicators (only show if report URL exists)
-          if (_hasTestReports()) ...[
-            const SizedBox(height: 16),
+          // Additional info
+          if (consultation.audiologist?.user?.name != null ||
+              consultation.centre != null) ...[
+            const SizedBox(height: 12),
             Wrap(
-              spacing: 8,
+              spacing: 12,
               runSpacing: 8,
+              children: [
+                if (consultation.audiologist?.user?.name != null)
+                  _buildInfoChip(
+                    icon: Icons.person_outline,
+                    text: consultation.audiologist!.user!.name,
+                  ),
+                if (consultation.centre != null)
+                  _buildInfoChip(
+                    icon: Icons.business_outlined,
+                    text: consultation.centre!.entName,
+                  ),
+              ],
+            ),
+          ],
+          // Test badges
+          if (_hasTestReports()) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 if (consultation.audiometryReport != null &&
                     consultation.audiometryReport!.isNotEmpty)
@@ -577,81 +565,13 @@ class DetailedConsultationCard extends StatelessWidget {
               ],
             ),
           ],
-          // Notes preview
-          if (consultation.notes != null && consultation.notes!.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.note_outlined,
-                    size: 16,
-                    color: Colors.grey.shade600,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      consultation.notes!.length > 100
-                          ? '${consultation.notes!.substring(0, 100)}...'
-                          : consultation.notes!,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          // Reports section
+          // Reports buttons
           if (_hasReports()) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Constants.accentColor,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Constants.secondaryColor.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.description_outlined,
-                        size: 16,
-                        color: Constants.secondaryColor,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Reports',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _buildReportButtons(context),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: _buildReportButtons(context),
             ),
           ],
         ],
@@ -659,240 +579,38 @@ class DetailedConsultationCard extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailChip({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
+  Widget _buildInfoChip({required IconData icon, required String text}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: Constants.secondaryColor),
-        const SizedBox(width: 6),
-        Text(
-          '$label: ',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade800,
-          ),
-        ),
+        Icon(icon, size: 12, color: Colors.grey.shade600),
+        const SizedBox(width: 4),
+        Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
       ],
     );
   }
 
   Widget _buildTestBadge(String label, IconData icon) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Constants.accentColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Constants.secondaryColor.withOpacity(0.3),
-          width: 1,
-        ),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Constants.secondaryColor),
-          const SizedBox(width: 6),
+          Icon(icon, size: 12, color: Constants.secondaryColor),
+          const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w500,
               color: Constants.secondaryColor,
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// PDF Viewer Screen
-class PdfViewerScreen extends StatefulWidget {
-  final String pdfUrl;
-  final String title;
-
-  const PdfViewerScreen({super.key, required this.pdfUrl, required this.title});
-
-  @override
-  State<PdfViewerScreen> createState() => _PdfViewerScreenState();
-}
-
-class _PdfViewerScreenState extends State<PdfViewerScreen> {
-  final GlobalKey<SfPdfViewerState> _pdfViewerKey = GlobalKey();
-  bool _isLoading = true;
-  String? _errorMessage;
-  bool _isDisposed = false;
-
-  @override
-  void dispose() {
-    _isDisposed = true;
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: GlassmorphismAppBar(title: Text(widget.title)),
-      body: SafeArea(
-        child:
-            _errorMessage != null
-                ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: Colors.red.shade300,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error loading PDF',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade800,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _errorMessage!,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              _errorMessage = null;
-                              _isLoading = true;
-                            });
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Constants.secondaryColor,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-                : Builder(
-                  builder: (context) {
-                    try {
-                      return SizedBox(
-                        height: MediaQuery.of(context).size.height,
-                        width: MediaQuery.of(context).size.width,
-                        child: Stack(
-                          children: [
-                            SfPdfViewer.network(
-                              widget.pdfUrl,
-                              key: _pdfViewerKey,
-                              onDocumentLoadFailed: (
-                                PdfDocumentLoadFailedDetails details,
-                              ) {
-                                if (!_isDisposed && mounted) {
-                                  setState(() {
-                                    _isLoading = false;
-                                    _errorMessage = details.error.toString();
-                                  });
-                                }
-                              },
-                              onDocumentLoaded: (
-                                PdfDocumentLoadedDetails details,
-                              ) {
-                                if (!_isDisposed && mounted) {
-                                  setState(() {
-                                    _isLoading = false;
-                                  });
-                                }
-                              },
-                            ),
-                            if (_isLoading)
-                              Container(
-                                color: Colors.white,
-                                child: const Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      CircularProgressIndicator(),
-                                      SizedBox(height: 16),
-                                      Text(
-                                        'Loading PDF...',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      );
-                    } catch (e) {
-                      // Handle plugin initialization errors
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted && !_isDisposed) {
-                          setState(() {
-                            _isLoading = false;
-                            _errorMessage =
-                                'PDF viewer plugin not initialized. Please rebuild the app.\n\nError: ${e.toString()}';
-                          });
-                        }
-                      });
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                size: 64,
-                                color: Colors.orange.shade300,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Plugin Not Initialized',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade800,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Please rebuild the app completely (not just hot reload) for the PDF viewer to work.',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade600,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                ),
       ),
     );
   }

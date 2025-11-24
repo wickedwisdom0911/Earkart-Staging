@@ -139,7 +139,7 @@ class ActionCardsSection extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     const Text(
-                      'omniinput@earkart.in',
+                      'omnisupport@earkart.in',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
