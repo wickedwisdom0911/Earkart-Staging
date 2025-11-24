@@ -32,8 +32,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   bool _processing = false;
   // Removed single global command timeout in favor of per-command timers
   Timer? _syncRetryTimer;
-  bool _isSyncing = false; // Prevent concurrent sync attempts
-  DateTime? _lastSyncAttempt; // Throttle sync attempts
   StreamSubscription<dynamic>? _batteryStreamSubscription;
   UsbDevice? _lastDevice;
   Timer? _connectionMonitorTimer;
@@ -43,8 +41,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   static const int RETRY_DELAY_MS = 500;
   static const int COMMAND_TIMEOUT_MS = 2000;
   static const int SYNC_RETRY_DELAY_MS = 3000; // 3 seconds
-  static const int SYNC_THROTTLE_MS =
-      2000; // Minimum time between sync attempts
   int _errorCount = 0;
 
   CommunicationCubit() : super(const CommunicationState()) {
@@ -53,11 +49,15 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   Future<bool> initializePort(UsbDevice device) async {
+    if (isClosed) return false;
+    
     try {
       emit(state.copyWith(connectionStatus: 'Initializing...', error: null));
 
       // Close existing port if any
       await _cleanupPort();
+
+      if (isClosed) return false;
 
       _lastDevice = device;
       _port = await device.create();
@@ -70,8 +70,18 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         throw Exception('Failed to open port');
       }
 
+      if (isClosed) {
+        await _cleanupPort();
+        return false;
+      }
+
       await _configureFTDIDevice();
       _setupListener();
+
+      if (isClosed) {
+        await _cleanupPort();
+        return false;
+      }
 
       emit(
         state.copyWith(
@@ -89,6 +99,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
       return true;
     } catch (e) {
+      if (isClosed) return false;
       di<ILogger>().error('Port initialization error: $e');
       emit(
         state.copyWith(
@@ -128,14 +139,19 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     try {
       // Reduced delays to prevent thread blocking
       await Future.delayed(const Duration(milliseconds: 100));
+      if (isClosed) return;
       await _port!.setDTR(false);
       await Future.delayed(const Duration(milliseconds: 50));
+      if (isClosed) return;
       await _port!.setDTR(true);
       await Future.delayed(const Duration(milliseconds: 50));
+      if (isClosed) return;
       await _port!.setRTS(true);
       await Future.delayed(const Duration(milliseconds: 50));
+      if (isClosed) return;
       await _port!.setFlowControl(UsbPort.FLOW_CONTROL_OFF);
       await Future.delayed(const Duration(milliseconds: 50));
+      if (isClosed) return;
       await _port!.setPortParameters(
         921600,
         UsbPort.DATABITS_8,
@@ -143,8 +159,10 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         UsbPort.PARITY_NONE,
       );
       await Future.delayed(const Duration(milliseconds: 100));
+      if (isClosed) return;
       di<ILogger>().info('FTDI device configuration completed');
     } catch (e) {
+      if (isClosed) return;
       di<ILogger>().error('Device configuration error: $e');
       emit(state.copyWith(error: 'Device configuration error: $e'));
       rethrow;
@@ -161,6 +179,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   void _handleError(dynamic error) {
+    if (isClosed) return;
+    
     _errorCount++;
     di<ILogger>().error('Communication error: $error');
 
@@ -168,12 +188,14 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       di<ILogger>().error('Too many consecutive errors, resetting connection');
       _resetConnection();
     } else {
-      emit(state.copyWith(error: 'Communication error: $error'));
+      if (!isClosed) {
+        emit(state.copyWith(error: 'Communication error: $error'));
+      }
     }
   }
 
   Future<void> _handleIncomingData(Uint8List data) async {
-    if (data.isEmpty) return;
+    if (data.isEmpty || isClosed) return;
 
     try {
       List<int>? processedPacket = _packetInterpreter.onListenerDataReady(data);
@@ -181,12 +203,15 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         await _handleProcessedPacket(processedPacket);
       }
     } catch (e) {
+      if (isClosed) return;
       di<ILogger>().error('Data processing error: $e');
       emit(state.copyWith(error: 'Data processing error: $e'));
     }
   }
 
   Future<void> _handleProcessedPacket(List<int> packet) async {
+    if (isClosed) return;
+    
     try {
       List<int>? payload = _packetInterpreter.extractPayload(packet);
       if (payload == null) return;
@@ -195,20 +220,9 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         payload,
       ).trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F]'), '');
 
-      // Log all received packets during sync attempts for debugging
-      if (!state.isSynced && _isSyncing) {
-        di<ILogger>().debug(
-          '[SYNC] Received packet during sync attempt: ${jsonString.substring(0, jsonString.length > 100 ? 100 : jsonString.length)}',
-        );
-      }
-
       if (jsonString.contains("R15C")) {
-        di<ILogger>().info(
-          '[SYNC] Received R15C response, device synced successfully',
-        );
-        di<ILogger>().debug('[SYNC] Response data: $jsonString');
+        if (isClosed) return;
         _syncRetryTimer?.cancel();
-        _isSyncing = false; // Reset syncing flag
         emit(
           state.copyWith(
             isSynced: true,
@@ -231,6 +245,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
       switch (json['PacketType']) {
         case 2: // Transducer Info
+          if (isClosed) return;
           final transducerResponse = TransducerResponse.fromJson(json);
           emit(
             state.copyWith(
@@ -241,11 +256,13 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           );
           break;
         case 8: // Patient Response
+          if (isClosed) return;
           final patientResponse = json['PatientResponseEvent']['Released'];
           emit(state.copyWith(patientResponse: !patientResponse, error: null));
 
           break;
         case 12: // Acknowledgement
+          if (isClosed) return;
           final acknowledgement = Acknowledgement.fromJson(json);
           if (acknowledgement.request?.name == "Begin") {
             emit(
@@ -258,10 +275,12 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           }
           break;
         case 14: // Impedance Status
+          if (isClosed) return;
           final impedanceStatus = ImpedanceStatus.fromJson(json);
           emit(state.copyWith(impedanceStatus: impedanceStatus, error: null));
           break;
         case 15: // Impedance Data
+          if (isClosed) return;
           final impedanceData = ImpedanceData.fromJson(json);
           emit(
             state.copyWith(
@@ -271,9 +290,12 @@ class CommunicationCubit extends Cubit<CommunicationState> {
             ),
           );
           // Reset the flag after emitting
-          emit(state.copyWith(isNewImpedanceData: false));
+          if (!isClosed) {
+            emit(state.copyWith(isNewImpedanceData: false));
+          }
           break;
         case 19: // Battery Status
+          if (isClosed) return;
           final isCharging = json['Battery']['Powered'];
           final batteryLevel = json['Battery']['Level'] as int?;
           emit(
@@ -282,6 +304,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           break;
       }
     } catch (e) {
+      if (isClosed) return;
       di<ILogger>().error('Packet processing error: $e');
       if (!e.toString().contains('FormatException')) {
         emit(state.copyWith(error: 'Packet processing error: $e'));
@@ -357,48 +380,13 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   Future<void> sendSyncPacket() async {
-    // Prevent concurrent sync attempts
-    if (_isSyncing) {
-      di<ILogger>().debug(
-        '[SYNC] Sync already in progress, skipping duplicate sync packet',
-      );
-      return;
-    }
-
-    // Throttle sync attempts to prevent flooding
-    final now = DateTime.now();
-    if (_lastSyncAttempt != null) {
-      final timeSinceLastSync = now.difference(_lastSyncAttempt!);
-      if (timeSinceLastSync.inMilliseconds < SYNC_THROTTLE_MS) {
-        di<ILogger>().debug(
-          '[SYNC] Throttling sync attempt (last sync was ${timeSinceLastSync.inMilliseconds}ms ago)',
-        );
-        return;
-      }
-    }
-
-    _isSyncing = true;
-    _lastSyncAttempt = now;
-
-    try {
-      di<ILogger>().info('[SYNC] Sending sync packet to device');
-      final packet = _packetInterpreter.sendSerialNumberQuery();
-      await sendCommand(packet);
-      di<ILogger>().info('[SYNC] Sync packet sent successfully');
-    } catch (e) {
-      di<ILogger>().error('[SYNC] Error sending sync packet: $e');
-      rethrow;
-    } finally {
-      // Reset syncing flag after a delay to allow response processing
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _isSyncing = false;
-      });
-    }
+    final packet = _packetInterpreter.sendSerialNumberQuery();
+    await sendCommand(packet);
   }
 
   /// Automatically sends sync packet if device is not synced
   Future<void> _sendSyncPacketIfNeeded() async {
-    if (!state.isSynced && state.isConnected && !_isSyncing) {
+    if (!state.isSynced && state.isConnected) {
       await sendSyncPacket();
 
       // Set up retry timer if still not synced after delay
@@ -406,17 +394,11 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       _syncRetryTimer = Timer(
         const Duration(milliseconds: SYNC_RETRY_DELAY_MS),
         () {
-          if (!state.isSynced &&
-              state.isConnected &&
-              !isClosed &&
-              !_isSyncing) {
-            di<ILogger>().debug('[SYNC] Retrying sync after delay');
+          if (!state.isSynced && state.isConnected && !isClosed) {
             _sendSyncPacketIfNeeded();
           }
         },
       );
-    } else if (_isSyncing) {
-      di<ILogger>().debug('[SYNC] Sync already in progress, skipping retry');
     }
   }
 
@@ -840,8 +822,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       command.timeoutTimer?.cancel();
     }
     _syncRetryTimer?.cancel();
-    _isSyncing = false; // Reset sync flag
-    _lastSyncAttempt = null; // Reset sync throttle
     _connectionMonitorTimer?.cancel();
     _batteryStreamSubscription?.cancel();
     _cleanupPort();
@@ -876,17 +856,26 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     _connectionMonitorTimer = Timer.periodic(const Duration(seconds: 5), (
       timer,
     ) {
+      if (isClosed) {
+        timer.cancel();
+        return;
+      }
+      
       if (_port != null) {
         // Check if port is still valid by trying to send a simple command
         try {
           // If we can't access the port, it's likely disconnected
           if (_port!.inputStream == null) {
-            di<ILogger>().warning('USB port lost, attempting reconnection');
-            _resetConnection();
+            if (!isClosed) {
+              di<ILogger>().warning('USB port lost, attempting reconnection');
+              _resetConnection();
+            }
           }
         } catch (e) {
-          di<ILogger>().warning('USB port lost, attempting reconnection: $e');
-          _resetConnection();
+          if (!isClosed) {
+            di<ILogger>().warning('USB port lost, attempting reconnection: $e');
+            _resetConnection();
+          }
         }
       }
     });
@@ -902,9 +891,6 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     try {
       _stopConnectionMonitoring();
       await _cleanupPort();
-      _syncRetryTimer?.cancel();
-      _isSyncing = false; // Reset sync flag
-      _lastSyncAttempt = null; // Reset sync throttle
 
       emit(
         state.copyWith(
