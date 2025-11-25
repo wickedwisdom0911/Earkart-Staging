@@ -1138,6 +1138,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           ),
           BlocListener<CommunicationCubit, CommunicationState>(
             listener: (context, state) {
+              if (!mounted) return;
+              
               if (state.patientResponse == true) {
                 _emitPatientResponseEvent(state.patientResponse);
               }
@@ -1156,6 +1158,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               if (r15cDevice != null || revo2Device != null) {
                 // Handle connection state - only try to initialize if device is actually connected
                 if (!state.isConnected) {
+                  if (!mounted) return;
                   di<ILogger>().debug(
                     'Device not connected, checking if device is still physically present...',
                   );
@@ -1167,6 +1170,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                             (devices, r15cDev, revo2Dev) => r15cDev != null,
                         orElse: () => false,
                       )) {
+                    if (!mounted) return;
                     di<ILogger>().debug(
                       'R15C device still physically connected, initializing port...',
                     );
@@ -1182,6 +1186,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 }
                 // Handle initialization state
                 else if (state.isConnected && !state.isSynced) {
+                  if (!mounted) return;
                   di<ILogger>().debug(
                     'Device connected but not synced, sending sync packet...',
                   );
@@ -1190,6 +1195,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 }
                 // Handle ready state
                 else if (state.isSynced && state.transducerResponse == null) {
+                  if (!mounted) return;
                   di<ILogger>().debug(
                     'Device synced but not ready, sending query info packet...',
                   );

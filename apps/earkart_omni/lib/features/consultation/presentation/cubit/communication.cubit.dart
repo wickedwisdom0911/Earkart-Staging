@@ -50,7 +50,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   Future<bool> initializePort(UsbDevice device) async {
     if (isClosed) return false;
-    
+
     try {
       emit(state.copyWith(connectionStatus: 'Initializing...', error: null));
 
@@ -180,7 +180,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   void _handleError(dynamic error) {
     if (isClosed) return;
-    
+
     _errorCount++;
     di<ILogger>().error('Communication error: $error');
 
@@ -211,7 +211,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   Future<void> _handleProcessedPacket(List<int> packet) async {
     if (isClosed) return;
-    
+
     try {
       List<int>? payload = _packetInterpreter.extractPayload(packet);
       if (payload == null) return;
@@ -307,6 +307,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       if (isClosed) return;
       di<ILogger>().error('Packet processing error: $e');
       if (!e.toString().contains('FormatException')) {
+        if (isClosed) return;
         emit(state.copyWith(error: 'Packet processing error: $e'));
       }
     }
@@ -394,6 +395,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       _syncRetryTimer = Timer(
         const Duration(milliseconds: SYNC_RETRY_DELAY_MS),
         () {
+          if (isClosed) return;
           if (!state.isSynced && state.isConnected && !isClosed) {
             _sendSyncPacketIfNeeded();
           }
@@ -693,6 +695,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   /// Update tablet battery status in the state from BatteryInfo
   void _updateTabletBatteryFromInfo(dynamic batteryInfo) {
+    if (isClosed) return;
+
     try {
       final level = batteryInfo.level as int?;
       final isCharging = batteryInfo.isCharging as bool?;
@@ -702,6 +706,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       if (state.tabletBatteryLevel != level ||
           state.isTabletBatteryCharging != isCharging ||
           state.isTabletBatteryLoading != isLoading) {
+        if (isClosed) return;
         emit(
           state.copyWith(
             tabletBatteryLevel: level,
@@ -713,6 +718,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         // Battery status updated
       }
     } catch (e) {
+      if (isClosed) return;
       di<ILogger>().error('Error updating tablet battery status: $e');
       // Set error state
       emit(state.copyWith(isTabletBatteryLoading: false));
@@ -860,22 +866,26 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         timer.cancel();
         return;
       }
-      
+
       if (_port != null) {
         // Check if port is still valid by trying to send a simple command
         try {
           // If we can't access the port, it's likely disconnected
           if (_port!.inputStream == null) {
-            if (!isClosed) {
-              di<ILogger>().warning('USB port lost, attempting reconnection');
-              _resetConnection();
+            if (isClosed) {
+              timer.cancel();
+              return;
             }
-          }
-        } catch (e) {
-          if (!isClosed) {
-            di<ILogger>().warning('USB port lost, attempting reconnection: $e');
+            di<ILogger>().warning('USB port lost, attempting reconnection');
             _resetConnection();
           }
+        } catch (e) {
+          if (isClosed) {
+            timer.cancel();
+            return;
+          }
+          di<ILogger>().warning('USB port lost, attempting reconnection: $e');
+          _resetConnection();
         }
       }
     });
@@ -888,10 +898,13 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   Future<void> _resetConnection() async {
+    if (isClosed) return;
+
     try {
       _stopConnectionMonitoring();
       await _cleanupPort();
 
+      if (isClosed) return;
       emit(
         state.copyWith(
           isSynced: false,
@@ -907,6 +920,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
       // Wait for device to stabilize
       await Future.delayed(const Duration(seconds: 1));
+      if (isClosed) return;
 
       // Attempt to recreate and reopen port from last known device
       if (_lastDevice != null) {
@@ -915,9 +929,15 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         bool openResult = await _port!.open();
         if (!openResult) throw Exception('Failed to reopen port');
 
+        if (isClosed) {
+          await _cleanupPort();
+          return;
+        }
+
         await _configureFTDIDevice();
         _setupListener();
 
+        if (isClosed) return;
         emit(
           state.copyWith(
             isConnected: true,
@@ -926,14 +946,18 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           ),
         );
 
+        if (isClosed) return;
         await sendSyncPacket();
 
         // Restart connection monitoring
-        _startConnectionMonitoring();
+        if (!isClosed) {
+          _startConnectionMonitoring();
+        }
       } else {
         throw Exception('No known device to reset connection');
       }
     } catch (e) {
+      if (isClosed) return;
       di<ILogger>().error('Reset failed: $e');
       emit(
         state.copyWith(

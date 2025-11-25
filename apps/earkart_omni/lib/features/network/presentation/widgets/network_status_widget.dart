@@ -66,14 +66,18 @@ class _NetworkStatusWidgetState extends State<NetworkStatusWidget> {
   void _closeExpanded() {
     _overlayEntry?.remove();
     _overlayEntry = null;
-    setState(() {
-      _isExpanded = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isExpanded = false;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _closeExpanded();
+    // Remove overlay without calling setState since widget is being disposed
+    _overlayEntry?.remove();
+    _overlayEntry = null;
     super.dispose();
   }
 

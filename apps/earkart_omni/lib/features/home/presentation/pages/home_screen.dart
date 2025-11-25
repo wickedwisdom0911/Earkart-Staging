@@ -36,6 +36,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
+        if (!mounted) return;
+        
         if (state is AuthCentreSuccess) {
           context.read<ConsultationCubit>().getConsultationsByCentreId();
         } else if (state is AuthError || state is AuthCentreError) {
