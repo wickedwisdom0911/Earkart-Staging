@@ -7,6 +7,7 @@ import { SocketProvider } from "@/providers/socket-provider";
 import { DeviceProvider } from "@/providers/device-provider";
 import { PatientAlertProvider } from "@/providers/patient-alert-provider";
 import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
+import DemoAccountBanner from "@/components/ui/demo-account-banner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -61,6 +62,7 @@ export default function RootLayout({
             <DeviceProvider>
               <PatientAlertProvider>
                 <AgoraOtoscopyProvider>
+                  <DemoAccountBanner />
                   {children}
                 </AgoraOtoscopyProvider>
               </PatientAlertProvider>

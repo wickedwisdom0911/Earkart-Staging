@@ -244,6 +244,19 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   };
 
   // Function to create alert for consultation that needs attention
+  const resolveConsultationAlert = (consultationId: string) => {
+    setAlerts((prev) =>
+      prev.map((alert) =>
+        alert.consultationId === consultationId ? { ...alert, isActive: false } : alert
+      ),
+    );
+    setNotifiedConsultations((prev) => {
+      const next = new Set(prev);
+      next.delete(consultationId);
+      return next;
+    });
+  };
+
   const createAttentionAlert = (consultation: ConsultationModelData) => {
     // Don't create duplicate alerts for the same consultation
     if (notifiedConsultations.has(consultation.id)) {
@@ -315,6 +328,8 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
     const handleConsultationUpdate = (data: ConsultationModelData) => {
       if (checkConsultationNeedsAttention(data)) {
         createAttentionAlert(data);
+      } else {
+        resolveConsultationAlert(data.id);
       }
     };
 

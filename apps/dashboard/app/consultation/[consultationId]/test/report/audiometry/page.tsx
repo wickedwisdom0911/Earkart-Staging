@@ -25,6 +25,7 @@ import { useSocket } from "@/providers/socket-provider";
 import Image from "next/image";
 import { ArrowDownLeft, ArrowDownRight } from "lucide-react";
 import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
+import useDemoAccount from "@/hooks/use-demo-account";
 
 // Helper: Synchronous rasterization for use inside html2canvas onclone (no async/await allowed)
 function rasterizeSVGsSync(container: HTMLElement, ownerDocument: Document) {
@@ -457,6 +458,7 @@ export default function ReportPage() {
 
   // State for show report functionality
   const [isShowingReport, setIsShowingReport] = useState(false);
+  const { isDemoAccount } = useDemoAccount();
   
   // New state for report upload
   const [reportUploadState, setReportUploadState] = useState<{
@@ -1158,8 +1160,22 @@ export default function ReportPage() {
           </div>
 
           {/* Pure Tone Audiogram Title */}
-          <div className="text-center py-8 bg-gray-50">
-            <h2 className="text-2xl font-bold text-gray-800">Pure Tone Audiogram</h2>
+          <div className="py-8 bg-gray-50 text-center">
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-3 flex-wrap justify-center">
+                <h2 className="text-2xl font-bold text-gray-800">Pure Tone Audiogram</h2>
+                {isDemoAccount && (
+                  <span className="bg-amber-100 text-amber-900 border border-amber-200 text-xs font-semibold uppercase tracking-wide px-3 py-1 rounded-full">
+                    Demo Report
+                  </span>
+                )}
+              </div>
+              {isDemoAccount && (
+                <p className="text-xs text-amber-800">
+                  Generated from a demo account – values are for training purposes only.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Patient Information */}

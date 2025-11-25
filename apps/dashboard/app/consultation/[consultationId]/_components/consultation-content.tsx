@@ -65,10 +65,9 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
   const { deviceState } = useDevice();
   const pathname = usePathname();
   
-  const isVideoOtoscopyPage = pathname?.includes('/test/video-otoscopy');
-  
-  const isCameraOpen = deviceState.r15c.isCameraOpen;
-  const shouldEnlargeVideo = isVideoOtoscopyPage && isOtoscopyActive && isCameraOpen;
+  const isVideoOtoscopyPage = pathname?.includes("/test/video-otoscopy");
+  const isCameraOpen = deviceState?.r15c?.isCameraOpen ?? false;
+  const shouldEnlargeVideo = false;
 
   const [isStopping, setIsStopping] = React.useState(false);
   const handleStop = React.useCallback(async () => {
