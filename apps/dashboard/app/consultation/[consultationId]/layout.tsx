@@ -16,6 +16,7 @@ import { chunkStorage } from "@/lib/indexeddb-chunks";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { SessionStatus } from "@/models/enums";
 import { RedirectLoadingModal } from "@/components/ui/redirect-loading-modal";
+import useDemoAccount from "@/hooks/use-demo-account";
 
 // Import debug utilities in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -77,6 +78,7 @@ export default function ConsultationLayout({
   const [isStartingRecording, setIsStartingRecording] = useState(false);
   const [externalPlaybackUrl, setExternalPlaybackUrl] = useState<string | null>(null);
   const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
+  const { isDemoAccount } = useDemoAccount();
 
   // Wrap startRecording to prevent automatic calls
   const startRecording = useCallback(async (...args: any[]) => {
@@ -1075,15 +1077,13 @@ export default function ConsultationLayout({
               </div>
             </div>
           )}
+          <RedirectLoadingModal 
+            isOpen={isRedirecting}
+            message="Please Wait"
+            submessage="Finalizing recording and redirecting to dashboard. Please do not refresh or close this window."
+          />
         </AgoraRTCProvider>
       </AgoraOtoscopyProvider>
-      
-      {/* Redirect Loading Modal */}
-      <RedirectLoadingModal 
-        isOpen={isRedirecting}
-        message="Please Wait"
-        submessage="Finalizing recording and redirecting to dashboard. Please do not refresh or close this window."
-      />
     </OtoscopyProvider>
   );
 }

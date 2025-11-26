@@ -18,6 +18,7 @@ import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultat
 import { exportElementToPdfBlob } from "@/lib/pdf";
 import ReportTopActions from "@/components/ui/ReportTopActions";
 import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
+import useDemoAccount from "@/hooks/use-demo-account";
 import { useSocket } from "@/providers/socket-provider";
 import initiateReportUpload from "@/actions/consultations/initiate-report-upload";
 import completeReportUpload from "@/actions/consultations/complete-report-upload";
@@ -157,6 +158,7 @@ export default function TympanometryReportPage() {
   const [comments, setComments] = useState<string>("");
   const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare, error: screenShareError } = useSharedScreenShare();
   const [isShowingReport, setIsShowingReport] = useState(false);
+  const { isDemoAccount } = useDemoAccount();
   useEffect(() => {
     setComments(consultationData?.tympanometry?.notes || "");
   }, [consultationData?.tympanometry?.notes]);
@@ -563,8 +565,22 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Title */}
-          <div className="text-center py-6 bg-gray-50">
-            <h2 className="text-xl font-bold text-gray-800">Impedance Audiometry</h2>
+          <div className="py-6 bg-gray-50 text-center">
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-3 flex-wrap justify-center">
+                <h2 className="text-xl font-bold text-gray-800">Impedance Audiometry</h2>
+                {isDemoAccount && (
+                  <span className="bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-semibold uppercase tracking-wide px-3 py-1 rounded-full">
+                    Demo Report
+                  </span>
+                )}
+              </div>
+              {isDemoAccount && (
+                <p className="text-[11px] text-amber-800">
+                  Generated from a demo account – data is illustrative only.
+                </p>
+              )}
+            </div>
           </div>
 
             {/* Patient Information */}

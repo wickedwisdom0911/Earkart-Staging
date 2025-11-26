@@ -14,7 +14,7 @@ import {
   ILocalTrack,
 } from "agora-rtc-react";
 import useCreateToken from "@/hooks/agora/use-create-token";
-import { Mic, MicOff, PhoneOff, User, Loader2 } from "lucide-react";
+import { Mic, MicOff, PhoneOff, User, Loader2, Video, VideoOff } from "lucide-react";
 import { useDialog } from "@/hooks/use-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -108,6 +108,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
   const [micOn, setMic] = useState(true);
+  const [cameraOn, setCameraOn] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [appId, setAppId] = useState<string | null>(null);
   const [uid, setUid] = useState<number | null>(null);
@@ -225,8 +226,23 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
     !!token && !!appId && !!uid // Only join when we have token, appId, and uid
   );
 
-  // Publish tracks
-  usePublish([localMicrophoneTrack, localCameraTrack] as any);
+  // Toggle camera track enabled state when cameraOn changes
+  useEffect(() => {
+    if (!localCameraTrack) return;
+    const toggleCamera = async () => {
+      try {
+        await localCameraTrack.setEnabled(cameraOn);
+      } catch (error) {
+        console.warn("Failed to toggle camera", error);
+      }
+    };
+    toggleCamera();
+  }, [localCameraTrack, cameraOn]);
+
+  // Publish tracks (omit camera when disabled)
+  usePublish(
+    [localMicrophoneTrack, cameraOn ? localCameraTrack : null].filter(Boolean) as any
+  );
 
   // Handle token fetching
   useEffect(() => {
@@ -496,10 +512,10 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
               ref={localRef}
               className="w-32 h-32 rounded-full overflow-hidden border-2 border-white shadow-lg bg-gray-900"
             >
-              {localCameraTrack ? (
+              {cameraOn && localCameraTrack ? (
                 <LocalUser
                   audioTrack={localMicrophoneTrack as any}
-                  cameraOn={true}
+                  cameraOn={cameraOn}
                   micOn={micOn}
                   playAudio={false}
                   videoTrack={localCameraTrack as any}
@@ -524,8 +540,21 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                 `}
                 title={micOn ? "Mute" : "Unmute"}
               >
-                {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-              </button>
+              {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+            </button>
+            <button
+              onClick={() => setCameraOn((prev) => !prev)}
+              disabled={!localCameraTrack}
+              className={`
+                p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
+                z-10
+                transition-colors duration-200
+                ${!localCameraTrack ? "text-gray-500 cursor-not-allowed" : cameraOn ? "text-white" : "text-red-500"}
+              `}
+              title={cameraOn ? "Turn Camera Off" : "Turn Camera On"}
+            >
+              {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+            </button>
               <button
                 onClick={handleLeave}
                 disabled={isLeaving}
