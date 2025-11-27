@@ -399,6 +399,51 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         di<ILogger>().error('Error handling start-tympanometry event: $e');
       }
     });
+    socket.on("etf-started", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('Start ETF: $data');
+      try {
+        if (data == null) {
+          di<ILogger>().error('Received null data in start-etf event');
+          return;
+        }
+        context.read<CommunicationCubit>().sendStartETFPacket(
+          probeToneFrequency: data["ProbeToneFrequency"],
+          autoSpeed: data["AutoSpeed"],
+          speed: data["Speed"],
+          start: data["Start"],
+          stop: data["Stop"],
+        );
+      } catch (e) {
+        di<ILogger>().error('Error handling start-etf event: $e');
+      }
+    });
+    socket.on("etf-resumed", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('ETF resumed: $data');
+      try {
+        if (data == null) {
+          di<ILogger>().error('Received null data in etf-resumed event');
+          return;
+        }
+        context.read<CommunicationCubit>().sendResumePacket();
+      } catch (e) {
+        di<ILogger>().error('Error handling stop-etf event: $e');
+      }
+    });
+    socket.on("etf-stopped", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('ETF stopped: $data');
+      try {
+        if (data == null) {
+          di<ILogger>().error('Received null data in stop-etf event');
+          return;
+        }
+        context.read<CommunicationCubit>().sendStopPacket();
+      } catch (e) {
+        di<ILogger>().error('Error handling stop-etf event: $e');
+      }
+    });
 
     socket.on("end-test", (data) {
       if (!mounted) return;

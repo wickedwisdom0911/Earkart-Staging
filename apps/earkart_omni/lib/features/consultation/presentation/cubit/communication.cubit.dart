@@ -611,6 +611,55 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     await sendCommand(packet);
   }
 
+  Future<void> sendPausepacket() async {
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 21,
+      "PacketName": "Pause",
+    });
+    await sendCommand(packet);
+  }
+
+  Future<void> sendResumePacket() async {
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 20,
+      "PacketName": "Resume",
+    });
+    await sendCommand(packet);
+  }
+
+  Future<void> sendStopPacket() async {
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 11,
+      "PacketName": "Stop",
+    });
+    await sendCommand(packet);
+  }
+
+  Future<void> sendStartETFPacket({
+    required int probeToneFrequency,
+    required bool autoSpeed,
+    required int speed,
+    required int start,
+    required int stop,
+  }) async {
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 10,
+      "PacketName": "StartImpedance",
+      "ProbetoneFrequency": probeToneFrequency,
+      "RealTimeStatusUpdate": {"InIdle": false, "DuringExecution": true},
+      "EtfIntact": {
+        "Pressure": {
+          "AutoSpeed": autoSpeed,
+          "Speed": speed,
+          "Start": start,
+          "Stop": stop,
+        },
+        "WaitTimeout": 0,
+      },
+    });
+    await sendCommand(packet);
+  }
+
   Future<void> sendStopCommand() async {
     final packet = _packetInterpreter.constructPacket({
       "PacketType": 11,
