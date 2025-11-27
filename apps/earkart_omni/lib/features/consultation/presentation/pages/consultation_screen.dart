@@ -16,7 +16,7 @@ import 'package:earkart_omni/features/consultation/presentation/widgets/video_ca
 import 'package:earkart_omni/features/consultation/presentation/widgets/socket_status_button.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/consultation_layout.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/consultation_loading_view.dart';
-import 'package:earkart_omni/features/consultation/presentation/services/device_event_emitter.dart';
+import 'package:earkart_omni/features/consultation/services/device_event_emitter.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.model.dart';
