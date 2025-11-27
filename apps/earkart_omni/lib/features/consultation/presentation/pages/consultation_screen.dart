@@ -50,7 +50,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   UsbDevice? revo2Device;
   TestType? testType;
   dynamic _lastImpedanceStatus;
-  bool _showReport = false;
   bool _showCamera = false;
   bool _socketReconnectFailed = false;
   final GlobalKey _videoWidgetKey = GlobalKey();
@@ -141,7 +140,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         getRevo2Device: () => revo2Device,
         getIsCameraOpen: () => _isCameraOpen,
         getShowCamera: () => _showCamera,
-        getShowReport: () => _showReport,
       );
 
       // Set up socket event handlers
@@ -410,32 +408,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         context.read<CommunicationCubit>().sendExitPacket();
       } catch (e) {
         di<ILogger>().error('Error handling end-test event: $e');
-      }
-    });
-
-    socket.on("generate-report:start", (data) {
-      if (!mounted) return;
-
-      try {
-        di<ILogger>().debug('Generate report started: $data');
-        setState(() {
-          _showReport = true;
-        });
-      } catch (e) {
-        di<ILogger>().error('Error handling generate-report:start event: $e');
-      }
-    });
-
-    socket.on("generate-report:end", (data) {
-      if (!mounted) return;
-
-      try {
-        di<ILogger>().debug('Generate report stopped: $data');
-        setState(() {
-          _showReport = false;
-        });
-      } catch (e) {
-        di<ILogger>().error('Error handling generate-report:stop event: $e');
       }
     });
 
@@ -780,10 +752,6 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                       // Add delay before showing camera to ensure device is stable
                       Future.delayed(const Duration(seconds: 1), () {
                         if (mounted) {
-                          setState(() {
-                            _showReport =
-                                false; // Hide report when showing camera
-                          });
                           // Update camera state when auto-showing
                           _updateCameraState(true);
                         }

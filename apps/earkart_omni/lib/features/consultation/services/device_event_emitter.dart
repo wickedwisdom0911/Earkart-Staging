@@ -14,7 +14,6 @@ class DeviceEventEmitter {
   final Function()? getRevo2Device;
   final Function()? getIsCameraOpen;
   final Function()? getShowCamera;
-  final Function()? getShowReport;
 
   Timer? _debounceTimer;
   CommunicationState? _lastEmittedDeviceState;
@@ -33,7 +32,6 @@ class DeviceEventEmitter {
     this.getRevo2Device,
     this.getIsCameraOpen,
     this.getShowCamera,
-    this.getShowReport,
   });
 
   void dispose() {
@@ -131,7 +129,6 @@ class DeviceEventEmitter {
     final consultation = getConsultation?.call();
     final isCameraOpen = getIsCameraOpen?.call() ?? false;
     final showCamera = getShowCamera?.call() ?? false;
-    final showReport = getShowReport?.call() ?? false;
 
     final deviceEventData = {
       "consultationId": consultation?.id,
@@ -141,7 +138,6 @@ class DeviceEventEmitter {
       "transducerResponse": state.transducerResponse,
       "isCameraOpen": isCameraOpen,
       "showingCamera": showCamera,
-      "showingReport": showReport,
       "deviceState": {
         "isConnected": state.isConnected,
         "isSynced": state.isSynced,
@@ -172,4 +168,3 @@ class DeviceEventEmitter {
     di<ILogger>().info('🚀 DEVICE EVENT EMITTED: $deviceEventData');
   }
 }
-

@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
-import 'dart:io';
 
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
-import 'package:earkart_omni/config/services/device_owner_helper.dart';
 
 class UVCCameraWidget extends StatefulWidget {
   final Function(bool)? onCameraStateChanged;
@@ -44,6 +41,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   bool _hasEverOpened = false;
   Timer? _initializationTimer;
   Timer? _platformViewTimer;
+  // Note: Permission checks removed - permissions are granted at app startup
 
   @override
   void initState() {
@@ -56,6 +54,13 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       setState(() => _status = 'Camera disabled in release mode');
       return;
     }
+
+    // Permissions are already granted at app startup (main.dart and root_screen.dart)
+    // Since app is always device owner, we can assume permissions are granted
+    _permissionsGranted = true;
+    di<ILogger>().info(
+      'Permissions already granted at app startup - skipping permission check',
+    );
 
     // Set up global error handler for UVC camera
     if (ReleaseConfig.isReleaseMode) {
@@ -411,114 +416,54 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   }
 
   Future<void> _checkPermissionsAndInitialize() async {
-    try {
-      di<ILogger>().info('Starting permission check and initialization...');
-      if (_isDisposed) {
-        di<ILogger>().info('Widget disposed during permission check');
-        return;
-      }
-      if (mounted && !_isDisposed) {
-        setState(() => _status = 'Checking permissions...');
-      }
+    // Permissions are already granted at app startup - skip check
+    // Just proceed directly to initialization
+    di<ILogger>().info(
+      'Skipping permission check - permissions already granted at app startup',
+    );
 
-      // Check if app is device owner and auto-grant permissions
-      final bool isDeviceOwner = await DeviceOwnerHelper.isDeviceOwner();
-      di<ILogger>().info('Device owner status: $isDeviceOwner');
+    if (_isDisposed) {
+      di<ILogger>().info('Widget disposed, skipping initialization');
+      return;
+    }
 
-      if (isDeviceOwner) {
-        di<ILogger>().info('App is device owner - auto-granting permissions');
-        await DeviceOwnerHelper.grantAllPermissions();
-
-        // For device owner, we can assume permissions are granted
-        _permissionsGranted = true;
-        di<ILogger>().info('Device owner permissions auto-granted');
-
-        if (mounted && !_isDisposed) {
-          setState(
-            () =>
-                _status =
-                    'Device owner permissions granted, initializing camera...',
-          );
-        }
+    // Schedule camera initialization with a small delay
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!_isDisposed && _isAppActive && mounted) {
+        di<ILogger>().info('Proceeding with camera initialization...');
+        _initializeCameraController();
       } else {
         di<ILogger>().info(
-          'Not device owner - requesting permissions normally',
+          'Conditions not met for initialization (disposed: $_isDisposed, app active: $_isAppActive, mounted: $mounted)',
         );
-
-        // Request camera permission
-        final camera = await Permission.camera.request();
-        if (!camera.isGranted) {
-          if (!_isDisposed && mounted) {
-            setState(() => _status = 'Camera permission denied');
-          }
-          return;
-        }
-
-        // Request storage permissions
-        if (Platform.isAndroid) {
-          // For Android 11 and above, we need to handle storage permissions differently
-          if (await Permission.manageExternalStorage.status.isDenied) {
-            // First try to get MANAGE_EXTERNAL_STORAGE permission
-            final storageStatus =
-                await Permission.manageExternalStorage.request();
-            if (!storageStatus.isGranted) {
-              // If not granted, try to get regular storage permission
-              final regularStorage = await Permission.storage.request();
-              if (!regularStorage.isGranted) {
-                if (!_isDisposed && mounted) {
-                  setState(() => _status = 'Storage permission denied');
-                }
-                return;
-              }
-            }
-          }
-        }
-
-        _permissionsGranted = true;
-        di<ILogger>().info('Standard permissions granted');
-
-        if (mounted && !_isDisposed) {
-          setState(
-            () => _status = 'Permissions granted, initializing camera...',
-          );
-        }
       }
-
-      di<ILogger>().info(
-        'Permissions granted, scheduling camera initialization...',
-      );
-
-      // Add delay before initializing to ensure permissions are fully processed
-      Future.delayed(const Duration(milliseconds: 1000), () {
-        di<ILogger>().info(
-          'Permission delay completed, checking conditions for initialization...',
-        );
-        if (!_isDisposed && _isAppActive && mounted) {
-          di<ILogger>().info(
-            'Conditions met, calling _initializeCameraController',
-          );
-          _initializeCameraController();
-        } else {
-          di<ILogger>().info(
-            'Conditions not met for initialization (disposed: $_isDisposed, app active: $_isAppActive, mounted: $mounted)',
-          );
-        }
-      });
-    } catch (e) {
-      di<ILogger>().error('Permission error: $e');
-      if (!_isDisposed && mounted) {
-        setState(() => _status = 'Error: $e');
-      }
-    }
+    });
   }
 
   Future<void> _initializeCameraController() async {
+    // Prevent concurrent initialization attempts
+    if (_isInitializing) {
+      di<ILogger>().info(
+        'Camera initialization already in progress, skipping...',
+      );
+      return;
+    }
+
     try {
-      if (!mounted || _isDisposed || !_isAppActive || _isInitializing) {
+      if (!mounted || _isDisposed || !_isAppActive) {
         di<ILogger>().info(
-          'Skipping camera initialization - not ready (mounted: $mounted, disposed: $_isDisposed, app active: $_isAppActive, initializing: $_isInitializing)',
+          'Skipping camera initialization - not ready (mounted: $mounted, disposed: $_isDisposed, app active: $_isAppActive)',
         );
         return;
+      }
+
+      // Permissions are already granted at app startup, so this should always be true
+      // But keep the check as a safety guard
+      if (!_permissionsGranted) {
+        di<ILogger>().warning(
+          'Permissions flag not set - this should not happen. Setting to true and continuing...',
+        );
+        _permissionsGranted = true;
       }
 
       // Don't reinitialize if camera is already working
@@ -703,8 +648,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       }
     } finally {
       print('Camera initialization finally block - setting flags to false');
-      _isInitializing = false;
-      _initializationTriggered = false;
+      // Only reset flags if we're not in the middle of a retry
+      if (!_isDisposed) {
+        _isInitializing = false;
+        _initializationTriggered = false;
+      }
     }
   }
 

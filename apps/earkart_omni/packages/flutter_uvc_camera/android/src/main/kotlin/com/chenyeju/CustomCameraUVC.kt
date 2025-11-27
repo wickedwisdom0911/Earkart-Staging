@@ -838,20 +838,26 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                 Thread.currentThread().interrupt()
             }
             
-            // CRITICAL: Clear frame callback FIRST before MediaCodec cleanup
+            // CRITICAL: Set releasing flag FIRST to prevent any new MediaCodec operations
+            synchronized(mediaCodecLock) {
+                isMediaCodecReleasing = true
+                isMediaCodecActive = false
+            }
+            
+            // CRITICAL: Clear frame callback AFTER setting the flag
             // This prevents new frames from being processed while we're releasing MediaCodec
             try {
                 mUvcCamera?.setFrameCallback(null, UVCCamera.PIXEL_FORMAT_YUV420SP)
                 Log.i(TAG, "Frame callback cleared before MediaCodec cleanup in closeCamera")
-                // Wait a bit to ensure any in-flight frame processing completes
-                Thread.sleep(50) // 50ms delay to allow frame callback to finish
+                // Wait longer to ensure any in-flight frame processing completes
+                Thread.sleep(100) // Increased to 100ms delay to allow frame callback to finish
             } catch (e: Exception) {
                 Log.e(TAG, "Error clearing frame callback during camera close", e)
             }
             
             // Ensure MediaCodec is properly cleaned up
             synchronized(mediaCodecLock) {
-                // Set releasing flag to prevent any new operations
+                // Flag already set above, but ensure it's still set
                 isMediaCodecReleasing = true
                 
                 mediaCodec?.let { codec ->
@@ -1268,15 +1274,22 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                                     val data = ByteArray(capacity())
                                     get(data)
                                     
-                                    // Check if MediaCodec is still valid before processing
+                                    // Check if MediaCodec is still valid before processing - check FIRST
                                     synchronized(mediaCodecLock) {
-                                        if (isMediaCodecReleasing || isMediaCodecReleased || !isMediaCodecActive) {
+                                        if (isMediaCodecReleasing || isMediaCodecReleased || !isMediaCodecActive || mediaCodec == null) {
                                             return@apply // Skip frame processing if MediaCodec is being released
                                         }
                                     }
                                     
                                     // Process input buffer with better error handling
                                     try {
+                                        // Double-check state before each operation
+                                        synchronized(mediaCodecLock) {
+                                            if (isMediaCodecReleasing || isMediaCodecReleased || !isMediaCodecActive || mediaCodec == null) {
+                                                return@apply
+                                            }
+                                        }
+                                        
                                         val inputBufferIndex = safeMediaCodecOperation { 
                                             mediaCodec?.dequeueInputBuffer(1000) // 1 second timeout
                                         }
@@ -1308,25 +1321,54 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                                             // Handle other negative values
                                             Log.d(TAG, "Input buffer not available: $inputBufferIndex")
                                         }
+                                    } catch (e: IllegalStateException) {
+                                        // Specifically catch IllegalStateException which occurs when MediaCodec is in wrong state
+                                        if (e.message?.contains("Released", ignoreCase = true) == true || 
+                                            e.message?.contains("executing", ignoreCase = true) == true) {
+                                            Log.w(TAG, "MediaCodec in invalid state during input processing: ${e.message}")
+                                            synchronized(mediaCodecLock) {
+                                                isMediaCodecReleased = true
+                                                isMediaCodecActive = false
+                                            }
+                                            return@apply // Exit frame processing
+                                        } else {
+                                            Log.e(TAG, "Error processing input buffer", e)
+                                        }
                                     } catch (e: Exception) {
                                         Log.e(TAG, "Error processing input buffer", e)
                                     }
 
-                                    // Check again before processing output buffers
+                                    // Check again before processing output buffers - check FIRST
                                     synchronized(mediaCodecLock) {
-                                        if (isMediaCodecReleasing || isMediaCodecReleased || !isMediaCodecActive) {
+                                        if (isMediaCodecReleasing || isMediaCodecReleased || !isMediaCodecActive || mediaCodec == null) {
                                             return@apply // Skip output processing if MediaCodec is being released
                                         }
                                     }
                                     
                                     // Process output buffer with better error handling
                                     try {
+                                        // Double-check state before each operation
+                                        synchronized(mediaCodecLock) {
+                                            if (isMediaCodecReleasing || isMediaCodecReleased || !isMediaCodecActive || mediaCodec == null) {
+                                                return@apply
+                                            }
+                                        }
+                                        
                                         val bufferInfo = MediaCodec.BufferInfo()
                                         var outputBufferIndex = safeMediaCodecOperation { 
                                             mediaCodec?.dequeueOutputBuffer(bufferInfo, 1000) // 1 second timeout
                                         }
                                         
-                                        while (outputBufferIndex != null && outputBufferIndex >= 0) {
+                                        // Check state again before processing the while loop
+                                        synchronized(mediaCodecLock) {
+                                            if (isMediaCodecReleasing || isMediaCodecReleased || !isMediaCodecActive || mediaCodec == null) {
+                                                return@apply
+                                            }
+                                        }
+                                        
+                                        // Use a flag to control loop exit instead of break (break not allowed in lambdas)
+                                        var shouldContinueProcessing = true
+                                        while (outputBufferIndex != null && outputBufferIndex >= 0 && shouldContinueProcessing) {
                                             // Create a local copy to avoid smart cast issues
                                             val currentBufferIndex = outputBufferIndex
                                             try {
@@ -1371,10 +1413,33 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
                                                 }
                                             }
                                             
-                                            // Get next output buffer
-                                            outputBufferIndex = safeMediaCodecOperation { 
-                                                mediaCodec?.dequeueOutputBuffer(bufferInfo, 0)
+                                            // Check state before getting next output buffer
+                                            synchronized(mediaCodecLock) {
+                                                if (isMediaCodecReleasing || isMediaCodecReleased || !isMediaCodecActive || mediaCodec == null) {
+                                                    shouldContinueProcessing = false // Exit loop if MediaCodec is being released
+                                                }
                                             }
+                                            
+                                            // Get next output buffer only if we should continue
+                                            if (shouldContinueProcessing) {
+                                                outputBufferIndex = safeMediaCodecOperation { 
+                                                    mediaCodec?.dequeueOutputBuffer(bufferInfo, 0)
+                                                }
+                                            }
+                                        }
+                                    } catch (e: IllegalStateException) {
+                                        // Specifically catch IllegalStateException which occurs when MediaCodec is in wrong state
+                                        if (e.message?.contains("Released", ignoreCase = true) == true || 
+                                            e.message?.contains("executing", ignoreCase = true) == true) {
+                                            Log.w(TAG, "MediaCodec in invalid state during output processing: ${e.message}")
+                                            synchronized(mediaCodecLock) {
+                                                isMediaCodecReleased = true
+                                                isMediaCodecActive = false
+                                            }
+                                            return@apply // Exit frame processing
+                                        } else {
+                                            Log.e(TAG, "Error processing output buffers", e)
+                                            handleMediaCodecError()
                                         }
                                     } catch (e: Exception) {
                                         Log.e(TAG, "Error processing output buffers", e)
@@ -1425,20 +1490,26 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
 
         try {
             mUvcCamera?.let { camera ->
-                // CRITICAL: Stop the frame callback FIRST before any MediaCodec operations
+                // CRITICAL: Set releasing flag FIRST to prevent any new MediaCodec operations
+                synchronized(mediaCodecLock) {
+                    isMediaCodecReleasing = true
+                    isMediaCodecActive = false
+                }
+                
+                // CRITICAL: Stop the frame callback AFTER setting the flag
                 // This prevents new frames from being processed while we're releasing MediaCodec
                 try {
                     camera.setFrameCallback(null, UVCCamera.PIXEL_FORMAT_YUV420SP)
                     Log.i(TAG, "Frame callback cleared before MediaCodec cleanup")
-                    // Wait a bit to ensure any in-flight frame processing completes
-                    Thread.sleep(50) // 50ms delay to allow frame callback to finish
+                    // Wait longer to ensure any in-flight frame processing completes
+                    Thread.sleep(100) // Increased to 100ms delay to allow frame callback to finish
                 } catch (e: Exception) {
                     Log.e(TAG, "Error clearing frame callback", e)
                 }
                 
                 // Stop MediaCodec with proper cleanup
                 synchronized(mediaCodecLock) {
-                    // Set releasing flag to prevent any new operations
+                    // Flag already set above, but ensure it's still set
                     isMediaCodecReleasing = true
                     
                     mediaCodec?.apply {
