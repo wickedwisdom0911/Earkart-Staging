@@ -126,7 +126,6 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
 
   void _startGlobalDeviceMonitoring() {
     try {
-      // Check if device monitoring is enabled in release mode
       if (!ReleaseConfig.enableDeviceMonitoring) {
         return;
       }

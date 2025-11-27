@@ -117,7 +117,7 @@ class DeviceStatusWidget extends StatelessWidget {
     }
 
     // Device is connected - camera state is handled by the widget itself
-    return DeviceStatus.connected;
+    return DeviceStatus.ready;
   }
 
   Widget _buildDeviceStatus(
@@ -405,7 +405,7 @@ class DeviceStatusWidget extends StatelessWidget {
       case DeviceStatus.ready:
         return StatusConfig(label: 'Ready', color: Colors.green);
       case DeviceStatus.active:
-        return StatusConfig(label: 'Active', color: Colors.orange);
+        return StatusConfig(label: 'Active', color: Colors.green);
       case DeviceStatus.connecting:
         return StatusConfig(label: 'Connecting', color: Colors.yellow);
       case DeviceStatus.syncing:
