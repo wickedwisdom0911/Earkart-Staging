@@ -424,7 +424,7 @@ class DeviceStatusWidget extends StatelessWidget {
       case DeviceStatus.ready:
         return Icons.check_circle;
       case DeviceStatus.active:
-        return Icons.play_circle_filled;
+        return Icons.check_circle;
       case DeviceStatus.connecting:
         return Icons.sync;
       case DeviceStatus.syncing:
