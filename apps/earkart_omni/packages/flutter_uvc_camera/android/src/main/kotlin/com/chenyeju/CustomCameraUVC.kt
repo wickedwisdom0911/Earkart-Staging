@@ -54,6 +54,8 @@ import android.media.MediaCodecInfo
 import android.media.MediaMuxer
 import android.os.Build
 import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /** UVC Camera
  *
@@ -93,6 +95,13 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
         private const val TAG = "CameraUVC"
         private var methodChannel: MethodChannel? = null
         private val mainHandler = Handler(Looper.getMainLooper())
+        // Background executor for JPEG compression to prevent UI thread blocking
+        private val jpegCompressionExecutor: ExecutorService = Executors.newSingleThreadExecutor { r ->
+            Thread(r, "UVC-JPEG-Compression").apply {
+                isDaemon = true
+                priority = Thread.NORM_PRIORITY - 1 // Lower priority to not interfere with UI
+            }
+        }
         
         // Optimized constants for better stability
         private const val MAX_FRAME_SIZE = 2000000 // 2MB max frame size
@@ -544,68 +553,72 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     }
 
     // Direct JPEG binary conversion (no base64 encoding)
+    // Optimized to run on background thread to prevent UI thread blocking
     private fun convertFrameToJpegBinary(frameData: ByteArray, callback: ((ByteArray?) -> Unit)?) {
-        try {
-            frameCounter++
-            
-            // Validate frame data
-            if (frameData.isEmpty()) {
-                Log.w(TAG, "uvc_stream_binary: Empty frame data received")
-                callback?.invoke(null)
-                return
-            }
-            
-            // Convert NV21 to JPEG binary directly
-            val width = mCameraRequest?.previewWidth ?: 640
-            val height = mCameraRequest?.previewHeight ?: 480
-            
-            // Validate dimensions
-            if (width <= 0 || height <= 0) {
-                Log.w(TAG, "uvc_stream_binary: Invalid dimensions: ${width}x${height}")
-                callback?.invoke(null)
-                return
-            }
-            
-            // Create a YuvImage from the frame data
-            val yuvImage = android.graphics.YuvImage(
-                frameData,
-                android.graphics.ImageFormat.NV21,
-                width,
-                height,
-                null
-            )
-            
-            // Convert to JPEG with lower quality to reduce memory usage
-            val outputStream = java.io.ByteArrayOutputStream()
-            val success = yuvImage.compressToJpeg(
-                android.graphics.Rect(0, 0, width, height),
-                60, // Reduced quality to prevent memory issues (was 80)
-                outputStream
-            )
-            
-            if (!success) {
-                Log.w(TAG, "uvc_stream_binary: Failed to compress frame to JPEG")
-                callback?.invoke(null)
-                return
-            }
-            
-            // Get the raw JPEG binary data (no base64 conversion)
-            val jpegBinaryData = outputStream.toByteArray()
-            outputStream.close()
-            
-            // Validate JPEG binary data
-            if (jpegBinaryData.isEmpty() || jpegBinaryData.size < 100) {
-                Log.w(TAG, "uvc_stream_binary: Invalid JPEG binary data size: ${jpegBinaryData.size}")
-                callback?.invoke(null)
-                return
-            }
-            
-            Log.d(TAG, "uvc_stream_binary: Frame #$frameCounter converted to JPEG binary (${jpegBinaryData.size} bytes)")
-            callback?.invoke(jpegBinaryData)
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error converting frame to JPEG binary", e)
+        // Validate frame data early on main thread
+        if (frameData.isEmpty()) {
+            Log.w(TAG, "uvc_stream_binary: Empty frame data received")
             callback?.invoke(null)
+            return
+        }
+        
+        val width = mCameraRequest?.previewWidth ?: 640
+        val height = mCameraRequest?.previewHeight ?: 480
+        
+        // Validate dimensions early
+        if (width <= 0 || height <= 0) {
+            Log.w(TAG, "uvc_stream_binary: Invalid dimensions: ${width}x${height}")
+            callback?.invoke(null)
+            return
+        }
+        
+        // Move expensive JPEG compression to background thread
+        jpegCompressionExecutor.execute {
+            try {
+                frameCounter++
+                
+                // Create a YuvImage from the frame data
+                val yuvImage = android.graphics.YuvImage(
+                    frameData,
+                    android.graphics.ImageFormat.NV21,
+                    width,
+                    height,
+                    null
+                )
+                
+                // Convert to JPEG with lower quality to reduce memory usage
+                val outputStream = java.io.ByteArrayOutputStream()
+                val success = yuvImage.compressToJpeg(
+                    android.graphics.Rect(0, 0, width, height),
+                    60, // Reduced quality to prevent memory issues (was 80)
+                    outputStream
+                )
+                
+                if (!success) {
+                    Log.w(TAG, "uvc_stream_binary: Failed to compress frame to JPEG")
+                    mainHandler.post { callback?.invoke(null) }
+                    return@execute
+                }
+                
+                // Get the raw JPEG binary data (no base64 conversion)
+                val jpegBinaryData = outputStream.toByteArray()
+                outputStream.close()
+                
+                // Validate JPEG binary data
+                if (jpegBinaryData.isEmpty() || jpegBinaryData.size < 100) {
+                    Log.w(TAG, "uvc_stream_binary: Invalid JPEG binary data size: ${jpegBinaryData.size}")
+                    mainHandler.post { callback?.invoke(null) }
+                    return@execute
+                }
+                
+                Log.d(TAG, "uvc_stream_binary: Frame #$frameCounter converted to JPEG binary (${jpegBinaryData.size} bytes)")
+                // Post callback to main thread
+                mainHandler.post { callback?.invoke(jpegBinaryData) }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error converting frame to JPEG binary", e)
+                mainHandler.post { callback?.invoke(null) }
+            }
         }
     }
 

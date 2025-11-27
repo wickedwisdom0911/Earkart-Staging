@@ -60,6 +60,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
 
   bool _isCameraOpen = false;
   DeviceEventEmitter? _deviceEventEmitter;
+  Timer? _stateUpdateDebounceTimer;
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +91,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   @override
   void dispose() {
     try {
+      _stateUpdateDebounceTimer?.cancel();
       _deviceEventEmitter?.dispose();
 
       if (_isSocketInitialized) {
@@ -834,15 +837,30 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
             },
           ),
           BlocListener<CommunicationCubit, CommunicationState>(
+            // Only listen when state actually changes significantly to reduce rebuilds
+            listenWhen: (previous, current) {
+              return previous.isConnected != current.isConnected ||
+                  previous.isSynced != current.isSynced ||
+                  previous.transducerResponse != current.transducerResponse ||
+                  previous.error != current.error ||
+                  previous.impedanceStatus != current.impedanceStatus ||
+                  (current.isNewImpedanceData &&
+                      current.impedanceData != null) ||
+                  previous.patientResponse != current.patientResponse ||
+                  previous.isInBeginMode != current.isInBeginMode ||
+                  previous.connectionStatus != current.connectionStatus;
+            },
             listener: (context, state) {
               if (!mounted) return;
 
+              // Process immediate events (patient response, impedance)
               if (state.patientResponse == true) {
                 _emitPatientResponseEvent(state.patientResponse);
               }
 
               // Handle impedance status
-              if (state.impedanceStatus != null) {
+              if (state.impedanceStatus != null &&
+                  state.impedanceStatus != _lastImpedanceStatus) {
                 _emitTympanometryStatus(state);
               }
 
@@ -851,121 +869,30 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 _emitTympanometryData(state);
               }
 
-              // Enhanced device event emission for all communication state changes
-              if (r15cDevice != null || revo2Device != null) {
-                // Handle connection state - only try to initialize if device is actually connected
-                if (!state.isConnected) {
+              // Debounce device connection logic to prevent excessive processing
+              _stateUpdateDebounceTimer?.cancel();
+              _stateUpdateDebounceTimer = Timer(
+                const Duration(milliseconds: 100),
+                () {
                   if (!mounted) return;
-
-                  // Don't try to reinitialize if connectionStatus is 'Disconnected'
-                  // This indicates an intentional reset (e.g., during device detachment)
-                  // Only attempt reconnection for 'Error' states that might be recoverable
-                  if (state.connectionStatus == 'Disconnected') {
-                    di<ILogger>().debug(
-                      'Device intentionally disconnected (resetState), skipping port initialization',
-                    );
-                    _deviceEventEmitter?.scheduleDeviceEventEmission();
-                    return;
-                  }
-
-                  // Don't try to reinitialize if error indicates device is physically gone
-                  final error = state.error;
-                  final isDeviceGoneError =
-                      error != null &&
-                      (error.contains('No such device') ||
-                          error.contains('device not found') ||
-                          error.contains('deviceId'));
-
-                  if (isDeviceGoneError) {
-                    di<ILogger>().debug(
-                      'Device error indicates physical disconnection, skipping port initialization',
-                    );
-                    _deviceEventEmitter?.scheduleDeviceEventEmission();
-                    return;
-                  }
-
-                  di<ILogger>().debug(
-                    'Device not connected, checking if device is still physically present...',
-                  );
-
-                  // Get current device state synchronously to avoid race conditions
-                  final currentDeviceState = di<DeviceCubit>().state;
-                  final isDeviceStillPresent = currentDeviceState.maybeWhen(
-                    success: (devices, r15cDev, revo2Dev) {
-                      // Double-check: verify device is actually in the devices list
-                      if (r15cDev == null) return false;
-                      // Verify the device reference matches one in the current list
-                      return devices.any(
-                        (d) =>
-                            d.deviceId == r15cDev.deviceId &&
-                            d.vid == r15cDev.vid &&
-                            d.pid == r15cDev.pid,
-                      );
-                    },
-                    orElse: () => false,
-                  );
-
-                  // Only attempt to reinitialize if the R15C device is actually still connected
-                  // This prevents infinite loops when device is physically disconnected
-                  if (r15cDevice != null && isDeviceStillPresent) {
-                    if (!mounted) return;
-                    di<ILogger>().debug(
-                      'R15C device still physically connected, initializing port...',
-                    );
-                    context.read<CommunicationCubit>().initializePort(
-                      r15cDevice!,
-                    );
-                  } else {
-                    di<ILogger>().debug(
-                      'R15C device no longer physically connected, skipping port initialization',
-                    );
-                  }
-                  _deviceEventEmitter?.scheduleDeviceEventEmission();
-                }
-                // Handle initialization state
-                else if (state.isConnected && !state.isSynced) {
-                  if (!mounted) return;
-                  di<ILogger>().debug(
-                    'Device connected but not synced, sending sync packet...',
-                  );
-                  context.read<CommunicationCubit>().sendSyncPacket();
-                  _deviceEventEmitter?.scheduleDeviceEventEmission();
-                }
-                // Handle ready state
-                else if (state.isSynced && state.transducerResponse == null) {
-                  if (!mounted) return;
-                  di<ILogger>().debug(
-                    'Device synced but not ready, sending query info packet...',
-                  );
-                  context.read<CommunicationCubit>().sendQueryInfoPacket();
-                  _deviceEventEmitter?.scheduleDeviceEventEmission();
-                }
-                // Device is ready - send begin packet
-                else if (state.transducerResponse != null) {
-                  di<ILogger>().debug('Device ready with transducer response');
-                  _handleBeginPacket(testType);
-                  _deviceEventEmitter?.scheduleDeviceEventEmission();
-                }
-              }
-
-              // Handle error states
-              if (state.error != null) {
-                di<ILogger>().error('Device error: ${state.error}');
-
-                // If error indicates device not found, clear the device reference to prevent loops
-                if (state.error!.contains('No such device') &&
-                    r15cDevice != null) {
-                  di<ILogger>().info(
-                    'Clearing R15C device reference due to device not found error',
-                  );
-                  r15cDevice = null;
-                }
-
-                _deviceEventEmitter?.scheduleDeviceEventEmission();
-              }
-
-              // Additional triggers for any communication state change
-              _deviceEventEmitter?.scheduleDeviceEventEmission();
+                  _processDeviceConnectionState(state);
+                },
+              );
+            },
+          ),
+          // Separate optimized listener for device connection state
+          BlocListener<CommunicationCubit, CommunicationState>(
+            listenWhen: (previous, current) {
+              // Only listen for connection-related changes
+              return previous.isConnected != current.isConnected ||
+                  previous.isSynced != current.isSynced ||
+                  previous.transducerResponse != current.transducerResponse ||
+                  previous.error != current.error ||
+                  previous.connectionStatus != current.connectionStatus;
+            },
+            listener: (context, state) {
+              if (!mounted) return;
+              _processDeviceConnectionState(state);
             },
           ),
           // Removed UVCCameraCubit BlocListener - camera is now managed by the widget
@@ -1105,6 +1032,124 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "tympanometryData": state.impedanceData,
       });
     }
+  }
+
+  // Process device connection state changes (debounced to prevent excessive processing)
+  void _processDeviceConnectionState(CommunicationState state) {
+    if (!mounted) return;
+
+    // Enhanced device event emission for all communication state changes
+    if (r15cDevice != null || revo2Device != null) {
+      // Handle connection state - only try to initialize if device is actually connected
+      if (!state.isConnected) {
+        if (!mounted) return;
+
+        // Don't try to reinitialize if connectionStatus is 'Disconnected'
+        // This indicates an intentional reset (e.g., during device detachment)
+        // Only attempt reconnection for 'Error' states that might be recoverable
+        if (state.connectionStatus == 'Disconnected') {
+          di<ILogger>().debug(
+            'Device intentionally disconnected (resetState), skipping port initialization',
+          );
+          _deviceEventEmitter?.scheduleDeviceEventEmission();
+          return;
+        }
+
+        // Don't try to reinitialize if error indicates device is physically gone
+        final error = state.error;
+        final isDeviceGoneError =
+            error != null &&
+            (error.contains('No such device') ||
+                error.contains('device not found') ||
+                error.contains('deviceId'));
+
+        if (isDeviceGoneError) {
+          di<ILogger>().debug(
+            'Device error indicates physical disconnection, skipping port initialization',
+          );
+          _deviceEventEmitter?.scheduleDeviceEventEmission();
+          return;
+        }
+
+        di<ILogger>().debug(
+          'Device not connected, checking if device is still physically present...',
+        );
+
+        // Get current device state synchronously to avoid race conditions
+        final currentDeviceState = di<DeviceCubit>().state;
+        final isDeviceStillPresent = currentDeviceState.maybeWhen(
+          success: (devices, r15cDev, revo2Dev) {
+            // Double-check: verify device is actually in the devices list
+            if (r15cDev == null) return false;
+            // Verify the device reference matches one in the current list
+            return devices.any(
+              (d) =>
+                  d.deviceId == r15cDev.deviceId &&
+                  d.vid == r15cDev.vid &&
+                  d.pid == r15cDev.pid,
+            );
+          },
+          orElse: () => false,
+        );
+
+        // Only attempt to reinitialize if the R15C device is actually still connected
+        // This prevents infinite loops when device is physically disconnected
+        if (r15cDevice != null && isDeviceStillPresent) {
+          if (!mounted) return;
+          di<ILogger>().debug(
+            'R15C device still physically connected, initializing port...',
+          );
+          context.read<CommunicationCubit>().initializePort(r15cDevice!);
+        } else {
+          di<ILogger>().debug(
+            'R15C device no longer physically connected, skipping port initialization',
+          );
+        }
+        _deviceEventEmitter?.scheduleDeviceEventEmission();
+      }
+      // Handle initialization state
+      else if (state.isConnected && !state.isSynced) {
+        if (!mounted) return;
+        di<ILogger>().debug(
+          'Device connected but not synced, sending sync packet...',
+        );
+        context.read<CommunicationCubit>().sendSyncPacket();
+        _deviceEventEmitter?.scheduleDeviceEventEmission();
+      }
+      // Handle ready state
+      else if (state.isSynced && state.transducerResponse == null) {
+        if (!mounted) return;
+        di<ILogger>().debug(
+          'Device synced but not ready, sending query info packet...',
+        );
+        context.read<CommunicationCubit>().sendQueryInfoPacket();
+        _deviceEventEmitter?.scheduleDeviceEventEmission();
+      }
+      // Device is ready - send begin packet
+      else if (state.transducerResponse != null) {
+        di<ILogger>().debug('Device ready with transducer response');
+        _handleBeginPacket(testType);
+        _deviceEventEmitter?.scheduleDeviceEventEmission();
+      }
+    }
+
+    // Handle error states
+    if (state.error != null) {
+      di<ILogger>().error('Device error: ${state.error}');
+
+      // If error indicates device not found, clear the device reference to prevent loops
+      if (state.error!.contains('No such device') && r15cDevice != null) {
+        di<ILogger>().info(
+          'Clearing R15C device reference due to device not found error',
+        );
+        r15cDevice = null;
+      }
+
+      _deviceEventEmitter?.scheduleDeviceEventEmission();
+    }
+
+    // Additional triggers for any communication state change
+    _deviceEventEmitter?.scheduleDeviceEventEmission();
   }
 
   _emitPatientResponseEvent(bool isReleased) {

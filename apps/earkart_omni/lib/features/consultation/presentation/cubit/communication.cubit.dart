@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 import 'package:earkart_omni/config/utils/packet_format_interpreter.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
@@ -198,6 +199,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     if (data.isEmpty || isClosed) return;
 
     try {
+      // Process packet parsing (small overhead, keep on main thread)
+      // JSON parsing is moved to background in _handleProcessedPacket
       List<int>? processedPacket = _packetInterpreter.onListenerDataReady(data);
       if (processedPacket != null) {
         await _handleProcessedPacket(processedPacket);
@@ -216,9 +219,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       List<int>? payload = _packetInterpreter.extractPayload(packet);
       if (payload == null) return;
 
-      String jsonString = String.fromCharCodes(
-        payload,
-      ).trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F]'), '');
+      // Parse JSON string off main thread for large payloads
+      String jsonString = await _parseJsonStringInBackground(payload);
 
       if (jsonString.contains("R15C")) {
         if (isClosed) return;
@@ -241,7 +243,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         return;
       }
 
-      Map<String, dynamic> json = jsonDecode(jsonString);
+      // Parse JSON in background for large payloads to prevent UI blocking
+      Map<String, dynamic> json = await _parseJsonInBackground(jsonString);
 
       switch (json['PacketType']) {
         case 2: // Transducer Info
@@ -311,6 +314,41 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         emit(state.copyWith(error: 'Packet processing error: $e'));
       }
     }
+  }
+
+  // Parse JSON string in background to prevent UI thread blocking
+  Future<String> _parseJsonStringInBackground(List<int> payload) async {
+    // For small payloads, parse directly to avoid isolate overhead
+    if (payload.length < 512) {
+      return String.fromCharCodes(
+        payload,
+      ).trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F]'), '');
+    }
+
+    // Use compute for larger payloads
+    return compute(_parseJsonString, payload);
+  }
+
+  // Parse JSON map in background to prevent UI thread blocking
+  Future<Map<String, dynamic>> _parseJsonInBackground(String jsonString) async {
+    // For small JSON strings, parse directly
+    if (jsonString.length < 512) {
+      return jsonDecode(jsonString) as Map<String, dynamic>;
+    }
+
+    // Use compute for larger JSON strings
+    return compute(_parseJson, jsonString);
+  }
+
+  // Static helper functions for compute isolate
+  static String _parseJsonString(List<int> payload) {
+    return String.fromCharCodes(
+      payload,
+    ).trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F]'), '');
+  }
+
+  static Map<String, dynamic> _parseJson(String jsonString) {
+    return jsonDecode(jsonString) as Map<String, dynamic>;
   }
 
   Future<void> sendCommand(Uint8List packet) async {
