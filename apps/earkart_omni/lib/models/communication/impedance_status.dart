@@ -21,7 +21,7 @@ class ImpedanceStatus {
   String? statusName;
   ProbeStatus? probeStatus;
   Tymp? tymp;
-
+  EtfIntact? etfIntact;
   ImpedanceStatus({
     this.packetType,
     this.packetName,
@@ -32,6 +32,8 @@ class ImpedanceStatus {
     this.status,
     this.statusName,
     this.probeStatus,
+    this.tymp,
+    this.etfIntact,
   });
 
   ImpedanceStatus copyWith({
@@ -44,6 +46,8 @@ class ImpedanceStatus {
     int? status,
     String? statusName,
     ProbeStatus? probeStatus,
+    EtfIntact? etfIntact,
+    Tymp? tymp,
   }) => ImpedanceStatus(
     packetType: packetType ?? this.packetType,
     packetName: packetName ?? this.packetName,
@@ -54,6 +58,8 @@ class ImpedanceStatus {
     status: status ?? this.status,
     statusName: statusName ?? this.statusName,
     probeStatus: probeStatus ?? this.probeStatus,
+    etfIntact: etfIntact ?? this.etfIntact,
+    tymp: tymp ?? this.tymp,
   );
 
   factory ImpedanceStatus.fromJson(Map<String, dynamic> json) =>
@@ -70,6 +76,11 @@ class ImpedanceStatus {
             json["ProbeStatus"] == null
                 ? null
                 : ProbeStatus.fromJson(json["ProbeStatus"]),
+        etfIntact:
+            json["EtfIntact"] == null
+                ? null
+                : EtfIntact.fromJson(json["EtfIntact"]),
+        tymp: json["Tymp"] == null ? null : Tymp.fromJson(json["Tymp"]),
       );
 
   Map<String, dynamic> toJson() => {
@@ -82,6 +93,8 @@ class ImpedanceStatus {
     "Status": status,
     "StatusName": statusName,
     "ProbeStatus": probeStatus?.toJson(),
+    "EtfIntact": etfIntact?.toJson(),
+    "Tymp": tymp?.toJson(),
   };
 }
 
@@ -147,4 +160,27 @@ class Y {
 
   factory Y.fromJson(Map<String, dynamic> json) =>
       Y(compliance: json["Compliance"]);
+}
+
+class EtfIntact {
+  double? ECV;
+  double? Compliance;
+  int? Pressure;
+  int? Curve;
+
+  EtfIntact({this.ECV, this.Compliance, this.Pressure, this.Curve});
+
+  factory EtfIntact.fromJson(Map<String, dynamic> json) => EtfIntact(
+    ECV: json["ECV"],
+    Compliance: json["Compliance"],
+    Pressure: json["Pressure"],
+    Curve: json["Curve"],
+  );
+
+  Map<String, dynamic> toJson() => {
+    "ECV": ECV,
+    "Compliance": Compliance,
+    "Pressure": Pressure,
+    "Curve": Curve,
+  };
 }

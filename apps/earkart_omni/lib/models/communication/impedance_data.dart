@@ -15,6 +15,7 @@ class ImpedanceData {
   int? probetoneFrequency;
   bool? interrupted;
   TympData? tymp;
+  EtfIntactData? etfIntactData;
 
   ImpedanceData({
     this.packetType,
@@ -22,6 +23,7 @@ class ImpedanceData {
     this.probetoneFrequency,
     this.interrupted,
     this.tymp,
+    this.etfIntactData,
   });
 
   factory ImpedanceData.fromJson(Map<String, dynamic> json) => ImpedanceData(
@@ -30,6 +32,10 @@ class ImpedanceData {
     probetoneFrequency: json["ProbetoneFrequency"],
     interrupted: json["Interrupted"],
     tymp: json["Tymp"] == null ? null : TympData.fromJson(json["Tymp"]),
+    etfIntactData:
+        json["EtfIntact"] == null
+            ? null
+            : EtfIntactData.fromJson(json["EtfIntact"]),
   );
 
   Map<String, dynamic> toJson() => {
@@ -38,6 +44,78 @@ class ImpedanceData {
     "ProbetoneFrequency": probetoneFrequency,
     "Interrupted": interrupted,
     "Tymp": tymp?.toJson(),
+    "EtfIntact": etfIntactData?.toJson(),
+  };
+}
+
+class EtfIntactData {
+  double? ecv;
+  List<EtfCurve>? curves;
+
+  EtfIntactData({this.ecv, this.curves});
+
+  factory EtfIntactData.fromJson(Map<String, dynamic> json) => EtfIntactData(
+    ecv: json["ECV"]?.toDouble(),
+    curves:
+        json["Curves"] == null
+            ? []
+            : List<EtfCurve>.from(
+              json["Curves"]!.map((x) => EtfCurve.fromJson(x)),
+            ),
+  );
+
+  Map<String, dynamic> toJson() => {
+    "ECV": ecv,
+    "Curves":
+        curves == null
+            ? []
+            : List<dynamic>.from(curves!.map((x) => x.toJson())),
+  };
+}
+
+class EtfCurve {
+  Peak? peak;
+  double? gradient;
+  int? gradientPressure;
+  List<int>? pressureData;
+  List<double>? complianceData;
+
+  EtfCurve({
+    this.peak,
+    this.gradient,
+    this.gradientPressure,
+    this.pressureData,
+    this.complianceData,
+  });
+
+  factory EtfCurve.fromJson(Map<String, dynamic> json) => EtfCurve(
+    peak: json["Peak"] == null ? null : Peak.fromJson(json["Peak"]),
+    gradient: json["Gradient"]?.toDouble(),
+    gradientPressure: json["GradientPressure"],
+    pressureData:
+        json["PressureData"] == null
+            ? []
+            : List<int>.from(json["PressureData"]!.map((x) => x)),
+    complianceData:
+        json["ComplianceData"] == null
+            ? []
+            : List<double>.from(
+              json["ComplianceData"]!.map((x) => x?.toDouble()),
+            ),
+  );
+
+  Map<String, dynamic> toJson() => {
+    "Peak": peak?.toJson(),
+    "Gradient": gradient,
+    "GradientPressure": gradientPressure,
+    "PressureData":
+        pressureData == null
+            ? []
+            : List<dynamic>.from(pressureData!.map((x) => x)),
+    "ComplianceData":
+        complianceData == null
+            ? []
+            : List<dynamic>.from(complianceData!.map((x) => x)),
   };
 }
 
