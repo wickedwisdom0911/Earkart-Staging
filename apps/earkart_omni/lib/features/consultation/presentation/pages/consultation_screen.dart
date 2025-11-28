@@ -447,7 +447,48 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         di<ILogger>().error('Error handling stop-etf event: $e');
       }
     });
-
+    socket.on("tonedecay-started", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('Tonedecay start: $data');
+      context.read<CommunicationCubit>().sendStatePacket(
+        frequency: data["frequency"],
+        level: data["level"],
+        signal: true,
+        pulsed: data["pulsed"],
+        earSide: data["earSide"] == "L" ? EarSide.Left : EarSide.Right,
+        signalType:
+            data["signalType"] == "Steady"
+                ? SignalType.Steady
+                : data["signalType"] == "Warble"
+                ? SignalType.Warble
+                : data["signalType"] == "NB"
+                ? SignalType.NB
+                : data["signalType"] == "White"
+                ? SignalType.White
+                : data["signalType"] == "SpeechNoise"
+                ? SignalType.SpeechNoise
+                : data["signalType"] == "Speech"
+                ? SignalType.Speech
+                : SignalType.Steady,
+        conductionType:
+            data["conductionType"] == "AC"
+                ? ConductionType.Air
+                : ConductionType.Bone,
+      );
+    });
+    socket.on("tonedecay-stopped", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('Tonedecay stop: $data');
+      context.read<CommunicationCubit>().sendStatePacket(
+        frequency: data["frequency"],
+        level: data["level"],
+        signal: false,
+        pulsed: false,
+        earSide: data["earSide"] == "L" ? EarSide.Left : EarSide.Right,
+        signalType: SignalType.Steady,
+        conductionType: ConductionType.Air,
+      );
+    });
     socket.on("end-test", (data) {
       if (!mounted) return;
 
