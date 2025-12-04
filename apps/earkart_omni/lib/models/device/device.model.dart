@@ -55,6 +55,10 @@ class DeviceData extends DeviceEntity {
   final DateTime updatedAt;
   @override
   final CentreEntity? centre;
+  @override
+  final bool? pendingUpdate;
+  @override
+  final DateTime? lastUpdateChecked;
 
   const DeviceData({
     required this.id,
@@ -70,6 +74,8 @@ class DeviceData extends DeviceEntity {
     required this.createdAt,
     required this.updatedAt,
     this.centre,
+    this.pendingUpdate,
+    this.lastUpdateChecked,
   }) : super(
          id: id,
          code: code,
@@ -84,7 +90,18 @@ class DeviceData extends DeviceEntity {
          createdAt: createdAt,
          updatedAt: updatedAt,
          centre: centre,
+         pendingUpdate: pendingUpdate,
+         lastUpdateChecked: lastUpdateChecked,
        );
+
+  static DateTime? _parseDateTime(dynamic value) {
+    try {
+      return DateTime.parse(value.toString());
+    } catch (e) {
+      print('Error parsing DateTime: $value, error: $e');
+      return null;
+    }
+  }
 
   factory DeviceData.fromJson(Map<String, dynamic> json) {
     return DeviceData(
@@ -111,6 +128,12 @@ class DeviceData extends DeviceEntity {
               : DateTime.now(),
       centre:
           json['centre'] != null ? CentreEntity.fromJson(json['centre']) : null,
+      pendingUpdate: json['pendingUpdate'],
+      lastUpdateChecked:
+          json['lastUpdateChecked'] != null &&
+                  json['lastUpdateChecked'].toString().isNotEmpty
+              ? _parseDateTime(json['lastUpdateChecked'])
+              : null,
     );
   }
 
@@ -130,6 +153,8 @@ class DeviceData extends DeviceEntity {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'centre': centre?.toJson(),
+      'pendingUpdate': pendingUpdate,
+      'lastUpdateChecked': lastUpdateChecked?.toUtc().toIso8601String(),
     };
   }
 }

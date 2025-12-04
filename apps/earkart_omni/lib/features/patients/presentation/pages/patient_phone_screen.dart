@@ -195,46 +195,55 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
 
   Widget _buildResultsSection(PatientState state) {
     if (state is PatientLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text(
-              'Searching for patients...',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          ],
+      return SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              const Text(
+                'Searching for patients...',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     if (state is PatientError) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
-            const SizedBox(height: 16),
-            Text(
-              'Error: ${state.message}',
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                if (_searchQuery.isNotEmpty) {
-                  final fullPhoneNumber = "$_selectedCountryCode$_searchQuery";
-                  context.read<PatientCubit>().getPatientsByValue(
-                    fullPhoneNumber,
-                  );
-                }
-              },
-              child: const Text('Try Again'),
-            ),
-          ],
+      return SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+              const SizedBox(height: 16),
+              Text(
+                'Error: ${state.message}',
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  if (_searchQuery.isNotEmpty) {
+                    final fullPhoneNumber =
+                        "$_selectedCountryCode$_searchQuery";
+                    context.read<PatientCubit>().getPatientsByValue(
+                      fullPhoneNumber,
+                    );
+                  }
+                },
+                child: const Text('Try Again'),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -324,70 +333,74 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
   }
 
   Widget _buildNoResultsState() {
-    return Center(
-      child: Container(
+    return SingleChildScrollView(
+      child: Padding(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.orange.shade50, Colors.orange.shade100],
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Colors.orange.shade50, Colors.orange.shade100],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                borderRadius: BorderRadius.circular(8),
+                child: Icon(
+                  Icons.person_off_outlined,
+                  size: 24,
+                  color: Colors.orange.shade600,
+                ),
               ),
-              child: Icon(
-                Icons.person_off_outlined,
-                size: 24,
-                color: Colors.orange.shade600,
+              const SizedBox(height: 10),
+              Text(
+                'No Patients Found',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'No Patients Found',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade800,
+              const SizedBox(height: 4),
+              Text(
+                'No patients found with phone number:\n${_selectedCountryCode}$_searchQuery',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  height: 1.2,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'No patients found with phone number:\n${_selectedCountryCode}$_searchQuery',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-                height: 1.2,
+              const SizedBox(height: 6),
+              Text(
+                'Use the + button below to add a new patient',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey.shade500,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Use the + button below to add a new patient',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade500,
-                fontStyle: FontStyle.italic,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

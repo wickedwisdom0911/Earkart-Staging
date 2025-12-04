@@ -18,6 +18,7 @@ class Constants {
   static const districtDb = "district_db";
   static const languageDb = "language_db";
   static const consultationDb = "consultation_db";
+  static const appointmentDb = "appointment_db";
   static final isProduction = dotenv.env['isProduction'] == 'true';
   static final showApiLogs = dotenv.env['showApiLogs'] == 'true';
   static final baseUrl =
@@ -53,4 +54,10 @@ class Constants {
   static final createRoomUrl = "${baseUrl}twilio/create-room";
   static final deleteRoomUrl = "${baseUrl}twilio/delete-room";
   static final getAgoraTokenUrl = "${baseUrl}agora/create-agora-token";
+  static final updateTabletUrl = "${baseUrl}mdm/update-tablet";
+
+  static final createAppointmentUrl = "${baseUrl}appointment/create";
+  static final getAppointmentByIdUrl = "${baseUrl}appointment/get-by-id";
+  static final updateAppointmentUrl = "${baseUrl}appointment/update";
+  static final getAppointmentsUrl = "${baseUrl}appointment/get-all";
 }

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
 import 'package:earkart_omni/features/network/presentation/widgets/wakelock_status_widget.dart';
-import 'package:earkart_omni/features/consultation/presentation/widgets/device_status_widget.dart';
+import 'package:earkart_omni/config/widgets/device_status_widget.dart';
 
 class GlassmorphismAppBar extends StatelessWidget
     implements PreferredSizeWidget {

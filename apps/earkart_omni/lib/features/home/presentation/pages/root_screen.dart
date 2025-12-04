@@ -24,7 +24,7 @@ import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:earkart_omni/utils/device_owner_helper.dart';
+import 'package:earkart_omni/config/services/device_owner_helper.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/release_config.dart';
 import 'package:earkart_omni/config/widgets/app_loading_screen.dart';
@@ -126,7 +126,6 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
 
   void _startGlobalDeviceMonitoring() {
     try {
-      // Check if device monitoring is enabled in release mode
       if (!ReleaseConfig.enableDeviceMonitoring) {
         return;
       }

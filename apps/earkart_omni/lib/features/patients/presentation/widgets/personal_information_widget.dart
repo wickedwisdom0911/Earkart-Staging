@@ -59,7 +59,7 @@ class PersonalInformationWidget extends StatelessWidget {
 
         // Age or DOB Selection
         AgeOrDobSelector(
-          title: "Age Information",
+          title: "Age Information *",
           value: selectedAgeOrDob,
           onChanged: onAgeOrDobChanged,
           hideAfterSelection: true,
@@ -76,14 +76,14 @@ class PersonalInformationWidget extends StatelessWidget {
           if (selectedAgeOrDob == AgeOrDob.age)
             CustomTextField(
               hint: "Enter age",
-              title: "Age",
+              title: "Age *",
               controller: ageController,
               keyboardType: TextInputType.number,
             )
           else
             CustomTextField(
               hint: "Select date of birth",
-              title: "Date of Birth",
+              title: "Date of Birth *",
               controller: dobController,
               readOnly: true,
               onTap: () => _showDatePicker(context),

@@ -595,3 +595,67 @@ class LeadStatusAdapter extends TypeAdapter<LeadStatus> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+class AppointmentStatusAdapter extends TypeAdapter<AppointmentStatus> {
+  @override
+  final int typeId = 38;
+
+  @override
+  AppointmentStatus read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return AppointmentStatus.requested;
+      case 1:
+        return AppointmentStatus.confirmed;
+      case 2:
+        return AppointmentStatus.rescheduled;
+      case 3:
+        return AppointmentStatus.cancelledByPatient;
+      case 4:
+        return AppointmentStatus.cancelledByCentre;
+      case 5:
+        return AppointmentStatus.completed;
+      case 6:
+        return AppointmentStatus.noShow;
+      default:
+        return AppointmentStatus.requested;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, AppointmentStatus obj) {
+    switch (obj) {
+      case AppointmentStatus.requested:
+        writer.writeByte(0);
+        break;
+      case AppointmentStatus.confirmed:
+        writer.writeByte(1);
+        break;
+      case AppointmentStatus.rescheduled:
+        writer.writeByte(2);
+        break;
+      case AppointmentStatus.cancelledByPatient:
+        writer.writeByte(3);
+        break;
+      case AppointmentStatus.cancelledByCentre:
+        writer.writeByte(4);
+        break;
+      case AppointmentStatus.completed:
+        writer.writeByte(5);
+        break;
+      case AppointmentStatus.noShow:
+        writer.writeByte(6);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppointmentStatusAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}

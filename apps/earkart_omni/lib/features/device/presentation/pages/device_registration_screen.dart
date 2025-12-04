@@ -88,20 +88,14 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
 
   Future<String?> _getDeviceSerialNumber() async {
     try {
-      di<ILogger>().info(
-        "Attempting to get device serial number via DevicePolicyManager...",
-      );
-
-      // Call the platform channel method to get serial number via DevicePolicyManager
       final String? serialNumber = await platform.invokeMethod(
         'getDeviceSerialNumber',
       );
 
       if (serialNumber != null && serialNumber.isNotEmpty) {
-        di<ILogger>().info("Device serial number obtained: $serialNumber");
         return serialNumber;
       } else {
-        di<ILogger>().warning(
+        di<ILogger>().error(
           "DevicePolicyManager returned null/empty serial number",
         );
         return "unknown_serial";

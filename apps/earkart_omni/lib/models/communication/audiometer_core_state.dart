@@ -110,31 +110,142 @@ class Transducer {
   };
 }
 
+class ImpedanceCalibrationFrequency {
+  final int frequency;
+  final int maxLevelHL;
+  final int minLevelHL;
+  final int calibration;
+
+  ImpedanceCalibrationFrequency({
+    required this.frequency,
+    required this.maxLevelHL,
+    required this.minLevelHL,
+    required this.calibration,
+  });
+
+  factory ImpedanceCalibrationFrequency.fromJson(Map<String, dynamic> json) {
+    return ImpedanceCalibrationFrequency(
+      frequency: json['Frequency'] ?? -1,
+      maxLevelHL: json['MaxLevelHL'] ?? 0,
+      minLevelHL: json['MinLevelHL'] ?? 0,
+      calibration: json['Calibration'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'Frequency': frequency,
+    'MaxLevelHL': maxLevelHL,
+    'MinLevelHL': minLevelHL,
+    'Calibration': calibration,
+  };
+}
+
+class ImpedanceCalibration {
+  final int signalType;
+  final List<ImpedanceCalibrationFrequency> calibrationFrequencies;
+
+  ImpedanceCalibration({
+    required this.signalType,
+    required this.calibrationFrequencies,
+  });
+
+  factory ImpedanceCalibration.fromJson(Map<String, dynamic> json) {
+    return ImpedanceCalibration(
+      signalType: json['SignalType'] ?? 0,
+      calibrationFrequencies:
+          (json['CalibrationFrequencies'] as List<dynamic>?)
+              ?.map((freq) => ImpedanceCalibrationFrequency.fromJson(freq))
+              .toList() ??
+          [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'SignalType': signalType,
+    'CalibrationFrequencies':
+        calibrationFrequencies.map((freq) => freq.toJson()).toList(),
+  };
+}
+
+class ImpedanceTransducer {
+  final String id;
+  final String name;
+  final String calibrationDate;
+  final int earType;
+  final List<int> signalTypes;
+  final List<int> reflexStimulusDuration;
+  final List<int> decayStimulusDuration;
+  final List<ImpedanceCalibration> calibrations;
+
+  ImpedanceTransducer({
+    required this.id,
+    required this.name,
+    required this.calibrationDate,
+    required this.earType,
+    required this.signalTypes,
+    required this.reflexStimulusDuration,
+    required this.decayStimulusDuration,
+    required this.calibrations,
+  });
+
+  factory ImpedanceTransducer.fromJson(Map<String, dynamic> json) {
+    return ImpedanceTransducer(
+      id: json['ID'] ?? '',
+      name: json['Name'] ?? '',
+      calibrationDate: json['CalibrationDate'] ?? '',
+      earType: json['EarType'] ?? 0,
+      signalTypes: (json['SignalTypes'] as List<dynamic>?)?.cast<int>() ?? [],
+      reflexStimulusDuration:
+          (json['ReflexStimulusDuration'] as List<dynamic>?)?.cast<int>() ?? [],
+      decayStimulusDuration:
+          (json['DecayStimulusDuration'] as List<dynamic>?)?.cast<int>() ?? [],
+      calibrations:
+          (json['Calibrations'] as List<dynamic>?)
+              ?.map((cal) => ImpedanceCalibration.fromJson(cal))
+              .toList() ??
+          [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'ID': id,
+    'Name': name,
+    'CalibrationDate': calibrationDate,
+    'EarType': earType,
+    'SignalTypes': signalTypes,
+    'ReflexStimulusDuration': reflexStimulusDuration,
+    'DecayStimulusDuration': decayStimulusDuration,
+    'Calibrations': calibrations.map((cal) => cal.toJson()).toList(),
+  };
+}
+
 class TransducerResponse {
   final int packetType;
   String packetName;
   SpeechMaterial speechMaterial;
   final List<Transducer> transducers;
+  final List<ImpedanceTransducer> impedanceTransducers;
 
   TransducerResponse({
     required this.packetType,
     required this.transducers,
     required this.packetName,
     required this.speechMaterial,
+    required this.impedanceTransducers,
   });
 
   factory TransducerResponse.fromJson(Map<String, dynamic> json) {
     return TransducerResponse(
       packetType: json['PacketType'] ?? 0,
-      // 0- none
-      // sync is a standalone command with no packet type
-      // 1 - query info
-      // 4 - state command
-      // 6 - exit command
-      //8 - patient response
+
       transducers:
           (json['Transducers'] as List<dynamic>?)
               ?.map((trans) => Transducer.fromJson(trans))
+              .toList() ??
+          [],
+      impedanceTransducers:
+          (json['ImpedanceTransducers'] as List<dynamic>?)
+              ?.map((trans) => ImpedanceTransducer.fromJson(trans))
               .toList() ??
           [],
       packetName: json['PacketName'] ?? '',
@@ -145,6 +256,10 @@ class TransducerResponse {
   Map<String, dynamic> toJson() => {
     'PacketType': packetType,
     'Transducers': transducers.map((trans) => trans.toJson()).toList(),
+    'ImpedanceTransducers':
+        impedanceTransducers.map((trans) => trans.toJson()).toList(),
+    'PacketName': packetName,
+    'SpeechMaterial': speechMaterial.toJson(),
   };
 }
 

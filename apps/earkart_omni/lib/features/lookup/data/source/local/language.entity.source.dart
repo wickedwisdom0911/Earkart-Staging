@@ -7,8 +7,36 @@ class LanguageEntityDataSource {
   late Box<List<LanguageEntity>> languageEntityBox;
 
   Future<void> init() async {
-    await Hive.openBox<List<LanguageEntity>>(_boxName);
-    languageEntityBox = Hive.box<List<LanguageEntity>>(_boxName);
+    try {
+      await Hive.openBox<List<LanguageEntity>>(_boxName);
+      languageEntityBox = Hive.box<List<LanguageEntity>>(_boxName);
+    } catch (e) {
+      print("Error opening language box, clearing corrupted data: $e");
+      try {
+        try {
+          await Hive.deleteBoxFromDisk(_boxName);
+        } catch (deleteError) {
+          print(
+            "Note: Could not delete box files (may not exist): $deleteError",
+          );
+        }
+        await Hive.openBox<List<LanguageEntity>>(_boxName);
+        languageEntityBox = Hive.box<List<LanguageEntity>>(_boxName);
+        print("Successfully cleared corrupted data and reopened box");
+      } catch (clearError) {
+        print("Failed to clear corrupted data: $clearError");
+        try {
+          await Hive.deleteFromDisk();
+          await Hive.initFlutter();
+          await Hive.openBox<List<LanguageEntity>>(_boxName);
+          languageEntityBox = Hive.box<List<LanguageEntity>>(_boxName);
+          print("Successfully cleared all Hive data and reopened box");
+        } catch (finalError) {
+          print("Final attempt failed: $finalError");
+          rethrow;
+        }
+      }
+    }
   }
 
   Box<List<LanguageEntity>> getBox() {
