@@ -156,19 +156,28 @@ class Tymp {
 
   Tymp({this.ECV, this.y, this.pressure});
 
-  factory Tymp.fromJson(Map<String, dynamic> json) =>
-      Tymp(ECV: json["ECV"], y: json["Y"], pressure: json["Pressure"]);
+  factory Tymp.fromJson(Map<String, dynamic> json) => Tymp(
+    ECV: json["ECV"]?.toDouble(),
+    y: json["Y"] == null ? null : Y.fromJson(json["Y"]),
+    pressure: json["Pressure"],
+  );
 
-  Map<String, dynamic> toJson() => {"ECV": ECV, "Y": y, "Pressure": pressure};
+  Map<String, dynamic> toJson() => {
+    "ECV": ECV,
+    "Y": y?.toJson(),
+    "Pressure": pressure,
+  };
 }
 
 class Y {
-  int? compliance;
+  double? compliance;
 
   Y({this.compliance});
 
   factory Y.fromJson(Map<String, dynamic> json) =>
-      Y(compliance: json["Compliance"]);
+      Y(compliance: json["Compliance"]?.toDouble());
+
+  Map<String, dynamic> toJson() => {"Compliance": compliance};
 }
 
 class EtfIntact {
