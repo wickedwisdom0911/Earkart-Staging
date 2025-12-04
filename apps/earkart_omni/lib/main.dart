@@ -7,6 +7,7 @@ import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/features/auth/data/source/local/user.entity.source.dart';
 import 'package:earkart_omni/features/device/data/source/local/device.entity.source.dart';
+import 'package:earkart_omni/features/appointments/presentation/cubit/appointments.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
@@ -18,6 +19,7 @@ import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
+import 'package:earkart_omni/features/appointments/data/source/local/appointments.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/countries.entity.source.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/state.entity.source.dart';
@@ -25,6 +27,8 @@ import 'package:earkart_omni/features/lookup/data/source/local/city.entity.sourc
 import 'package:earkart_omni/features/lookup/data/source/local/district.entty.source.dart';
 import 'package:earkart_omni/features/lookup/data/source/local/language.entity.source.dart';
 import 'package:earkart_omni/config/services/battery_service.dart';
+import 'package:earkart_omni/config/services/auto_update_service.dart';
+import 'package:earkart_omni/models/appointments/appointments.entity.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/audiometry/audiometry_test.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
@@ -50,7 +54,7 @@ import 'package:get/route_manager.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'package:earkart_omni/utils/device_owner_helper.dart';
+import 'package:earkart_omni/config/services/device_owner_helper.dart';
 
 Future<void> main() async {
   await dotenv.load(fileName: ".env");
@@ -68,24 +72,16 @@ Future<void> main() async {
   // Auto-grant device owner permissions if app is device owner
   await _initializeDeviceOwnerPermissions();
 
-  // Start lookup data initialization in background (non-blocking)
-  unawaited(_initLookupDataAsync());
-
+  // Initialize auto-update service and perform startup checks
+  await _initializeAutoUpdate();
   runApp(const MyApp());
 }
 
 /// Initialize battery service
 Future<void> _initializeBatteryService() async {
   try {
-    developer.log('Initializing battery service...', name: 'BatteryService');
-
     final batteryService = di<BatteryService>();
     await batteryService.initialize();
-
-    developer.log(
-      'Battery service initialized successfully',
-      name: 'BatteryService',
-    );
   } catch (e) {
     developer.log(
       'Error initializing battery service: $e',
@@ -94,14 +90,8 @@ Future<void> _initializeBatteryService() async {
   }
 }
 
-/// Initialize device owner permissions automatically with timeout
 Future<void> _initializeDeviceOwnerPermissions() async {
   try {
-    developer.log(
-      'Initializing device owner permissions...',
-      name: 'DeviceOwner',
-    );
-
     // Add timeout to prevent hanging during startup
     await Future.wait([
       DeviceOwnerHelper.autoGrantPermissionsIfDeviceOwner(),
@@ -120,14 +110,47 @@ Future<void> _initializeDeviceOwnerPermissions() async {
       },
     );
 
-    developer.log(
-      'Device owner permissions initialization complete',
-      name: 'DeviceOwner',
-    );
+    DeviceOwnerHelper.configureDeviceSettings()
+        .then((success) {
+          developer.log(
+            'Device settings configuration: $success',
+            name: 'DeviceOwner',
+          );
+        })
+        .catchError((e) {
+          developer.log(
+            'Error configuring device settings: $e',
+            name: 'DeviceOwner',
+          );
+        });
   } catch (e) {
     developer.log(
       'Error initializing device owner permissions: $e - continuing startup',
       name: 'DeviceOwner',
+    );
+  }
+}
+
+/// Initialize auto-update service and perform startup checks
+Future<void> _initializeAutoUpdate() async {
+  try {
+    developer.log('Initializing auto-update service...', name: 'AutoUpdate');
+
+    final autoUpdateService = di<AutoUpdateService>();
+
+    // Check and perform update if needed (run in background)
+    unawaited(
+      autoUpdateService.checkAndPerformUpdate().catchError((e) {
+        developer.log('Auto-update check failed: $e', name: 'AutoUpdate');
+        return false;
+      }),
+    );
+
+    developer.log('Auto-update service initialized', name: 'AutoUpdate');
+  } catch (e) {
+    developer.log(
+      'Error initializing auto-update service: $e - continuing startup',
+      name: 'AutoUpdate',
     );
   }
 }
@@ -309,6 +332,8 @@ void _registerHiveAdapters() {
   Hive.registerAdapter(TympTypeAdapter());
   // Audiologist
   Hive.registerAdapter(AudiologistEntityAdapter());
+  Hive.registerAdapter(AppointmentEntityAdapter());
+  Hive.registerAdapter(AppointmentStatusAdapter());
 }
 
 Future<void> _initDataSources() async {
@@ -322,38 +347,7 @@ Future<void> _initDataSources() async {
   await di<CityEntityDataSource>().init();
   await di<DistrictEntityDataSource>().init();
   await di<LanguageEntityDataSource>().init();
-}
-
-/// Initialize lookup data asynchronously with error handling and timeout
-Future<void> _initLookupDataAsync() async {
-  try {
-    developer.log(
-      'Starting async lookup data initialization...',
-      name: 'LookupData',
-    );
-
-    // Use timeout to prevent hanging during startup
-    await Future.wait([
-      di<LookupCubit>().getLanguages(),
-      di<LookupCubit>().getCountries(),
-    ]).timeout(
-      const Duration(seconds: 15),
-      onTimeout: () {
-        developer.log(
-          'Lookup data initialization timed out - app will continue',
-          name: 'LookupData',
-        );
-        return [];
-      },
-    );
-
-    developer.log('Lookup data initialization completed', name: 'LookupData');
-  } catch (e) {
-    developer.log(
-      'Lookup data initialization failed: $e - app will continue',
-      name: 'LookupData',
-    );
-  }
+  await di<AppointmentEntityDataSource>().init();
 }
 
 class MyApp extends StatefulWidget {
@@ -416,6 +410,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           deviceCubit.startDeviceMonitoring();
           deviceCubit.forceDeviceCheck();
         } catch (_) {}
+
+        // Check for updates when app resumes (optional)
+        try {
+          final autoUpdateService = di<AutoUpdateService>();
+          unawaited(
+            autoUpdateService.checkAndPerformUpdate().catchError((e) {
+              developer.log(
+                'Resume update check failed: $e',
+                name: 'AutoUpdate',
+              );
+              return false;
+            }),
+          );
+        } catch (_) {}
         break;
       case AppLifecycleState.paused:
         // App is paused but might resume soon - keep wake lock for medical app
@@ -444,7 +452,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (_isInitializing) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
-        home: const AppLoadingScreen(message: "Getting Omni Ready for You..."),
+        home: const AppLoadingScreen(
+          message: "Getting Omni 2.0 Ready for You...",
+        ),
       );
     }
 
@@ -459,6 +469,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ),
         BlocProvider<LookupCubit>(create: (context) => di.call<LookupCubit>()),
         BlocProvider<AgoraCubit>(create: (context) => di.call<AgoraCubit>()),
+        BlocProvider<AppointmentsCubit>(
+          create: (context) => di.call<AppointmentsCubit>(),
+        ),
 
         BlocProvider<DeviceCubit>(create: (context) => di.call<DeviceCubit>()),
         BlocProvider<CommunicationCubit>(
@@ -475,7 +488,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         duration: const Duration(milliseconds: 300),
         child: GetMaterialApp(
           key: ValueKey(_isInitializing),
-          title: "EarKart Omni",
+          title: "EarKart Omni 2.0",
           debugShowCheckedModeBanner: false,
           theme: theme,
           navigatorKey: SessionManager.navigatorKey,

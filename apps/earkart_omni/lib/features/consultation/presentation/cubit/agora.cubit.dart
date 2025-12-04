@@ -10,7 +10,14 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
-import 'package:earkart_omni/utils/device_owner_helper.dart';
+import 'package:earkart_omni/config/services/device_owner_helper.dart';
+
+/// Quality profiles for adaptive video/audio quality
+enum _QualityProfile {
+  high, // Excellent/Good network
+  medium, // Poor network
+  low, // Bad/Very Bad/Down network
+}
 
 class AgoraCubit extends Cubit<AgoraState> {
   final GetAgoraTokenUsecase getAgoraTokenUsecase;
@@ -41,6 +48,13 @@ class AgoraCubit extends Cubit<AgoraState> {
   bool _initInProgress = false;
   String? _requestedTokenChannelName;
   bool _isHandlingToken = false;
+
+  // Adaptive quality properties
+  QualityType? _currentNetworkQuality;
+  QualityType? _lastAppliedQuality;
+  Timer? _qualityAdjustmentTimer;
+  bool _isAdjustingQuality = false; // Prevent concurrent adjustments
+  static const Duration _qualityAdjustmentDebounce = Duration(seconds: 3);
 
   AgoraCubit(this.getAgoraTokenUsecase) : super(AgoraState.initial()) {
     _initializeTokenRenewalService();
@@ -522,6 +536,18 @@ class AgoraCubit extends Cubit<AgoraState> {
               _isJoining = false;
               _initInProgress = false;
               _scheduleRetry();
+            }
+          },
+          onNetworkQuality: (
+            RtcConnection connection,
+            int txQuality,
+            QualityType txQualityType,
+            QualityType rxQualityType,
+          ) {
+            // Use txQualityType as primary indicator (uplink quality)
+            if (_currentNetworkQuality != txQualityType) {
+              _currentNetworkQuality = txQualityType;
+              _scheduleQualityAdjustment();
             }
           },
           onLocalVideoStateChanged: (
@@ -1171,11 +1197,170 @@ class AgoraCubit extends Cubit<AgoraState> {
     }
   }
 
+  // ============================================================================
+  // Adaptive Quality Management
+  // ============================================================================
+  // This feature automatically adjusts video and audio quality based on real-time
+  // network conditions reported by Agora's onNetworkQuality callback.
+  //
+  // Quality Profiles:
+  // - HIGH: Excellent/Good network -> 1280x720 @ 60fps, High Quality Audio
+  // - MEDIUM: Poor network -> 640x360 @ 30fps, Standard Audio
+  // - LOW: Bad/Very Bad/Down network -> 320x180 @ 15fps, Default Audio
+  //
+  // Changes are debounced (3 seconds) to avoid rapid quality fluctuations.
+  // ============================================================================
+
+  /// Schedule quality adjustment with debouncing
+  void _scheduleQualityAdjustment() {
+    _qualityAdjustmentTimer?.cancel();
+    _qualityAdjustmentTimer = Timer(_qualityAdjustmentDebounce, () {
+      if (!_isDisposed && _isInitialized && _currentNetworkQuality != null) {
+        _adjustQualityBasedOnNetwork();
+      }
+    });
+  }
+
+  /// Adjust video and audio quality based on current network quality
+  Future<void> _adjustQualityBasedOnNetwork() async {
+    // Prevent concurrent adjustments
+    if (_isAdjustingQuality) {
+      di<ILogger>().info(
+        '[QUALITY] Adjustment already in progress, skipping duplicate adjustment',
+      );
+      return;
+    }
+
+    if (_currentNetworkQuality == null ||
+        _currentNetworkQuality == _lastAppliedQuality) {
+      return;
+    }
+
+    if (_engine == null || _isDisposed || !_isInitialized) {
+      return;
+    }
+
+    _isAdjustingQuality = true;
+    try {
+      // Capture current quality at the start to ensure consistency
+      final qualityToApply = _currentNetworkQuality!;
+      final qualityProfile = _getQualityProfile(qualityToApply);
+
+      // Update last applied quality before applying to prevent duplicate work
+      _lastAppliedQuality = qualityToApply;
+
+      // Adjust video quality
+      await _applyVideoQuality(qualityProfile);
+
+      // Adjust audio quality
+      await _applyAudioQuality(qualityProfile);
+
+      di<ILogger>().info(
+        '[QUALITY] Successfully adjusted quality to profile: $qualityProfile',
+      );
+    } catch (e) {
+      di<ILogger>().error('Error adjusting quality: $e');
+      // Reset last applied quality on error so it can be retried
+      _lastAppliedQuality = null;
+    } finally {
+      _isAdjustingQuality = false;
+    }
+  }
+
+  _QualityProfile _getQualityProfile(QualityType quality) {
+    // Map Agora QualityType to our quality profiles
+    // QualityType values: qualityUnknown, qualityExcellent, qualityGood,
+    // qualityPoor, qualityBad, qualityVeryBad, qualityDown
+    if (quality == QualityType.qualityExcellent ||
+        quality == QualityType.qualityGood) {
+      return _QualityProfile.high;
+    } else if (quality == QualityType.qualityPoor) {
+      return _QualityProfile.medium;
+    } else {
+      // qualityBad, qualityVeryBad, qualityDown, or qualityUnknown
+      return _QualityProfile.low;
+    }
+  }
+
+  /// Apply video quality settings based on profile
+  Future<void> _applyVideoQuality(_QualityProfile profile) async {
+    if (_engine == null || _isDisposed || !_isInitialized) return;
+
+    final VideoEncoderConfiguration config;
+    final String frameRateParam;
+
+    switch (profile) {
+      case _QualityProfile.high:
+        // High quality: 1280x720 @ 60fps
+        config = const VideoEncoderConfiguration(
+          dimensions: VideoDimensions(width: 1280, height: 720),
+          frameRate: 60,
+          bitrate: 0, // Auto bitrate
+        );
+        frameRateParam = '{"che.video.publishFrameRate":60}';
+        break;
+      case _QualityProfile.medium:
+        // Medium quality: 640x360 @ 30fps
+        config = const VideoEncoderConfiguration(
+          dimensions: VideoDimensions(width: 640, height: 360),
+          frameRate: 30,
+          bitrate: 0, // Auto bitrate
+        );
+        frameRateParam = '{"che.video.publishFrameRate":30}';
+        break;
+      case _QualityProfile.low:
+        // Low quality: 320x180 @ 15fps
+        config = const VideoEncoderConfiguration(
+          dimensions: VideoDimensions(width: 320, height: 180),
+          frameRate: 15,
+          bitrate: 0, // Auto bitrate
+        );
+        frameRateParam = '{"che.video.publishFrameRate":15}';
+        break;
+    }
+
+    await _engine!.setVideoEncoderConfiguration(config);
+    await _engine!.setParameters(frameRateParam);
+  }
+
+  /// Apply audio quality settings based on profile
+  Future<void> _applyAudioQuality(_QualityProfile profile) async {
+    if (_engine == null || _isDisposed || !_isInitialized) return;
+
+    final AudioProfileType audioProfile;
+    final AudioScenarioType audioScenario;
+
+    switch (profile) {
+      case _QualityProfile.high:
+        // High quality audio: Music High Quality
+        audioProfile = AudioProfileType.audioProfileMusicHighQuality;
+        audioScenario = AudioScenarioType.audioScenarioGameStreaming;
+        break;
+      case _QualityProfile.medium:
+        // Medium quality audio: Music Standard
+        audioProfile = AudioProfileType.audioProfileMusicStandard;
+        audioScenario = AudioScenarioType.audioScenarioGameStreaming;
+        break;
+      case _QualityProfile.low:
+        // Low quality audio: Default (more bandwidth efficient)
+        audioProfile = AudioProfileType.audioProfileDefault;
+        audioScenario = AudioScenarioType.audioScenarioDefault;
+        break;
+    }
+
+    await _engine!.setAudioProfile(
+      profile: audioProfile,
+      scenario: audioScenario,
+    );
+  }
+
   @override
   Future<void> close() {
-    _isDisposed = true;
+    // Cancel timers before setting disposed flag to prevent race conditions
     _agoraStateSubscription?.cancel();
     _retryTimer?.cancel();
+    _qualityAdjustmentTimer?.cancel();
+    _isDisposed = true;
     leaveChannel();
     if (_isInitialized) {
       try {

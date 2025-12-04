@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 import 'package:earkart_omni/config/utils/packet_format_interpreter.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
@@ -49,11 +50,15 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   Future<bool> initializePort(UsbDevice device) async {
+    if (isClosed) return false;
+
     try {
       emit(state.copyWith(connectionStatus: 'Initializing...', error: null));
 
       // Close existing port if any
       await _cleanupPort();
+
+      if (isClosed) return false;
 
       _lastDevice = device;
       _port = await device.create();
@@ -66,8 +71,18 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         throw Exception('Failed to open port');
       }
 
+      if (isClosed) {
+        await _cleanupPort();
+        return false;
+      }
+
       await _configureFTDIDevice();
       _setupListener();
+
+      if (isClosed) {
+        await _cleanupPort();
+        return false;
+      }
 
       emit(
         state.copyWith(
@@ -85,6 +100,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
       return true;
     } catch (e) {
+      if (isClosed) return false;
       di<ILogger>().error('Port initialization error: $e');
       emit(
         state.copyWith(
@@ -124,14 +140,19 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     try {
       // Reduced delays to prevent thread blocking
       await Future.delayed(const Duration(milliseconds: 100));
+      if (isClosed) return;
       await _port!.setDTR(false);
       await Future.delayed(const Duration(milliseconds: 50));
+      if (isClosed) return;
       await _port!.setDTR(true);
       await Future.delayed(const Duration(milliseconds: 50));
+      if (isClosed) return;
       await _port!.setRTS(true);
       await Future.delayed(const Duration(milliseconds: 50));
+      if (isClosed) return;
       await _port!.setFlowControl(UsbPort.FLOW_CONTROL_OFF);
       await Future.delayed(const Duration(milliseconds: 50));
+      if (isClosed) return;
       await _port!.setPortParameters(
         921600,
         UsbPort.DATABITS_8,
@@ -139,8 +160,10 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         UsbPort.PARITY_NONE,
       );
       await Future.delayed(const Duration(milliseconds: 100));
+      if (isClosed) return;
       di<ILogger>().info('FTDI device configuration completed');
     } catch (e) {
+      if (isClosed) return;
       di<ILogger>().error('Device configuration error: $e');
       emit(state.copyWith(error: 'Device configuration error: $e'));
       rethrow;
@@ -157,6 +180,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   void _handleError(dynamic error) {
+    if (isClosed) return;
+
     _errorCount++;
     di<ILogger>().error('Communication error: $error');
 
@@ -164,34 +189,41 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       di<ILogger>().error('Too many consecutive errors, resetting connection');
       _resetConnection();
     } else {
-      emit(state.copyWith(error: 'Communication error: $error'));
+      if (!isClosed) {
+        emit(state.copyWith(error: 'Communication error: $error'));
+      }
     }
   }
 
   Future<void> _handleIncomingData(Uint8List data) async {
-    if (data.isEmpty) return;
+    if (data.isEmpty || isClosed) return;
 
     try {
+      // Process packet parsing (small overhead, keep on main thread)
+      // JSON parsing is moved to background in _handleProcessedPacket
       List<int>? processedPacket = _packetInterpreter.onListenerDataReady(data);
       if (processedPacket != null) {
         await _handleProcessedPacket(processedPacket);
       }
     } catch (e) {
+      if (isClosed) return;
       di<ILogger>().error('Data processing error: $e');
       emit(state.copyWith(error: 'Data processing error: $e'));
     }
   }
 
   Future<void> _handleProcessedPacket(List<int> packet) async {
+    if (isClosed) return;
+
     try {
       List<int>? payload = _packetInterpreter.extractPayload(packet);
       if (payload == null) return;
 
-      String jsonString = String.fromCharCodes(
-        payload,
-      ).trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F]'), '');
+      // Parse JSON string off main thread for large payloads
+      String jsonString = await _parseJsonStringInBackground(payload);
 
       if (jsonString.contains("R15C")) {
+        if (isClosed) return;
         _syncRetryTimer?.cancel();
         emit(
           state.copyWith(
@@ -211,10 +243,12 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         return;
       }
 
-      Map<String, dynamic> json = jsonDecode(jsonString);
+      // Parse JSON in background for large payloads to prevent UI blocking
+      Map<String, dynamic> json = await _parseJsonInBackground(jsonString);
 
       switch (json['PacketType']) {
         case 2: // Transducer Info
+          if (isClosed) return;
           final transducerResponse = TransducerResponse.fromJson(json);
           emit(
             state.copyWith(
@@ -225,11 +259,13 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           );
           break;
         case 8: // Patient Response
+          if (isClosed) return;
           final patientResponse = json['PatientResponseEvent']['Released'];
           emit(state.copyWith(patientResponse: !patientResponse, error: null));
 
           break;
         case 12: // Acknowledgement
+          if (isClosed) return;
           final acknowledgement = Acknowledgement.fromJson(json);
           if (acknowledgement.request?.name == "Begin") {
             emit(
@@ -242,10 +278,12 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           }
           break;
         case 14: // Impedance Status
+          if (isClosed) return;
           final impedanceStatus = ImpedanceStatus.fromJson(json);
           emit(state.copyWith(impedanceStatus: impedanceStatus, error: null));
           break;
         case 15: // Impedance Data
+          if (isClosed) return;
           final impedanceData = ImpedanceData.fromJson(json);
           emit(
             state.copyWith(
@@ -255,9 +293,12 @@ class CommunicationCubit extends Cubit<CommunicationState> {
             ),
           );
           // Reset the flag after emitting
-          emit(state.copyWith(isNewImpedanceData: false));
+          if (!isClosed) {
+            emit(state.copyWith(isNewImpedanceData: false));
+          }
           break;
         case 19: // Battery Status
+          if (isClosed) return;
           final isCharging = json['Battery']['Powered'];
           final batteryLevel = json['Battery']['Level'] as int?;
           emit(
@@ -266,11 +307,48 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           break;
       }
     } catch (e) {
+      if (isClosed) return;
       di<ILogger>().error('Packet processing error: $e');
       if (!e.toString().contains('FormatException')) {
+        if (isClosed) return;
         emit(state.copyWith(error: 'Packet processing error: $e'));
       }
     }
+  }
+
+  // Parse JSON string in background to prevent UI thread blocking
+  Future<String> _parseJsonStringInBackground(List<int> payload) async {
+    // For small payloads, parse directly to avoid isolate overhead
+    if (payload.length < 512) {
+      return String.fromCharCodes(
+        payload,
+      ).trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F]'), '');
+    }
+
+    // Use compute for larger payloads
+    return compute(_parseJsonString, payload);
+  }
+
+  // Parse JSON map in background to prevent UI thread blocking
+  Future<Map<String, dynamic>> _parseJsonInBackground(String jsonString) async {
+    // For small JSON strings, parse directly
+    if (jsonString.length < 512) {
+      return jsonDecode(jsonString) as Map<String, dynamic>;
+    }
+
+    // Use compute for larger JSON strings
+    return compute(_parseJson, jsonString);
+  }
+
+  // Static helper functions for compute isolate
+  static String _parseJsonString(List<int> payload) {
+    return String.fromCharCodes(
+      payload,
+    ).trim().replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F]'), '');
+  }
+
+  static Map<String, dynamic> _parseJson(String jsonString) {
+    return jsonDecode(jsonString) as Map<String, dynamic>;
   }
 
   Future<void> sendCommand(Uint8List packet) async {
@@ -355,6 +433,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       _syncRetryTimer = Timer(
         const Duration(milliseconds: SYNC_RETRY_DELAY_MS),
         () {
+          if (isClosed) return;
           if (!state.isSynced && state.isConnected && !isClosed) {
             _sendSyncPacketIfNeeded();
           }
@@ -570,6 +649,132 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     await sendCommand(packet);
   }
 
+  Future<void> sendStartReflexPacket({
+    required bool isContra,
+    required int level,
+    required int step,
+    required bool stopWhenFound,
+    required bool quick,
+    required int stimulusDuration,
+    String? contraTransducerID,
+    double? deflectionThreshold,
+  }) async {
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 10,
+      "PacketName": "StartImpedance",
+      "ProbetoneFrequency": 226,
+      "RealTimeStatusUpdate": {"InIdle": false, "DuringExecution": true},
+      "Reflexes": {
+        "ContraTransducerID": contraTransducerID,
+        "ReflexList": [
+          {
+            "SignalType": 0,
+            "Frequency": 500,
+            "EarType": isContra ? 1 : 0,
+            "StimulusDuration": stimulusDuration,
+            "Search": {
+              "MinLevel": level,
+              "Step": step,
+              "StopWhenFound": stopWhenFound,
+              "DeflectionThreshold": deflectionThreshold ?? 0.025,
+              "Quick": quick,
+            },
+          },
+
+          {
+            "SignalType": 0,
+            "Frequency": 1000,
+            "EarType": isContra ? 1 : 0,
+            "StimulusDuration": stimulusDuration,
+            "Search": {
+              "MinLevel": level,
+              "Step": step,
+              "StopWhenFound": stopWhenFound,
+              "DeflectionThreshold": deflectionThreshold ?? 0.025,
+              "Quick": quick,
+            },
+          },
+          {
+            "SignalType": 0,
+            "Frequency": 2000,
+            "EarType": isContra ? 1 : 0,
+            "StimulusDuration": stimulusDuration,
+            "Search": {
+              "MinLevel": level,
+              "Step": step,
+              "StopWhenFound": stopWhenFound,
+              "DeflectionThreshold": deflectionThreshold ?? 0.025,
+              "Quick": quick,
+            },
+          },
+          {
+            "SignalType": 0,
+            "Frequency": 4000,
+            "EarType": isContra ? 1 : 0,
+            "StimulusDuration": stimulusDuration,
+            "Search": {
+              "MinLevel": level,
+              "Step": step,
+              "StopWhenFound": stopWhenFound,
+              "DeflectionThreshold": deflectionThreshold ?? 0.025,
+              "Quick": quick,
+            },
+          },
+        ],
+      },
+    });
+    await sendCommand(packet);
+  }
+
+  Future<void> sendPausepacket() async {
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 21,
+      "PacketName": "Pause",
+    });
+    await sendCommand(packet);
+  }
+
+  Future<void> sendResumePacket() async {
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 20,
+      "PacketName": "Resume",
+    });
+    await sendCommand(packet);
+  }
+
+  Future<void> sendStopPacket() async {
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 11,
+      "PacketName": "Stop",
+    });
+    await sendCommand(packet);
+  }
+
+  Future<void> sendStartETFPacket({
+    required int probeToneFrequency,
+    required bool autoSpeed,
+    required int speed,
+    required int start,
+    required int stop,
+  }) async {
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 10,
+      "PacketName": "StartImpedance",
+      "ProbetoneFrequency": probeToneFrequency,
+      "RealTimeStatusUpdate": {"InIdle": false, "DuringExecution": true},
+      "EtfIntact": {
+        "Pressure": {
+          "AutoSpeed": autoSpeed,
+          "Speed": speed,
+          "Start": start,
+          "Stop": stop,
+        },
+        "WaitTimeout": 0,
+      },
+    });
+    await sendCommand(packet);
+  }
+
   Future<void> sendStopCommand() async {
     final packet = _packetInterpreter.constructPacket({
       "PacketType": 11,
@@ -626,6 +831,16 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     }
   }
 
+  Future<void> sendExitAndPowerOffPacket(bool powerOff) async {
+    await sendStopCommand();
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 6,
+      "Exit": true,
+      "ShutDown": powerOff,
+    });
+    await sendCommand(packet);
+  }
+
   /// Get current tablet battery information
   Future<Map<String, dynamic>> getTabletBatteryInfo() async {
     try {
@@ -644,6 +859,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
   /// Update tablet battery status in the state from BatteryInfo
   void _updateTabletBatteryFromInfo(dynamic batteryInfo) {
+    if (isClosed) return;
+
     try {
       final level = batteryInfo.level as int?;
       final isCharging = batteryInfo.isCharging as bool?;
@@ -653,6 +870,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       if (state.tabletBatteryLevel != level ||
           state.isTabletBatteryCharging != isCharging ||
           state.isTabletBatteryLoading != isLoading) {
+        if (isClosed) return;
         emit(
           state.copyWith(
             tabletBatteryLevel: level,
@@ -664,6 +882,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         // Battery status updated
       }
     } catch (e) {
+      if (isClosed) return;
       di<ILogger>().error('Error updating tablet battery status: $e');
       // Set error state
       emit(state.copyWith(isTabletBatteryLoading: false));
@@ -807,15 +1026,28 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     _connectionMonitorTimer = Timer.periodic(const Duration(seconds: 5), (
       timer,
     ) {
+      if (isClosed) {
+        timer.cancel();
+        return;
+      }
+
       if (_port != null) {
         // Check if port is still valid by trying to send a simple command
         try {
           // If we can't access the port, it's likely disconnected
           if (_port!.inputStream == null) {
+            if (isClosed) {
+              timer.cancel();
+              return;
+            }
             di<ILogger>().warning('USB port lost, attempting reconnection');
             _resetConnection();
           }
         } catch (e) {
+          if (isClosed) {
+            timer.cancel();
+            return;
+          }
           di<ILogger>().warning('USB port lost, attempting reconnection: $e');
           _resetConnection();
         }
@@ -830,10 +1062,13 @@ class CommunicationCubit extends Cubit<CommunicationState> {
   }
 
   Future<void> _resetConnection() async {
+    if (isClosed) return;
+
     try {
       _stopConnectionMonitoring();
       await _cleanupPort();
 
+      if (isClosed) return;
       emit(
         state.copyWith(
           isSynced: false,
@@ -849,6 +1084,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
 
       // Wait for device to stabilize
       await Future.delayed(const Duration(seconds: 1));
+      if (isClosed) return;
 
       // Attempt to recreate and reopen port from last known device
       if (_lastDevice != null) {
@@ -857,9 +1093,15 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         bool openResult = await _port!.open();
         if (!openResult) throw Exception('Failed to reopen port');
 
+        if (isClosed) {
+          await _cleanupPort();
+          return;
+        }
+
         await _configureFTDIDevice();
         _setupListener();
 
+        if (isClosed) return;
         emit(
           state.copyWith(
             isConnected: true,
@@ -868,14 +1110,18 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           ),
         );
 
+        if (isClosed) return;
         await sendSyncPacket();
 
         // Restart connection monitoring
-        _startConnectionMonitoring();
+        if (!isClosed) {
+          _startConnectionMonitoring();
+        }
       } else {
         throw Exception('No known device to reset connection');
       }
     } catch (e) {
+      if (isClosed) return;
       di<ILogger>().error('Reset failed: $e');
       emit(
         state.copyWith(

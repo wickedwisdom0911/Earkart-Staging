@@ -29,24 +29,24 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       address: fields[9] as String?,
       cityId: fields[10] as String?,
       pincode: fields[14] as String?,
-      createdBy: fields[15] as String?,
-      updatedBy: fields[16] as String?,
-      createdAt: fields[17] as DateTime?,
-      updatedAt: fields[18] as DateTime?,
-      languageId: fields[19] as String,
-      status: fields[20] as Status?,
-      district: fields[23] as DistrictEntity?,
-      creator: fields[24] as UserEntity?,
-      updater: fields[25] as UserEntity?,
-      language: fields[26] as LanguageEntity?,
-      leadStatus: fields[21] as LeadStatus?,
-      handledBy: fields[22] as String?,
+      centreId: fields[15] as String?,
+      createdAt: fields[16] as DateTime?,
+      updatedAt: fields[17] as DateTime?,
+      languageId: fields[18] as String,
+      status: fields[19] as Status?,
+      district: fields[22] as DistrictEntity?,
+      creator: fields[23] as UserEntity?,
+      updater: fields[24] as UserEntity?,
+      language: fields[25] as LanguageEntity?,
+      leadStatus: fields[20] as LeadStatus?,
+      handledBy: fields[21] as String?,
       districtId: fields[11] as String?,
       stateId: fields[12] as String?,
       countryId: fields[13] as String?,
-      city: fields[27] as CityEntity?,
-      state: fields[28] as StateEntity?,
-      country: fields[29] as CountryEntity?,
+      city: fields[26] as CityEntity?,
+      state: fields[27] as StateEntity?,
+      country: fields[28] as CountryEntity?,
+      centre: fields[29] as CentreEntity?,
     );
   }
 
@@ -85,35 +85,35 @@ class PatientEntityAdapter extends TypeAdapter<PatientEntity> {
       ..writeByte(14)
       ..write(obj.pincode)
       ..writeByte(15)
-      ..write(obj.createdBy)
+      ..write(obj.centreId)
       ..writeByte(16)
-      ..write(obj.updatedBy)
-      ..writeByte(17)
       ..write(obj.createdAt)
-      ..writeByte(18)
+      ..writeByte(17)
       ..write(obj.updatedAt)
-      ..writeByte(19)
+      ..writeByte(18)
       ..write(obj.languageId)
-      ..writeByte(20)
+      ..writeByte(19)
       ..write(obj.status)
-      ..writeByte(21)
+      ..writeByte(20)
       ..write(obj.leadStatus)
-      ..writeByte(22)
+      ..writeByte(21)
       ..write(obj.handledBy)
-      ..writeByte(23)
+      ..writeByte(22)
       ..write(obj.district)
-      ..writeByte(24)
+      ..writeByte(23)
       ..write(obj.creator)
-      ..writeByte(25)
+      ..writeByte(24)
       ..write(obj.updater)
-      ..writeByte(26)
+      ..writeByte(25)
       ..write(obj.language)
-      ..writeByte(27)
+      ..writeByte(26)
       ..write(obj.city)
-      ..writeByte(28)
+      ..writeByte(27)
       ..write(obj.state)
+      ..writeByte(28)
+      ..write(obj.country)
       ..writeByte(29)
-      ..write(obj.country);
+      ..write(obj.centre);
   }
 
   @override

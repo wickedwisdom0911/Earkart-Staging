@@ -82,6 +82,7 @@ class _CountrySelectorState extends State<CountrySelector> {
           child: DropdownButtonFormField<CountryEntity>(
             value: _getValidValue(),
             onChanged: widget.enabled ? widget.onChanged : null,
+            isExpanded: true,
             decoration: InputDecoration(
               hintText: widget.label ?? 'Select country...',
               hintStyle: TextStyle(
@@ -125,6 +126,23 @@ class _CountrySelectorState extends State<CountrySelector> {
               size: 24,
             ),
             dropdownColor: Colors.white,
+            selectedItemBuilder: (BuildContext context) {
+              return widget.items.map<Widget>((CountryEntity country) {
+                return Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    country.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.black87,
+                      height: 1.4,
+                    ),
+                  ),
+                );
+              }).toList();
+            },
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w400,
@@ -137,6 +155,7 @@ class _CountrySelectorState extends State<CountrySelector> {
                     value: country,
                     child: Text(
                       country.name,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w400,

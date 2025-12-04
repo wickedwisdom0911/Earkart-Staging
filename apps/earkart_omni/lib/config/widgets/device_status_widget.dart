@@ -32,6 +32,10 @@ class DeviceStatusWidget extends StatelessWidget {
                     commState,
                   ),
                 ),
+                if (r15cStatus != DeviceStatus.disconnected) ...[
+                  const SizedBox(width: 4),
+                  _buildTurnOffButton(context, commState),
+                ],
                 const SizedBox(width: 8),
                 Flexible(
                   child: _buildDeviceStatus(
@@ -67,21 +71,27 @@ class DeviceStatusWidget extends StatelessWidget {
       return DeviceStatus.disconnected;
     }
 
-    // Check communication state
+    // Check communication state - prioritize error state
     if (commState.error != null) {
       return DeviceStatus.error;
     }
 
-    if (commState.isInBeginMode) {
+    // Check if in begin mode - this takes priority over ALL other states
+    // Also check connectionStatus for "begin" as a fallback in case isInBeginMode flag is not set
+    if (commState.isInBeginMode ||
+        commState.connectionStatus.toLowerCase() == 'begin') {
       return DeviceStatus.active;
     }
 
+    // Check if synced and has transducer response - this is the ready state
+    // We check transducerResponse first to ensure we catch the ready state
+    // even if there are timing issues with state updates
+    if (commState.isSynced && commState.transducerResponse != null) {
+      return DeviceStatus.ready;
+    }
+
+    // If synced but no transducer response yet, show as syncing
     if (commState.isSynced) {
-      // If synced and has transducer response, show as ready (green)
-      if (commState.transducerResponse != null) {
-        return DeviceStatus.ready;
-      }
-      // If synced but no transducer response yet, show as syncing (purple)
       return DeviceStatus.syncing;
     }
 
@@ -107,7 +117,7 @@ class DeviceStatusWidget extends StatelessWidget {
     }
 
     // Device is connected - camera state is handled by the widget itself
-    return DeviceStatus.connected;
+    return DeviceStatus.ready;
   }
 
   Widget _buildDeviceStatus(
@@ -179,14 +189,30 @@ class DeviceStatusWidget extends StatelessWidget {
     // Wrap with GestureDetector for Audiometer to handle tap
     if (deviceName == 'Audiometer') {
       deviceContainer = GestureDetector(
-        onTap: () {
+        onTap: () async {
+          final currentCommState = context.read<CommunicationCubit>().state;
           final r15cStatus = _getR15CStatus(
             context.read<DeviceCubit>().state,
-            commState,
+            currentCommState,
           );
 
+          // If device is in begin mode (active), send exit packet and then sync
+          if (r15cStatus == DeviceStatus.active ||
+              currentCommState.isInBeginMode ||
+              currentCommState.connectionStatus.toLowerCase() == 'begin') {
+            try {
+              await context.read<CommunicationCubit>().sendExitPacket();
+              // Wait a bit for the exit to complete before syncing
+              await Future.delayed(const Duration(milliseconds: 1000));
+              // Sync again after exit
+              context.read<CommunicationCubit>().startSyncProcess();
+            } catch (e) {
+              // If exit fails, still try to sync
+              context.read<CommunicationCubit>().startSyncProcess();
+            }
+          }
           // If device has error or is not synced, send startSyncProcess
-          if (r15cStatus == DeviceStatus.error ||
+          else if (r15cStatus == DeviceStatus.error ||
               r15cStatus == DeviceStatus.disconnected ||
               r15cStatus == DeviceStatus.connecting ||
               r15cStatus == DeviceStatus.connected) {
@@ -196,7 +222,7 @@ class DeviceStatusWidget extends StatelessWidget {
           else if (r15cStatus == DeviceStatus.syncing) {
             context.read<CommunicationCubit>().sendQueryInfoPacket();
           }
-          // For other states (ready, active), just send sync packet as before
+          // For other states (ready), just send sync packet as before
           else {
             context.read<CommunicationCubit>().sendSyncPacket();
           }
@@ -206,6 +232,66 @@ class DeviceStatusWidget extends StatelessWidget {
     }
 
     return Tooltip(message: tooltip + batteryInfo, child: deviceContainer);
+  }
+
+  Widget _buildTurnOffButton(
+    BuildContext context,
+    CommunicationState commState,
+  ) {
+    return Tooltip(
+      message: 'Turn off audiometer',
+      child: GestureDetector(
+        onTap: () async {
+          // Show confirmation dialog
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text('Turn Off Audiometer'),
+                content: const Text(
+                  'Are you sure you want to turn off the audiometer? This will power down the device.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    child: const Text('Turn Off'),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (confirmed == true) {
+            try {
+              await context
+                  .read<CommunicationCubit>()
+                  .sendExitAndPowerOffPacket(true);
+            } catch (e) {
+              context.read<CommunicationCubit>().resetState();
+            }
+          }
+        },
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(borderRadius * 0.67),
+            border: Border.all(color: Colors.red.withOpacity(0.3), width: 1),
+          ),
+          child: Icon(
+            Icons.power_settings_new,
+            size: 14,
+            color: Colors.red[600],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildTabletBatteryIndicator(BuildContext context) {
@@ -319,7 +405,7 @@ class DeviceStatusWidget extends StatelessWidget {
       case DeviceStatus.ready:
         return StatusConfig(label: 'Ready', color: Colors.green);
       case DeviceStatus.active:
-        return StatusConfig(label: 'Active', color: Colors.orange);
+        return StatusConfig(label: 'Active', color: Colors.green);
       case DeviceStatus.connecting:
         return StatusConfig(label: 'Connecting', color: Colors.yellow);
       case DeviceStatus.syncing:
@@ -338,7 +424,7 @@ class DeviceStatusWidget extends StatelessWidget {
       case DeviceStatus.ready:
         return Icons.check_circle;
       case DeviceStatus.active:
-        return Icons.play_circle_filled;
+        return Icons.check_circle;
       case DeviceStatus.connecting:
         return Icons.sync;
       case DeviceStatus.syncing:

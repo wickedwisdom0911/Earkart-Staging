@@ -8,8 +8,36 @@ class CentreEntityDataSource {
   late Box<CentreEntity> _centreEntityBox;
 
   Future<void> init() async {
-    await Hive.openBox<CentreEntity>(_boxName);
-    _centreEntityBox = Hive.box<CentreEntity>(_boxName);
+    try {
+      await Hive.openBox<CentreEntity>(_boxName);
+      _centreEntityBox = Hive.box<CentreEntity>(_boxName);
+    } catch (e) {
+      print("Error opening centre box, clearing corrupted data: $e");
+      try {
+        try {
+          await Hive.deleteBoxFromDisk(_boxName);
+        } catch (deleteError) {
+          print(
+            "Note: Could not delete box files (may not exist): $deleteError",
+          );
+        }
+        await Hive.openBox<CentreEntity>(_boxName);
+        _centreEntityBox = Hive.box<CentreEntity>(_boxName);
+        print("Successfully cleared corrupted data and reopened box");
+      } catch (clearError) {
+        print("Failed to clear corrupted data: $clearError");
+        try {
+          await Hive.deleteFromDisk();
+          await Hive.initFlutter();
+          await Hive.openBox<CentreEntity>(_boxName);
+          _centreEntityBox = Hive.box<CentreEntity>(_boxName);
+          print("Successfully cleared all Hive data and reopened box");
+        } catch (finalError) {
+          print("Final attempt failed: $finalError");
+          rethrow;
+        }
+      }
+    }
   }
 
   Box<UserEntity> getBox() {
@@ -25,7 +53,7 @@ class CentreEntityDataSource {
   }
 
   Future<void> clearBox() async {
-    print("Clearning centre box....");
+    print("Clearing centre box....");
     await _centreEntityBox.deleteAll(_centreEntityBox.keys);
   }
 }

@@ -1,10 +1,12 @@
 package com.example.earkart_omni
 
+import android.app.Activity
 import android.app.admin.DeviceAdminReceiver
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 
@@ -146,5 +148,157 @@ class DeviceAdminReceiver : DeviceAdminReceiver() {
     override fun onLockTaskModeExiting(context: Context, intent: Intent) {
         super.onLockTaskModeExiting(context, intent)
         Log.d(TAG, "Lock task mode exiting")
+    }
+
+    // ============================================================================
+    // ANDROID 12+ QR PROVISIONING COMPLIANCE - REQUIRED INTENT HANDLERS
+    // ============================================================================
+
+    /**
+     * Android 12+ Required: Handle ACTION_GET_PROVISIONING_MODE
+     * This determines which provisioning modes the DPC supports
+     */
+    override fun onReceive(context: Context, intent: Intent) {
+        when (intent.action) {
+            DevicePolicyManager.ACTION_GET_PROVISIONING_MODE -> {
+                Log.d(TAG, "Handling ACTION_GET_PROVISIONING_MODE")
+                handleGetProvisioningMode(context, intent)
+            }
+            DevicePolicyManager.ACTION_ADMIN_POLICY_COMPLIANCE -> {
+                Log.d(TAG, "Handling ACTION_ADMIN_POLICY_COMPLIANCE")
+                handleAdminPolicyCompliance(context, intent)
+            }
+            else -> {
+                super.onReceive(context, intent)
+            }
+        }
+    }
+
+    /**
+     * Handle ACTION_GET_PROVISIONING_MODE intent
+     * Must return a valid provisioning mode from the allowed list
+     */
+    private fun handleGetProvisioningMode(context: Context, intent: Intent) {
+        try {
+            Log.d(TAG, "Processing ACTION_GET_PROVISIONING_MODE")
+            
+            // Get allowed provisioning modes from the intent
+            val allowedModes = intent.getIntegerArrayListExtra(DevicePolicyManager.EXTRA_PROVISIONING_ALLOWED_PROVISIONING_MODES)
+            
+            if (allowedModes == null || allowedModes.isEmpty()) {
+                Log.e(TAG, "No allowed provisioning modes provided")
+                return
+            }
+            
+            Log.d(TAG, "Allowed provisioning modes: $allowedModes")
+            
+            // Choose the best provisioning mode for our medical device app
+            val selectedMode = selectBestProvisioningMode(allowedModes)
+            
+            Log.d(TAG, "Selected provisioning mode: $selectedMode")
+            
+            // Create result intent with the selected mode
+            val resultIntent = Intent().apply {
+                putExtra(DevicePolicyManager.EXTRA_PROVISIONING_MODE, selectedMode)
+            }
+            
+            // Set the result - Android 12+ supports returning intent data properly
+            setResultCode(Activity.RESULT_OK)
+            setResultData(resultIntent.toUri(Intent.URI_INTENT_SCHEME))
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling ACTION_GET_PROVISIONING_MODE: ${e.message}")
+            setResultCode(Activity.RESULT_CANCELED)
+        }
+    }
+
+    /**
+     * Handle ACTION_ADMIN_POLICY_COMPLIANCE intent
+     * This is called after provisioning to set up the device
+     */
+    private fun handleAdminPolicyCompliance(context: Context, intent: Intent) {
+        try {
+            Log.d(TAG, "Processing ACTION_ADMIN_POLICY_COMPLIANCE")
+            
+            // Get admin extras bundle if provided
+            val adminExtras = intent.getBundleExtra(DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE)
+            if (adminExtras != null) {
+                Log.d(TAG, "Admin extras received: $adminExtras")
+                
+                // Extract our custom configuration
+                val appName = adminExtras.getString("app_name", "Earkart Omni")
+                val organization = adminExtras.getString("organization", "Earkart")
+                val devicePurpose = adminExtras.getString("device_purpose", "medical_device")
+                val clinicId = adminExtras.getString("clinic_id", "")
+                val kioskMode = adminExtras.getBoolean("kiosk_mode", true)
+                
+                Log.d(TAG, "Device configured for: $appName - $organization ($devicePurpose)")
+                Log.d(TAG, "Clinic ID: $clinicId, Kiosk Mode: $kioskMode")
+            }
+            
+            // Perform final device setup
+            performFinalDeviceSetup(context)
+            
+            // Mark provisioning as complete
+            setResultCode(Activity.RESULT_OK)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling ACTION_ADMIN_POLICY_COMPLIANCE: ${e.message}")
+            setResultCode(Activity.RESULT_CANCELED)
+        }
+    }
+
+    /**
+     * Select the best provisioning mode from allowed modes
+     * Priority: Device Owner > Work Profile > Managed Profile
+     * Android 12+ only - using actual constant values
+     */
+    private fun selectBestProvisioningMode(allowedModes: List<Int>): Int {
+        // Android 12+ provisioning mode constants
+        val PROVISIONING_MODE_MANAGED_DEVICE = 1  // Device Owner mode
+        val PROVISIONING_MODE_MANAGED_PROFILE = 2  // Work Profile mode
+        
+        return when {
+            allowedModes.contains(PROVISIONING_MODE_MANAGED_DEVICE) -> {
+                Log.d(TAG, "Selected: PROVISIONING_MODE_MANAGED_DEVICE (Device Owner)")
+                PROVISIONING_MODE_MANAGED_DEVICE
+            }
+            allowedModes.contains(PROVISIONING_MODE_MANAGED_PROFILE) -> {
+                Log.d(TAG, "Selected: PROVISIONING_MODE_MANAGED_PROFILE (Work Profile)")
+                PROVISIONING_MODE_MANAGED_PROFILE
+            }
+            else -> {
+                Log.w(TAG, "Using first available mode: ${allowedModes.first()}")
+                allowedModes.first()
+            }
+        }
+    }
+
+    /**
+     * Perform final device setup after provisioning
+     */
+    private fun performFinalDeviceSetup(context: Context) {
+        try {
+            Log.d(TAG, "Performing final device setup")
+            
+            val devicePolicyManager = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val componentName = ComponentName(context, DeviceAdminReceiver::class.java)
+            
+            // Apply final device policies
+            applyDevicePolicies(devicePolicyManager, componentName)
+            
+            // Enable the profile/device (make launcher icons visible)
+            if (devicePolicyManager.isProfileOwnerApp(context.packageName)) {
+                devicePolicyManager.setProfileEnabled(componentName)
+                Log.d(TAG, "Profile enabled - launcher icons now visible")
+            } else if (devicePolicyManager.isDeviceOwnerApp(context.packageName)) {
+                Log.d(TAG, "Device owner mode - device fully managed")
+            }
+            
+            Log.d(TAG, "Final device setup completed successfully")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in final device setup: ${e.message}")
+        }
     }
 }
