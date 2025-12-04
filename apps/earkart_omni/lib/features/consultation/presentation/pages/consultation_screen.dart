@@ -50,6 +50,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   UsbDevice? revo2Device;
   TestType? testType;
   dynamic _lastImpedanceStatus;
+  bool? _lastPatientResponse;
   bool _showCamera = false;
   bool _socketReconnectFailed = false;
   final GlobalKey _videoWidgetKey = GlobalKey();
@@ -895,8 +896,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               if (!mounted) return;
 
               // Process immediate events (patient response, impedance)
+              // Emit patient-response only when button is pressed (true)
               if (state.patientResponse == true) {
                 _emitPatientResponseEvent(state.patientResponse);
+              }
+
+              // Emit patient-response-tonedecay for both true and false (press and release)
+              if (_lastPatientResponse != state.patientResponse) {
+                _emitPatientResponseTonedecayEvent(state.patientResponse);
+                _lastPatientResponse = state.patientResponse;
               }
 
               // Handle impedance status
@@ -1199,6 +1207,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.emit("patient-response", {
       "consultationId": consultation?.id,
       "patientResponse": isReleased,
+    });
+  }
+
+  void _emitPatientResponseTonedecayEvent(bool isPressed) {
+    if (!mounted || !_isSocketInitialized) return;
+
+    socket.emit("patient-response-tonedecay", {
+      "consultationId": consultation?.id,
+      "patientResponse": isPressed,
     });
   }
 
