@@ -16,6 +16,7 @@ class ImpedanceData {
   bool? interrupted;
   TympData? tymp;
   EtfIntactData? etfIntactData;
+  ReflexesData? reflexes;
 
   ImpedanceData({
     this.packetType,
@@ -24,6 +25,7 @@ class ImpedanceData {
     this.interrupted,
     this.tymp,
     this.etfIntactData,
+    this.reflexes,
   });
 
   factory ImpedanceData.fromJson(Map<String, dynamic> json) => ImpedanceData(
@@ -36,6 +38,10 @@ class ImpedanceData {
         json["EtfIntact"] == null
             ? null
             : EtfIntactData.fromJson(json["EtfIntact"]),
+    reflexes:
+        json["Reflexes"] == null
+            ? null
+            : ReflexesData.fromJson(json["Reflexes"]),
   );
 
   Map<String, dynamic> toJson() => {
@@ -45,6 +51,7 @@ class ImpedanceData {
     "Interrupted": interrupted,
     "Tymp": tymp?.toJson(),
     "EtfIntact": etfIntactData?.toJson(),
+    "Reflexes": reflexes?.toJson(),
   };
 }
 
@@ -205,5 +212,105 @@ class Peak {
     "Compliance": compliance,
     "CompensatedWithECV": compensatedWithEcv,
     "Pressure": pressure,
+  };
+}
+
+class ReflexesData {
+  String? ipsiTransducerID;
+  String? contraTransducerID;
+  String? ipsiTransducerName;
+  String? contraTransducerName;
+  List<ReflexItem>? reflexList;
+
+  ReflexesData({
+    this.ipsiTransducerID,
+    this.ipsiTransducerName,
+    this.contraTransducerID,
+    this.contraTransducerName,
+    this.reflexList,
+  });
+
+  factory ReflexesData.fromJson(Map<String, dynamic> json) => ReflexesData(
+    ipsiTransducerID: json["IpsiTransducerID"],
+    ipsiTransducerName: json["IpsiTransducerName"],
+    contraTransducerID: json["ContraTransducerID"],
+    contraTransducerName: json["ContraTransducerName"],
+    reflexList:
+        json["ReflexList"] == null
+            ? []
+            : List<ReflexItem>.from(
+              json["ReflexList"]!.map((x) => ReflexItem.fromJson(x)),
+            ),
+  );
+
+  Map<String, dynamic> toJson() => {
+    "IpsiTransducerID": ipsiTransducerID,
+    "IpsiTransducerName": ipsiTransducerName,
+    "ContraTransducerID": contraTransducerID,
+    "ContraTransducerName": contraTransducerName,
+    "ReflexList":
+        reflexList == null
+            ? []
+            : List<dynamic>.from(reflexList!.map((x) => x.toJson())),
+  };
+}
+
+class ReflexItem {
+  int? signalType;
+  int? frequency;
+  int? earType;
+  int? stimulusDuration;
+  int? samplesWithStimulusOn;
+  int? level;
+  int? startingLevel;
+  List<double>? complianceData;
+  bool? possibleReflex;
+  double? deflectionThreshold;
+
+  ReflexItem({
+    this.signalType,
+    this.frequency,
+    this.earType,
+    this.stimulusDuration,
+    this.samplesWithStimulusOn,
+    this.level,
+    this.startingLevel,
+    this.complianceData,
+    this.possibleReflex,
+    this.deflectionThreshold,
+  });
+
+  factory ReflexItem.fromJson(Map<String, dynamic> json) => ReflexItem(
+    signalType: json["SignalType"],
+    frequency: json["Frequency"],
+    earType: json["EarType"],
+    stimulusDuration: json["StimulusDuration"],
+    samplesWithStimulusOn: json["SamplesWithStimulusOn"],
+    level: json["Level"],
+    startingLevel: json["StartingLevel"],
+    complianceData:
+        json["ComplianceData"] == null
+            ? []
+            : List<double>.from(
+              json["ComplianceData"]!.map((x) => x?.toDouble()),
+            ),
+    possibleReflex: json["PossibleReflex"],
+    deflectionThreshold: json["DeflectionThreshold"]?.toDouble(),
+  );
+
+  Map<String, dynamic> toJson() => {
+    "SignalType": signalType,
+    "Frequency": frequency,
+    "EarType": earType,
+    "StimulusDuration": stimulusDuration,
+    "SamplesWithStimulusOn": samplesWithStimulusOn,
+    "Level": level,
+    "StartingLevel": startingLevel,
+    "ComplianceData":
+        complianceData == null
+            ? []
+            : List<dynamic>.from(complianceData!.map((x) => x)),
+    "PossibleReflex": possibleReflex,
+    "DeflectionThreshold": deflectionThreshold,
   };
 }

@@ -649,6 +649,36 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     await sendCommand(packet);
   }
 
+  Future<void> sendStartReflexPacket(bool isContra) async {
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 10,
+      "PacketName": "StartImpedance",
+      "ProbetoneFrequency": 226,
+      "RealTimeStatusUpdate": {"InIdle": false, "DuringExecution": true},
+      "Reflexes": {
+        "ContraTransducerID": "8dc59de7-2e27-45cf-8b74-8b5fc09819d4",
+        "ReflexList": [
+          {
+            "SignalType": 0,
+            "Frequency": 1000,
+            "EarType": isContra ? 1 : 0,
+            "StimulusDuration": 500,
+            // "Level": 70,
+            "Search": {
+              "MinLevel": 70,
+              // "MaxLevel": 100,
+              "Step": 5,
+              "StopWhenFound": false,
+              "DeflectionThreshold": 0.025,
+              "Quick": false,
+            },
+          },
+        ],
+      },
+    });
+    await sendCommand(packet);
+  }
+
   Future<void> sendPausepacket() async {
     final packet = _packetInterpreter.constructPacket({
       "PacketType": 21,
