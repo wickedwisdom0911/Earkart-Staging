@@ -514,6 +514,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           quick: data["quick"],
           stimulusDuration: data["stimulusDuration"],
           contraTransducerID: data["contraTransducerID"],
+          deflectionThreshold: data["deflectionThreshold"],
         );
       } catch (e) {
         di<ILogger>().error('Error handling reflexes-started event: $e');
