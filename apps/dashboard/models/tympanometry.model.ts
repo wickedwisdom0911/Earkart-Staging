@@ -9,7 +9,14 @@ export const TympanometryReadingModelDataSchema = z.object({
   staticCompliance: z.number(),
   earCanalVolume: z.number(),
   tympType: z.nativeEnum(TympType),
-});
+  // New fields from backend (optional for backward compatibility)
+  peakCompliance: z.number().optional(),
+  peakCompensatedWithECV: z.number().optional(),
+  gradient: z.number().optional(),
+  gradientPressure: z.number().optional(),
+  pressureData: z.array(z.number()).optional(),
+  complianceData: z.array(z.number()).optional(),
+}).passthrough(); // Allow extra fields for backward compatibility
 
 export const TympanometryTestModelDataSchema = z.object({
   id: z.string().optional(),
@@ -19,7 +26,7 @@ export const TympanometryTestModelDataSchema = z.object({
   notes: z.string().optional().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
-});
+}).passthrough(); // Allow extra fields for backward compatibility
 
 export type TympanometryReadingModelData = z.infer<
   typeof TympanometryReadingModelDataSchema

@@ -24,7 +24,6 @@ import {
 import { TestStatus, Ear, TympType } from "@/models/enums";
 import { toast } from "sonner";
 import { ROUTES } from "@/lib/routes";
-import StickyReportNavigation from "@/components/ui/StickyReportNavigation";
 import {
   Dialog,
   DialogContent,
@@ -156,7 +155,9 @@ export default function TympanometryPage() {
   // Add state for all tympanometry values
   const [peakPressure, setPeakPressure] = useState<number | null>(null);
   const [peakCompliance, setPeakCompliance] = useState<number | null>(null);
+  const [peakCompensatedWithECV, setPeakCompensatedWithECV] = useState<number | null>(null);
   const [gradient, setGradient] = useState<number | null>(null);
+  const [gradientPressure, setGradientPressure] = useState<number | null>(null);
   const [ecv, setECV] = useState<number | null>(null);
   const [manualTympType, setManualTympType] = useState<TympType | "">("");
   const [completedEars, setCompletedEars] = useState<Set<"L" | "R">>(new Set());
@@ -190,14 +191,31 @@ export default function TympanometryPage() {
 
     const consultationData = consultation.data as ConsultationModelData;
 
-    // Create tympanometry reading data
+    // Extract pressure and compliance data arrays from finalData
+    const pressureData = finalData.map(point => point.pressure);
+    const complianceData = finalData.map(point => point.compliance);
+    
+    // Use values from device data or calculate fallbacks
+    const peakCompValue = peakCompliance ?? 0;
+    const ecvValue = ecv ?? 0;
+    // Use peakCompensatedWithECV from device if available, otherwise calculate
+    const peakCompensatedValue = peakCompensatedWithECV ?? Math.max(0, peakCompValue - ecvValue);
+
+    // Create tympanometry reading data with all new fields
     const tympanometryReading: TympanometryReadingModelData = {
       tympanometryId: "", // Will be set by backend
       ear: selectedEar === "L" ? Ear.LEFT : Ear.RIGHT,
       peakPressure: peakPressure ?? 0,
-      staticCompliance: peakCompliance ?? 0,
-      earCanalVolume: ecv ?? 0,
+      staticCompliance: peakCompValue, // Same as peakCompliance
+      earCanalVolume: ecvValue,
       tympType: manualTympType as TympType,
+      // New fields
+      peakCompliance: peakCompValue,
+      peakCompensatedWithECV: peakCompensatedValue,
+      gradient: gradient ?? undefined,
+      gradientPressure: gradientPressure ?? undefined,
+      pressureData: pressureData.length > 0 ? pressureData : undefined,
+      complianceData: complianceData.length > 0 ? complianceData : undefined,
     };
 
     // Merge with any existing readings from consultation and our local cache,
@@ -376,15 +394,18 @@ export default function TympanometryPage() {
         data.tympanometryData.Tymp?.Y?.ComplianceData
       ) {
         const ecv = data.tympanometryData.Tymp.ECV ?? 0;
+        // ComplianceData from device is RAW compliance (includes ECV)
+        // We subtract ECV to get compensated compliance (what we display on graph)
         const finalPoints: TympanogramPoint[] =
           data.tympanometryData.Tymp.PressureData.map(
             (pressure: number, index: number) => {
-              const compliance =
+              const rawCompliance =
                 data.tympanometryData.Tymp!.Y!.ComplianceData![index];
+              const compensatedCompliance = Math.max(0, rawCompliance - ecv);
               return {
                 pressure,
-                compliance,
-                compensatedCompliance: Math.max(0, compliance - ecv),
+                compliance: rawCompliance, // Store raw for reference
+                compensatedCompliance, // Compensated for display
                 ear: selectedEar,
               };
             }
@@ -398,15 +419,21 @@ export default function TympanometryPage() {
         if (data.tympanometryData.Tymp?.Y?.Peak?.Pressure !== undefined) {
           setPeakPressure(data.tympanometryData.Tymp.Y.Peak.Pressure);
         }
+        if (data.tympanometryData.Tymp?.Y?.Peak?.Compliance !== undefined) {
+          setPeakCompliance(data.tympanometryData.Tymp.Y.Peak.Compliance);
+        }
         if (
           data.tympanometryData.Tymp?.Y?.Peak?.CompensatedWithECV !== undefined
         ) {
-          setPeakCompliance(
+          setPeakCompensatedWithECV(
             data.tympanometryData.Tymp.Y.Peak.CompensatedWithECV
           );
         }
         if (data.tympanometryData.Tymp?.Y?.Gradient !== undefined) {
           setGradient(data.tympanometryData.Tymp.Y.Gradient);
+        }
+        if (data.tympanometryData.Tymp?.Y?.GradientPressure !== undefined) {
+          setGradientPressure(data.tympanometryData.Tymp.Y.GradientPressure);
         }
         if (data.tympanometryData.Tymp?.ECV !== undefined) {
           setECV(data.tympanometryData.Tymp.ECV);

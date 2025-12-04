@@ -20,8 +20,7 @@ import ReportTopActions from "@/components/ui/ReportTopActions";
 import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
 import useDemoAccount from "@/hooks/use-demo-account";
 import { useSocket } from "@/providers/socket-provider";
-import initiateReportUpload from "@/actions/consultations/initiate-report-upload";
-import completeReportUpload from "@/actions/consultations/complete-report-upload";
+import { useShareReportWhatsApp } from "@/hooks/consultation/use-share-report-whatsapp";
 import { ReportType } from "@/models/enums";
 import {
   LineChart,
@@ -152,24 +151,35 @@ export default function TympanometryReportPage() {
   } = useGetConsultation(consultationId as string);
   const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const reportRef = useRef<HTMLDivElement>(null);
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-  const [sharePhone, setSharePhone] = useState<string>("");
   const updateConsultationMutation = useUpdateConsultation();
   const [comments, setComments] = useState<string>("");
   const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare, error: screenShareError } = useSharedScreenShare();
   const [isShowingReport, setIsShowingReport] = useState(false);
   const { isDemoAccount } = useDemoAccount();
+  
+  // WhatsApp sharing hook
+  const {
+    isSharing: isWhatsAppSharing,
+    isShareDialogOpen,
+    setIsShareDialogOpen,
+    sharePhone,
+    setSharePhone,
+    defaultPatientPhone,
+    handleShareClick,
+    handleDialogConfirm,
+  } = useShareReportWhatsApp({
+    consultationId: consultationId as string,
+    reportType: ReportType.TYMPANOMETRY,
+    patientName: consultationData?.patient?.name,
+    patientContact: consultationData?.patient?.contactNumber,
+    reportRef,
+  });
+
   useEffect(() => {
     setComments(consultationData?.tympanometry?.notes || "");
   }, [consultationData?.tympanometry?.notes]);
 
-  // Default patient phone formatted
-  const defaultPatientPhone = (() => {
-    const raw = consultationData?.patient?.contactNumber || "";
-    const stripped = raw.replace(/^\+/, "");
-    return stripped.startsWith("91") ? stripped : (stripped ? `91${stripped}` : "");
-  })();
-  useEffect(() => { setSharePhone(defaultPatientPhone); }, [defaultPatientPhone]);
+  useEffect(() => { setSharePhone(defaultPatientPhone); }, [defaultPatientPhone, setSharePhone]);
 
   // Prevent body scrolling when component mounts
   useEffect(() => {
@@ -328,160 +338,6 @@ export default function TympanometryReportPage() {
     }
   };
 
-  const sendReportToNumbers = async (toNumbersInput: string) => {
-    if (!reportRef.current || !consultationData) return;
-    
-    try {
-      toast.info("Preparing report for sharing...");
-      
-      // Generate fresh PDF
-      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true, fullPage: true });
-      const file = new File([blob], `tympanometry-report-${consultationData.patient?.code || "unknown"}.pdf`, { type: "application/pdf" });
-      
-      // Prepare recipients list once so both success and fallback can use it
-      const rawList = (toNumbersInput || consultationData.patient?.contactNumber || "9058075653");
-      const recipients = rawList
-        .split(/[\s,]+/)
-        .map(s => s.trim())
-        .filter(Boolean);
-
-      const formatNumber = (n: string) => {
-        let x = n.replace(/^\+/, '');
-        if (!/^91\d{10}$/.test(x)) {
-          if (/^\d{10}$/.test(x)) x = `91${x}`;
-        }
-        return x;
-      };
-
-      const uniqueRecipients = Array.from(new Set(recipients.map(formatNumber)));
-
-      // Get pre-signed URL
-      const initiateResult = await initiateReportUpload({
-        consultationId: consultationId as string,
-        reportType: ReportType.TYMPANOMETRY,
-        fileName: file.name,
-        contentType: file.type,
-      });
-      
-      if (!initiateResult.success || !initiateResult.data) {
-        throw new Error(initiateResult.message || "Failed to initiate upload");
-      }
-      
-      const { presignedUrl, uploadId } = initiateResult.data;
-      
-      // Upload to S3
-      try {
-        const uploadResponse = await fetch(presignedUrl, {
-          method: "PUT",
-          body: file,
-          headers: {
-            "Content-Type": file.type,
-          },
-        });
-        
-        if (!uploadResponse.ok) {
-          throw new Error(`S3 upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
-        }
-        
-        // Complete the upload
-        const completeResult = await completeReportUpload({
-          uploadId,
-          consultationId: consultationId as string,
-          reportType: ReportType.TYMPANOMETRY,
-        });
-        
-        if (!completeResult.success || !completeResult.data) {
-          throw new Error(completeResult.message || "Failed to complete upload");
-        }
-        
-        const finalReportUrl = completeResult.data.fileUrl;
-        
-        // Send WhatsApp message
-        const patientName = consultationData.patient?.name || "Patient";
-        // uniqueRecipients available from earlier
-        
-        const results = await Promise.allSettled(uniqueRecipients.map(async (to) => {
-          try {
-            const response = await fetch('/api/whatsapp/send-report-dialog', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ to, patientName, reportUrl: finalReportUrl, reportType: 'tympanometry' })
-            });
-            const json = await response.json();
-            if (!json.success) throw new Error(json.error || 'Unknown error');
-            return { to, success: true };
-          } catch (e: any) {
-            return { to, success: false, error: e?.message || String(e) };
-          }
-        }));
-
-        const succeeded = results.filter(r => r.status === 'fulfilled' && (r as any).value?.success).length;
-        const failed = uniqueRecipients.length - succeeded;
-
-        if (failed === 0) {
-          toast.success(`Report shared to ${succeeded} recipient(s)`);
-        } else if (succeeded > 0) {
-          toast.warning(`Shared to ${succeeded}, failed for ${failed}`);
-          console.warn('Some sends failed:', results);
-        } else {
-          toast.error('Failed to share report to all recipients');
-        }
-        
-      } catch (s3Error) {
-        console.error("S3 upload failed, using fallback:", s3Error);
-        toast.warning("Using fallback URL for sharing");
-        
-        // Fallback to hardcoded URL
-        const patientName = consultationData.patient?.name || "Patient";
-        
-        const results = await Promise.allSettled(uniqueRecipients.map(async (to) => {
-          try {
-            const response = await fetch('/api/whatsapp/send-report-dialog', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ to, patientName, reportUrl: "https://omni-two.s3.ap-south-1.amazonaws.com/reports/test-tympanometry-report.pdf", reportType: 'tympanometry' })
-            });
-            const json = await response.json();
-            if (!json.success) throw new Error(json.error || 'Unknown error');
-            return { to, success: true };
-          } catch (e: any) {
-            return { to, success: false, error: e?.message || String(e) };
-          }
-        }));
-
-        const succeeded = results.filter(r => r.status === 'fulfilled' && (r as any).value?.success).length;
-        const failed = uniqueRecipients.length - succeeded;
-
-        if (failed === 0) {
-          toast.success(`Report shared to ${succeeded} recipient(s)`);
-        } else if (succeeded > 0) {
-          toast.warning(`Shared to ${succeeded}, failed for ${failed}`);
-          console.warn('Some sends failed:', results);
-        } else {
-          toast.error('Failed to share report to all recipients');
-        }
-      }
-      
-    } catch (err) {
-      console.error("Error sharing report:", err);
-      toast.error(`Failed to share report: ${err instanceof Error ? err.message : "Unknown error"}`);
-    }
-  };
-
-  const handleShareReport = () => {
-    // Check if user is AIIMS employee
-    const isAiims = typeof window !== 'undefined' && localStorage.getItem('isAiims') === 'true';
-    
-    if (isAiims) {
-      // For AIIMS employees, directly send to hardcoded number
-      console.log('🏥 AIIMS employee detected - sending report to hardcoded number');
-      sendReportToNumbers('919980936971'); // Hardcoded AIIMS number with country code
-    } else {
-      // For other users, show the dialog
-      setIsShareDialogOpen(true);
-    }
-  };
-
   const getTympTypeDescription = (type: TympType): string => {
     switch (type) {
       case TympType.A:
@@ -533,7 +389,7 @@ export default function TympanometryReportPage() {
   return (
     <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
       <div className="w-[794px] max-h-[calc(100vh-2rem)] bg-white shadow-lg overflow-hidden">
-        <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
+        <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareClick} />
 
         <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
@@ -640,13 +496,36 @@ export default function TympanometryReportPage() {
 
               const buildData = (r: TympanometryReadingModelData | undefined, ear: 'L' | 'R'): TympanogramPoint[] => {
                 if (!r) return [];
+                
+                const ecv = r.earCanalVolume ?? 0;
+                
+                // Use pressureData and complianceData if available (new format)
+                if (r.pressureData && r.complianceData && r.pressureData.length > 0 && r.complianceData.length > 0) {
+                  // complianceData from backend is RAW compliance, need to subtract ECV for compensated
+                  return r.pressureData.map((pressure, index) => {
+                    const rawCompliance = r.complianceData?.[index] ?? 0;
+                    const compensatedCompliance = Math.max(0, rawCompliance - ecv);
+                    return { pressure, compliance: rawCompliance, compensatedCompliance, ear };
+                  });
+                }
+                
+                // Fallback: reconstruct data from peak values (old format)
+                // staticCompliance is the peak RAW compliance, so we need to subtract ECV
                 const data: TympanogramPoint[] = [];
                 for (let pressure = 200; pressure >= -400; pressure -= 25) {
                   const distance = Math.abs(pressure - r.peakPressure);
                   const sigma = 100;
                   const normalized = distance / sigma;
-                  const compliance = Math.max(r.staticCompliance * Math.exp(-(normalized * normalized) / 2), 0.05);
-                  data.push({ pressure, compliance: compliance * 1.1, compensatedCompliance: compliance, ear });
+                  // Reconstruct curve using staticCompliance (raw peak compliance)
+                  const rawCompliance = Math.max(r.staticCompliance * Math.exp(-(normalized * normalized) / 2), 0.05);
+                  // Subtract ECV to get compensated compliance (what we display on graph)
+                  const compensatedCompliance = Math.max(0, rawCompliance - ecv);
+                  data.push({ 
+                    pressure, 
+                    compliance: rawCompliance * 1.1, // Raw compliance for reference
+                    compensatedCompliance, // Compensated compliance for display
+                    ear 
+                  });
                 }
                 return data;
               };
@@ -732,13 +611,40 @@ export default function TympanometryReportPage() {
                     <>
                       {row('Tympanogram', '—', right, left)}
                       {row('Compliance', 'ml', right, left, (v) => `${v.toFixed(2)}`)}
+                      {/* Peak Compliance - show if available, otherwise fallback to staticCompliance */}
+                      <div className="font-semibold border border-gray-400 p-2 text-gray-800">Peak Compliance</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">ml</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">{right?.peakCompliance !== undefined ? right.peakCompliance.toFixed(2) : right?.staticCompliance !== undefined ? right.staticCompliance.toFixed(2) : '—'}</div>
+                      <div className="border border-gray-400 p-2 text-center text-gray-800">{left?.peakCompliance !== undefined ? left.peakCompliance.toFixed(2) : left?.staticCompliance !== undefined ? left.staticCompliance.toFixed(2) : '—'}</div>
+                      {/* Peak Compensated with ECV - show if available */}
+                      {(right?.peakCompensatedWithECV !== undefined || left?.peakCompensatedWithECV !== undefined) && (
+                        <>
+                          <div className="font-semibold border border-gray-400 p-2 text-gray-800">Peak Compensated (with ECV)</div>
+                          <div className="border border-gray-400 p-2 text-center text-gray-800">ml</div>
+                          <div className="border border-gray-400 p-2 text-center text-gray-800">{right?.peakCompensatedWithECV !== undefined ? right.peakCompensatedWithECV.toFixed(2) : '—'}</div>
+                          <div className="border border-gray-400 p-2 text-center text-gray-800">{left?.peakCompensatedWithECV !== undefined ? left.peakCompensatedWithECV.toFixed(2) : '—'}</div>
+                        </>
+                      )}
                       {row('Ear canal volume', 'ml', right, left, (v) => `${v.toFixed(2)}`)}
                       {row('Peak Pressure', 'daPa', right, left, (v) => `${v}`)}
-                      {/* Gradient not in model; show em dash */}
-                      <div className="font-semibold border border-gray-400 p-2 text-gray-800">Gradient</div>
-                      <div className="border border-gray-400 p-2 text-center text-gray-800">daPa</div>
-                      <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
-                      <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
+                      {/* Gradient - show if available */}
+                      {(right?.gradient !== undefined || left?.gradient !== undefined) && (
+                        <>
+                          <div className="font-semibold border border-gray-400 p-2 text-gray-800">Gradient</div>
+                          <div className="border border-gray-400 p-2 text-center text-gray-800">ml/daPa</div>
+                          <div className="border border-gray-400 p-2 text-center text-gray-800">{right?.gradient !== undefined ? right.gradient.toFixed(2) : '—'}</div>
+                          <div className="border border-gray-400 p-2 text-center text-gray-800">{left?.gradient !== undefined ? left.gradient.toFixed(2) : '—'}</div>
+                        </>
+                      )}
+                      {/* Gradient Pressure - show if available */}
+                      {(right?.gradientPressure !== undefined || left?.gradientPressure !== undefined) && (
+                        <>
+                          <div className="font-semibold border border-gray-400 p-2 text-gray-800">Gradient Pressure</div>
+                          <div className="border border-gray-400 p-2 text-center text-gray-800">daPa</div>
+                          <div className="border border-gray-400 p-2 text-center text-gray-800">{right?.gradientPressure !== undefined ? right.gradientPressure.toString() : '—'}</div>
+                          <div className="border border-gray-400 p-2 text-center text-gray-800">{left?.gradientPressure !== undefined ? left.gradientPressure.toString() : '—'}</div>
+                        </>
+                      )}
                     </>
                   );
                 })()}
@@ -794,7 +700,7 @@ export default function TympanometryReportPage() {
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}
         onToggleShowReport={handleShowReport}
-        onShare={handleShareReport}
+        onShare={handleShareClick}
         onDoAnotherTest={() => {
           // Automatically hide the report if it's currently being shown
           if (isShowingReport || isScreenSharing) {
@@ -819,13 +725,11 @@ export default function TympanometryReportPage() {
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" onClick={() => setIsShareDialogOpen(false)}>Cancel</Button>
               <Button
-                onClick={async () => {
-                  setIsShareDialogOpen(false);
-                  await sendReportToNumbers(sharePhone);
-                }}
+                onClick={handleDialogConfirm}
+                disabled={isWhatsAppSharing}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                Send
+                {isWhatsAppSharing ? "Sending..." : "Send"}
               </Button>
             </div>
           </div>

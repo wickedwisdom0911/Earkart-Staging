@@ -15,6 +15,8 @@ export default async function getAllConsultations(): Promise<ConsultationModel> 
   if (!user?.token) {
     throw new Error("Unauthorized");
   }
+
+  
   const response = await apiRequest<ConsultationModel>(
     url,
     {

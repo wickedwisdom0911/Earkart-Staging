@@ -24,6 +24,18 @@ const TransducerSchema = z.object({
   Calibrations: z.array(CalibrationSchema),
 });
 
+// Impedance transducers for reflex/tympanometry testing (IPSI/CONTRA)
+const ImpedanceTransducerSchema = z.object({
+  ID: z.string().uuid(),
+  Name: z.string(), // "IPSI" or "Insert"
+  CalibrationDate: z.string(),
+  EarType: z.number(), // 0 = IPSI, 1 = CONTRA (Insert)
+  SignalTypes: z.array(z.number()),
+  ReflexStimulusDuration: z.array(z.number()).optional(),
+  DecayStimulusDuration: z.array(z.number()).optional(),
+  Calibrations: z.array(CalibrationSchema),
+});
+
 const PhonemeListSchema = z.object({
   Name: z.string(),
   Phonemes: z.array(z.string()).optional(),
@@ -63,6 +75,7 @@ export const TransducersResponseSchema = z.object({
   PacketType: z.number(),
   PacketName: z.string(),
   Transducers: z.array(TransducerSchema),
+  ImpedanceTransducers: z.array(ImpedanceTransducerSchema).optional(),
   SpeechMaterial: SpeechMaterialSchema,
 });
 
