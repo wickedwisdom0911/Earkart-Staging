@@ -14,8 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReportTopActions from "@/components/ui/ReportTopActions";
 import { exportElementToPdfBlob } from "@/lib/pdf";
-import initiateReportUpload from "@/actions/consultations/initiate-report-upload";
-import completeReportUpload from "@/actions/consultations/complete-report-upload";
+import { useShareReportWhatsApp } from "@/hooks/consultation/use-share-report-whatsapp";
 import { ReportType } from "@/models/enums";
 
 import { ROUTES } from "@/lib/routes";
@@ -26,6 +25,7 @@ import Image from "next/image";
 import { ArrowDownLeft, ArrowDownRight } from "lucide-react";
 import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
 import useDemoAccount from "@/hooks/use-demo-account";
+import initiateReportUpload from "@/actions/consultations/initiate-report-upload";
 
 // Helper: Synchronous rasterization for use inside html2canvas onclone (no async/await allowed)
 function rasterizeSVGsSync(container: HTMLElement, ownerDocument: Document) {
@@ -443,8 +443,24 @@ export default function ReportPage() {
   const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const updateConsultationMutation = useUpdateConsultation();
   const reportRef = useRef<HTMLDivElement>(null);
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-  const [sharePhone, setSharePhone] = useState<string>("");
+  
+  // WhatsApp sharing hook
+  const {
+    isSharing: isWhatsAppSharing,
+    isShareDialogOpen,
+    setIsShareDialogOpen,
+    sharePhone,
+    setSharePhone,
+    defaultPatientPhone,
+    handleShareClick,
+    handleDialogConfirm,
+  } = useShareReportWhatsApp({
+    consultationId: consultationId as string,
+    reportType: ReportType.AUDIOMETRY,
+    patientName: consultationData?.patient?.name,
+    patientContact: consultationData?.patient?.contactNumber,
+    reportRef,
+  });
   
   // Screen sharing functionality (shared with video call client)
 
@@ -459,6 +475,11 @@ export default function ReportPage() {
   // State for show report functionality
   const [isShowingReport, setIsShowingReport] = useState(false);
   const { isDemoAccount } = useDemoAccount();
+  
+  // Sync patient phone to share phone input
+  useEffect(() => {
+    setSharePhone(defaultPatientPhone);
+  }, [defaultPatientPhone, setSharePhone]);
   
   // New state for report upload
   const [reportUploadState, setReportUploadState] = useState<{
@@ -606,18 +627,6 @@ export default function ReportPage() {
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
   if (!consultationData) return <div>No data</div>;
-
-  // Default patient phone formatted for WhatsApp (91XXXXXXXXXX)
-  const defaultPatientPhone = (() => {
-    const raw = consultationData.patient?.contactNumber || "";
-    const stripped = raw.replace(/^\+/, "");
-    return stripped.startsWith("91") ? stripped : (stripped ? `91${stripped}` : "");
-  })();
-
-  // Keep dialog input in sync with patient number on load
-  useEffect(() => {
-    setSharePhone(defaultPatientPhone);
-  }, [defaultPatientPhone]);
 
   // Prevent body scrolling when component mounts
   useEffect(() => {
@@ -912,209 +921,10 @@ export default function ReportPage() {
     }
   };
 
-  const sendReportToNumbers = async (toNumbersInput: string) => {
-    console.log('🚀 Share report button clicked');
-    
-    // Get patient contact number and name
-    const patientContact = consultationData?.patient?.contactNumber;
-    const patientName = consultationData?.patient?.name;
-    
-    console.log('📋 Patient data:', { patientContact, patientName });
-    
-    if (!patientName) {
-      console.log('❌ No patient name available');
-      toast.error('Patient name not available');
-      return;
-    }
-    
-    // Allow custom number even if patient contact missing
-
-    try {
-      let finalReportUrl;
-      
-      // NEW FLOW: Generate fresh PDF + upload on share click
-      console.log('📄 Generating fresh PDF for sharing...');
-      toast.info("Generating fresh report...", {
-        description: "Creating PDF from current report data",
-        duration: 2000,
-      });
-      
-      if (!reportRef.current) {
-        throw new Error('Report element not available');
-      }
-      
-      // Step 1: Generate fresh PDF blob from current report
-      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true, fullPage: true });
-      const filename = `audiometry-report-${consultationData?.patient?.code || "fresh"}-${Date.now()}.pdf`;
-      
-      console.log('📄 Fresh PDF generated:', { 
-        size: blob.size, 
-        filename,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Step 2: Initiate upload to get pre-signed URL
-      console.log('🔗 Step 1: Initiating fresh report upload...');
-      toast.info("Getting upload URL...", {
-        description: "Requesting S3 pre-signed URL for fresh PDF",
-        duration: 2000,
-      });
-      
-      const initiateResult = await initiateReportUpload({
-        consultationId: consultationId as string,
-        reportType: ReportType.AUDIOMETRY,
-        fileName: filename,
-        contentType: "application/pdf",
-      });
-      
-      if (!initiateResult.success || !initiateResult.data?.presignedUrl || !initiateResult.data?.uploadId) {
-        throw new Error(initiateResult.message || "Failed to initiate fresh report upload");
-      }
-      
-      const { presignedUrl, uploadId } = initiateResult.data;
-      console.log('✅ Fresh upload initiated, received pre-signed URL');
-      
-      // Step 3: Try to upload fresh PDF to S3
-      console.log('📤 Step 2: Uploading fresh PDF to S3...');
-      toast.info("Uploading fresh report...", {
-        description: "Uploading fresh PDF to cloud storage",
-        duration: 3000,
-      });
-      
-      const uploadResponse = await fetch(presignedUrl, {
-        method: "PUT", 
-        body: blob
-        // No headers - same pattern as screen recordings
-      });
-      
-      if (!uploadResponse.ok) {
-        console.error('❌ Fresh S3 upload failed:', {
-          status: uploadResponse.status,
-          statusText: uploadResponse.statusText,
-        });
-        
-        // Fallback to hardcoded URL if S3 upload fails
-        console.log('🔧 S3 upload failed, using fallback test URL');
-        finalReportUrl = "https://fpu.branding-element.com/prod/61017/BROADCAST_TEMPLATE_ATTACHMENT/67563-04092025_062434-V2.SENDTEXTMEDIAMESSAGE.pdf";
-        
-        toast.warning("Fresh PDF upload failed", {
-          description: "Using test URL - backend needs to fix S3 checksum validation",
-          duration: 4000,
-        });
-        
-      } else {
-        console.log('✅ Fresh PDF uploaded to S3 successfully!');
-        
-        // Step 4: Complete upload to get final fresh report URL
-        console.log('🏁 Step 3: Completing fresh upload...');
-        toast.info("Finalizing fresh report...", {
-          description: "Getting final URL for fresh PDF",
-          duration: 2000,
-        });
-        
-        try {
-          const completeResult = await completeReportUpload({
-            uploadId,
-            consultationId: consultationId as string,
-            reportType: ReportType.AUDIOMETRY,
-          });
-          
-          console.log('📋 Fresh complete API response:', completeResult);
-          
-          if (completeResult.success && completeResult.data?.fileUrl) {
-            finalReportUrl = completeResult.data.fileUrl;
-            console.log('✅ Got fresh final URL from complete API:', finalReportUrl);
-            
-            toast.success("Fresh report ready!", {
-              description: "Fresh PDF uploaded and ready for sharing",
-              duration: 3000,
-            });
-          } else {
-            throw new Error('Complete API failed or no fileUrl for fresh PDF');
-          }
-          
-        } catch (completeError) {
-          console.warn('⚠️ Fresh complete API failed, using S3 direct URL:', completeError);
-          // Use the S3 direct URL without query parameters
-          finalReportUrl = presignedUrl.split('?')[0];
-          
-          toast.warning("Complete API failed, using S3 direct URL", {
-            description: "Fresh PDF uploaded but complete API failed",
-            duration: 3000,
-          });
-        }
-      }
-      
-      console.log('📤 Sending WhatsApp message with URL:', finalReportUrl);
-      
-      // Build recipients list from input or fallback to patient number
-      const rawList = (toNumbersInput || patientContact || "9058075653");
-      const recipients = rawList
-        .split(/[\s,]+/)
-        .map(s => s.trim())
-        .filter(Boolean);
-
-      const formatNumber = (n: string) => {
-        let x = n.replace(/^\+/, '');
-        if (!/^91\d{10}$/.test(x)) {
-          if (/^\d{10}$/.test(x)) x = `91${x}`;
-        }
-        return x;
-      };
-
-      const uniqueRecipients = Array.from(new Set(recipients.map(formatNumber)));
-      console.log('📞 Recipients:', uniqueRecipients);
-
-      const results = await Promise.allSettled(uniqueRecipients.map(async (to) => {
-        try {
-          const response = await fetch('/api/whatsapp/send-report-dialog', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to, patientName, reportUrl: finalReportUrl, reportType: 'audiometry' })
-          });
-          const json = await response.json();
-          if (!json.success) throw new Error(json.error || 'Unknown error');
-          return { to, success: true };
-        } catch (e: any) {
-          return { to, success: false, error: e?.message || String(e) };
-        }
-      }));
-
-      const succeeded = results.filter(r => r.status === 'fulfilled' && (r as any).value?.success).length;
-      const failed = uniqueRecipients.length - succeeded;
-
-      if (failed === 0) {
-        toast.success(`Report shared to ${succeeded} recipient(s)`);
-      } else if (succeeded > 0) {
-        toast.warning(`Shared to ${succeeded}, failed for ${failed}`);
-        console.warn('Some sends failed:', results);
-      } else {
-        toast.error('Failed to share report to all recipients');
-      }
-    } catch (err) {
-      console.error('❌ Share report error:', err);
-      toast.error('Failed to share report');
-    }
-  };
-
-  const handleShareReport = () => {
-    // Check if user is AIIMS employee
-    const isAiims = typeof window !== 'undefined' && localStorage.getItem('isAiims') === 'true';
-    
-    if (isAiims) {
-      // For AIIMS employees, directly send to hardcoded number
-      console.log('🏥 AIIMS employee detected - sending report to hardcoded number');
-      sendReportToNumbers('919980936971'); // Hardcoded AIIMS number with country code
-    } else {
-      // For other users, show the dialog
-      setIsShareDialogOpen(true);
-    }
-  };
-
   return (
     <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
       <div className="w-[1100px] max-h-[calc(100vh-2rem)] bg-white shadow-lg overflow-hidden">
-        <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
+        <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareClick} />
         
         <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
@@ -1571,7 +1381,7 @@ export default function ReportPage() {
                 </Button>
                 <Button 
                   type="button" 
-                  onClick={handleShareReport} 
+                  onClick={handleShareClick} 
                   className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 >
                   Submit Report
@@ -1651,7 +1461,7 @@ export default function ReportPage() {
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}
         onToggleShowReport={handleShowReport}
-        onShare={handleShareReport}
+        onShare={handleShareClick}
         onDoAnotherTest={handleDoAnotherTest}
         onEndConsultation={handleEndConsultation}
       />
@@ -1671,13 +1481,11 @@ export default function ReportPage() {
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" onClick={() => setIsShareDialogOpen(false)}>Cancel</Button>
               <Button
-                onClick={async () => {
-                  setIsShareDialogOpen(false);
-                  await sendReportToNumbers(sharePhone);
-                }}
+                onClick={handleDialogConfirm}
+                disabled={isWhatsAppSharing}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                Send
+                {isWhatsAppSharing ? "Sending..." : "Send"}
               </Button>
             </div>
           </div>

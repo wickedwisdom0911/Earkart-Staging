@@ -21,12 +21,28 @@ const TympDataSchema = z.object({
   Y: YDataSchema.optional(),
 });
 
+const EtfCurveSchema = z.object({
+  Peak: PeakSchema.optional(),
+  Gradient: z.number().optional(),
+  GradientPressure: z.number().optional(),
+  gradient: z.number().optional(), // Keep for backward compatibility
+  gradientpressure: z.number().optional(), // Keep for backward compatibility
+  PressureData: z.array(z.number()).optional(),
+  ComplianceData: z.array(z.number()).optional(),
+});
+
+const EtfIntactSchema = z.object({
+  ECV: z.number().optional(),
+  Curves: z.array(EtfCurveSchema).optional(),
+});
+
 export const ImpedanceDataSchema = z.object({
   PacketType: z.number().optional(),
   PacketName: z.string().optional(),
   ProbetoneFrequency: z.number().optional(),
   Interrupted: z.boolean().optional(),
   Tymp: TympDataSchema.optional(),
+  EtfIntact: EtfIntactSchema.optional(),
 });
 
 export type ImpedanceData = z.infer<typeof ImpedanceDataSchema>;

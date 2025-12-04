@@ -159,5 +159,13 @@ export enum ReportType {
   TONE = "TONE",
   OAE = "OAE",
   OTOSCOPY = "OTOSCOPY",
+  TONE_DECAY = "TONE_DECAY",
+}
+
+export enum ToneDecayResult {
+  NORMAL = "NORMAL",
+  ABNORMAL = "ABNORMAL",
+  CANNOT_DETERMINE = "CANNOT_DETERMINE",
+  NOT_COMPLETED = "NOT_COMPLETED",
 }
 

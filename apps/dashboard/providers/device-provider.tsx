@@ -28,6 +28,9 @@ interface DeviceState {
   transducerResponse: TransducersResponse | null;
 }
 
+
+
+
 // contexts/DeviceContext.tsx
 interface DeviceContextType {
   deviceState: DeviceState;
@@ -86,6 +89,19 @@ export const DeviceProvider: React.FC<{ children: React.ReactNode }> = ({
         };
         tabletState?: { batterylevel?: number; batteryLevel?: number; ischarging?: boolean; isCharging?: boolean };
       }) => {
+        // Debug: Log device event to see transducer data
+        console.log("[Device Event] Received:", data);
+        if (data.transducerResponse?.Transducers) {
+          console.log("[Device Event] Transducers:", data.transducerResponse.Transducers);
+          data.transducerResponse.Transducers.forEach((t, i) => {
+            console.log(`[Device Event] Transducer ${i}:`, {
+              ID: t.ID,
+              Name: t.Name,
+              ConductionType: t.ConductionType,
+              EarSides: t.EarSides,
+            });
+          });
+        }
         setDeviceState((prev) => ({
           ...prev,
           r15c: {

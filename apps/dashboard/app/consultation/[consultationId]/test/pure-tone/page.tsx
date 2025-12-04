@@ -33,6 +33,18 @@ const SIGNAL_TYPE_MAP = {
   4: SignalType.SpeechNoise,
 };
 
+// Maximum BC masking levels per frequency (in dB)
+const BC_MASKING_MAX_LEVELS: Record<number, number> = {
+  250: 85,
+  500: 105,
+  750: 105,
+  1000: 105,
+  1500: 105,
+  2000: 105,
+  3000: 105,
+  4000: 105,
+};
+
 interface TestResult {
   ear: string;
   x: number;
@@ -366,6 +378,39 @@ export default function PureTonePage() {
     return levels;
   }, [currentCalibration, selectedFrequency, selectedSignalType]);
 
+  // Available masking levels - for BC mode, limit based on frequency-specific max values
+  const availableMaskingLevels = useMemo(() => {
+    if (!currentCalibration) return [];
+
+    const freqData = currentCalibration.CalibrationFrequencies.find((freq) =>
+      selectedSignalType === SignalType.White ||
+      selectedSignalType === SignalType.SpeechNoise
+        ? freq.Frequency === -1
+        : freq.Frequency === selectedFrequency
+    );
+
+    if (!freqData) return [];
+
+    // Determine the max level for masking
+    let maxMaskingLevel = freqData.MaxLevelHL;
+    
+    // For BC mode, apply frequency-specific limits
+    if (selectedMode === "BC" && BC_MASKING_MAX_LEVELS[selectedFrequency] !== undefined) {
+      maxMaskingLevel = Math.min(maxMaskingLevel, BC_MASKING_MAX_LEVELS[selectedFrequency]);
+    }
+
+    // Generate array of levels in steps of 5
+    const levels = [];
+    for (
+      let level = freqData.MinLevelHL;
+      level <= maxMaskingLevel;
+      level += 5
+    ) {
+      levels.push(level);
+    }
+    return levels;
+  }, [currentCalibration, selectedFrequency, selectedSignalType, selectedMode]);
+
   // Update selected level when frequency or signal type changes
   useEffect(() => {
     if (availableLevels.length > 0) {
@@ -380,6 +425,15 @@ export default function PureTonePage() {
       }
     }
   }, [availableLevels, selectedLevel]);
+
+  // Adjust masking level when it exceeds the available masking levels (e.g., when switching to BC mode)
+  useEffect(() => {
+    if (availableMaskingLevels.length > 0 && !availableMaskingLevels.includes(maskingLevel)) {
+      // Set to the maximum available masking level
+      const maxAvailable = availableMaskingLevels[availableMaskingLevels.length - 1];
+      setMaskingLevel(maxAvailable);
+    }
+  }, [availableMaskingLevels, maskingLevel]);
 
   const availableSignalTypes = useMemo(() => {
     if (!currentTransducer) return [];
@@ -1498,7 +1552,7 @@ export default function PureTonePage() {
                   value={maskingLevel}
                   onChange={(e) => handleMaskingLevelChange(Number(e.target.value))}
                 >
-                  {availableLevels.map((level) => (
+                  {availableMaskingLevels.map((level) => (
                     <option key={level} value={level}>{level}</option>
                   ))}
                 </select>

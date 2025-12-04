@@ -463,7 +463,17 @@ export default function DashboardPage() {
         </div>
       </div>
       {isLoading && <div>Loading...</div>}
-      {isError && <div>Error</div>}
+      {isError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded mb-4">
+          <p className="text-red-800 font-semibold">Error loading consultations</p>
+          <p className="text-red-600 text-sm mt-1">
+            {(consultations as any)?.error?.message || "Unknown error occurred"}
+          </p>
+          <p className="text-red-500 text-xs mt-2">
+            Check browser console for detailed validation errors
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {allConsulations?.map((consultation) => {
           const Card = renderConsultationCard(consultation);

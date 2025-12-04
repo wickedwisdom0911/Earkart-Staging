@@ -4,7 +4,7 @@ import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { Card, CardContent } from "@/components/ui/card";
 import { useRouter, useParams } from "next/navigation";
 import { useSocket } from "@/providers/socket-provider";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 const testOptions = [
@@ -14,23 +14,19 @@ const testOptions = [
     description: "Test hearing sensitivity across different frequencies",
     available: true,
   },
-  {
-    id: "speech",
-    name: "Speech Audiometry",
-    description: "Evaluate speech understanding abilities",
-    available: false,
-  },
+ 
   {
     id: "tympanometry",
     name: "Tympanometry",
     description: "Assess middle ear function and mobility",
     available: true,
   },
+
   {
-    id: "otoacoustic",
-    name: "Otoacoustic Emissions",
-    description: "Measure inner ear response to sound",
-    available: false,
+    id: "etf-intact",
+    name: "ETF Intact",
+    description: "Eustachian tube function test with three sequential curves",
+    available: true,
   },
   {
     id: "video-otoscopy",
@@ -38,20 +34,40 @@ const testOptions = [
     description: "Visualize the middle ear and tympanic membrane",
     available: true,
   },
+  {
+    id: "tone-decay",
+    name: "Tone Decay Test",
+    description: "Assess auditory nerve adaptation to sustained tones",
+    available: true,
+  },
+  {
+    id: "reflexometry",
+    name: "Acoustic Reflex Test",
+    description: "Measure stapedial reflex thresholds (IPSI & CONTRA)",
+    available: true,
+  },
+  {
+    id: "otoacoustic",
+    name: "Otoacoustic Emissions",
+    description: "Measure inner ear response to sound",
+    available: false,
+  }
 ];
 
 export default function TestSelectionPage() {
   const router = useRouter();
   const params = useParams();
   const socket = useSocket();
+  const lastRequestedTestRef = useRef<string | null>(null);
+  const consultationId = params.consultationId as string;
 
   // Consume tympanometry readiness/issue events
   useEffect(() => {
     if (!socket) return;
 
     const onAck = () => {
-      const consultationId = params.consultationId as string;
-      router.push(`/consultation/${consultationId}/test/tympanometry`);
+      const targetTest = lastRequestedTestRef.current ?? "tympanometry";
+      router.push(`/consultation/${consultationId}/test/${targetTest}`);
     };
     const onIssue = (payload: { message?: string }) => {
       toast.error(payload?.message || "Tympanometry device not ready");
@@ -66,14 +82,15 @@ export default function TestSelectionPage() {
       socket.off("ack-received", onAck);
       socket.off("nack-received", onIssue);
     };
-  }, [socket, params.consultationId, router]);
+  }, [socket, router, consultationId]);
 
   const handleTestClick = (testId: string) => {
+    lastRequestedTestRef.current = testId;
     socket?.emit("start-test", {
       testId,
-      consultationId: params.consultationId,
+      consultationId,
     });
-    router.push(`/consultation/${params.consultationId}/test/${testId}`);
+    router.push(`/consultation/${consultationId}/test/${testId}`);
   };
 
   return (

@@ -10,6 +10,13 @@ const TympSchema = z.object({
   Pressure: z.number().optional(),
 });
 
+const EtfStatusSchema = z.object({
+  ECV: z.number().optional(),
+  Curve: z.number().optional(),
+  Pressure: z.number().optional(),
+  Compliance: z.number().optional(),
+});
+
 const ProbeStatusSchema = z.object({
   IsOpen: z.boolean().optional(),
   IsClose: z.boolean().optional(),
@@ -28,6 +35,7 @@ export const ImpedanceStatusSchema = z.object({
   StatusName: z.string().optional(),
   ProbeStatus: ProbeStatusSchema.optional(),
   Tymp: TympSchema.optional(),
+  EtfIntact: EtfStatusSchema.optional(),
 });
 
 export type ImpedanceStatus = z.infer<typeof ImpedanceStatusSchema>;
