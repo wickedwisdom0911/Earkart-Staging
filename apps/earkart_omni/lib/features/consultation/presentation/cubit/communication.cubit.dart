@@ -649,28 +649,74 @@ class CommunicationCubit extends Cubit<CommunicationState> {
     await sendCommand(packet);
   }
 
-  Future<void> sendStartReflexPacket(bool isContra) async {
+  Future<void> sendStartReflexPacket({
+    required bool isContra,
+    required int level,
+    required int step,
+    required bool stopWhenFound,
+    required bool quick,
+    required int stimulusDuration,
+    String? contraTransducerID,
+  }) async {
     final packet = _packetInterpreter.constructPacket({
       "PacketType": 10,
       "PacketName": "StartImpedance",
       "ProbetoneFrequency": 226,
       "RealTimeStatusUpdate": {"InIdle": false, "DuringExecution": true},
       "Reflexes": {
-        "ContraTransducerID": "8dc59de7-2e27-45cf-8b74-8b5fc09819d4",
+        "ContraTransducerID": contraTransducerID,
         "ReflexList": [
+          {
+            "SignalType": 0,
+            "Frequency": 500,
+            "EarType": isContra ? 1 : 0,
+            "StimulusDuration": stimulusDuration,
+            "Search": {
+              "MinLevel": level,
+              "Step": step,
+              "StopWhenFound": stopWhenFound,
+              "DeflectionThreshold": 0.025,
+              "Quick": quick,
+            },
+          },
+
           {
             "SignalType": 0,
             "Frequency": 1000,
             "EarType": isContra ? 1 : 0,
-            "StimulusDuration": 500,
-            // "Level": 70,
+            "StimulusDuration": stimulusDuration,
             "Search": {
-              "MinLevel": 70,
-              // "MaxLevel": 100,
-              "Step": 5,
-              "StopWhenFound": false,
+              "MinLevel": level,
+              "Step": step,
+              "StopWhenFound": stopWhenFound,
               "DeflectionThreshold": 0.025,
-              "Quick": false,
+              "Quick": quick,
+            },
+          },
+          {
+            "SignalType": 0,
+            "Frequency": 2000,
+            "EarType": isContra ? 1 : 0,
+            "StimulusDuration": stimulusDuration,
+            "Search": {
+              "MinLevel": level,
+              "Step": step,
+              "StopWhenFound": stopWhenFound,
+              "DeflectionThreshold": 0.025,
+              "Quick": quick,
+            },
+          },
+          {
+            "SignalType": 0,
+            "Frequency": 4000,
+            "EarType": isContra ? 1 : 0,
+            "StimulusDuration": stimulusDuration,
+            "Search": {
+              "MinLevel": level,
+              "Step": step,
+              "StopWhenFound": stopWhenFound,
+              "DeflectionThreshold": 0.025,
+              "Quick": quick,
             },
           },
         ],

@@ -451,44 +451,86 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.on("tonedecay-started", (data) {
       if (!mounted) return;
       di<ILogger>().debug('Tonedecay start: $data');
-      context.read<CommunicationCubit>().sendStatePacket(
-        frequency: data["frequency"],
-        level: data["level"],
-        signal: true,
-        pulsed: data["pulsed"],
-        earSide: data["earSide"] == "L" ? EarSide.Left : EarSide.Right,
-        signalType:
-            data["signalType"] == "Steady"
-                ? SignalType.Steady
-                : data["signalType"] == "Warble"
-                ? SignalType.Warble
-                : data["signalType"] == "NB"
-                ? SignalType.NB
-                : data["signalType"] == "White"
-                ? SignalType.White
-                : data["signalType"] == "SpeechNoise"
-                ? SignalType.SpeechNoise
-                : data["signalType"] == "Speech"
-                ? SignalType.Speech
-                : SignalType.Steady,
-        conductionType:
-            data["conductionType"] == "AC"
-                ? ConductionType.Air
-                : ConductionType.Bone,
-      );
+      try {
+        if (data == null) {
+          di<ILogger>().error('Received null data in tonedecay-started event');
+          return;
+        }
+        context.read<CommunicationCubit>().sendStatePacket(
+          frequency: data["frequency"],
+          level: data["level"],
+          signal: true,
+          pulsed: data["pulsed"],
+          earSide: data["earSide"] == "L" ? EarSide.Left : EarSide.Right,
+          signalType:
+              data["signalType"] == "Steady"
+                  ? SignalType.Steady
+                  : data["signalType"] == "Warble"
+                  ? SignalType.Warble
+                  : data["signalType"] == "NB"
+                  ? SignalType.NB
+                  : data["signalType"] == "White"
+                  ? SignalType.White
+                  : data["signalType"] == "SpeechNoise"
+                  ? SignalType.SpeechNoise
+                  : data["signalType"] == "Speech"
+                  ? SignalType.Speech
+                  : SignalType.Steady,
+          conductionType:
+              data["conductionType"] == "AC"
+                  ? ConductionType.Air
+                  : ConductionType.Bone,
+        );
+      } catch (e) {
+        di<ILogger>().error('Error handling tonedecay-started event: $e');
+      }
     });
     socket.on("tonedecay-stopped", (data) {
       if (!mounted) return;
       di<ILogger>().debug('Tonedecay stop: $data');
-      context.read<CommunicationCubit>().sendStatePacket(
-        frequency: data["frequency"],
-        level: data["level"],
-        signal: false,
-        pulsed: false,
-        earSide: data["earSide"] == "L" ? EarSide.Left : EarSide.Right,
-        signalType: SignalType.Steady,
-        conductionType: ConductionType.Air,
-      );
+      try {
+        if (data == null) {
+          di<ILogger>().error('Received null data in tonedecay-stopped event');
+          return;
+        }
+        context.read<CommunicationCubit>().sendStopPacket();
+      } catch (e) {
+        di<ILogger>().error('Error handling tonedecay-stopped event: $e');
+      }
+    });
+    socket.on("reflexes-started", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('Start reflex: $data');
+      try {
+        if (data == null) {
+          di<ILogger>().error('Received null data in reflexes-started event');
+          return;
+        }
+        context.read<CommunicationCubit>().sendStartReflexPacket(
+          isContra: data["isContralateral"],
+          level: data["level"],
+          step: data["step"],
+          stopWhenFound: data["stopWhenFound"],
+          quick: data["quick"],
+          stimulusDuration: data["stimulusDuration"],
+          contraTransducerID: data["contraTransducerID"],
+        );
+      } catch (e) {
+        di<ILogger>().error('Error handling reflexes-started event: $e');
+      }
+    });
+    socket.on("reflexes-stopped", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('Reflexes stopped: $data');
+      try {
+        if (data == null) {
+          di<ILogger>().error('Received null data in reflexes-stopped event');
+          return;
+        }
+        context.read<CommunicationCubit>().sendStopPacket();
+      } catch (e) {
+        di<ILogger>().error('Error handling reflexes-stopped event: $e');
+      }
     });
     socket.on("end-test", (data) {
       if (!mounted) return;
