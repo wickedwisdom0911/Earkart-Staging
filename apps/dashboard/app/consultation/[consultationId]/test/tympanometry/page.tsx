@@ -198,20 +198,34 @@ export default function TympanometryPage() {
     // Use values from device data or calculate fallbacks
     const peakCompValue = peakCompliance ?? 0;
     const ecvValue = ecv ?? 0;
-    // Use peakCompensatedWithECV from device if available, otherwise calculate
-    const peakCompensatedValue = peakCompensatedWithECV ?? Math.max(0, peakCompValue - ecvValue);
+    // ALWAYS use peakCompensatedWithECV from device if available (this is what's shown in controls)
+    // Only calculate if device didn't provide it
+    const peakCompensatedValue = peakCompensatedWithECV !== null 
+      ? peakCompensatedWithECV 
+      : (peakCompValue > 0 && ecvValue > 0 ? Math.max(0, peakCompValue - ecvValue) : 0);
+    
+    // Debug: Log the values being saved to ensure they match what's displayed
+    console.log('Saving tympanometry values:', JSON.stringify({
+      peakCompensatedWithECV_display: peakCompensatedWithECV,
+      peakCompensatedValue_saved: peakCompensatedValue,
+      peakCompliance_raw: peakCompValue,
+      ecv: ecvValue,
+      calculated: peakCompValue - ecvValue,
+      peakPressure: peakPressure,
+      gradient: gradient
+    }, null, 2));
 
     // Create tympanometry reading data with all new fields
     const tympanometryReading: TympanometryReadingModelData = {
       tympanometryId: "", // Will be set by backend
       ear: selectedEar === "L" ? Ear.LEFT : Ear.RIGHT,
       peakPressure: peakPressure ?? 0,
-      staticCompliance: peakCompValue, // Same as peakCompliance
+      staticCompliance: peakCompensatedValue, // Use compensated compliance - MUST match what's shown in controls
       earCanalVolume: ecvValue,
       tympType: manualTympType as TympType,
       // New fields
-      peakCompliance: peakCompValue,
-      peakCompensatedWithECV: peakCompensatedValue,
+      peakCompliance: peakCompValue, // Raw compliance (includes ECV)
+      peakCompensatedWithECV: peakCompensatedValue, // Compensated compliance - MUST match controls display
       gradient: gradient ?? undefined,
       gradientPressure: gradientPressure ?? undefined,
       pressureData: pressureData.length > 0 ? pressureData : undefined,
@@ -269,18 +283,73 @@ export default function TympanometryPage() {
         );
 
         // Switch to the other ear automatically
-        setSelectedEar(selectedEar === "L" ? "R" : "L");
-        // Reset test state for the next ear
-        setRealTimeData([]);
-        setFinalData([]);
-        setIsTestCompleted(false);
-        setCurrentPressure(0);
-        setCurrentCompliance(0);
-        setPeakPressure(null);
-        setPeakCompliance(null);
-        setGradient(null);
-        setECV(null);
-        setManualTympType("");
+        const nextEar = selectedEar === "L" ? "R" : "L";
+        setSelectedEar(nextEar);
+        
+        // Check if the next ear already has saved data
+        const nextEarReading = updatedReadings.find(r => 
+          r.ear === (nextEar === "L" ? Ear.LEFT : Ear.RIGHT)
+        );
+        
+        if (nextEarReading) {
+          // Load saved data for the next ear
+          setPeakPressure(nextEarReading.peakPressure);
+          setPeakCompliance(nextEarReading.peakCompliance ?? null);
+          setPeakCompensatedWithECV(nextEarReading.peakCompensatedWithECV ?? nextEarReading.staticCompliance ?? null);
+          setECV(nextEarReading.earCanalVolume);
+          setGradient(nextEarReading.gradient ?? null);
+          setManualTympType(nextEarReading.tympType);
+          
+          // Rebuild graph data from saved reading
+          if (nextEarReading.pressureData && nextEarReading.complianceData) {
+            const savedPoints: TympanogramPoint[] = nextEarReading.pressureData.map(
+              (pressure: number, index: number) => {
+                const rawCompliance = nextEarReading.complianceData![index];
+                const ecvValue = nextEarReading.earCanalVolume;
+                const compensatedCompliance = Math.max(0, rawCompliance - ecvValue);
+                return {
+                  pressure,
+                  compliance: rawCompliance,
+                  compensatedCompliance,
+                  ear: nextEar,
+                };
+              }
+            );
+            setFinalData(savedPoints);
+            setIsTestCompleted(true);
+          } else {
+            // Build graph from peak values if pressure/compliance arrays not available
+            const peakComplianceValue = nextEarReading.peakCompensatedWithECV ?? nextEarReading.staticCompliance ?? 0;
+            const graphPoints: TympanogramPoint[] = [];
+            for (let pressure = 200; pressure >= -400; pressure -= 25) {
+              const distance = Math.abs(pressure - nextEarReading.peakPressure);
+              const sigma = 100;
+              const normalized = distance / sigma;
+              const compliance = Math.max(peakComplianceValue * Math.exp(-(normalized * normalized) / 2), 0.05);
+              graphPoints.push({
+                pressure,
+                compliance: compliance * 1.1,
+                compensatedCompliance: compliance,
+                ear: nextEar,
+              });
+            }
+            setFinalData(graphPoints);
+            setIsTestCompleted(true);
+          }
+        } else {
+          // Reset test state for the next ear (no saved data)
+          setRealTimeData([]);
+          setFinalData([]);
+          setIsTestCompleted(false);
+          setCurrentPressure(0);
+          setCurrentCompliance(0);
+          setPeakPressure(null);
+          setPeakCompliance(null);
+          setPeakCompensatedWithECV(null);
+          setGradient(null);
+          setECV(null);
+          setManualTympType("");
+        }
       }
     } catch (error) {
       console.error("Failed to save tympanometry results:", error);
@@ -468,6 +537,63 @@ export default function TympanometryPage() {
     selectedEar,
     saveTympanometryResults,
   ]);
+
+  // Load saved reading data when switching to an ear that was already tested
+  React.useEffect(() => {
+    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+    const savedReading = localReadings.find(r => 
+      r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
+    ) || consultationData?.tympanometry?.readings?.find(r => 
+      r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
+    );
+
+    if (savedReading && !isRunning && !isTestCompleted) {
+      // Load saved values for display
+      setPeakPressure(savedReading.peakPressure);
+      setPeakCompliance(savedReading.peakCompliance ?? null);
+      setPeakCompensatedWithECV(savedReading.peakCompensatedWithECV ?? savedReading.staticCompliance ?? null);
+      setECV(savedReading.earCanalVolume);
+      setGradient(savedReading.gradient ?? null);
+      setManualTympType(savedReading.tympType);
+
+      // Rebuild graph data from saved reading
+      if (savedReading.pressureData && savedReading.complianceData && savedReading.pressureData.length > 0) {
+        const savedPoints: TympanogramPoint[] = savedReading.pressureData.map(
+          (pressure: number, index: number) => {
+            const rawCompliance = savedReading.complianceData![index];
+            const ecvValue = savedReading.earCanalVolume;
+            const compensatedCompliance = Math.max(0, rawCompliance - ecvValue);
+            return {
+              pressure,
+              compliance: rawCompliance,
+              compensatedCompliance,
+              ear: selectedEar,
+            };
+          }
+        );
+        setFinalData(savedPoints);
+        setIsTestCompleted(true);
+      } else if (savedReading.peakPressure !== undefined) {
+        // Build graph from peak values if pressure/compliance arrays not available
+        const peakComplianceValue = savedReading.peakCompensatedWithECV ?? savedReading.staticCompliance ?? 0;
+        const graphPoints: TympanogramPoint[] = [];
+        for (let pressure = 200; pressure >= -400; pressure -= 25) {
+          const distance = Math.abs(pressure - savedReading.peakPressure);
+          const sigma = 100;
+          const normalized = distance / sigma;
+          const compliance = Math.max(peakComplianceValue * Math.exp(-(normalized * normalized) / 2), 0.05);
+          graphPoints.push({
+            pressure,
+            compliance: compliance * 1.1,
+            compensatedCompliance: compliance,
+            ear: selectedEar,
+          });
+        }
+        setFinalData(graphPoints);
+        setIsTestCompleted(true);
+      }
+    }
+  }, [selectedEar, consultation, localReadings, isRunning, isTestCompleted]);
 
 
 
@@ -794,7 +920,33 @@ export default function TympanometryPage() {
                 </div>
                 <div>
                   <div className="text-[9px] text-gray-500">Peak C</div>
-                  <div className="font-semibold">{peakCompliance !== null ? `${peakCompliance.toFixed(2)}` : "--"}</div>
+                  <div className="font-semibold">
+                    {(() => {
+                      // First check if we have a saved reading for this ear (from localReadings or consultation)
+                      const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+                      const savedReading = localReadings.find(r => 
+                        r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
+                      ) || consultationData?.tympanometry?.readings?.find(r => 
+                        r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
+                      );
+                      
+                      // If we have saved data, use that (prefer peakCompensatedWithECV, fallback to staticCompliance)
+                      if (savedReading) {
+                        const savedValue = savedReading.peakCompensatedWithECV ?? savedReading.staticCompliance;
+                        if (savedValue !== undefined && savedValue > 0) {
+                          return savedValue.toFixed(2);
+                        }
+                      }
+                      
+                      // Otherwise use live/test values - same logic as save function
+                      const peakCompValue = peakCompliance ?? 0;
+                      const ecvValue = ecv ?? 0;
+                      const displayedValue = peakCompensatedWithECV !== null 
+                        ? peakCompensatedWithECV 
+                        : (peakCompValue > 0 && ecvValue > 0 ? Math.max(0, peakCompValue - ecvValue) : 0);
+                      return displayedValue > 0 ? displayedValue.toFixed(2) : "--";
+                    })()}
+                  </div>
                 </div>
                 <div>
                   <div className="text-[9px] text-gray-500">Gradient</div>
@@ -1203,9 +1355,31 @@ export default function TympanometryPage() {
                 Peak Compliance (Compensated)
               </label>
               <p className="text-lg font-semibold">
-                {peakCompliance !== null
-                  ? `${peakCompliance.toFixed(2)} ml`
-                  : "--"}
+                {(() => {
+                  // First check if we have a saved reading for this ear (from localReadings or consultation)
+                  const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+                  const savedReading = localReadings.find(r => 
+                    r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
+                  ) || consultationData?.tympanometry?.readings?.find(r => 
+                    r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
+                  );
+                  
+                  // If we have saved data, use that (prefer peakCompensatedWithECV, fallback to staticCompliance)
+                  if (savedReading) {
+                    const savedValue = savedReading.peakCompensatedWithECV ?? savedReading.staticCompliance;
+                    if (savedValue !== undefined && savedValue > 0) {
+                      return `${savedValue.toFixed(2)} ml`;
+                    }
+                  }
+                  
+                  // Otherwise use live/test values - same logic as save function
+                  const peakCompValue = peakCompliance ?? 0;
+                  const ecvValue = ecv ?? 0;
+                  const displayedValue = peakCompensatedWithECV !== null 
+                    ? peakCompensatedWithECV 
+                    : (peakCompValue > 0 && ecvValue > 0 ? Math.max(0, peakCompValue - ecvValue) : 0);
+                  return displayedValue > 0 ? `${displayedValue.toFixed(2)} ml` : "--";
+                })()}
               </p>
             </div>
             <div>
