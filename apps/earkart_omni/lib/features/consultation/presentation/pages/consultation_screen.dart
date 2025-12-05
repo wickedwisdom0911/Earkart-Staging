@@ -493,7 +493,31 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           di<ILogger>().error('Received null data in tonedecay-stopped event');
           return;
         }
-        context.read<CommunicationCubit>().sendStopPacket();
+        context.read<CommunicationCubit>().sendStatePacket(
+          frequency: data["frequency"],
+          level: data["level"],
+          signal: false,
+          pulsed: data["pulsed"],
+          earSide: data["earSide"] == "L" ? EarSide.Left : EarSide.Right,
+          signalType:
+              data["signalType"] == "Steady"
+                  ? SignalType.Steady
+                  : data["signalType"] == "Warble"
+                  ? SignalType.Warble
+                  : data["signalType"] == "NB"
+                  ? SignalType.NB
+                  : data["signalType"] == "White"
+                  ? SignalType.White
+                  : data["signalType"] == "SpeechNoise"
+                  ? SignalType.SpeechNoise
+                  : data["signalType"] == "Speech"
+                  ? SignalType.Speech
+                  : SignalType.Steady,
+          conductionType:
+              data["conductionType"] == "AC"
+                  ? ConductionType.Air
+                  : ConductionType.Bone,
+        );
       } catch (e) {
         di<ILogger>().error('Error handling tonedecay-stopped event: $e');
       }

@@ -21,13 +21,17 @@ class _OmniVersionWidgetState extends State<OmniVersionWidget> {
   Future<void> _fetchVersion() async {
     try {
       final info = await PackageInfo.fromPlatform();
-      setState(() {
-        _version = info.version;
-      });
+      if (mounted) {
+        setState(() {
+          _version = info.version;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _version = '2.0.1'; // fallback
-      });
+      if (mounted) {
+        setState(() {
+          _version = '2.0.1'; // fallback
+        });
+      }
     }
   }
 
