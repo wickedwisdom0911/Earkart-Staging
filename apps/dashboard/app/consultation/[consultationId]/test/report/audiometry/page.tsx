@@ -114,6 +114,16 @@ const AudiogramChart: React.FC<{
   
   const getSymbolColor = (ear: string) => ear === "L" ? COLORS.leftEar : COLORS.rightEar;
 
+  // Helper function to convert dB to pixel Y position (supports 5dB increments)
+  const dbToYPosition = (db: number) => {
+    // Clamp dB to valid range
+    const clampedDb = Math.max(-10, Math.min(120, db));
+    // Convert to 5dB index: (db + 10) / 5 gives us the index in 5dB steps
+    // Each 5dB step is half of gridSize (since gridSize represents 10dB)
+    const dbIndex = (clampedDb + 10) / 5;
+    return margin.top + dbIndex * (gridSize / 2);
+  };
+
   // Function to generate connecting lines between thresholds (following ASHA conventions)
   const generateConnectingLines = () => {
     const lines: React.ReactNode[] = [];
@@ -140,16 +150,10 @@ const AudiogramChart: React.FC<{
         const current = sortedResults[i];
         const next = sortedResults[i + 1];
         
-        const dbIndex1 = Math.round((current.y + 10) / 10);
-        const dbIndex2 = Math.round((next.y + 10) / 10);
-        
-        if (dbIndex1 < 0 || dbIndex1 >= 15 || 
-            dbIndex2 < 0 || dbIndex2 >= 15) continue;
-        
         const x1 = margin.left + getFrequencyPosition(current.x);
-        const y1 = margin.top + dbIndex1 * gridSize;
+        const y1 = dbToYPosition(current.y);
         const x2 = margin.left + getFrequencyPosition(next.x);
-        const y2 = margin.top + dbIndex2 * gridSize;
+        const y2 = dbToYPosition(next.y);
         
         const color = getSymbolColor(current.ear);
         const strokeDasharray = current.mode === "BC" ? "3,3" : "none"; // BC lines are dashed
@@ -319,19 +323,24 @@ const AudiogramChart: React.FC<{
             );
           })}
           
-                     {/* Mid-intensity lines (5 dB intervals, dashed) */}
-          {Array.from({ length: 14 }, (_, i) => (
-            <line
-              key={`mid-intensity-${i}`}
-              x1={margin.left}
-              y1={margin.top + (i + 0.5) * gridSize}
-              x2={chartWidth + margin.left}
-              y2={margin.top + (i + 0.5) * gridSize}
-              stroke={COLORS.midOctave}
-              strokeWidth={1.2}
-              strokeDasharray="4,2"
-            />
-          ))}
+          {/* Mid-intensity lines (5 dB intervals, dashed) */}
+          {dbLevels
+            .filter(level => level % 10 !== 0 && level % 5 === 0) // Only 5dB intervals that aren't 10dB
+            .map(level => {
+              const y = dbToYPosition(level);
+              return (
+                <line
+                  key={`mid-intensity-${level}`}
+                  x1={margin.left}
+                  y1={y}
+                  x2={chartWidth + margin.left}
+                  y2={y}
+                  stroke={COLORS.midOctave}
+                  strokeWidth={1.2}
+                  strokeDasharray="4,2"
+                />
+              );
+            })}
           
           {/* Frequency labels: top (octaves) */}
           {mainFrequencies.map((freq) => {
@@ -371,24 +380,28 @@ const AudiogramChart: React.FC<{
             );
           })}
           
-          {/* dB level labels */}
-          {Array.from({ length: 15 }, (_, i) => {
-            const db = (i - 1) * 10; // Start from -10
-            return (
-              <text
-                key={`db-${db}`}
-                x={margin.left - 10}
-                y={margin.top + i * gridSize}
-                textAnchor="end"
-                dominantBaseline="middle"
-                fontSize="10"
-                fill={COLORS.text}
-                fontWeight="bold"
-              >
-                {db}
-              </text>
-            );
-          })}
+          {/* dB level labels - show both 10dB and 5dB levels */}
+          {dbLevels
+            .filter(level => level % 5 === 0) // Show all 5dB increments
+            .map(level => {
+              const y = dbToYPosition(level);
+              const is10dB = level % 10 === 0;
+              const is5dB = level % 5 === 0 && !is10dB;
+              return (
+                <text
+                  key={`db-${level}`}
+                  x={margin.left - 10}
+                  y={y}
+                  textAnchor="end"
+                  dominantBaseline="middle"
+                  fontSize={is5dB ? "9" : "10"}
+                  fill={is5dB ? "#666666" : COLORS.text}
+                  fontWeight={is5dB ? "normal" : "bold"}
+                >
+                  {level}
+                </text>
+              );
+            })}
           
           {/* Axis labels */}
           <text
@@ -420,12 +433,14 @@ const AudiogramChart: React.FC<{
           
           {/* Data points */}
           {results.map((result) => {
-            const dbIndex = Math.round((result.y + 10) / 10); // Convert dB to grid index (starts from -10)
+            // Clamp dB to valid range
+            const clampedDb = Math.max(-10, Math.min(120, result.y));
             
-            if (dbIndex < 0 || dbIndex >= 15) return null;
+            // Skip if out of range (shouldn't happen after clamping, but safety check)
+            if (clampedDb < -10 || clampedDb > 120) return null;
             
             const x = margin.left + getFrequencyPosition(result.x);
-            const y = margin.top + dbIndex * gridSize;
+            const y = dbToYPosition(clampedDb);
             
             return renderSymbol(result, x, y);
           })}
