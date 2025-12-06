@@ -625,16 +625,43 @@ export default function TympanometryReportPage() {
 
               const buildData = (r: TympanometryReadingModelData | undefined, ear: 'L' | 'R'): TympanogramPoint[] => {
                 if (!r) return [];
-                // Use peakCompensatedWithECV if available (matches controls), otherwise use staticCompliance
+                
+                // ALWAYS prefer saved pressureData and complianceData arrays (matches test page)
+                if (r.pressureData && r.complianceData && r.pressureData.length > 0) {
+                  const savedPoints: TympanogramPoint[] = r.pressureData.map(
+                    (pressure: number, index: number) => {
+                      const rawCompliance = r.complianceData![index];
+                      const ecvValue = r.earCanalVolume;
+                      const compensatedCompliance = Math.max(0, rawCompliance - ecvValue);
+                      return {
+                        pressure,
+                        compliance: rawCompliance,
+                        compensatedCompliance,
+                        ear,
+                      };
+                    }
+                  );
+                  return savedPoints;
+                }
+                
+                // Only use synthetic generation as absolute fallback for legacy data
+                // Use peakCompensatedWithECV (already compensated) for the peak
                 const peakComplianceValue = r.peakCompensatedWithECV ?? r.staticCompliance ?? 0;
                 const data: TympanogramPoint[] = [];
                 for (let pressure = 200; pressure >= -400; pressure -= 25) {
                   const distance = Math.abs(pressure - r.peakPressure);
                   const sigma = 100;
                   const normalized = distance / sigma;
-                  // Use the saved compliance value (compensated) for the peak
-                  const compliance = Math.max(peakComplianceValue * Math.exp(-(normalized * normalized) / 2), 0.05);
-                  data.push({ pressure, compliance: compliance * 1.1, compensatedCompliance: compliance, ear });
+                  // peakComplianceValue is already compensated, so use it directly
+                  const compensatedCompliance = Math.max(peakComplianceValue * Math.exp(-(normalized * normalized) / 2), 0.05);
+                  // Add ECV back to get raw compliance for consistency
+                  const rawCompliance = compensatedCompliance + (r.earCanalVolume || 0);
+                  data.push({ 
+                    pressure, 
+                    compliance: rawCompliance, 
+                    compensatedCompliance: compensatedCompliance, 
+                    ear 
+                  });
                 }
                 return data;
               };

@@ -318,18 +318,22 @@ export default function TympanometryPage() {
             setFinalData(savedPoints);
             setIsTestCompleted(true);
           } else {
-            // Build graph from peak values if pressure/compliance arrays not available
+            // Build graph from peak values if pressure/compliance arrays not available (fallback for legacy data)
+            // Use peakCompensatedWithECV (already compensated) for the peak
             const peakComplianceValue = nextEarReading.peakCompensatedWithECV ?? nextEarReading.staticCompliance ?? 0;
             const graphPoints: TympanogramPoint[] = [];
             for (let pressure = 200; pressure >= -400; pressure -= 25) {
               const distance = Math.abs(pressure - nextEarReading.peakPressure);
               const sigma = 100;
               const normalized = distance / sigma;
-              const compliance = Math.max(peakComplianceValue * Math.exp(-(normalized * normalized) / 2), 0.05);
+              // peakComplianceValue is already compensated, so use it directly
+              const compensatedCompliance = Math.max(peakComplianceValue * Math.exp(-(normalized * normalized) / 2), 0.05);
+              // Add ECV back to get raw compliance for consistency
+              const rawCompliance = compensatedCompliance + (nextEarReading.earCanalVolume || 0);
               graphPoints.push({
                 pressure,
-                compliance: compliance * 1.1,
-                compensatedCompliance: compliance,
+                compliance: rawCompliance,
+                compensatedCompliance: compensatedCompliance,
                 ear: nextEar,
               });
             }

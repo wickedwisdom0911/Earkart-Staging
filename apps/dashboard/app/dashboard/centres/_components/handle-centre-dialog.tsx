@@ -23,11 +23,11 @@ import {
   CreateCenterProfileSchema,
   Pricing,
 } from "@/models/centre.model";
-import { ReactNode, useState, useEffect, useMemo, useCallback } from "react";
+import React, { ReactNode, useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { UserModelData } from "@/models/user.model";
 import StatusToggle from "@/components/ui/status-toggle";
-import { Role, StatusEnum } from "@/models/enums";
+import { Role, StatusEnum, PaymentCycle } from "@/models/enums";
 import GenderSelect from "@/components/ui/selector/gender-select";
 import { DatetimePicker } from "@/components/DateTimePicker";
 import CountrySelector from "@/components/ui/selector/country-selector";
@@ -150,6 +150,7 @@ export default function HandleCentreDialog({
 
   const form = useForm<CreateCenterProfile>({
     resolver: zodResolver(CreateCenterProfileSchema),
+    mode: "onBlur", // Validate on blur for better UX
     defaultValues: {
       user: {
         name: centreUser?.name,
@@ -190,6 +191,12 @@ export default function HandleCentreDialog({
     isError: isUpdateError,
   } = useUpdateCentre();
 
+  // Use useFieldArray for pricing management
+  const { fields: pricingFields, append: appendPricing, remove: removePricing } = useFieldArray({
+    control: form.control,
+    name: "centre.centrePricing",
+  });
+
   // Set cityId in form when initial values are available
   useEffect(() => {
     if (isEdit && locationData?.cityId) {
@@ -197,12 +204,145 @@ export default function HandleCentreDialog({
     }
   }, [isEdit, locationData, form]);
 
-  const toggleDialog = () => {
-    setIsOpen(!isOpen);
+  // Reset form when dialog opens for "Add" mode
+  useEffect(() => {
+    if (isOpen && !isEdit) {
+      form.reset({
+        user: {
+          name: "",
+          email: "",
+          password: "",
+          status: StatusEnum.ACTIVE,
+          gender: undefined,
+          role: Role.CENTRE,
+          dob: undefined,
+        },
+        centre: {
+          code: "",
+          cityId: "",
+          isOurAssistant: false,
+          centrePricing: [],
+          address: "",
+          pincode: "",
+          contactNumber: "",
+          entName: "",
+          assistantName: "",
+          assistantContactNumber: "",
+          paymentCycle: PaymentCycle.MONTHLY,
+          workingDays: [],
+          workingTimeStart: "",
+          workingTimeEnd: "",
+          breakTimeStart: "",
+          breakTimeEnd: "",
+        },
+      });
+    }
+  }, [isOpen, isEdit, form]);
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
     // Reset location selectors when dialog closes
-    if (isOpen) {
+    if (!open) {
       resetLocation();
     }
+  };
+
+  // Helper function to format field names for display
+  const formatFieldName = (fieldPath: string): string => {
+    const parts = fieldPath.split(".");
+    const fieldName = parts[parts.length - 1];
+    
+    // Map field names to user-friendly labels
+    const fieldLabels: Record<string, string> = {
+      name: "Name",
+      email: "Email",
+      password: "Password",
+      status: "Status",
+      gender: "Gender",
+      dob: "Date of Birth",
+      code: "Centre Code",
+      address: "Address",
+      cityId: "City",
+      pincode: "Pincode",
+      contactNumber: "Contact Number",
+      entName: "ENT Name",
+      assistantName: "Assistant Name",
+      assistantContactNumber: "Assistant Contact Number",
+      paymentCycle: "Payment Cycle",
+      workingDays: "Working Days",
+      workingTimeStart: "Working Time Start",
+      workingTimeEnd: "Working Time End",
+      breakTimeStart: "Break Time Start",
+      breakTimeEnd: "Break Time End",
+      price: "Price",
+      description: "Description",
+    };
+    
+    // Handle nested fields like centrePricing
+    if (parts.length > 2 && parts[parts.length - 2] === "centrePricing") {
+      const pathParts = parts[parts.length - 3].split("[");
+      if (pathParts.length > 1) {
+        const index = parseInt(pathParts[1].replace("]", "")) + 1;
+        const label = fieldLabels[fieldName] || fieldName;
+        return `Test ${index} - ${label}`;
+      }
+    }
+    
+    return fieldLabels[fieldName] || fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+  };
+
+  // Helper function to get all validation errors
+  const getValidationErrors = (errors: any): string[] => {
+    const errorMessages: string[] = [];
+    
+    const traverseErrors = (obj: any, path: string = "") => {
+      if (!obj || typeof obj !== "object") return;
+      
+      // Handle array of errors
+      if (Array.isArray(obj)) {
+        obj.forEach((item, index) => {
+          if (item?.message) {
+            const fieldName = formatFieldName(path || `[${index}]`);
+            errorMessages.push(`${fieldName}: ${item.message}`);
+          } else if (typeof item === "object" && item !== null) {
+            traverseErrors(item, path ? `${path}[${index}]` : `[${index}]`);
+          }
+        });
+        return;
+      }
+      
+      // Handle object with message property (FieldError)
+      if (obj.message && typeof obj.message === "string") {
+        const fieldName = formatFieldName(path);
+        errorMessages.push(`${fieldName}: ${obj.message}`);
+        return;
+      }
+      
+      // Handle nested objects
+      Object.keys(obj).forEach((key) => {
+        const currentPath = path ? `${path}.${key}` : key;
+        const value = obj[key];
+        
+        if (value?.message) {
+          const fieldName = formatFieldName(currentPath);
+          errorMessages.push(`${fieldName}: ${value.message}`);
+        } else if (Array.isArray(value)) {
+          value.forEach((item, index) => {
+            if (item?.message) {
+              const fieldName = formatFieldName(`${currentPath}[${index}]`);
+              errorMessages.push(`${fieldName}: ${item.message}`);
+            } else if (typeof item === "object" && item !== null) {
+              traverseErrors(item, `${currentPath}[${index}]`);
+            }
+          });
+        } else if (typeof value === "object" && value !== null) {
+          traverseErrors(value, currentPath);
+        }
+      });
+    };
+    
+    traverseErrors(errors);
+    return errorMessages;
   };
 
   const handleSubmit = (data: CreateCenterProfile) => {
@@ -289,7 +429,6 @@ export default function HandleCentreDialog({
         delete (data.centre as any).centrePricing;
       }
       
-      console.log("Update payload:", data);
       updateCentre(
         {
           centre: { ...data.centre, id: centre?.id },
@@ -299,6 +438,7 @@ export default function HandleCentreDialog({
           onSuccess: (response) => {
             if (response.success) {
               toast.success("Centre updated successfully");
+              setIsOpen(false);
             } else {
               toast.error("Failed to update centre " + response.message);
             }
@@ -322,17 +462,17 @@ export default function HandleCentreDialog({
         data.centre.isOurAssistant = false;
       }
       
-      console.log("Create payload:", data);
       createCentre(data, {
         onSuccess: (response) => {
           if (response.success) {
             toast.success("Centre created successfully");
+            setIsOpen(false);
           } else {
             toast.error("Failed to create centre " + response.message);
           }
         },
         onError: (error) => {
-          toast.error("Failed to create centre " + error.message);
+          toast.error("Failed to create centre: " + (error?.message || "Unknown error"));
         },
       });
     }
@@ -715,17 +855,13 @@ export default function HandleCentreDialog({
             variant="outline"
             size="sm"
             onClick={() => {
-              const currentPricing = form.getValues("centre.centrePricing") || [];
-              form.setValue("centre.centrePricing", [
-                ...currentPricing,
-                {
-                  id: undefined, // New entries won't have an ID initially
-                  name: "",
-                  price: 0,
-                  description: "",
-                  status: StatusEnum.ACTIVE,
-                },
-              ]);
+              appendPricing({
+                id: undefined,
+                name: "",
+                price: 0,
+                description: "",
+                status: StatusEnum.ACTIVE,
+              });
             }}
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -734,8 +870,8 @@ export default function HandleCentreDialog({
         </div>
         
         <div className="space-y-4">
-          {(form.watch("centre.centrePricing") || []).map((pricing, index) => (
-            <div key={index} className="border rounded-lg p-4 space-y-4">
+          {pricingFields.map((field, index) => (
+            <div key={field.id} className="border rounded-lg p-4 space-y-4">
               <div className="flex justify-between items-center">
                 <h4 className="font-medium">Test {index + 1}</h4>
                 <Button
@@ -743,9 +879,9 @@ export default function HandleCentreDialog({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const currentPricing = form.getValues("centre.centrePricing") || [];
-                    const newPricing = currentPricing.filter((_, i) => i !== index);
-                    form.setValue("centre.centrePricing", newPricing);
+                    removePricing(index);
+                    // Clear validation errors for pricing array to prevent error messages on delete
+                    form.clearErrors("centre.centrePricing");
                   }}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -835,7 +971,7 @@ export default function HandleCentreDialog({
   );
 
   return (
-    <Dialog open={isOpen} onOpenChange={toggleDialog}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-4xl w-full h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-4">
@@ -846,7 +982,31 @@ export default function HandleCentreDialog({
         <Form {...form}>
           <form
             className="flex flex-col h-full overflow-hidden"
-            onSubmit={form.handleSubmit(handleSubmit)}
+            onSubmit={form.handleSubmit(
+              handleSubmit,
+              (errors) => {
+                const errorMessages = getValidationErrors(errors);
+                if (errorMessages.length > 0) {
+                  // Show the first error in the title, and additional errors in description
+                  const firstError = errorMessages[0];
+                  const remainingErrors = errorMessages.slice(1);
+                  
+                  if (remainingErrors.length > 0) {
+                    toast.error(`Validation Error: ${firstError}`, {
+                      description: `${remainingErrors.length} more error(s): ${remainingErrors.slice(0, 2).join(", ")}${remainingErrors.length > 2 ? `, and ${remainingErrors.length - 2} more...` : ""}`,
+                      duration: 6000,
+                    });
+                  } else {
+                    toast.error("Validation Error", {
+                      description: firstError,
+                      duration: 5000,
+                    });
+                  }
+                } else {
+                  toast.error("Please fix the form errors before submitting");
+                }
+              }
+            )}
           >
             <div className="flex-grow overflow-y-auto px-6 pb-6 space-y-8">
               {renderAllFields()}
@@ -856,7 +1016,7 @@ export default function HandleCentreDialog({
                 type="button"
                 variant="outline"
                 className="px-8 py-3 min-w-[120px]"
-                onClick={toggleDialog}
+                onClick={() => handleOpenChange(false)}
               >
                 Cancel
               </Button>
