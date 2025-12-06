@@ -12,10 +12,6 @@ import { CentreModelData } from "@/models/centre.model";
 export default function CentresPage() {
   const { data, isLoading, error } = useGetAllCentres();
   
-  // Debug logging
-  console.log("🏢 Centres Data:", data);
-  console.log("🏢 Centres Data Structure:", data?.data);
-  
   // Safely get centres array
   const centres = data?.data?.data?.filter((c): c is CentreModelData => c !== null) || [];
   

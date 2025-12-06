@@ -18,8 +18,6 @@ export async function createCentre(
   if (!user?.token) {
     throw new Error("Unauthorized");
   }
-  console.log(data);
-  
   // Ensure pricing is never undefined in the request data
   if (data.centre && data.centre.pricing === undefined) {
     data.centre.pricing = [];

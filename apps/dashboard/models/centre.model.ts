@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { PaymentCycle, StatusEnum, WeekDays } from "./enums";
+import { PaymentCycle, StatusEnum, WeekDays, Gender } from "./enums";
 import { CityModelDataSchema } from "./city.model";
-import { userModelDataSchema } from "./user.model";
+import { userModelDataSchema, CreateUserDtoSchema } from "./user.model";
 
 export const DeviceModelDataSchema = z.object({
   id: z.string().optional(),
@@ -58,7 +58,7 @@ export const CentreModelDataSchema = z.object({
 export const CreateCentreModelSchema = z.object({
   success: z.boolean(),
   message: z.string(),
-  data: CentreModelDataSchema,
+  data: CentreModelDataSchema.nullable(),
 });
 export const CentreModelSchema = z.object({
   success: z.boolean(),
@@ -79,8 +79,16 @@ export const CentreModelSchema = z.object({
     z.array(CentreModelDataSchema.nullable()).nullable(),
   ]),
 });
+// Schema for user data in create/update operations (allows optional id, createdAt, updatedAt, gender)
+const CreateCentreUserSchema = CreateUserDtoSchema.extend({
+  id: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  gender: z.nativeEnum(Gender).optional(),
+});
+
 export const CreateCenterProfileSchema = z.object({
-  user: userModelDataSchema,
+  user: CreateCentreUserSchema,
   centre: CentreModelDataSchema,
 });
 export type CentreModel = z.infer<typeof CentreModelSchema>;
