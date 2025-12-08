@@ -178,8 +178,8 @@ export default function TympanometryPage() {
 
   // Function to save tympanometry results to consultation
   const saveTympanometryResults = useCallback(async () => {
-    if (!consultation?.data || !isTestCompleted || !finalData.length) {
-      console.log("Cannot save results: missing data");
+    if (!consultation?.data) {
+      console.log("Cannot save results: missing consultation data");
       return;
     }
 
@@ -191,9 +191,19 @@ export default function TympanometryPage() {
 
     const consultationData = consultation.data as ConsultationModelData;
 
-    // Extract pressure and compliance data arrays from finalData
-    const pressureData = finalData.map(point => point.pressure);
-    const complianceData = finalData.map(point => point.compliance);
+    // Always save curve arrays - use finalData if available, otherwise use realTimeData
+    // This guarantees backend always gets pressureData and complianceData arrays
+    const dataToSave = finalData.length > 0 ? finalData : realTimeData;
+    
+    if (dataToSave.length === 0) {
+      console.log("Cannot save results: no data available (neither finalData nor realTimeData)");
+      toast.error("No test data available to save. Please run the test again.");
+      return;
+    }
+
+    // Extract pressure and compliance data arrays from available data
+    const pressureData = dataToSave.map(point => point.pressure);
+    const complianceData = dataToSave.map(point => point.compliance);
     
     // Use values from device data or calculate fallbacks
     const peakCompValue = peakCompliance ?? 0;
@@ -204,16 +214,7 @@ export default function TympanometryPage() {
       ? peakCompensatedWithECV 
       : (peakCompValue > 0 && ecvValue > 0 ? Math.max(0, peakCompValue - ecvValue) : 0);
     
-    // Debug: Log the values being saved to ensure they match what's displayed
-    console.log('Saving tympanometry values:', JSON.stringify({
-      peakCompensatedWithECV_display: peakCompensatedWithECV,
-      peakCompensatedValue_saved: peakCompensatedValue,
-      peakCompliance_raw: peakCompValue,
-      ecv: ecvValue,
-      calculated: peakCompValue - ecvValue,
-      peakPressure: peakPressure,
-      gradient: gradient
-    }, null, 2));
+
 
     // Create tympanometry reading data with all new fields
     const tympanometryReading: TympanometryReadingModelData = {
@@ -228,8 +229,9 @@ export default function TympanometryPage() {
       peakCompensatedWithECV: peakCompensatedValue, // Compensated compliance - MUST match controls display
       gradient: gradient ?? undefined,
       gradientPressure: gradientPressure ?? undefined,
-      pressureData: pressureData.length > 0 ? pressureData : undefined,
-      complianceData: complianceData.length > 0 ? complianceData : undefined,
+      // Always save arrays - guaranteed by using finalData or realTimeData
+      pressureData: pressureData,
+      complianceData: complianceData,
     };
 
     // Merge with any existing readings from consultation and our local cache,
@@ -685,23 +687,6 @@ export default function TympanometryPage() {
 
 
 
-  // Since there is no screen share on this page, these are placeholders
-  const isScreenSharing = false;
-  const isScreenConnecting = false;
-  const isShowingReport = false;
-  const handleShowReport = () => {
-    // Placeholder for if screen sharing is added later
-    toast.info("This page does not have a screen sharing feature.");
-  };
-
-  const handleDoAnotherTest = () => {
-    router.push(ROUTES.CONSULTATION_TEST_SELECTION(params.consultationId as string));
-  };
-
-  const handleEndConsultation = () => {
-    router.push(`/consultation/${params.consultationId}/end-consultation`);
-  };
-
   return (
     <>
       {/* Save Confirmation Dialog */}
@@ -1011,7 +996,7 @@ export default function TympanometryPage() {
               </button>
             )}
 
-            {(isTestCompleted || finalData.length > 0) && (
+            {(isTestCompleted || finalData.length > 0 || realTimeData.length > 0) && (
               <button
                 className={`w-full px-2 py-1 rounded text-[10px] ${
                   updateConsultationMutation.isPending ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
