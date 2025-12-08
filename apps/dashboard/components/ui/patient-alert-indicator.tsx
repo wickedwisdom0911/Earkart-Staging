@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { usePatientAlerts } from "@/providers/patient-alert-provider";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Popover,

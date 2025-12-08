@@ -15,7 +15,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Calendar, Filter, X, Clock, User, MapPin, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/badge";
 
 export default function AppointmentsPage() {
   console.log("🎯 Appointments Page Rendered");
