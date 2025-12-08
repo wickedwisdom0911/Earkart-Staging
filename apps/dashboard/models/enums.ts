@@ -43,18 +43,27 @@ export enum DeviceActivityType {
 }
 
 export enum TestStatus {
-  PENDING = "PENDING",
+  NOT_STARTED = "NOT_STARTED",
   IN_PROGRESS = "IN_PROGRESS",
   COMPLETED = "COMPLETED",
+  // Keep old values for backward compatibility
+  PENDING = "PENDING",
   CANCELLED = "CANCELLED",
 }
 
 export enum Ear {
   LEFT = "LEFT",
   RIGHT = "RIGHT",
+  BOTH = "BOTH",
 }
 
 export enum TympType {
+  TYPE_A = "TYPE_A",
+  TYPE_B = "TYPE_B",
+  TYPE_C = "TYPE_C",
+  TYPE_AS = "TYPE_AS",
+  TYPE_AD = "TYPE_AD",
+  // Keep old values for backward compatibility
   A = "A",
   As = "As",
   Ad = "Ad",
@@ -65,13 +74,19 @@ export enum TympType {
 export enum PatientConsultationStatus {
   REQUESTED = "REQUESTED",
   JOINED = "JOINED",
+  LEFT = "LEFT",
+  CANCELLED = "CANCELLED",
+  // Keep old values for backward compatibility
   DISCONNECTED = "DISCONNECTED",
 }
 
 export enum AudiologistConsultationStatus {
   PENDING = "PENDING",
-  ACCEPTED = "ACCEPTED",
   JOINED = "JOINED",
+  LEFT = "LEFT",
+  COMPLETED = "COMPLETED",
+  // Keep old values for backward compatibility
+  ACCEPTED = "ACCEPTED",
   DISCONNECTED = "DISCONNECTED",
 }
 
@@ -80,6 +95,7 @@ export enum SessionStatus {
   IN_PROGRESS = "IN_PROGRESS",
   COMPLETED = "COMPLETED",
   FAILED = "FAILED",
+  // Keep CANCELLED for backward compatibility but backend doesn't have it
   CANCELLED = "CANCELLED",
 }
 
@@ -163,6 +179,9 @@ export enum ReportType {
 }
 
 export enum ToneDecayResult {
+  POSITIVE = "POSITIVE",
+  NEGATIVE = "NEGATIVE",
+  // Keep old values for backward compatibility
   NORMAL = "NORMAL",
   ABNORMAL = "ABNORMAL",
   CANNOT_DETERMINE = "CANNOT_DETERMINE",
