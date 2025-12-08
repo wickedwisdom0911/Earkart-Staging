@@ -159,7 +159,6 @@ export default function TympanometryPage() {
   const [gradient, setGradient] = useState<number | null>(null);
   const [gradientPressure, setGradientPressure] = useState<number | null>(null);
   const [ecv, setECV] = useState<number | null>(null);
-  const [manualTympType, setManualTympType] = useState<TympType | "">("");
   const [completedEars, setCompletedEars] = useState<Set<"L" | "R">>(new Set());
   
   // State for save confirmation dialog
@@ -178,18 +177,11 @@ export default function TympanometryPage() {
 
   // Function to save tympanometry results to consultation
   const saveTympanometryResults = useCallback(async () => {
-    if (!consultation?.data) {
+    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+    if (!consultationData) {
       console.log("Cannot save results: missing consultation data");
       return;
     }
-
-    // Check if Tymp Type is selected
-    if (!manualTympType) {
-      toast.error("Please select a Tymp Type before saving results.");
-      return;
-    }
-
-    const consultationData = consultation.data as ConsultationModelData;
 
     // Always save curve arrays - use finalData if available, otherwise use realTimeData
     // This guarantees backend always gets pressureData and complianceData arrays
@@ -223,7 +215,7 @@ export default function TympanometryPage() {
       peakPressure: peakPressure ?? 0,
       staticCompliance: peakCompensatedValue, // Use compensated compliance - MUST match what's shown in controls
       earCanalVolume: ecvValue,
-      tympType: manualTympType as TympType,
+      tympType: TympType.A, // Default type, can be updated in report page
       // New fields
       peakCompliance: peakCompValue, // Raw compliance (includes ECV)
       peakCompensatedWithECV: peakCompensatedValue, // Compensated compliance - MUST match controls display
@@ -300,7 +292,6 @@ export default function TympanometryPage() {
           setPeakCompensatedWithECV(nextEarReading.peakCompensatedWithECV ?? nextEarReading.staticCompliance ?? null);
           setECV(nextEarReading.earCanalVolume);
           setGradient(nextEarReading.gradient ?? null);
-          setManualTympType(nextEarReading.tympType);
           
           // Rebuild graph data from saved reading
           if (nextEarReading.pressureData && nextEarReading.complianceData) {
@@ -320,27 +311,9 @@ export default function TympanometryPage() {
             setFinalData(savedPoints);
             setIsTestCompleted(true);
           } else {
-            // Build graph from peak values if pressure/compliance arrays not available (fallback for legacy data)
-            // Use peakCompensatedWithECV (already compensated) for the peak
-            const peakComplianceValue = nextEarReading.peakCompensatedWithECV ?? nextEarReading.staticCompliance ?? 0;
-            const graphPoints: TympanogramPoint[] = [];
-            for (let pressure = 200; pressure >= -400; pressure -= 25) {
-              const distance = Math.abs(pressure - nextEarReading.peakPressure);
-              const sigma = 100;
-              const normalized = distance / sigma;
-              // peakComplianceValue is already compensated, so use it directly
-              const compensatedCompliance = Math.max(peakComplianceValue * Math.exp(-(normalized * normalized) / 2), 0.05);
-              // Add ECV back to get raw compliance for consistency
-              const rawCompliance = compensatedCompliance + (nextEarReading.earCanalVolume || 0);
-              graphPoints.push({
-                pressure,
-                compliance: rawCompliance,
-                compensatedCompliance: compensatedCompliance,
-                ear: nextEar,
-              });
-            }
-            setFinalData(graphPoints);
-            setIsTestCompleted(true);
+            // No graph data available - show empty graph
+            setFinalData([]);
+            setIsTestCompleted(false);
           }
         } else {
           // Reset test state for the next ear (no saved data)
@@ -354,7 +327,6 @@ export default function TympanometryPage() {
           setPeakCompensatedWithECV(null);
           setGradient(null);
           setECV(null);
-          setManualTympType("");
         }
       }
     } catch (error) {
@@ -371,7 +343,6 @@ export default function TympanometryPage() {
     ecv,
     selectedProbeTone,
     updateConsultationMutation,
-    manualTympType,
     router,
     params.consultationId,
     completedEars,
@@ -407,7 +378,6 @@ export default function TympanometryPage() {
       setPeakCompliance(null);
       setGradient(null);
       setECV(null);
-      setManualTympType("");
     }
     
     // Switch to pending ear
@@ -560,9 +530,8 @@ export default function TympanometryPage() {
       setPeakCompensatedWithECV(savedReading.peakCompensatedWithECV ?? savedReading.staticCompliance ?? null);
       setECV(savedReading.earCanalVolume);
       setGradient(savedReading.gradient ?? null);
-      setManualTympType(savedReading.tympType);
 
-      // Rebuild graph data from saved reading
+      // Rebuild graph data from saved reading - only use backend data
       if (savedReading.pressureData && savedReading.complianceData && savedReading.pressureData.length > 0) {
         const savedPoints: TympanogramPoint[] = savedReading.pressureData.map(
           (pressure: number, index: number) => {
@@ -579,24 +548,10 @@ export default function TympanometryPage() {
         );
         setFinalData(savedPoints);
         setIsTestCompleted(true);
-      } else if (savedReading.peakPressure !== undefined) {
-        // Build graph from peak values if pressure/compliance arrays not available
-        const peakComplianceValue = savedReading.peakCompensatedWithECV ?? savedReading.staticCompliance ?? 0;
-        const graphPoints: TympanogramPoint[] = [];
-        for (let pressure = 200; pressure >= -400; pressure -= 25) {
-          const distance = Math.abs(pressure - savedReading.peakPressure);
-          const sigma = 100;
-          const normalized = distance / sigma;
-          const compliance = Math.max(peakComplianceValue * Math.exp(-(normalized * normalized) / 2), 0.05);
-          graphPoints.push({
-            pressure,
-            compliance: compliance * 1.1,
-            compensatedCompliance: compliance,
-            ear: selectedEar,
-          });
-        }
-        setFinalData(graphPoints);
-        setIsTestCompleted(true);
+      } else {
+        // No graph data available - show empty
+        setFinalData([]);
+        setIsTestCompleted(false);
       }
     }
   }, [selectedEar, consultation, localReadings, isRunning, isTestCompleted]);
@@ -682,7 +637,6 @@ export default function TympanometryPage() {
     setPeakCompliance(null);
     setGradient(null);
     setECV(null);
-    setManualTympType("");
   }, []);
 
 
@@ -948,23 +902,6 @@ export default function TympanometryPage() {
               </div>
             </div>
 
-            {/* Tymp Type */}
-            <div className="mb-2">
-              <label className="block text-[10px] font-medium mb-1">Tymp Type</label>
-              <select
-                className="w-full p-1 border rounded text-[10px]"
-                value={manualTympType}
-                onChange={(e) => setManualTympType(e.target.value as TympType | "")}
-              >
-                <option value="">Select</option>
-                <option value={TympType.A}>A - Normal</option>
-                <option value={TympType.As}>As - Shallow</option>
-                <option value={TympType.Ad}>Ad - Deep</option>
-                <option value={TympType.B}>B - Flat</option>
-                <option value={TympType.C}>C - Negative</option>
-              </select>
-            </div>
-
             {/* Actions */}
             <div className="flex gap-1 mb-2">
               <button
@@ -1016,7 +953,7 @@ export default function TympanometryPage() {
                 className="w-full px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-[10px]"
                 onClick={() =>
                   router.push(
-                    ROUTES.TYM_REPORT(params.consultationId as string)
+                    (ROUTES as any).TYM_REPORT(params.consultationId as string)
                   )
                 }
               >
@@ -1387,16 +1324,6 @@ export default function TympanometryPage() {
                 {ecv !== null ? `${ecv.toFixed(2)} ml` : "--"}
               </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600">
-                Tympanogram Type
-              </label>
-              <p className="text-lg font-semibold">
-                {peakPressure !== null && peakCompliance !== null
-                  ? manualTympType
-                  : "--"}
-              </p>
-            </div>
           </div>
         </div>
 
@@ -1413,23 +1340,6 @@ export default function TympanometryPage() {
         />
 
         
-
-        {/* Tymp Type Selection (hidden on large screens) */}
-        <div className="mt-6 lg:hidden">
-          <label className="block text-sm font-medium mb-2">Tymp Type</label>
-          <select
-            className="w-full p-2 border rounded max-w-xs"
-            value={manualTympType}
-            onChange={(e) => setManualTympType(e.target.value as TympType | "")}
-          >
-            <option value="">Select Type</option>
-            <option value={TympType.A}>Type A - Normal</option>
-            <option value={TympType.As}>Type As - Shallow</option>
-            <option value={TympType.Ad}>Type Ad - Deep</option>
-            <option value={TympType.B}>Type B - Flat</option>
-            <option value={TympType.C}>Type C - Negative Pressure</option>
-          </select>
-        </div>
 
         {/* Test Submission Buttons (hidden on large screens) */}
         {(isTestCompleted || finalData.length > 0) && (
@@ -1466,7 +1376,7 @@ export default function TympanometryPage() {
                 className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
                 onClick={() =>
                   router.push(
-                    ROUTES.TYM_REPORT(params.consultationId as string)
+                    (ROUTES as any).TYM_REPORT(params.consultationId as string)
                   )
                 }
               >

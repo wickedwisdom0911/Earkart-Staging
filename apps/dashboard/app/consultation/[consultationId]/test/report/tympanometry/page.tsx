@@ -157,10 +157,22 @@ export default function TympanometryReportPage() {
   const [comments, setComments] = useState<string>("");
   const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare, error: screenShareError } = useSharedScreenShare();
   const [isShowingReport, setIsShowingReport] = useState(false);
+  const [leftTympType, setLeftTympType] = useState<TympType | "">("");
+  const [rightTympType, setRightTympType] = useState<TympType | "">("");
   // Keep comments empty - don't load from consultation data
   // useEffect(() => {
   //   setComments(consultationData?.tympanometry?.notes || "");
   // }, [consultationData?.tympanometry?.notes]);
+
+  // Load tymp types from consultation data
+  useEffect(() => {
+    if (consultationData?.tympanometry?.readings) {
+      const leftReading = consultationData.tympanometry.readings.find(r => r.ear === Ear.LEFT);
+      const rightReading = consultationData.tympanometry.readings.find(r => r.ear === Ear.RIGHT);
+      if (leftReading) setLeftTympType(leftReading.tympType);
+      if (rightReading) setRightTympType(rightReading.tympType);
+    }
+  }, [consultationData?.tympanometry?.readings]);
 
   // Default patient phone formatted
   const defaultPatientPhone = (() => {
@@ -199,6 +211,124 @@ export default function TympanometryReportPage() {
     } catch (err) {
       console.error(err);
       toast.error("Failed to save comments");
+    }
+  };
+
+  const handleSaveTympTypes = async () => {
+    if (!consultationData?.tympanometry) return;
+    
+    // Update readings only if tymp types are selected (not mandatory)
+    const updatedReadings = consultationData.tympanometry.readings?.map(reading => {
+      if (reading.ear === Ear.LEFT && leftTympType) {
+        return { ...reading, tympType: leftTympType };
+      }
+      if (reading.ear === Ear.RIGHT && rightTympType) {
+        return { ...reading, tympType: rightTympType };
+      }
+      return reading;
+    }) || [];
+
+    // Build comments from selected tymp types (only if types are selected)
+    const tympTypeComments: string[] = [];
+    if (leftTympType) {
+      tympTypeComments.push(`Left Ear: ${getTympTypeDescription(leftTympType)}`);
+    }
+    if (rightTympType) {
+      tympTypeComments.push(`Right Ear: ${getTympTypeDescription(rightTympType)}`);
+    }
+    
+    // Combine with existing comments if any
+    const existingComments = comments.trim();
+    let newComments = existingComments;
+    
+    if (tympTypeComments.length > 0) {
+      // If comments already contain tymp type info, replace it; otherwise append
+      if (existingComments && (existingComments.includes('Left Ear:') || existingComments.includes('Right Ear:'))) {
+        // Remove old tymp type lines and add new ones
+        const lines = existingComments.split('\n').filter(line => 
+          !line.includes('Left Ear:') && !line.includes('Right Ear:')
+        );
+        newComments = lines.length > 0 
+          ? `${lines.join('\n').trim()}\n\n${tympTypeComments.join('\n')}`
+          : tympTypeComments.join('\n');
+      } else {
+        newComments = existingComments 
+          ? `${existingComments}\n\n${tympTypeComments.join('\n')}`
+          : tympTypeComments.join('\n');
+      }
+    }
+
+    try {
+      await updateConsultationMutation.mutateAsync({
+        ...consultationData,
+        tympanometry: {
+          ...consultationData.tympanometry,
+          readings: updatedReadings,
+          notes: newComments,
+        },
+      });
+      setComments(newComments); // Update local state
+      toast.success("Tymp types and comments saved");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save tymp types");
+    }
+  };
+
+  // Auto-fill comments when tymp type is selected
+  const handleTympTypeChange = (ear: 'left' | 'right', tympType: TympType | "") => {
+    // Update the state first
+    const newLeftType = ear === 'left' ? tympType : leftTympType;
+    const newRightType = ear === 'right' ? tympType : rightTympType;
+    
+    if (ear === 'left') {
+      setLeftTympType(tympType);
+    } else {
+      setRightTympType(tympType);
+    }
+
+    // Auto-fill comments with tymp type descriptions
+    const tympTypeComments: string[] = [];
+    if (newLeftType) {
+      tympTypeComments.push(`Left Ear: ${getTympTypeDescription(newLeftType)}`);
+    }
+    if (newRightType) {
+      tympTypeComments.push(`Right Ear: ${getTympTypeDescription(newRightType)}`);
+    }
+    
+    if (tympTypeComments.length > 0) {
+      const existingComments = comments.trim();
+      
+      // If comments already contain tymp type info, replace those lines
+      if (existingComments && (existingComments.includes('Left Ear:') || existingComments.includes('Right Ear:'))) {
+        const lines = existingComments.split('\n').filter(line => 
+          !line.trim().startsWith('Left Ear:') && !line.trim().startsWith('Right Ear:')
+        );
+        const cleanedComments = lines.join('\n').trim();
+        const newComments = cleanedComments 
+          ? `${cleanedComments}\n\n${tympTypeComments.join('\n')}`
+          : tympTypeComments.join('\n');
+        setComments(newComments);
+      } else {
+        // If no existing tymp type info, append to existing comments or create new
+        const newComments = existingComments 
+          ? `${existingComments}\n\n${tympTypeComments.join('\n')}`
+          : tympTypeComments.join('\n');
+        setComments(newComments);
+      }
+    } else if (!tympType) {
+      // If tymp type is cleared, remove its description from comments
+      const existingComments = comments.trim();
+      if (existingComments) {
+        const lines = existingComments.split('\n').filter(line => {
+          if (ear === 'left') {
+            return !line.trim().startsWith('Left Ear:');
+          } else {
+            return !line.trim().startsWith('Right Ear:');
+          }
+        });
+        setComments(lines.join('\n').trim());
+      }
     }
   };
 
@@ -702,6 +832,54 @@ export default function TympanometryReportPage() {
                 </div>
               );
             })()}
+          </div>
+
+          {/* Tymp Type Selection */}
+          <div className="px-8 mb-6 print:hidden">
+            <div className="bg-white border border-gray-300 rounded-lg p-4">
+              <h3 className="text-sm font-bold mb-4">Tympanogram Type Selection</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Left Ear</label>
+                  <select
+                    className="w-full p-2 border rounded"
+                    value={leftTympType}
+                    onChange={(e) => handleTympTypeChange('left', e.target.value as TympType | "")}
+                  >
+                    <option value="">Select Type (Optional)</option>
+                    <option value={TympType.A}>Type A - Normal</option>
+                    <option value={TympType.As}>Type As - Shallow</option>
+                    <option value={TympType.Ad}>Type Ad - Deep</option>
+                    <option value={TympType.B}>Type B - Flat</option>
+                    <option value={TympType.C}>Type C - Negative Pressure</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Right Ear</label>
+                  <select
+                    className="w-full p-2 border rounded"
+                    value={rightTympType}
+                    onChange={(e) => handleTympTypeChange('right', e.target.value as TympType | "")}
+                  >
+                    <option value="">Select Type (Optional)</option>
+                    <option value={TympType.A}>Type A - Normal</option>
+                    <option value={TympType.As}>Type As - Shallow</option>
+                    <option value={TympType.Ad}>Type Ad - Deep</option>
+                    <option value={TympType.B}>Type B - Flat</option>
+                    <option value={TympType.C}>Type C - Negative Pressure</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button
+                  onClick={handleSaveTympTypes}
+                  disabled={updateConsultationMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {updateConsultationMutation.isPending ? "Saving..." : "Save Tymp Types"}
+                </Button>
+              </div>
+            </div>
           </div>
 
           {/* Investigation: Impedance */}
