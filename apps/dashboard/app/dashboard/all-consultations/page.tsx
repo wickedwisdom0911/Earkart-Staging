@@ -33,7 +33,7 @@ export default function AllConsultationsPage() {
   const [filteredConsultations, setFilteredConsultations] = useState<
     ConsultationModelData[]
   >([]);
-  const { data: consultations, isLoading, isError } = useGetAllConsultations();
+  const { data: consultations, isLoading, isError, error } = useGetAllConsultations();
   
   // Check if user is an audiologist
   const isAudiologist =
@@ -42,6 +42,28 @@ export default function AllConsultationsPage() {
   // Filter states
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+
+  // Add logging for errors
+  useEffect(() => {
+    if (isError) {
+      console.error("🔴 [AllConsultationsPage] Error state:", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
+    }
+  }, [isError, error]);
+
+  // Log when data changes
+  useEffect(() => {
+    console.log("🔵 [AllConsultationsPage] Consultations data changed:", {
+      hasData: !!consultations,
+      success: consultations?.success,
+      hasDataArray: !!consultations?.data,
+      isArray: Array.isArray(consultations?.data),
+      length: Array.isArray(consultations?.data) ? consultations.data.length : 'N/A'
+    });
+  }, [consultations]);
 
   useEffect(() => {
     if (consultations?.data && Array.isArray(consultations.data)) {
@@ -299,9 +321,31 @@ export default function AllConsultationsPage() {
         {/* Error State */}
         {isError && (
           <Card className="p-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
-            <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-              <XCircle className="w-5 h-5" />
-              <p>Failed to load consultations. Please try again.</p>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                <XCircle className="w-5 h-5" />
+                <p className="font-semibold">
+                  {error instanceof Error && (error as any).isRateLimit
+                    ? "Too Many Requests"
+                    : "Failed to load consultations"}
+                </p>
+              </div>
+              <p className="text-sm text-red-700 dark:text-red-300">
+                {error instanceof Error && (error as any).isRateLimit
+                  ? "The server is receiving too many requests. Please wait a moment and try again."
+                  : error instanceof Error
+                  ? error.message
+                  : "Please try again later."}
+              </p>
+              {error instanceof Error && (error as any).isRateLimit && (
+                <Button
+                  onClick={() => window.location.reload()}
+                  className="mt-2 w-fit"
+                  variant="outline"
+                >
+                  Retry
+                </Button>
+              )}
             </div>
           </Card>
         )}

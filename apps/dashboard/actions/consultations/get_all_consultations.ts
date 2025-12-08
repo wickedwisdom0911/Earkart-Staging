@@ -9,24 +9,49 @@ import {
 } from "@/models/consultation.model";
 
 export default async function getAllConsultations(): Promise<ConsultationModel> {
-  const baseUrl = await getBaseUrl();
-  const url = `${baseUrl}consultation/get-all`;
-  const user = await verifySession();
-  if (!user?.token) {
-    throw new Error("Unauthorized");
-  }
+  try {
+    console.log("🔵 [getAllConsultations] Starting...");
+    
+    const baseUrl = await getBaseUrl();
+    const url = `${baseUrl}consultation/get-all`;
+    console.log("🔵 [getAllConsultations] URL:", url);
+    
+    const user = await verifySession();
+    if (!user?.token) {
+      console.error("🔴 [getAllConsultations] No token - Unauthorized");
+      throw new Error("Unauthorized");
+    }
+    console.log("🔵 [getAllConsultations] User authenticated:", user.email);
 
-  
-  const response = await apiRequest<ConsultationModel>(
-    url,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${user.token}`,
+    console.log("🔵 [getAllConsultations] Making API request...");
+    const response = await apiRequest<ConsultationModel>(
+      url,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
       },
-    },
-    ConsultationModelSchema
-  );
-  return response;
+      ConsultationModelSchema
+    );
+    
+    console.log("🔵 [getAllConsultations] Response received:", {
+      success: response.success,
+      message: response.message,
+      hasData: !!response.data,
+      dataType: Array.isArray(response.data) ? 'array' : typeof response.data,
+      dataLength: Array.isArray(response.data) ? response.data.length : 'N/A'
+    });
+    
+    return response;
+  } catch (error) {
+    console.error("🔴 [getAllConsultations] Error caught:", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      type: error?.constructor?.name
+    });
+    // Re-throw to let React Query handle it properly
+    throw error;
+  }
 }
