@@ -25,6 +25,8 @@ import { z } from "zod";
 import useUpdateDevice from "@/hooks/device/use-update-device";
 import { StatusEnum } from "@/models/enums";
 import StatusToggle from "@/components/ui/status-toggle";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function HandleDevicesDialog({
   trigger,
@@ -48,8 +50,12 @@ export default function HandleDevicesDialog({
       tabletID: device?.tabletID || null,
       deviceID: device?.deviceID || null,
       tabletAppVersion: device?.tabletAppVersion || null,
+      tabletAndroidVersion: device?.tabletAndroidVersion || null,
       centreId: device?.centreId || null,
       status: device?.status || StatusEnum.ACTIVE,
+      pendingUpdate: device?.pendingUpdate ?? null,
+      pendingLookup: device?.pendingLookup ?? null,
+      lastUpdateChecked: device?.lastUpdateChecked || null,
     },
   });
 
@@ -95,7 +101,7 @@ export default function HandleDevicesDialog({
 
         {isEdit ? (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="flex flex-col gap-4">
                 <FormField
                   control={form.control}
@@ -109,6 +115,168 @@ export default function HandleDevicesDialog({
                           onChange={field.onChange}
                         />
                       </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="deviceID"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Device ID</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter device ID"
+                          {...field}
+                          value={field.value || ""}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="tabletID"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tablet ID</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter tablet ID"
+                          {...field}
+                          value={field.value || ""}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="otoscopeID"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Otoscope ID</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter otoscope ID"
+                          {...field}
+                          value={field.value || ""}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="tabletAppVersion"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tablet App Version</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., 1.0.0"
+                          {...field}
+                          value={field.value || ""}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="tabletAndroidVersion"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tablet Android Version</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., 1.0.0"
+                          {...field}
+                          value={field.value || ""}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="lastUpdateChecked"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Update Checked</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="datetime-local"
+                          {...field}
+                          value={
+                            field.value
+                              ? new Date(field.value).toISOString().slice(0, 16)
+                              : ""
+                          }
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            field.onChange(
+                              value ? new Date(value).toISOString() : null
+                            );
+                          }}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="pendingUpdate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value ?? false}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked === true);
+                          }}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Pending Update</FormLabel>
+                        <p className="text-sm text-muted-foreground">
+                          Device has a pending update
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="pendingLookup"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value ?? false}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked === true);
+                          }}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Pending Lookup</FormLabel>
+                        <p className="text-sm text-muted-foreground">
+                          Device has a pending lookup
+                        </p>
+                      </div>
                     </FormItem>
                   )}
                 />
