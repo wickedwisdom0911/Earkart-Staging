@@ -12,6 +12,8 @@ import HandleDeviceAssigningDialog from "../_components/handle-device-assigning-
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
 import UnassignDeviceDialog from "../_components/unassign-device-dialog";
+import HandleDevicesDialog from "../_components/handle-devices-dialog";
+import { DeviceModelData } from "@/models/device.model";
 
 export default function DevicePage() {
   const { deviceCode } = useParams();
@@ -124,6 +126,14 @@ export default function DevicePage() {
               <div className="flex items-center gap-2 text-base text-neutral-800">
                 <Hash className="w-4 h-4 text-neutral-300" />
                 {device.tabletID || <span className="text-neutral-300">—</span>}
+                <HandleDevicesDialog
+                  device={device as DeviceModelData}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="cursor-pointer h-8 w-8 p-0">
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  }
+                />
               </div>
             </div>
             <div className="flex flex-col gap-2">
@@ -131,6 +141,14 @@ export default function DevicePage() {
               <div className="flex items-center gap-2 text-base text-neutral-800">
                 <Link2 className="w-4 h-4 text-neutral-300" />
                 {device.deviceID || <span className="text-neutral-300">—</span>}
+                <HandleDevicesDialog
+                  device={device as DeviceModelData}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="cursor-pointer h-8 w-8 p-0">
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  }
+                />
               </div>
             </div>
             <div className="flex flex-col gap-2">

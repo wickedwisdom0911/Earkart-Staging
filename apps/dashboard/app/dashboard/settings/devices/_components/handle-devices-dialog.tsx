@@ -44,17 +44,19 @@ export default function HandleDevicesDialog({
     resolver: zodResolver(DeviceModelDataSchema),
     defaultValues: {
       id: device?.id || undefined,
+      // Only include editable fields - keep other fields from existing device
+      deviceID: device?.deviceID || null,
+      tabletID: device?.tabletID || null,
+      pendingUpdate: device?.pendingUpdate ?? null,
+      pendingLookup: device?.pendingLookup ?? null,
+      // Keep all other fields from existing device to preserve them
       code: device?.code || null,
       codeSequence: device?.codeSequence || null,
       otoscopeID: device?.otoscopeID || null,
-      tabletID: device?.tabletID || null,
-      deviceID: device?.deviceID || null,
       tabletAppVersion: device?.tabletAppVersion || null,
       tabletAndroidVersion: device?.tabletAndroidVersion || null,
       centreId: device?.centreId || null,
       status: device?.status || StatusEnum.ACTIVE,
-      pendingUpdate: device?.pendingUpdate ?? null,
-      pendingLookup: device?.pendingLookup ?? null,
       lastUpdateChecked: device?.lastUpdateChecked || null,
     },
   });
@@ -74,7 +76,22 @@ export default function HandleDevicesDialog({
   }
 
   function onSubmit(data: z.infer<typeof DeviceModelDataSchema>) {
-    updateDevice(data, {
+    if (!device) {
+      toast.error("Device data is missing");
+      return;
+    }
+    
+    // Only send editable fields: deviceID, tabletID, pendingUpdate, pendingLookup
+    // Preserve all other fields from the existing device
+    const updateData: DeviceModelData = {
+      ...device, // Preserve all existing device data
+      deviceID: data.deviceID,
+      tabletID: data.tabletID,
+      pendingUpdate: data.pendingUpdate,
+      pendingLookup: data.pendingLookup,
+    };
+    
+    updateDevice(updateData, {
       onSuccess: (response) => {
         if (response.success) {
           toast.success(response.message);
@@ -102,24 +119,6 @@ export default function HandleDevicesDialog({
         {isEdit ? (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="flex flex-col gap-4">
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <FormControl>
-                        <StatusToggle
-                          value={field.value}
-                          onChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -149,84 +148,6 @@ export default function HandleDevicesDialog({
                           placeholder="Enter tablet ID"
                           {...field}
                           value={field.value || ""}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="otoscopeID"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Otoscope ID</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter otoscope ID"
-                          {...field}
-                          value={field.value || ""}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="tabletAppVersion"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tablet App Version</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="e.g., 1.0.0"
-                          {...field}
-                          value={field.value || ""}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="tabletAndroidVersion"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tablet Android Version</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="e.g., 1.0.0"
-                          {...field}
-                          value={field.value || ""}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="lastUpdateChecked"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Last Update Checked</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="datetime-local"
-                          {...field}
-                          value={
-                            field.value
-                              ? new Date(field.value).toISOString().slice(0, 16)
-                              : ""
-                          }
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            field.onChange(
-                              value ? new Date(value).toISOString() : null
-                            );
-                          }}
                         />
                       </FormControl>
                     </FormItem>
