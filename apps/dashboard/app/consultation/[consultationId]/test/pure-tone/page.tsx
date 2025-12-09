@@ -33,18 +33,6 @@ const SIGNAL_TYPE_MAP = {
   4: SignalType.SpeechNoise,
 };
 
-// Maximum BC masking levels per frequency (in dB)
-const BC_MASKING_MAX_LEVELS: Record<number, number> = {
-  250: 85,
-  500: 105,
-  750: 105,
-  1000: 105,
-  1500: 105,
-  2000: 105,
-  3000: 105,
-  4000: 105,
-};
-
 interface TestResult {
   ear: string;
   x: number;
@@ -197,6 +185,59 @@ export default function PureTonePage() {
   // Track if data has been initially loaded to prevent overriding local changes
   const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
   const [justCleared, setJustCleared] = useState(false);
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
+
+  // Load test results from localStorage on mount (before backend data)
+  useEffect(() => {
+    if (!consultationId || hasLoadedFromStorage) return;
+    
+    try {
+      const storageKey = `pure-tone-audiometry-${consultationId}`;
+      const storedData = localStorage.getItem(storageKey);
+      
+      if (storedData) {
+        const parsed = JSON.parse(storedData);
+        if (parsed.acTestResults && parsed.bcTestResults) {
+          // Only load if test is not completed
+          if (consultationData?.audiometry?.status !== TestStatus.COMPLETED) {
+            setAcTestResults(parsed.acTestResults);
+            setBcTestResults(parsed.bcTestResults);
+            setTestResults([...parsed.acTestResults, ...parsed.bcTestResults]);
+            console.log('📦 Loaded test results from localStorage:', {
+              ac: parsed.acTestResults.length,
+              bc: parsed.bcTestResults.length
+            });
+          }
+        }
+      }
+      setHasLoadedFromStorage(true);
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      setHasLoadedFromStorage(true);
+    }
+  }, [consultationId, consultationData?.audiometry?.status, hasLoadedFromStorage]);
+
+  // Save test results to localStorage whenever they change (before submission)
+  useEffect(() => {
+    if (!consultationId || !hasLoadedFromStorage) return;
+    
+    // Don't save if test is completed
+    if (consultationData?.audiometry?.status === TestStatus.COMPLETED) {
+      return;
+    }
+
+    try {
+      const storageKey = `pure-tone-audiometry-${consultationId}`;
+      const dataToStore = {
+        acTestResults,
+        bcTestResults,
+        timestamp: new Date().toISOString()
+      };
+      localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }, [consultationId, acTestResults, bcTestResults, consultationData?.audiometry?.status, hasLoadedFromStorage]);
 
   // Populate test results from existing audiometry data
   useEffect(() => {
@@ -222,6 +263,12 @@ export default function PureTonePage() {
     
     // Don't reload from backend if we just cleared the results
     if (justCleared) {
+      return;
+    }
+    
+    // Don't load from backend if we have localStorage data (unless backend has more data)
+    // Wait for localStorage to load first
+    if (!hasLoadedFromStorage) {
       return;
     }
     
@@ -281,7 +328,7 @@ export default function PureTonePage() {
       setBcTestResults(existingBcResults);
     setTestResults([...existingAcResults, ...existingBcResults]);
     setHasInitiallyLoaded(true);
-  }, [consultationData, socket, hasInitiallyLoaded, acTestResults.length, bcTestResults.length, justCleared]);
+  }, [consultationData, socket, hasInitiallyLoaded, acTestResults.length, bcTestResults.length, justCleared, hasLoadedFromStorage]);
 
   // Auto-hide patient response indicator after 3 seconds
   useEffect(() => {
@@ -331,6 +378,14 @@ export default function PureTonePage() {
     );
   }, [transducerData, selectedMode]);
 
+  // AC transducer - always used for masking (masking always uses AC headphones)
+  const acTransducer = useMemo(() => {
+    if (!transducerData?.Transducers) return null;
+    return transducerData.Transducers.find(
+      (t) => t.ConductionType === 0 // Always AC
+    );
+  }, [transducerData]);
+
   const currentCalibration = useMemo(() => {
     if (!currentTransducer) return null;
     return currentTransducer.Calibrations.find(
@@ -343,6 +398,20 @@ export default function PureTonePage() {
         )
     );
   }, [currentTransducer, selectedSignalType]);
+
+  // AC calibration for masking - masking always uses AC headphones regardless of test type
+  const acCalibration = useMemo(() => {
+    if (!acTransducer) return null;
+    return acTransducer.Calibrations.find(
+      (cal) =>
+        cal.SignalType ===
+        Number(
+          Object.entries(SIGNAL_TYPE_MAP).find(
+            ([, value]) => value === selectedSignalType
+          )?.[0]
+        )
+    );
+  }, [acTransducer, selectedSignalType]);
 
   const availableFrequencies = useMemo(() => {
     if (!currentCalibration) return [];
@@ -378,11 +447,14 @@ export default function PureTonePage() {
     return levels;
   }, [currentCalibration, selectedFrequency, selectedSignalType]);
 
-  // Available masking levels - for BC mode, limit based on frequency-specific max values
+  // Available masking levels - always use AC calibration since masking always uses AC headphones
+  // Masking levels are the same for both AC and BC tests because masking always uses AC headphones
   const availableMaskingLevels = useMemo(() => {
-    if (!currentCalibration) return [];
+    // Use AC calibration for masking (masking always uses AC headphones regardless of test type)
+    const maskingCalibration = acCalibration;
+    if (!maskingCalibration) return [];
 
-    const freqData = currentCalibration.CalibrationFrequencies.find((freq) =>
+    const freqData = maskingCalibration.CalibrationFrequencies.find((freq) =>
       selectedSignalType === SignalType.White ||
       selectedSignalType === SignalType.SpeechNoise
         ? freq.Frequency === -1
@@ -391,13 +463,9 @@ export default function PureTonePage() {
 
     if (!freqData) return [];
 
-    // Determine the max level for masking
-    let maxMaskingLevel = freqData.MaxLevelHL;
-    
-    // For BC mode, apply frequency-specific limits
-    if (selectedMode === "BC" && BC_MASKING_MAX_LEVELS[selectedFrequency] !== undefined) {
-      maxMaskingLevel = Math.min(maxMaskingLevel, BC_MASKING_MAX_LEVELS[selectedFrequency]);
-    }
+    // Use AC transducer's max level for masking (no BC-specific limits)
+    // Masking always uses AC headphones, so it should have the same levels as AC tests
+    const maxMaskingLevel = freqData.MaxLevelHL;
 
     // Generate array of levels in steps of 5
     const levels = [];
@@ -409,7 +477,7 @@ export default function PureTonePage() {
       levels.push(level);
     }
     return levels;
-  }, [currentCalibration, selectedFrequency, selectedSignalType, selectedMode]);
+  }, [acCalibration, selectedFrequency, selectedSignalType]);
 
   // Update selected level when frequency or signal type changes
   useEffect(() => {
@@ -439,8 +507,15 @@ export default function PureTonePage() {
     if (!currentTransducer) return [];
     return currentTransducer.SignalTypes.map(
       (type: number) => SIGNAL_TYPE_MAP[type as keyof typeof SIGNAL_TYPE_MAP]
-    ).filter(Boolean);
+    ).filter(Boolean).filter((type) => type !== SignalType.SpeechNoise);
   }, [currentTransducer]);
+
+  // Reset to Steady if SpeechNoise is selected (since it's removed from dropdown)
+  useEffect(() => {
+    if (selectedSignalType === SignalType.SpeechNoise) {
+      setSelectedSignalType(SignalType.Steady);
+    }
+  }, [selectedSignalType]);
 
   const availableEarSides = useMemo<Array<"L" | "R">>(() => {
     if (!currentTransducer) return ["L"];
@@ -453,6 +528,9 @@ export default function PureTonePage() {
     );
   }, [currentTransducer]);
 
+  // Send audiometry signal with masking support
+  // Note: When masking is enabled, it always uses AC headphones (ConductionType: 0)
+  // This applies to both AC and BC tests - masking uses AC headphones regardless of test type
   const _sendAudiometrySignal = useCallback(() => {
     if (socket) {
       socket.emit("audiometry-signal", {
@@ -463,8 +541,8 @@ export default function PureTonePage() {
         pulsed: isPulsed,
         earSide: selectedEar,
         signalType: selectedSignalType,
-        conductionType: selectedMode,
-        maskingSignal: isMaskingActive,
+        conductionType: selectedMode, // AC or BC for the main signal
+        maskingSignal: isMaskingActive, // Masking always uses AC (handled by backend)
         maskingLevel: maskingLevel,
       });
       setIsPlaying(true);
@@ -482,6 +560,8 @@ export default function PureTonePage() {
     isPulsed,
   ]);
 
+  // End audiometry signal with masking support
+  // Note: Masking always uses AC headphones for both AC and BC tests
   const _endAudiometrySignal = useCallback(() => {
     if (socket) {
       socket.emit("audiometry-signal", {
@@ -492,8 +572,8 @@ export default function PureTonePage() {
         pulsed: isPulsed,
         earSide: selectedEar,
         signalType: selectedSignalType,
-        conductionType: selectedMode,
-        maskingSignal: isMasking,
+        conductionType: selectedMode, // AC or BC for the main signal
+        maskingSignal: isMasking, // Masking always uses AC (handled by backend)
         maskingLevel: maskingLevel,
       });
       setIsPlaying(false);
@@ -512,6 +592,8 @@ export default function PureTonePage() {
   ]);
 
   // Emit masking-signal to backend with frequency, level (masking), signal (on/off), and earSide
+  // Note: Masking always uses AC headphones (ConductionType: 0) for both AC and BC tests
+  // This is the standard approach: AC headphones are used for masking regardless of test type
   const sendMaskingSignal = useCallback(
     (signal: boolean, levelOverride?: number) => {
       if (!socket) return;
@@ -522,6 +604,8 @@ export default function PureTonePage() {
         level: levelToUse,
         signal,
         earSide: selectedEar,
+        // Masking always uses AC conduction type (handled by backend)
+        // This ensures BC masking uses AC headphones, same as AC masking
       });
       setIsMaskingActive(signal);
     },
@@ -934,6 +1018,15 @@ export default function PureTonePage() {
       {
         onSuccess: (data) => {
           if (data.success) {
+            // Clear localStorage when test is submitted
+            try {
+              const storageKey = `pure-tone-audiometry-${consultationId}`;
+              localStorage.removeItem(storageKey);
+              console.log('🗑️ Cleared localStorage after test submission');
+            } catch (error) {
+              console.error('Failed to clear localStorage:', error);
+            }
+            
             toast.success("Test completed successfully");
             console.log(`Test completed with ${acTests.length} AC tests and ${bcTests.length} BC tests`);
             router.push(
@@ -1236,6 +1329,14 @@ export default function PureTonePage() {
     setBcTestResults([]);
     setJustCleared(true);
     
+    // Clear localStorage
+    try {
+      const storageKey = `pure-tone-audiometry-${consultationId}`;
+      localStorage.removeItem(storageKey);
+    } catch (error) {
+      console.error('Failed to clear localStorage:', error);
+    }
+    
     // Persist cleared state to backend
     persistClearedResults(updatedAcResults, updatedBcResults);
     
@@ -1250,6 +1351,19 @@ export default function PureTonePage() {
     setBcTestResults(filteredBcResults);
     setTestResults([...filteredAcResults, ...filteredBcResults]);
     setJustCleared(true);
+    
+    // Update localStorage with cleared results
+    try {
+      const storageKey = `pure-tone-audiometry-${consultationId}`;
+      const dataToStore = {
+        acTestResults: filteredAcResults.filter(r => r.mode === "AC"),
+        bcTestResults: filteredBcResults.filter(r => r.mode === "BC"),
+        timestamp: new Date().toISOString()
+      };
+      localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error('Failed to update localStorage:', error);
+    }
     
     // Persist cleared state to backend
     persistClearedResults(filteredAcResults, filteredBcResults);
@@ -1268,6 +1382,19 @@ export default function PureTonePage() {
     setBcTestResults(updatedBcResults);
     setTestResults([...updatedAcResults, ...updatedBcResults]);
     setJustCleared(true);
+    
+    // Update localStorage with cleared results
+    try {
+      const storageKey = `pure-tone-audiometry-${consultationId}`;
+      const dataToStore = {
+        acTestResults: updatedAcResults,
+        bcTestResults: updatedBcResults,
+        timestamp: new Date().toISOString()
+      };
+      localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error('Failed to update localStorage:', error);
+    }
     
     // Persist cleared state to backend
     persistClearedResults(updatedAcResults, updatedBcResults);

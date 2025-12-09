@@ -115,6 +115,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   const [isInitializing, setIsInitializing] = useState(true);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [showRefreshHint, setShowRefreshHint] = useState(false);
+  const previousShowOtoscopyOnlyRef = useRef(showOtoscopyOnly);
   const { Dialog, openDialog } = useDialog();
 
   // Get client and connection status
@@ -214,6 +215,24 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
 
   // Get remote users
   const remoteUsers = useRemoteUsers();
+  
+  // Debug remote users for otoscopy
+  useEffect(() => {
+    if (showOtoscopyOnly) {
+      console.log("🔬 [OTOSCOPY] Remote users:", {
+        count: remoteUsers.length,
+        users: remoteUsers.map(u => ({
+          uid: u.uid,
+          hasVideo: !!u.videoTrack,
+          hasAudio: !!u.audioTrack,
+          videoTrackId: u.videoTrack?.getTrackId?.(),
+        })),
+        isConnected,
+        hasToken: !!token,
+        isUVC: showOtoscopyOnly,
+      });
+    }
+  }, [remoteUsers, showOtoscopyOnly, isConnected, token]);
 
   // Join channel
   useJoin(
@@ -244,7 +263,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
     [localMicrophoneTrack, cameraOn ? localCameraTrack : null].filter(Boolean) as any
   );
 
-  // Handle token fetching
+  // Handle token fetching - re-fetch when showOtoscopyOnly changes
   useEffect(() => {
     let mounted = true;
 
@@ -254,11 +273,30 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       try {
         setIsInitializing(true);
         setError(null);
-        console.log("Initializing call with channel:", channel);
+        console.log("Initializing call with channel:", channel, "isUVC:", showOtoscopyOnly);
+        
+        // If we're already connected and switching modes, leave first
+        const isSwitchingModes = previousShowOtoscopyOnlyRef.current !== showOtoscopyOnly;
+        if (isConnected && token && isSwitchingModes) {
+          console.log("Switching modes - leaving channel first...", {
+            from: previousShowOtoscopyOnlyRef.current ? 'otoscopy' : 'regular',
+            to: showOtoscopyOnly ? 'otoscopy' : 'regular'
+          });
+          try {
+            await client.leave();
+            // Small delay to ensure leave completes
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (err) {
+            console.warn("Error leaving channel:", err);
+          }
+        }
+        
+        // Use isUVC: true when showing otoscopy only (otoscope stream)
+        // Use isUVC: false for regular video call (patient/audiologist)
         const { data } = await fetchToken({
           channelName: channel,
           userRole: 'publisher',
-          isUVC: false
+          isUVC: showOtoscopyOnly
         });
         console.log("Received token data:", {
           hasToken: !!data.token,
@@ -268,6 +306,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           tokenPreview: data.token ? `${data.token.substring(0, 10)}...` : null,
           appIdPreview: data.appId ? `${data.appId.substring(0, 10)}...` : null,
           userId: data.userId,
+          isUVC: showOtoscopyOnly,
         });
 
         if (mounted) {
@@ -283,6 +322,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           setToken(data.token);
           setAppId(data.appId);
           setUid(data.userId);
+          previousShowOtoscopyOnlyRef.current = showOtoscopyOnly;
         }
       } catch (err) {
         console.error("Error initializing call:", err);
@@ -293,14 +333,20 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       }
     };
 
-    if (channel && !token) {
-      initializeCall();
+    if (channel) {
+      // Fetch token when:
+      // 1. No token exists yet (initial load)
+      // 2. showOtoscopyOnly changes (switching between regular video and otoscopy)
+      const needsNewToken = !token || previousShowOtoscopyOnlyRef.current !== showOtoscopyOnly;
+      if (needsNewToken) {
+        initializeCall();
+      }
     }
 
     return () => {
       mounted = false;
     };
-  }, [channel, fetchToken, token]);
+  }, [channel, fetchToken, showOtoscopyOnly, isConnected, client, token]);
 
   // Show refresh hint if connected but no remote users after a delay
   useEffect(() => {

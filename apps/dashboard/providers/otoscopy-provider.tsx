@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { useSocket } from "./socket-provider";
 import { useRouter } from "next/navigation";
 
@@ -33,35 +33,78 @@ export const OtoscopyProvider: React.FC<OtoscopyProviderProps> = ({
 }) => {
   const [isOtoscopyActive, setIsOtoscopyActive] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isRoomJoined, setIsRoomJoined] = useState(false);
+  const isRoomJoinedRef = useRef(false); // Ref to track room join for closures
   const socket = useSocket();
   const router = useRouter();
 
-  // Debug socket status
+  // Track room join status and listen for otoscopy events
   useEffect(() => {
-    console.log("🔌 OtoscopyProvider mounted - socket status:", {
-      hasSocket: !!socket,
-      socketConnected: socket?.connected,
-      socketId: socket?.id,
-      consultationId
-    });
+    if (!socket) return;
 
-    if (socket) {
-      const handleConnect = () => {
-        console.log("✅ Socket connected in OtoscopyProvider");
-      };
+    const handleJoined = (roomId: string) => {
+      console.log("✅ Room joined in OtoscopyProvider:", roomId);
+      if (roomId === consultationId) {
+        setIsRoomJoined(true);
+        isRoomJoinedRef.current = true;
+      }
+    };
 
-      const handleDisconnect = () => {
-        console.log("❌ Socket disconnected in OtoscopyProvider");
-      };
+    const handleConnect = () => {
+      console.log("✅ Socket connected in OtoscopyProvider");
+      setIsRoomJoined(false); // Reset on reconnect
+      isRoomJoinedRef.current = false;
+    };
 
-      socket.on("connect", handleConnect);
-      socket.on("disconnect", handleDisconnect);
+    const handleDisconnect = () => {
+      console.log("❌ Socket disconnected in OtoscopyProvider");
+      setIsRoomJoined(false);
+      isRoomJoinedRef.current = false;
+    };
 
-      return () => {
-        socket.off("connect", handleConnect);
-        socket.off("disconnect", handleDisconnect);
-      };
+    // Listen for otoscopy-started event (broadcasted by backend to all room members)
+    const handleOtoscopyStarted = (data: { consultationId: string }) => {
+      console.log("🔬 [OTOSCOPY] Received otoscopy-started event:", data);
+      if (data.consultationId === consultationId) {
+        setIsOtoscopyActive(true);
+        console.log("✅ Otoscopy is now active");
+      }
+    };
+
+    // Listen for otoscopy-stopped event (if backend sends it)
+    const handleOtoscopyStopped = (data: { consultationId: string }) => {
+      console.log("🛑 [OTOSCOPY] Received otoscopy-stopped event:", data);
+      if (data.consultationId === consultationId) {
+        setIsOtoscopyActive(false);
+        setIsScreenSharing(false);
+        console.log("✅ Otoscopy is now stopped");
+      }
+    };
+
+    socket.on("joined", handleJoined);
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("otoscopy-started", handleOtoscopyStarted);
+    socket.on("otoscopy-stopped", handleOtoscopyStopped);
+
+    // Check if already connected and joined
+    if (socket.connected) {
+      // Give a small delay to check if room was already joined
+      const checkRoom = setTimeout(() => {
+        // If socket is connected, assume room might be joined (optimistic)
+        // The "joined" event will confirm it
+        console.log("🔍 Checking room join status...");
+      }, 1000);
+      return () => clearTimeout(checkRoom);
     }
+
+    return () => {
+      socket.off("joined", handleJoined);
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("otoscopy-started", handleOtoscopyStarted);
+      socket.off("otoscopy-stopped", handleOtoscopyStopped);
+    };
   }, [socket, consultationId]);
 
   const startOtoscopy = useCallback(() => {
@@ -69,6 +112,7 @@ export const OtoscopyProvider: React.FC<OtoscopyProviderProps> = ({
       hasSocket: !!socket,
       socketConnected: socket?.connected,
       socketId: socket?.id,
+      isRoomJoined,
       consultationId
     });
 
@@ -82,40 +126,87 @@ export const OtoscopyProvider: React.FC<OtoscopyProviderProps> = ({
       return;
     }
 
-    console.log("🔬 Starting otoscopy for consultation:", consultationId);
-    
-    // Emit start_otoscopy event to Flutter app
-    const eventData = {
-      consultationId,
-      timestamp: new Date().toISOString(),
-    };
-    
-    console.log("📡 Emitting start-otoscopy event with data:", eventData);
-    
-    // Emit with acknowledgment callback to confirm receipt
-    let acked = false;
-    const timeout = setTimeout(() => {
-      if (!acked) {
-        console.warn("⏱️ No ack from Flutter for start-otoscopy within 5s");
-      }
-    }, 5000);
-
-    try {
-    socket.emit("start-otoscopy", eventData, (ack: any) => {
-        acked = true;
-        clearTimeout(timeout);
-      console.log("📨 start-otoscopy acknowledgment received:", ack);
-        if (ack && ack.error) {
-          console.error("⚠️ start-otoscopy ack error:", ack.error);
+    // Wait for room to be joined before emitting start-otoscopy
+    if (!isRoomJoined) {
+      console.warn("⚠️ Room not joined yet, waiting for join confirmation...");
+      
+      // Wait for room join with timeout
+      const waitForJoin = () => {
+        if (!socket) {
+          console.error("❌ Socket lost while waiting for room join");
+          return;
         }
-    });
-    } catch (err) {
-      console.error("❌ Failed to emit start-otoscopy:", err);
+        
+        let attempts = 0;
+        const maxAttempts = 10; // Wait up to 5 seconds (10 * 500ms)
+        
+        const checkInterval = setInterval(() => {
+          attempts++;
+          
+          // Use ref to check current room join status (avoids closure issue)
+          if (isRoomJoinedRef.current) {
+            clearInterval(checkInterval);
+            console.log("✅ Room joined (via ref check), proceeding with start-otoscopy");
+            emitStartOtoscopy();
+          } else if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            console.warn("⏱️ Room join timeout, attempting start-otoscopy anyway");
+            emitStartOtoscopy();
+          }
+        }, 500);
+        
+        // Also listen for joined event once
+        const handleJoinedOnce = (roomId: string) => {
+          if (roomId === consultationId) {
+            clearInterval(checkInterval);
+            if (socket) {
+              socket.off("joined", handleJoinedOnce);
+            }
+            console.log("✅ Room joined via event, proceeding with start-otoscopy");
+            emitStartOtoscopy();
+          }
+        };
+        
+        if (socket) {
+          socket.once("joined", handleJoinedOnce);
+        }
+      };
+      
+      waitForJoin();
+      return;
     }
 
-    setIsOtoscopyActive(true);
-    console.log("✅ Sent start_otoscopy event to Flutter app");
-  }, [socket, consultationId]);
+    emitStartOtoscopy();
+
+    function emitStartOtoscopy() {
+      if (!socket) {
+        console.error("❌ Socket not available in emitStartOtoscopy");
+        return;
+      }
+      
+      console.log("🔬 Emitting start-otoscopy event for consultation:", consultationId);
+      
+      // Emit start-otoscopy event (backend will broadcast otoscopy-started to all room members)
+      // NOTE: Backend does NOT return acknowledgment, so we listen for otoscopy-started event instead
+      const eventData = {
+        consultationId,
+      };
+      
+      console.log("📡 Emitting start-otoscopy event with data:", eventData);
+      console.log("⏳ Waiting for otoscopy-started event from backend...");
+
+      try {
+        // Backend doesn't support acknowledgment, so just emit
+        socket.emit("start-otoscopy", eventData);
+        console.log("✅ start-otoscopy event emitted. Waiting for backend broadcast...");
+        
+        // Don't set isOtoscopyActive here - wait for otoscopy-started event from backend
+        // This ensures we only mark it as active when backend confirms it
+      } catch (err) {
+        console.error("❌ Failed to emit start-otoscopy:", err);
+      }
+    }
+  }, [socket, consultationId, isRoomJoined]);
 
   const stopOtoscopy = useCallback(() => {
     if (!socket) {
@@ -125,15 +216,15 @@ export const OtoscopyProvider: React.FC<OtoscopyProviderProps> = ({
 
     console.log("🛑 Stopping otoscopy for consultation:", consultationId);
     
-    // Emit stop-otoscopy event to Flutter app
+    // Emit stop-otoscopy event (backend may broadcast otoscopy-stopped)
     socket.emit("stop-otoscopy", {
       consultationId,
-      timestamp: new Date().toISOString(),
     });
 
+    // Optimistically update state (backend may also send otoscopy-stopped event)
     setIsOtoscopyActive(false);
     setIsScreenSharing(false);
-    console.log("📡 Sent stop-otoscopy event to Flutter app");
+    console.log("📡 Sent stop-otoscopy event. State updated optimistically.");
   }, [socket, consultationId]);
 
   const setScreenSharingState = useCallback((sharing: boolean) => {

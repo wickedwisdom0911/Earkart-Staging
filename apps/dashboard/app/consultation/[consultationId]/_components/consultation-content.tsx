@@ -93,6 +93,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
             isFullscreen={true}
             onBeforeLeaveCall={onBeforeLeaveCall}
             hideLocalUser={true}
+            showOtoscopyOnly={true}
           />
         </div>
 

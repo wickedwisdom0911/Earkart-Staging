@@ -54,6 +54,15 @@ export default function ToneDecayPage() {
   const [frequency, setFrequency] = useState<number>(1000);
   const [testDuration, setTestDuration] = useState<number>(60);
   const [currentLevel, setCurrentLevel] = useState<number>(50);
+  // Store intensity levels for each frequency (default: 50 dB for all frequencies)
+  const [frequencyIntensityLevels, setFrequencyIntensityLevels] = useState<Record<number, number>>({
+    250: 50,
+    500: 50,
+    1000: 50,
+    2000: 50,
+    4000: 50,
+    8000: 50,
+  });
   const [conductionType, setConductionType] = useState<"AC" | "BC">("AC");
   const [patientButtonHeld, setPatientButtonHeld] = useState<boolean>(false);
   const [showPatientResponseFlash, setShowPatientResponseFlash] = useState<boolean>(false);
@@ -360,6 +369,32 @@ export default function ToneDecayPage() {
     };
   }, []);
 
+  // Update current level when frequency changes
+  useEffect(() => {
+    if (testState === "idle") {
+      const levelForFrequency = frequencyIntensityLevels[frequency] || 50;
+      setCurrentLevel(levelForFrequency);
+    }
+  }, [frequency, frequencyIntensityLevels, testState]);
+
+  // Handle intensity level change for current frequency
+  const handleIntensityLevelChange = useCallback(
+    (newLevel: number) => {
+      if (testState !== "idle") {
+        toast.error("Can only change intensity level when test is idle");
+        return;
+      }
+      
+      const clampedLevel = Math.max(0, Math.min(120, newLevel));
+      setFrequencyIntensityLevels((prev) => ({
+        ...prev,
+        [frequency]: clampedLevel,
+      }));
+      setCurrentLevel(clampedLevel);
+    },
+    [frequency, testState]
+  );
+
   const handleEarSwitch = useCallback(
     (ear: "L" | "R") => {
       if (testState === "running" || testState === "paused") {
@@ -370,9 +405,12 @@ export default function ToneDecayPage() {
       setChartData([]);
       setElapsedTime(0);
       setTestState("idle");
+      // Reset to the intensity level for current frequency
+      const levelForFrequency = frequencyIntensityLevels[frequency] || 50;
+      setCurrentLevel(levelForFrequency);
       hasAutoStoppedRef.current = false;
     },
-    [testState]
+    [testState, frequency, frequencyIntensityLevels]
   );
 
   const saveToneDecayResults = useCallback(async () => {
@@ -458,7 +496,9 @@ export default function ToneDecayPage() {
     setChartData([]);
     setElapsedTime(0);
     setTestState("idle");
-    setCurrentLevel(50);
+    // Reset to the intensity level for current frequency
+    const levelForFrequency = frequencyIntensityLevels[frequency] || 50;
+    setCurrentLevel(levelForFrequency);
     setPatientButtonHeld(false);
     setShowPatientResponseFlash(false);
     hasAutoStoppedRef.current = false;
@@ -483,7 +523,7 @@ export default function ToneDecayPage() {
     });
 
     toast.success("Test reset - ready to start again");
-  }, [testState, selectedEar]);
+  }, [testState, selectedEar, frequency, frequencyIntensityLevels]);
 
   return (
     <>
@@ -704,25 +744,69 @@ export default function ToneDecayPage() {
 
           <div className="mb-3 border-t pt-3">
             <label className="block text-[10px] font-medium mb-2">Intensity Control</label>
-            <div className="space-y-1">
-              <button
-                className="w-full px-2 py-2 bg-cyan-500 text-white rounded hover:bg-cyan-600 text-xs font-medium"
-                onClick={() => handleIncreaseIntensity(5)}
-                disabled={testState !== "running" || currentLevel >= 120}
-              >
-                +5 dB HL
-              </button>
-              <button
-                className="w-full px-2 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-xs font-medium"
-                onClick={() => handleIncreaseIntensity(10)}
-                disabled={testState !== "running" || currentLevel >= 120}
-              >
-                +10 dB HL
-              </button>
-              <div className="text-[9px] text-center text-gray-500 mt-1">
-                Intensity can only be increased
+            
+            {/* Starting Intensity Level (only when idle) */}
+            {testState === "idle" && (
+              <div className="mb-2 space-y-1">
+                <label className="block text-[9px] text-gray-600 mb-1">
+                  Starting Level for {frequency} Hz
+                </label>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="px-1.5 py-1 bg-gray-200 rounded text-[9px] hover:bg-gray-300"
+                    onClick={() => handleIntensityLevelChange(currentLevel - 5)}
+                    disabled={currentLevel <= 0}
+                  >
+                    -5
+                  </button>
+                  <input
+                    type="number"
+                    min="0"
+                    max="120"
+                    step="5"
+                    value={currentLevel}
+                    onChange={(e) => handleIntensityLevelChange(Number(e.target.value))}
+                    className="flex-1 px-2 py-1 text-center text-[10px] border rounded"
+                  />
+                  <button
+                    className="px-1.5 py-1 bg-gray-200 rounded text-[9px] hover:bg-gray-300"
+                    onClick={() => handleIntensityLevelChange(currentLevel + 5)}
+                    disabled={currentLevel >= 120}
+                  >
+                    +5
+                  </button>
+                </div>
+                <div className="text-[8px] text-center text-gray-500 mt-1">
+                  dB HL
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Increase Intensity During Test (only when running) */}
+            {testState === "running" && (
+              <div className="space-y-1">
+                <button
+                  className="w-full px-2 py-2 bg-cyan-500 text-white rounded hover:bg-cyan-600 text-xs font-medium"
+                  onClick={() => handleIncreaseIntensity(5)}
+                  disabled={currentLevel >= 120}
+                >
+                  +5 dB HL
+                </button>
+                <button
+                  className="w-full px-2 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-xs font-medium"
+                  onClick={() => handleIncreaseIntensity(10)}
+                  disabled={currentLevel >= 120}
+                >
+                  +10 dB HL
+                </button>
+                <div className="text-[9px] text-center text-gray-500 mt-1">
+                  Current: {currentLevel} dB HL
+                </div>
+                <div className="text-[9px] text-center text-gray-500">
+                  Intensity can only be increased
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1 border-t pt-3">
