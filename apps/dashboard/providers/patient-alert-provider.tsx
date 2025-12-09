@@ -237,7 +237,16 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   const checkConsultationNeedsAttention = (consultation: ConsultationModelData) => {
     if (!isAudiologist) return false;
 
-    // Only check if audiologist is assigned or not
+    // Check if consultation is already in progress, completed, or cancelled - no longer needs attention
+    if (
+      consultation.status === SessionStatus.IN_PROGRESS ||
+      consultation.status === SessionStatus.COMPLETED ||
+      consultation.status === SessionStatus.CANCELLED
+    ) {
+      return false;
+    }
+
+    // Check if audiologist is assigned
     const needsAttention = !consultation.audiologist; // No audiologist assigned
 
     return needsAttention;
@@ -326,22 +335,51 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
     };
 
     const handleConsultationUpdate = (data: ConsultationModelData) => {
+      console.log("Received consultation_updated:", data.id, "status:", data.status, "audiologist:", data.audiologist?.id);
+      
       if (checkConsultationNeedsAttention(data)) {
         createAttentionAlert(data);
       } else {
+        // Consultation no longer needs attention - resolve alert and stop sound
+        console.log("Consultation no longer needs attention, resolving alert:", data.id);
         resolveConsultationAlert(data.id);
+      }
+    };
+
+    // Handle when any user joins a room (another audiologist answered the call)
+    const handleUserJoined = (data: any) => {
+      console.log("User joined room:", data);
+      // If another user joined a consultation room, resolve the alert for that consultation
+      if (data?.roomId || data?.consultationId) {
+        const consultationId = data.roomId || data.consultationId;
+        console.log("Resolving alert for consultation due to user join:", consultationId);
+        resolveConsultationAlert(consultationId);
+      }
+    };
+
+    // Handle audiologist joined event specifically
+    const handleAudiologistJoined = (data: any) => {
+      console.log("Audiologist joined consultation:", data);
+      const consultationId = data?.consultationId || data?.roomId || data;
+      if (consultationId) {
+        console.log("Resolving alert due to audiologist join:", consultationId);
+        resolveConsultationAlert(typeof consultationId === 'string' ? consultationId : consultationId.toString());
       }
     };
 
     // Listen to socket events
     socket.on("new_consultation", handleNewConsultation);
     socket.on("consultation_updated", handleConsultationUpdate);
+    socket.on("user_joined", handleUserJoined);
+    socket.on("audiologist_joined", handleAudiologistJoined);
 
     return () => {
       socket.off("new_consultation", handleNewConsultation);
       socket.off("consultation_updated", handleConsultationUpdate);
+      socket.off("user_joined", handleUserJoined);
+      socket.off("audiologist_joined", handleAudiologistJoined);
     };
-      }, [socket, isAudiologist, notifiedConsultations]);
+  }, [socket, isAudiologist, notifiedConsultations]);
 
   // NEW: Listen for CustomEvent when consultations are displayed and need attention
   useEffect(() => {

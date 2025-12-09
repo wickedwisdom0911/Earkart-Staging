@@ -14,6 +14,9 @@ import {
   Download,
   PlayCircle,
   ArrowLeft,
+  ClipboardList,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -253,6 +256,102 @@ export default function ConsultationDetailsPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Questionnaire Answers */}
+            {consultation.questionnaire && (
+              <Card>
+                <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50">
+                  <CardTitle className="flex items-center gap-2 text-orange-700">
+                    <ClipboardList className="w-5 h-5" />
+                    Questionnaire Responses
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  {(() => {
+                    const questionnaire = consultation.questionnaire as any;
+                    const answers = questionnaire?.answers || [];
+                    
+                    if (answers.length === 0) {
+                      return <p className="text-center py-8 text-gray-500">No questionnaire responses</p>;
+                    }
+                    
+                    return (
+                      <div className="space-y-4">
+                        {/* Submitted date */}
+                        {questionnaire?.submittedAt && (
+                          <div className="text-sm text-gray-500 mb-4 pb-3 border-b">
+                            Submitted on {safeFormatDate(questionnaire.submittedAt)}
+                          </div>
+                        )}
+                        
+                        {answers.map((answer: any, idx: number) => {
+                          // Get question text from the question object if available
+                          const questionText = answer.question?.text || `Question ${idx + 1}`;
+                          const questionType = answer.question?.type;
+                          
+                          // Get the answer value
+                          let answerValue = "";
+                          if (answer.value) {
+                            answerValue = answer.value;
+                          } else if (answer.selectedOptions && answer.selectedOptions.length > 0) {
+                            answerValue = answer.selectedOptions
+                              .map((opt: any) => opt.option?.value || opt.option?.label || opt.value)
+                              .filter(Boolean)
+                              .join(", ");
+                          }
+                          
+                          const hasAnswer = answerValue && answerValue.trim() !== "";
+                          
+                          return (
+                            <div 
+                              key={answer.id || idx} 
+                              className={`p-4 rounded-lg border ${
+                                hasAnswer 
+                                  ? 'bg-green-50 border-green-200' 
+                                  : 'bg-gray-50 border-gray-200'
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                {hasAnswer ? (
+                                  <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                                ) : (
+                                  <Circle className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                                )}
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-800 mb-1">
+                                    {idx + 1}. {questionText}
+                                  </p>
+                                  {questionType && (
+                                    <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded mb-2 inline-block">
+                                      {questionType.replace(/_/g, ' ')}
+                                    </span>
+                                  )}
+                                  <p className={`text-sm ${hasAnswer ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                                    {hasAnswer ? answerValue : "Not answered"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {/* Summary */}
+                        <div className="mt-4 pt-4 border-t flex items-center justify-between text-sm">
+                          <span className="text-gray-600">
+                            Total Questions: {answers.length}
+                          </span>
+                          <span className="text-green-600 font-medium">
+                            Answered: {answers.filter((a: any) => 
+                              a.value || (a.selectedOptions && a.selectedOptions.length > 0)
+                            ).length}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Recordings */}
             <Card>

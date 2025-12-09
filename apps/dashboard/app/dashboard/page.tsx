@@ -190,6 +190,13 @@ export default function DashboardPage() {
                     // Stop notification sound when audiologist joins consultation
                     const stopSoundEvent = new CustomEvent('stopContinuousSound');
                     window.dispatchEvent(stopSoundEvent);
+                    
+                    // Emit socket event to notify other audiologists that this consultation is answered
+                    socket.emit("audiologist_joined", {
+                      consultationId: data,
+                      audiologistId: user?.id,
+                      timestamp: new Date().toISOString(),
+                    });
                   }
                 },
                 onError: (error) => {
@@ -201,6 +208,13 @@ export default function DashboardPage() {
               // Even if status wasn't PENDING, stop notification sound when joining
               const stopSoundEvent = new CustomEvent('stopContinuousSound');
               window.dispatchEvent(stopSoundEvent);
+              
+              // Emit socket event to notify other audiologists
+              socket.emit("audiologist_joined", {
+                consultationId: data,
+                audiologistId: user?.id,
+                timestamp: new Date().toISOString(),
+              });
             }
           }
         } catch (error) {
