@@ -254,7 +254,14 @@ Future<void> setupDI() async {
 
   //lookup
   di.registerLazySingleton<ILookupRepository>(
-    () => LookupRepositoryImpl(remoteSource: di.call()),
+    () => LookupRepositoryImpl(
+      remoteSource: di.call(),
+      languageLocalSource: di.call(),
+      countryLocalSource: di.call(),
+      stateLocalSource: di.call(),
+      districtLocalSource: di.call(),
+      cityLocalSource: di.call(),
+    ),
   );
   di.registerLazySingleton<ILookupRemoteSource>(
     () => LookupRemoteSourceImpl(dio: di.call()),
