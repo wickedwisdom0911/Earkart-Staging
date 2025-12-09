@@ -48,7 +48,32 @@ class CityEntityDataSource {
   }
 
   List<CityEntity>? getCityEntities() {
-    return cityEntityBox.get(0);
+    try {
+      final data = cityEntityBox.get(0);
+      if (data == null) return null;
+
+      // Convert to List<CityEntity> explicitly to handle type safety
+      final result = <CityEntity>[];
+      for (final item in data) {
+        result.add(
+          CityEntity(
+            id: item.id,
+            name: item.name,
+            districtId: item.districtId,
+            status: item.status,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            state: item.state,
+            districts: item.districts,
+          ),
+        );
+      }
+      return result;
+    } catch (e) {
+      print('Error retrieving cities from cache: $e');
+      clearBox();
+      return null;
+    }
   }
 
   Future<void> clearBox() async {

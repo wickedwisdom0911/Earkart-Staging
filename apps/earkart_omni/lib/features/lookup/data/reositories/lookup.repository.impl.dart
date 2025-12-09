@@ -42,6 +42,7 @@ class LookupRepositoryImpl extends ILookupRepository {
     if (!forceRefresh) {
       final cachedLanguages = languageLocalSource.getLanguageEntities();
       if (cachedLanguages != null && cachedLanguages.isNotEmpty) {
+        // Type safety is handled in getLanguageEntities()
         // Return cached data immediately, then refresh in background
         _refreshLanguagesInBackground();
         return Right(cachedLanguages);
@@ -53,8 +54,23 @@ class LookupRepositoryImpl extends ILookupRepository {
     result.fold(
       (failure) => null, // Error handling done by return
       (languages) {
+        // Ensure we're storing List<LanguageEntity>, not List<LanguageModelData>
+        // Create new LanguageEntity instances to ensure type safety
+        final entitiesToStore =
+            languages
+                .map(
+                  (lang) => LanguageEntity(
+                    id: lang.id,
+                    name: lang.name,
+                    code: lang.code,
+                    status: lang.status,
+                    createdAt: lang.createdAt,
+                    updatedAt: lang.updatedAt,
+                  ),
+                )
+                .toList();
         // Save to cache on success
-        languageLocalSource.addLanguageEntities(languages);
+        languageLocalSource.addLanguageEntities(entitiesToStore);
       },
     );
     return result;
@@ -66,7 +82,21 @@ class LookupRepositoryImpl extends ILookupRepository {
       result.fold(
         (_) => null, // Ignore errors in background refresh
         (languages) {
-          languageLocalSource.addLanguageEntities(languages);
+          // Ensure we're storing List<LanguageEntity>, not List<LanguageModelData>
+          final entitiesToStore =
+              languages
+                  .map(
+                    (lang) => LanguageEntity(
+                      id: lang.id,
+                      name: lang.name,
+                      code: lang.code,
+                      status: lang.status,
+                      createdAt: lang.createdAt,
+                      updatedAt: lang.updatedAt,
+                    ),
+                  )
+                  .toList();
+          languageLocalSource.addLanguageEntities(entitiesToStore);
         },
       );
     });
@@ -85,6 +115,7 @@ class LookupRepositoryImpl extends ILookupRepository {
     if (!forceRefresh) {
       final cachedCountries = countryLocalSource.getCountryEntities();
       if (cachedCountries != null && cachedCountries.isNotEmpty) {
+        // Type safety is handled in getCountryEntities()
         // Return cached data immediately, then refresh in background
         _refreshCountriesInBackground();
         return Right(cachedCountries);
@@ -96,8 +127,24 @@ class LookupRepositoryImpl extends ILookupRepository {
     result.fold(
       (failure) => null, // Error handling done by return
       (countries) {
+        // Ensure we're storing List<CountryEntity>, not List<CountryModelData>
+        // Create new CountryEntity instances to ensure type safety
+        final entitiesToStore =
+            countries
+                .map(
+                  (country) => CountryEntity(
+                    id: country.id,
+                    name: country.name,
+                    code: country.code,
+                    states: country.states,
+                    status: country.status,
+                    createdAt: country.createdAt,
+                    updatedAt: country.updatedAt,
+                  ),
+                )
+                .toList();
         // Save to cache on success
-        countryLocalSource.addCountryEntities(countries);
+        countryLocalSource.addCountryEntities(entitiesToStore);
       },
     );
     return result;
@@ -109,7 +156,22 @@ class LookupRepositoryImpl extends ILookupRepository {
       result.fold(
         (_) => null, // Ignore errors in background refresh
         (countries) {
-          countryLocalSource.addCountryEntities(countries);
+          // Ensure we're storing List<CountryEntity>, not List<CountryModelData>
+          final entitiesToStore =
+              countries
+                  .map(
+                    (country) => CountryEntity(
+                      id: country.id,
+                      name: country.name,
+                      code: country.code,
+                      states: country.states,
+                      status: country.status,
+                      createdAt: country.createdAt,
+                      updatedAt: country.updatedAt,
+                    ),
+                  )
+                  .toList();
+          countryLocalSource.addCountryEntities(entitiesToStore);
         },
       );
     });
@@ -139,8 +201,25 @@ class LookupRepositoryImpl extends ILookupRepository {
     // Fetch from API
     final result = await remoteSource.getStates(countryId);
     result.fold((failure) => null, (states) {
+      // Ensure we're storing List<StateEntity>, not List<StateModelData>
+      // Create new StateEntity instances to ensure type safety
+      final entitiesToStore =
+          states
+              .map(
+                (state) => StateEntity(
+                  id: state.id,
+                  name: state.name,
+                  countryId: state.countryId,
+                  districts: state.districts,
+                  status: state.status,
+                  createdAt: state.createdAt,
+                  updatedAt: state.updatedAt,
+                  country: state.country,
+                ),
+              )
+              .toList();
       // Save to cache on success
-      stateLocalSource.addStateEntities(states);
+      stateLocalSource.addStateEntities(entitiesToStore);
     });
     return result;
   }
@@ -150,8 +229,24 @@ class LookupRepositoryImpl extends ILookupRepository {
     // Fetch from API (cities are typically small and district-specific)
     final result = await remoteSource.getCities(districtId);
     result.fold((failure) => null, (cities) {
+      // Ensure we're storing List<CityEntity>, not List<CityModelData>
+      final entitiesToStore =
+          cities
+              .map(
+                (city) => CityEntity(
+                  id: city.id,
+                  name: city.name,
+                  districtId: city.districtId,
+                  status: city.status,
+                  createdAt: city.createdAt,
+                  updatedAt: city.updatedAt,
+                  state: city.state,
+                  districts: city.districts,
+                ),
+              )
+              .toList();
       // Save to cache on success
-      cityLocalSource.addCityEntities(cities);
+      cityLocalSource.addCityEntities(entitiesToStore);
     });
     return result;
   }
@@ -163,8 +258,23 @@ class LookupRepositoryImpl extends ILookupRepository {
     // Fetch from API (districts are state-specific)
     final result = await remoteSource.getDistricts(stateId);
     result.fold((failure) => null, (districts) {
+      // Ensure we're storing List<DistrictEntity>, not List<DistrictModelData>
+      final entitiesToStore =
+          districts
+              .map(
+                (district) => DistrictEntity(
+                  id: district.id,
+                  name: district.name,
+                  stateId: district.stateId,
+                  status: district.status,
+                  createdAt: district.createdAt,
+                  updatedAt: district.updatedAt,
+                  cities: district.cities,
+                ),
+              )
+              .toList();
       // Save to cache on success
-      districtLocalSource.addDistrictEntities(districts);
+      districtLocalSource.addDistrictEntities(entitiesToStore);
     });
     return result;
   }

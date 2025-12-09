@@ -48,7 +48,37 @@ class StateEntityDataSource {
   }
 
   List<StateEntity>? getStateEntities() {
-    return stateEntityBox.get(0);
+    try {
+      final data = stateEntityBox.get(0);
+      if (data == null) return null;
+
+      // Convert to List<StateEntity> explicitly to handle type safety
+      // This handles cases where Hive stored StateModelData or other subtypes
+      // by creating new StateEntity instances
+      final result = <StateEntity>[];
+      for (final item in data) {
+        // Create a new StateEntity instance to ensure it's not a subtype
+        // This handles cases where old cache might have StateModelData instances
+        result.add(
+          StateEntity(
+            id: item.id,
+            name: item.name,
+            countryId: item.countryId,
+            districts: item.districts,
+            status: item.status,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            country: item.country,
+          ),
+        );
+      }
+      return result;
+    } catch (e) {
+      print('Error retrieving states from cache: $e');
+      // Clear corrupted cache and return null
+      clearBox();
+      return null;
+    }
   }
 
   Future<void> clearBox() async {
