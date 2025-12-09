@@ -46,6 +46,10 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   String? _lastValidationHash;
   bool _isFormValidState = false;
 
+  // Track if user has manually selected language/country to prevent overwriting
+  bool _languageManuallySelected = false;
+  bool _countryManuallySelected = false;
+
   @override
   void initState() {
     super.initState();
@@ -211,8 +215,10 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   void _setLocationEntitiesFromPatient(LookupState state) {
     final patient = widget.patient;
 
-    // Set language with default fallback - only if not already set
-    if (selectedLanguage == null && state.languages.isNotEmpty) {
+    // Set language with default fallback - only if not already set and not manually selected
+    if (selectedLanguage == null &&
+        !_languageManuallySelected &&
+        state.languages.isNotEmpty) {
       LanguageEntity? newLanguage;
 
       // Try to find the language by ID first
@@ -242,16 +248,18 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
         }
       }
 
-      // Only update state if we found a language and it's different
-      if (newLanguage != selectedLanguage) {
+      // Only update state if the language is different (compare by ID)
+      if (selectedLanguage == null || selectedLanguage!.id != newLanguage.id) {
         setState(() {
           selectedLanguage = newLanguage;
         });
       }
     }
 
-    // Set country with default fallback - only if not already set
-    if (selectedCountry == null && state.countries.isNotEmpty) {
+    // Set country with default fallback - only if not already set and not manually selected
+    if (selectedCountry == null &&
+        !_countryManuallySelected &&
+        state.countries.isNotEmpty) {
       CountryEntity? newCountry;
 
       // Try to find the country by ID first
@@ -283,8 +291,8 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
         }
       }
 
-      // Only update state if we found a country and it's different
-      if (newCountry != selectedCountry) {
+      // Only update state if the country is different (compare by ID)
+      if (selectedCountry == null || selectedCountry!.id != newCountry.id) {
         setState(() {
           selectedCountry = newCountry;
         });
@@ -691,6 +699,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                           onLanguageChanged: (value) {
                             setState(() {
                               selectedLanguage = value;
+                              _languageManuallySelected = true;
                             });
                             _invalidateFormValidationCache();
                           },
@@ -698,6 +707,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
                           onCountryChanged: (value) {
                             setState(() {
                               selectedCountry = value;
+                              _countryManuallySelected = true;
                               selectedState = null;
                               selectedCity = null;
                               selectedDistrict = null;
