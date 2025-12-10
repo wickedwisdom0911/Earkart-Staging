@@ -228,107 +228,27 @@ export default function TympanometryReportPage() {
       return reading;
     }) || [];
 
-    // Build comments from selected tymp types (only if types are selected)
-    const tympTypeComments: string[] = [];
-    if (leftTympType) {
-      tympTypeComments.push(`Left Ear: ${getTympTypeDescription(leftTympType)}`);
-    }
-    if (rightTympType) {
-      tympTypeComments.push(`Right Ear: ${getTympTypeDescription(rightTympType)}`);
-    }
-    
-    // Combine with existing comments if any
-    const existingComments = comments.trim();
-    let newComments = existingComments;
-    
-    if (tympTypeComments.length > 0) {
-      // If comments already contain tymp type info, replace it; otherwise append
-      if (existingComments && (existingComments.includes('Left Ear:') || existingComments.includes('Right Ear:'))) {
-        // Remove old tymp type lines and add new ones
-        const lines = existingComments.split('\n').filter(line => 
-          !line.includes('Left Ear:') && !line.includes('Right Ear:')
-        );
-        newComments = lines.length > 0 
-          ? `${lines.join('\n').trim()}\n\n${tympTypeComments.join('\n')}`
-          : tympTypeComments.join('\n');
-      } else {
-        newComments = existingComments 
-          ? `${existingComments}\n\n${tympTypeComments.join('\n')}`
-          : tympTypeComments.join('\n');
-      }
-    }
-
     try {
       await updateConsultationMutation.mutateAsync({
         ...consultationData,
         tympanometry: {
           ...consultationData.tympanometry,
           readings: updatedReadings,
-          notes: newComments,
         },
       });
-      setComments(newComments); // Update local state
-      toast.success("Tymp types and comments saved");
+      toast.success("Tymp types saved");
     } catch (err) {
       console.error(err);
       toast.error("Failed to save tymp types");
     }
   };
 
-  // Auto-fill comments when tymp type is selected
+  // Handle tymp type change - just update state, don't modify comments
   const handleTympTypeChange = (ear: 'left' | 'right', tympType: TympType | "") => {
-    // Update the state first
-    const newLeftType = ear === 'left' ? tympType : leftTympType;
-    const newRightType = ear === 'right' ? tympType : rightTympType;
-    
     if (ear === 'left') {
       setLeftTympType(tympType);
     } else {
       setRightTympType(tympType);
-    }
-
-    // Auto-fill comments with tymp type descriptions
-    const tympTypeComments: string[] = [];
-    if (newLeftType) {
-      tympTypeComments.push(`Left Ear: ${getTympTypeDescription(newLeftType)}`);
-    }
-    if (newRightType) {
-      tympTypeComments.push(`Right Ear: ${getTympTypeDescription(newRightType)}`);
-    }
-    
-    if (tympTypeComments.length > 0) {
-      const existingComments = comments.trim();
-      
-      // If comments already contain tymp type info, replace those lines
-      if (existingComments && (existingComments.includes('Left Ear:') || existingComments.includes('Right Ear:'))) {
-        const lines = existingComments.split('\n').filter(line => 
-          !line.trim().startsWith('Left Ear:') && !line.trim().startsWith('Right Ear:')
-        );
-        const cleanedComments = lines.join('\n').trim();
-        const newComments = cleanedComments 
-          ? `${cleanedComments}\n\n${tympTypeComments.join('\n')}`
-          : tympTypeComments.join('\n');
-        setComments(newComments);
-      } else {
-        // If no existing tymp type info, append to existing comments or create new
-        const newComments = existingComments 
-          ? `${existingComments}\n\n${tympTypeComments.join('\n')}`
-          : tympTypeComments.join('\n');
-        setComments(newComments);
-      }
-    } else if (!tympType) {
-      // If tymp type is cleared, remove its description from comments
-      const existingComments = comments.trim();
-      if (existingComments) {
-        const lines = existingComments.split('\n').filter(line => {
-          if (ear === 'left') {
-            return !line.trim().startsWith('Left Ear:');
-          } else {
-            return !line.trim().startsWith('Right Ear:');
-          }
-        });
-        setComments(lines.join('\n').trim());
-      }
     }
   };
 
@@ -781,15 +701,17 @@ export default function TympanometryReportPage() {
               };
 
               // Build the list of graphs to render only for ears with data
+              // Left ear on left side, Right ear on right side
               const graphs: React.ReactNode[] = [];
-              if (rightReading) {
+              if (leftReading) {
                 graphs.push(
-                  <div key="graph-right" className="flex-1 min-w-0">
+                  <div key="graph-left" className="flex-1 min-w-0">
+                    <div className="text-center text-sm font-bold text-blue-600 mb-2">Left Ear</div>
                     <TympanogramGraph
                       realTimeData={[]}
-                      finalData={buildData(rightReading, 'R')}
+                      finalData={buildData(leftReading, 'L')}
                       isTestCompleted={true}
-                      selectedEar={'R'}
+                      selectedEar={'L'}
                       pressureMax={200}
                       pressureMin={-400}
                       complianceMax={2.0}
@@ -798,14 +720,15 @@ export default function TympanometryReportPage() {
                   </div>
                 );
               }
-              if (leftReading) {
+              if (rightReading) {
                 graphs.push(
-                  <div key="graph-left" className="flex-1 min-w-0">
+                  <div key="graph-right" className="flex-1 min-w-0">
+                    <div className="text-center text-sm font-bold text-red-600 mb-2">Right Ear</div>
                     <TympanogramGraph
                       realTimeData={[]}
-                      finalData={buildData(leftReading, 'L')}
+                      finalData={buildData(rightReading, 'R')}
                       isTestCompleted={true}
-                      selectedEar={'L'}
+                      selectedEar={'R'}
                       pressureMax={200}
                       pressureMin={-400}
                       complianceMax={2.0}
@@ -891,13 +814,13 @@ export default function TympanometryReportPage() {
               <div className="grid grid-cols-4 text-sm">
                 <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Test</div>
                 <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">SI Units</div>
-                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Rt</div>
                 <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Lt</div>
+                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Rt</div>
 
                 {(() => {
                   const left = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
                   const right = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
-                  const row = (label: string, units: string, r?: (typeof right), l?: (typeof left), formatter?: (v: number) => string) => {
+                  const row = (label: string, units: string, l?: (typeof left), r?: (typeof right), formatter?: (v: number) => string) => {
                     // For Compliance, prefer peakCompensatedWithECV if available (matches controls), otherwise use staticCompliance
                     const getComplianceValue = (reading?: typeof right | typeof left) => {
                       if (!reading) return 0;
@@ -910,22 +833,26 @@ export default function TympanometryReportPage() {
                       return 0;
                     };
                     
+                    // For Tympanogram row, use the selected tymp types from state (updates immediately on selection)
+                    const getLeftTympType = () => leftTympType || l?.tympType || '—';
+                    const getRightTympType = () => rightTympType || r?.tympType || '—';
+                    
                     return (
                       <>
                         <div className="font-semibold border border-gray-400 p-2 text-gray-800">{label}</div>
                         <div className="border border-gray-400 p-2 text-center text-gray-800">{units}</div>
-                        <div className="border border-gray-400 p-2 text-center text-gray-800">{r ? (label === 'Tympanogram' ? r.tympType : formatter ? formatter(getComplianceValue(r)) : '—') : '—'}</div>
-                        <div className="border border-gray-400 p-2 text-center text-gray-800">{l ? (label === 'Tympanogram' ? l.tympType : formatter ? formatter(getComplianceValue(l)) : '—') : '—'}</div>
+                        <div className="border border-gray-400 p-2 text-center text-gray-800">{l ? (label === 'Tympanogram' ? getLeftTympType() : formatter ? formatter(getComplianceValue(l)) : '—') : (label === 'Tympanogram' && leftTympType ? getLeftTympType() : '—')}</div>
+                        <div className="border border-gray-400 p-2 text-center text-gray-800">{r ? (label === 'Tympanogram' ? getRightTympType() : formatter ? formatter(getComplianceValue(r)) : '—') : (label === 'Tympanogram' && rightTympType ? getRightTympType() : '—')}</div>
                       </>
                     );
                   };
                   return (
                     <>
-                      {row('Tympanogram', '—', right, left)}
-                      {row('Compliance', 'ml', right, left, (v) => `${v.toFixed(2)}`)}
-                      {row('Ear canal volume', 'ml', right, left, (v) => `${v.toFixed(2)}`)}
-                      {row('Peak Pressure', 'daPa', right, left, (v) => `${v}`)}
-                      {row('Gradient', 'ml/daPa', right, left, (v) => v > 0 ? `${v.toFixed(2)}` : '—')}
+                      {row('Tympanogram', '—', left, right)}
+                      {row('Compliance', 'ml', left, right, (v) => `${v.toFixed(2)}`)}
+                      {row('Ear canal volume', 'ml', left, right, (v) => `${v.toFixed(2)}`)}
+                      {row('Peak Pressure', 'daPa', left, right, (v) => `${v}`)}
+                      {row('Gradient', 'ml/daPa', left, right, (v) => v > 0 ? `${v.toFixed(2)}` : '—')}
                     </>
                   );
                 })()}
