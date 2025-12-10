@@ -146,11 +146,7 @@ const headAudiologistSidebarItems: SidebarItem[] = [
     icon: <List className="text-slate-600" />,
     url: "/dashboard/all-consultations",
   },
-  {
-    name: "Analytics",
-    icon: <BarChartIcon className="text-slate-600" />,
-    url: "/dashboard/analytics",
-  },
+ 
   {
     name: "Audiologists",
     icon: <UserIcon className="text-slate-600" />,
@@ -189,11 +185,7 @@ const audiologistSidebarItems: SidebarItem[] = [
     icon: <List className="text-slate-600" />,
     url: "/dashboard/all-consultations",
   },
-  {
-    name: "Analytics",
-    icon: <BarChartIcon className="text-slate-600" />,
-    url: "/dashboard/analytics",
-  },
+ 
   {
     name: "Questionnaire",
     icon: <ClipboardList className="text-slate-600" />,
