@@ -216,23 +216,60 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   // Get remote users
   const remoteUsers = useRemoteUsers();
   
+  // Filter remote users for otoscopy mode
+  // When showOtoscopyOnly is true, we want to show the UVC/screen share stream
+  // UVC stream typically has a higher UID or joins after the regular camera
+  const filteredRemoteUsers = React.useMemo(() => {
+    if (!showOtoscopyOnly || remoteUsers.length === 0) {
+      return remoteUsers;
+    }
+    
+    // In otoscopy mode, filter to show only the UVC stream
+    // Strategy: Show users with video track, preferring higher UIDs (UVC pattern)
+    const usersWithVideo = remoteUsers.filter(u => u.videoTrack);
+    
+    if (usersWithVideo.length === 0) {
+      console.log("🔬 [OTOSCOPY] No users with video track, showing all");
+      return remoteUsers;
+    }
+    
+    if (usersWithVideo.length === 1) {
+      console.log("🔬 [OTOSCOPY] Single user with video, showing:", usersWithVideo[0].uid);
+      return usersWithVideo;
+    }
+    
+    // Multiple users with video - show the one with higher UID (UVC pattern)
+    // Screen share / UVC typically uses a higher UID than regular camera
+    const sortedByUid = [...usersWithVideo].sort((a, b) => 
+      Number(b.uid) - Number(a.uid)
+    );
+    
+    console.log("🔬 [OTOSCOPY] Multiple users, selecting highest UID:", sortedByUid[0].uid);
+    return [sortedByUid[0]];
+  }, [remoteUsers, showOtoscopyOnly]);
+  
   // Debug remote users for otoscopy
   useEffect(() => {
     if (showOtoscopyOnly) {
       console.log("🔬 [OTOSCOPY] Remote users:", {
-        count: remoteUsers.length,
-        users: remoteUsers.map(u => ({
+        totalCount: remoteUsers.length,
+        filteredCount: filteredRemoteUsers.length,
+        allUsers: remoteUsers.map(u => ({
           uid: u.uid,
           hasVideo: !!u.videoTrack,
           hasAudio: !!u.audioTrack,
           videoTrackId: u.videoTrack?.getTrackId?.(),
+        })),
+        filteredUsers: filteredRemoteUsers.map(u => ({
+          uid: u.uid,
+          hasVideo: !!u.videoTrack,
         })),
         isConnected,
         hasToken: !!token,
         isUVC: showOtoscopyOnly,
       });
     }
-  }, [remoteUsers, showOtoscopyOnly, isConnected, token]);
+  }, [remoteUsers, filteredRemoteUsers, showOtoscopyOnly, isConnected, token]);
 
   // Join channel
   useJoin(
@@ -350,16 +387,21 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
 
   // Show refresh hint if connected but no remote users after a delay
   useEffect(() => {
-    if (isConnected && remoteUsers.length === 0) {
+    // For otoscopy mode, check if we have the UVC stream specifically
+    const hasExpectedStream = showOtoscopyOnly 
+      ? filteredRemoteUsers.length > 0 
+      : remoteUsers.length > 0;
+      
+    if (isConnected && !hasExpectedStream) {
       const timer = setTimeout(() => {
         setShowRefreshHint(true);
-      }, 5000); // Show hint after 5 seconds if no remote users
+      }, showOtoscopyOnly ? 3000 : 5000); // Faster hint for otoscopy mode
 
       return () => clearTimeout(timer);
     } else {
       setShowRefreshHint(false);
     }
-  }, [isConnected, remoteUsers.length]);
+  }, [isConnected, remoteUsers.length, filteredRemoteUsers.length, showOtoscopyOnly]);
 
   // Handle leaving
   const handleLeave = useCallback(async () => {
@@ -513,7 +555,10 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       {showRefreshHint && (
         <div className="mb-4 p-2 bg-blue-100 text-blue-700 rounded-md flex items-center gap-2">
           <User className="w-4 h-4" />
-          Patient not visible ? Try refreshing the page.
+          {showOtoscopyOnly 
+            ? "Otoscope stream not detected. Make sure the camera is open on the device."
+            : "Patient not visible? Try refreshing the page."
+          }
         </div>
       )}
       <div className="flex flex-col h-full w-full gap-1 mb-2">
@@ -524,8 +569,8 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
             isFullscreen ? 'rounded-none border-none' : 'rounded-2xl border'
           }`}
         >
-          {remoteUsers.length > 0 ? (
-            remoteUsers.map((user) => {
+          {filteredRemoteUsers.length > 0 ? (
+            filteredRemoteUsers.map((user) => {
               // Force re-render when video track changes
               const videoTrackId = user.videoTrack?.getTrackId?.();
               
@@ -541,13 +586,16 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                   }}
                 >
                   <div className="absolute bottom-3 left-3 text-white text-sm">
-                    {patientName}
+                    {showOtoscopyOnly ? "🔬 Otoscopy" : patientName}
                   </div>
                 </RemoteUser>
               );
             })
           ) : (
-            <VideoPlaceholder name={patientName} isLoading={isReconnecting} />
+            <VideoPlaceholder 
+              name={showOtoscopyOnly ? "Waiting for otoscope stream..." : patientName} 
+              isLoading={isReconnecting || (showOtoscopyOnly && remoteUsers.length === 0)} 
+            />
           )}
         </div>
 
