@@ -76,7 +76,90 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.white, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.red.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 4),
+        elevation: 6,
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.white, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
+        elevation: 6,
+      ),
+    );
+  }
+
+  void _showWarningSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.orange.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 4),
+        elevation: 6,
+      ),
     );
   }
 
@@ -151,10 +234,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     } catch (e) {
       di<ILogger>().error('Error setting up socket: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error connecting to server. Please try again.'),
-          ),
+        _showErrorSnackBar(
+          'Unable to connect to server. Please check your connection and try again.',
         );
       }
     }
@@ -183,8 +264,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.onDisconnect((_) {
       if (!mounted) return;
       di<ILogger>().debug('Socket disconnected');
+      // Immediately update state to show disconnected status
       setState(() {
         _isSocketInitialized = false;
+        _socketReconnectFailed =
+            false; // Reset reconnect failed flag on disconnect
         _hasJoinedConsultation = false; // Reset join status on disconnect
       });
     });
@@ -192,11 +276,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.onError((error) {
       di<ILogger>().error('Socket error: $error');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connection error: ${error.toString()}'),
-            duration: const Duration(seconds: 3),
-          ),
+        _showErrorSnackBar(
+          'Connection error occurred. Please check your internet connection.',
         );
       }
     });
@@ -210,12 +291,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.onConnectError((error) {
       di<ILogger>().error('Socket connection error: $error');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connection error: ${error.toString()}'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        _showErrorSnackBar('Failed to establish connection. Please try again.');
       }
     });
 
@@ -226,6 +302,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         _isSocketInitialized = true;
         _socketReconnectFailed = false; // Reset reconnect failed flag
       });
+      _showSuccessSnackBar('Connection restored successfully');
       _tryJoinConsultation(); // Try to rejoin on reconnect
 
       // Send current device status when socket reconnects
@@ -246,13 +323,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         setState(() {
           _socketReconnectFailed = true;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Failed to reconnect to server. Please check your connection.',
-            ),
-            duration: Duration(seconds: 3),
-          ),
+        _showWarningSnackBar(
+          'Unable to reconnect to server. Please check your internet connection and tap Retry.',
         );
       }
     });
@@ -577,7 +649,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         });
         _updateCameraState(true);
       } else {
-        _showErrorSnackBar('Please Connect Video Otoscope');
+        _showWarningSnackBar(
+          'Please connect the video otoscope device to continue.',
+        );
       }
     });
 
@@ -843,13 +917,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                     'ConsultationScreen: Consultation completed, calling _handleConsultationCompletion',
                   );
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Consultation completed successfully'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                  _showSuccessSnackBar('Consultation completed successfully');
 
                   // Leave the channel and clear data
                   _handleConsultationCompletion();
@@ -1316,12 +1384,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     } catch (e) {
       di<ILogger>().error('Error handling consultation completion: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error completing consultation: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
+        _showErrorSnackBar(
+          'Failed to complete consultation. Please try again.',
         );
       }
     }
