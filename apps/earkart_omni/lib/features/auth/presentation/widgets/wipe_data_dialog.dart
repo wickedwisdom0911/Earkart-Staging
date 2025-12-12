@@ -12,7 +12,7 @@ class WipeDataDialog extends StatefulWidget {
     return showDialog(
       context: context,
       builder: (context) => const WipeDataDialog(),
-      barrierDismissible: true,
+      barrierDismissible: false,
     );
   }
 
