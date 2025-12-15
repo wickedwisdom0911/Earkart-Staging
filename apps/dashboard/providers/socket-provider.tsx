@@ -48,14 +48,6 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
           console.log("✅ Connected to socket -", socketRef.current?.id);
         });
 
-        socketRef.current.on("disconnect", (reason) => {
-          console.log("❌ Socket disconnected:", reason);
-          
-          // If on dashboard and socket disconnects, try to reconnect
-          if (pathname === '/dashboard') {
-            console.log("🔄 Dashboard detected, will attempt reconnection");
-          }
-        });
 
         socketRef.current.on("reconnect", (attemptNumber) => {
           console.log("✅ Socket reconnected after", attemptNumber, "attempts");
@@ -67,6 +59,30 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
         socketRef.current.on("reconnect_failed", () => {
           console.error("❌ Socket reconnection failed");
+          // Try to reconnect manually after a delay
+          setTimeout(() => {
+            if (socketRef.current && !socketRef.current.connected) {
+              console.log("🔄 Attempting manual reconnection...");
+              socketRef.current.connect();
+            }
+          }, 5000);
+        });
+
+        // Keep connection alive - reconnect on disconnect if on dashboard
+        socketRef.current.on("disconnect", (reason) => {
+          console.log("❌ Socket disconnected:", reason);
+          
+          // If on dashboard and socket disconnects, try to reconnect
+          if (pathname === '/dashboard' && reason !== 'io client disconnect') {
+            console.log("🔄 Dashboard detected, will attempt reconnection");
+            // Auto-reconnect is handled by socket.io, but we can force it
+            setTimeout(() => {
+              if (socketRef.current && !socketRef.current.connected) {
+                console.log("🔄 Forcing reconnection from disconnect handler");
+                socketRef.current.connect();
+              }
+            }, 1000);
+          }
         });
 
         setSocket(socketRef.current);

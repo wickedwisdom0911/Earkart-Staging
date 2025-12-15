@@ -68,7 +68,21 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
   const isVideoOtoscopyPage = pathname?.includes('/test/video-otoscopy');
   
   const isCameraOpen = deviceState.r15c.isCameraOpen;
-  const shouldEnlargeVideo = isVideoOtoscopyPage && isOtoscopyActive && isCameraOpen;
+  
+  // Debug: Log the otoscopy state
+  React.useEffect(() => {
+    if (isOtoscopyActive) {
+      console.log("🔬 [OTOSCOPY] State:", {
+        isOtoscopyActive,
+        isCameraOpen,
+        isVideoOtoscopyPage,
+      });
+    }
+  }, [isOtoscopyActive, isCameraOpen, isVideoOtoscopyPage]);
+  
+  // Show fullscreen when on video-otoscopy page AND otoscopy is active
+  // Don't require isCameraOpen - the screen share should work regardless
+  const shouldEnlargeVideo = isVideoOtoscopyPage && isOtoscopyActive;
 
   const [isStopping, setIsStopping] = React.useState(false);
   const handleStop = React.useCallback(async () => {
@@ -130,12 +144,20 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
         <ShareScreenButton />
       </div>
       
+      {/* Otoscopy indicator when active but not fullscreen */}
+      {isOtoscopyActive && !shouldEnlargeVideo && (
+        <div className="absolute top-2 left-2 z-20 bg-green-600 text-white px-3 py-1 rounded-lg text-sm">
+          🔬 Otoscopy Active
+        </div>
+      )}
+      
       <VideoCall
         channel={consultationId}
         patientName={patientName}
         isFullscreen={false}
         onBeforeLeaveCall={onBeforeLeaveCall}
         hideLocalUser={false}
+        showOtoscopyOnly={isOtoscopyActive}
       />
       <main className="flex-1 w-full overflow-y-scroll">{children}</main>
     </div>

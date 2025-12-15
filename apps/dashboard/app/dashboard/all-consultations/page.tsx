@@ -26,6 +26,8 @@ import { ROUTES } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { ConsultationGridSkeleton } from "@/components/ui/consultation-skeleton";
+import { ConsultationEmptyState } from "@/components/ui/consultation-empty-state";
 
 export default function AllConsultationsPage() {
   const router = useRouter();
@@ -313,14 +315,14 @@ export default function AllConsultationsPage() {
 
         {/* Loading State */}
         {isLoading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <div className="w-full">
+            <ConsultationGridSkeleton count={4} />
           </div>
         )}
 
         {/* Error State */}
         {isError && (
-          <Card className="p-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+          <Card className="p-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
                 <XCircle className="w-5 h-5" />
@@ -350,23 +352,15 @@ export default function AllConsultationsPage() {
           </Card>
         )}
 
-        {/* Consultations Grid */}
+        {/* Consultations Grid or Empty State */}
         {!isLoading && !isError && (
           <>
             {filteredConsultations.length === 0 ? (
-              <Card className="p-12 text-center bg-white dark:bg-gray-800">
-                <div className="flex flex-col items-center gap-4">
-                  <AlertCircle className="w-16 h-16 text-gray-400" />
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                      No consultations found
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Try adjusting your filters or check back later
-                    </p>
-                  </div>
-                </div>
-              </Card>
+              <ConsultationEmptyState 
+                type="all" 
+                hasFilters={!!(startDate || endDate)}
+                onClearFilters={clearFilters}
+              />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {filteredConsultations.map((consultation) =>
