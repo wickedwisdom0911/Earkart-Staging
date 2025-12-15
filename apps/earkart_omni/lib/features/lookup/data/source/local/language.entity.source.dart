@@ -50,7 +50,35 @@ class LanguageEntityDataSource {
   }
 
   List<LanguageEntity>? getLanguageEntities() {
-    return languageEntityBox.get(0);
+    try {
+      final data = languageEntityBox.get(0);
+      if (data == null) return null;
+
+      // Convert to List<LanguageEntity> explicitly to handle type safety
+      // This handles cases where Hive stored LanguageModelData or other subtypes
+      // by creating new LanguageEntity instances
+      final result = <LanguageEntity>[];
+      for (final item in data) {
+        // Create a new LanguageEntity instance to ensure it's not a subtype
+        // This handles cases where old cache might have LanguageModelData instances
+        result.add(
+          LanguageEntity(
+            id: item.id,
+            name: item.name,
+            code: item.code,
+            status: item.status,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+          ),
+        );
+      }
+      return result;
+    } catch (e) {
+      print('Error retrieving languages from cache: $e');
+      // Clear corrupted cache and return null
+      clearBox();
+      return null;
+    }
   }
 
   Future<void> clearBox() async {

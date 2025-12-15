@@ -50,7 +50,31 @@ class DistrictEntityDataSource {
   }
 
   List<DistrictEntity>? getDistrictEntities() {
-    return districtEntityBox.get(0);
+    try {
+      final data = districtEntityBox.get(0);
+      if (data == null) return null;
+
+      // Convert to List<DistrictEntity> explicitly to handle type safety
+      final result = <DistrictEntity>[];
+      for (final item in data) {
+        result.add(
+          DistrictEntity(
+            id: item.id,
+            name: item.name,
+            stateId: item.stateId,
+            status: item.status,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            cities: item.cities,
+          ),
+        );
+      }
+      return result;
+    } catch (e) {
+      print('Error retrieving districts from cache: $e');
+      clearBox();
+      return null;
+    }
   }
 
   Future<void> clearBox() async {
