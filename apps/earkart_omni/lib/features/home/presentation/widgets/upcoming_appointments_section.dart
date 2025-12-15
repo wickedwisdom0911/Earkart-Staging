@@ -4,6 +4,7 @@ import 'package:earkart_omni/features/appointments/presentation/cubit/appointmen
 import 'package:earkart_omni/models/appointments/appointments.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
+import 'package:earkart_omni/features/home/presentation/widgets/error_state_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -87,41 +88,13 @@ class _UpcomingAppointmentsSectionState
   }
 
   Widget _buildErrorState(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
-          const SizedBox(height: 16),
-          Text(
-            'Failed to load appointments',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              context.read<AppointmentsCubit>().getAppointments();
-            },
-            icon: const Icon(Icons.refresh, size: 16),
-            label: const Text('Retry'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Constants.primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-          ),
-        ],
-      ),
+    return ErrorStateWidget(
+      title: 'Failed to load appointments',
+      message: message,
+      onRetry: () {
+        context.read<AppointmentsCubit>().getAppointments();
+      },
+      retryLabel: 'Retry',
     );
   }
 

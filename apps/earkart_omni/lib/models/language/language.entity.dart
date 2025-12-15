@@ -35,8 +35,14 @@ class LanguageEntity extends Equatable {
       name: json['name'],
       code: json['code'],
       status: statusFromApi(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now(),
     );
   }
 

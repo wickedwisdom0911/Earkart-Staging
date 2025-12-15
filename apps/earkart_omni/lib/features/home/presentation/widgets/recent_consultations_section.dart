@@ -2,6 +2,7 @@ import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.state.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/all_consultations_screen.dart';
+import 'package:earkart_omni/features/home/presentation/widgets/error_state_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -47,7 +48,15 @@ class RecentConsultationsSection extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
               if (state is AllConsultationsError) {
-                return ErrorCard(message: state.message);
+                return ErrorStateWidget(
+                  title: 'Unable to load consultations',
+                  message: state.message,
+                  onRetry: () {
+                    context
+                        .read<ConsultationCubit>()
+                        .getConsultationsByCentreId();
+                  },
+                );
               }
               if (state is AllConsultationsSuccess) {
                 if (state.consultations.isEmpty) {
@@ -211,36 +220,6 @@ class EmptyStateCard extends StatelessWidget {
           Text(
             "Start your first consultation to see it here",
             style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class ErrorCard extends StatelessWidget {
-  final String message;
-
-  const ErrorCard({super.key, required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade200),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, color: Colors.red.shade600),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: Colors.red.shade700, fontSize: 14),
-            ),
           ),
         ],
       ),

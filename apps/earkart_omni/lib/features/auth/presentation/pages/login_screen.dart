@@ -10,6 +10,7 @@ import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:earkart_omni/features/auth/presentation/widgets/forgot_password_dialog.dart';
 import 'package:earkart_omni/features/auth/presentation/widgets/omni_version_widget.dart';
+import 'package:earkart_omni/features/auth/presentation/widgets/wipe_data_dialog.dart';
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
 import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  int _logoTapCount = 0;
+  DateTime? _lastTapTime;
 
   @override
   void initState() {
@@ -65,10 +68,30 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               addVerticalSpace(10),
               // Logo that hides when password is focused and keyboard is visible
-              Image.asset(
-                Assets.earKartLogo,
-                height: Dimensions.height5 * 35,
-                fit: BoxFit.fitHeight,
+              GestureDetector(
+                onTap: () {
+                  final now = DateTime.now();
+                  // Reset tap count if more than 2 seconds have passed since last tap
+                  if (_lastTapTime != null &&
+                      now.difference(_lastTapTime!) >
+                          const Duration(seconds: 2)) {
+                    _logoTapCount = 0;
+                  }
+
+                  _logoTapCount++;
+                  _lastTapTime = now;
+
+                  // Trigger secret dialog after 5 taps
+                  if (_logoTapCount >= 5) {
+                    _logoTapCount = 0;
+                    WipeDataDialog.show(context);
+                  }
+                },
+                child: Image.asset(
+                  Assets.earKartLogo,
+                  height: Dimensions.height5 * 35,
+                  fit: BoxFit.fitHeight,
+                ),
               ),
               addVerticalSpace(20),
               Expanded(

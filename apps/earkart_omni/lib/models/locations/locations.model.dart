@@ -20,7 +20,9 @@ class CountryModel {
       data:
           json['data'] != null
               ? List<CountryModelData>.from(
-                json['data'].map((x) => CountryModelData.fromJson(x)),
+                (json['data'] as List<dynamic>).map(
+                  (x) => CountryModelData.fromJson(x as Map<String, dynamic>),
+                ),
               )
               : null,
     );
@@ -58,8 +60,14 @@ class CountryModelData extends CountryEntity {
               )
               : null,
       status: statusFromApi(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now(),
     );
   }
 
@@ -96,7 +104,9 @@ class StateModel {
       data:
           json['data'] != null
               ? List<StateModelData>.from(
-                json['data'].map((x) => StateModelData.fromJson(x)),
+                (json['data'] as List<dynamic>).map(
+                  (x) => StateModelData.fromJson(x as Map<String, dynamic>),
+                ),
               )
               : null,
     );
@@ -137,8 +147,14 @@ class StateModelData extends StateEntity {
               )
               : null,
       status: statusFromApi(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now(),
       country:
           json['country'] != null
               ? CountryEntity.fromJson(json['country'])
@@ -179,7 +195,9 @@ class CityModel {
       data:
           json['data'] != null
               ? List<CityModelData>.from(
-                json['data'].map((x) => CityModelData.fromJson(x)),
+                (json['data'] as List<dynamic>).map(
+                  (x) => CityModelData.fromJson(x as Map<String, dynamic>),
+                ),
               )
               : null,
     );
@@ -212,8 +230,14 @@ class CityModelData extends CityEntity {
       name: json['name'],
       districtId: json['districtId'],
       status: statusFromApi(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now(),
       state: json['state'] != null ? StateEntity.fromJson(json['state']) : null,
       districts:
           json['districts'] != null
@@ -260,7 +284,9 @@ class DistrictModel {
       data:
           json['data'] != null
               ? List<DistrictModelData>.from(
-                json['data'].map((x) => DistrictModelData.fromJson(x)),
+                (json['data'] as List<dynamic>).map(
+                  (x) => DistrictModelData.fromJson(x as Map<String, dynamic>),
+                ),
               )
               : null,
     );
@@ -292,8 +318,14 @@ class DistrictModelData extends DistrictEntity {
       name: json['name'],
       stateId: json['stateId'],
       status: statusFromApi(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now(),
       cities:
           json['cities'] != null
               ? List<CityEntity>.from(

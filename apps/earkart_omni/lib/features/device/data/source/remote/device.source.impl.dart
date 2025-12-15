@@ -28,7 +28,7 @@ class DeviceDataSourceImpl extends IDeviceDataSource {
       );
       final result = DeviceModel.fromJson(response.data);
       if (result.success && result.data != null) {
-        deviceEntityDataSource.addDeviceEntity(result.data!);
+        // Don't store device entity here - only store when actually registering via setupDevice
         return Right(result.data!);
       }
       return Left(FetchDataFailure(error: result.message));

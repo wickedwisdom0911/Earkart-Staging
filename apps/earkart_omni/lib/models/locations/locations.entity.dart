@@ -44,8 +44,14 @@ class CountryEntity extends Equatable {
               )
               : null,
       status: statusFromApi(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now(),
     );
   }
 
@@ -137,8 +143,14 @@ class StateEntity extends Equatable {
               )
               : null,
       status: statusFromApi(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now(),
       country:
           json['country'] != null
               ? CountryEntity.fromJson(json['country'])
@@ -230,8 +242,14 @@ class CityEntity extends Equatable {
       name: json['name'],
       districtId: json['districtId'],
       status: statusFromApi(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now(),
       state: json['state'] != null ? StateEntity.fromJson(json['state']) : null,
       districts:
           json['districts'] != null
@@ -325,8 +343,14 @@ class DistrictEntity extends Equatable {
       name: json['name'],
       stateId: json['stateId'],
       status: statusFromApi(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt:
+          json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+      updatedAt:
+          json['updatedAt'] != null
+              ? DateTime.parse(json['updatedAt'])
+              : DateTime.now(),
       cities:
           json['cities'] != null
               ? List<CityEntity>.from(

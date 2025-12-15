@@ -24,19 +24,44 @@ class LookupCubit extends Cubit<LookupState> {
     required this.getStatesUsecase,
     required this.getCountriesUsecase,
     required this.getLanguagesUsecase,
-  }) : super(const LookupState());
+  }) : super(const LookupState()) {
+    // Load essential data from cache immediately on initialization
+    _loadFromCache();
+  }
 
   // Helper method to check if essential data is loaded
   bool get isEssentialDataLoaded =>
       state.languages.isNotEmpty && state.countries.isNotEmpty;
 
-  Future<void> getLanguages() async {
-    // Return early if already loaded
-    if (_languagesLoaded && state.languages.isNotEmpty) {
+  /// Load essential lookup data from cache immediately (non-blocking)
+  /// This provides instant UI rendering while API fetch happens in background
+  void _loadFromCache() {
+    // The repository's cache-first strategy will handle loading from cache
+    // We just need to trigger the fetch which will return cached data first
+    unawaited(getLanguages());
+    unawaited(getCountries());
+  }
+
+  /// Preload essential lookup data (languages and countries)
+  /// This should be called on app startup or when entering screens that need this data
+  Future<void> preloadEssentialData() async {
+    // Load both in parallel for better performance
+    await Future.wait([
+      getLanguages(),
+      getCountries(),
+    ]);
+  }
+
+  Future<void> getLanguages({bool forceRefresh = false}) async {
+    // Return early if already loaded and not forcing refresh
+    if (!forceRefresh && _languagesLoaded && state.languages.isNotEmpty) {
       return;
     }
 
-    if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
+    // Only show loading if we don't have cached data
+    if (state.languages.isEmpty && !isClosed) {
+      emit(state.copyWith(isLoading: true, error: null));
+    }
 
     try {
       final result = await getLanguagesUsecase.call().timeout(
@@ -77,13 +102,16 @@ class LookupCubit extends Cubit<LookupState> {
     }
   }
 
-  Future<void> getCountries() async {
-    // Return early if already loaded
-    if (_countriesLoaded && state.countries.isNotEmpty) {
+  Future<void> getCountries({bool forceRefresh = false}) async {
+    // Return early if already loaded and not forcing refresh
+    if (!forceRefresh && _countriesLoaded && state.countries.isNotEmpty) {
       return;
     }
 
-    if (!isClosed) emit(state.copyWith(isLoading: true, error: null));
+    // Only show loading if we don't have cached data
+    if (state.countries.isEmpty && !isClosed) {
+      emit(state.copyWith(isLoading: true, error: null));
+    }
 
     try {
       final result = await getCountriesUsecase.call().timeout(

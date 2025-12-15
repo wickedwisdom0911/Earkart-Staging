@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
@@ -20,16 +21,23 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
 
     context.read<AuthCubit>().getCentre();
-
     context.read<AuthCubit>().getCentreData();
+
+    // Preload essential lookup data (languages & countries) on screen initialization
+    // This uses cache-first strategy: instant from cache, then background refresh
+    unawaited(context.read<LookupCubit>().preloadEssentialData());
   }
 
   Future<void> _onRefresh() async {
     context.read<AuthCubit>().getCentre();
     context.read<AuthCubit>().getCentreData();
     context.read<ConsultationCubit>().getConsultationsByCentreId();
-    await di<LookupCubit>().getLanguages();
-    await di<LookupCubit>().getCountries();
+    
+    // Force refresh lookup data on pull-to-refresh
+    await Future.wait([
+      di<LookupCubit>().getLanguages(forceRefresh: true),
+      di<LookupCubit>().getCountries(forceRefresh: true),
+    ]);
   }
 
   @override

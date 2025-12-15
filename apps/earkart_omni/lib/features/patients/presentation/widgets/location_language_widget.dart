@@ -11,7 +11,7 @@ import 'package:earkart_omni/models/locations/locations.entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-class LocationLanguageWidget extends StatelessWidget {
+class LocationLanguageWidget extends StatefulWidget {
   final LanguageEntity? selectedLanguage;
   final ValueChanged<LanguageEntity?> onLanguageChanged;
   final CountryEntity? selectedCountry;
@@ -42,6 +42,13 @@ class LocationLanguageWidget extends StatelessWidget {
   });
 
   @override
+  State<LocationLanguageWidget> createState() => _LocationLanguageWidgetState();
+}
+
+class _LocationLanguageWidgetState extends State<LocationLanguageWidget> {
+  bool _hasInitialized = false;
+
+  @override
   Widget build(BuildContext context) {
     return _buildSection(
       title: "Location & Language",
@@ -57,20 +64,23 @@ class LocationLanguageWidget extends StatelessWidget {
 
             // Set location entities from patient data when lookup data is available
             // Only call this once when the data is first loaded
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (state.languages.isNotEmpty || state.countries.isNotEmpty) {
-                onLocationEntitiesSet();
-              }
-            });
+            if (!_hasInitialized && (state.languages.isNotEmpty || state.countries.isNotEmpty)) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && !_hasInitialized) {
+                  _hasInitialized = true;
+                  widget.onLocationEntitiesSet();
+                }
+              });
+            }
 
             return Column(
               children: [
                 LanguageSelector(
-                  value: selectedLanguage,
-                  onChanged: onLanguageChanged,
+                  value: widget.selectedLanguage,
+                  onChanged: widget.onLanguageChanged,
                   items: state.languages,
                   title: "Preferred Language *",
-                  validator: languageValidator,
+                  validator: widget.languageValidator,
                 ),
                 const SizedBox(height: 16),
 
@@ -159,8 +169,8 @@ class LocationLanguageWidget extends StatelessWidget {
           children: [
             Expanded(
               child: CountrySelector(
-                value: selectedCountry,
-                onChanged: onCountryChanged,
+                value: widget.selectedCountry,
+                onChanged: widget.onCountryChanged,
                 items: state.countries,
                 title: "Country",
               ),
@@ -168,8 +178,8 @@ class LocationLanguageWidget extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: StateSelector(
-                value: selectedState,
-                onChanged: onStateChanged,
+                value: widget.selectedState,
+                onChanged: widget.onStateChanged,
                 items: state.states,
                 title: "State",
               ),
@@ -183,8 +193,8 @@ class LocationLanguageWidget extends StatelessWidget {
           children: [
             Expanded(
               child: DistrictSelector(
-                value: selectedDistrict,
-                onChanged: onDistrictChanged,
+                value: widget.selectedDistrict,
+                onChanged: widget.onDistrictChanged,
                 items: state.districts,
                 title: "District",
               ),
@@ -192,8 +202,8 @@ class LocationLanguageWidget extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: CitySelector(
-                value: selectedCity,
-                onChanged: onCityChanged,
+                value: widget.selectedCity,
+                onChanged: widget.onCityChanged,
                 items: state.cities,
                 title: "City",
               ),
