@@ -20,12 +20,19 @@ class Constants {
   static const consultationDb = "consultation_db";
   static const appointmentDb = "appointment_db";
   static final isProduction = dotenv.env['isProduction'] == 'true';
+  static final isStaging = dotenv.env['isStaging'] == 'true';
   static final showApiLogs = dotenv.env['showApiLogs'] == 'true';
   static final baseUrl =
-      isProduction ? dotenv.env['BASE_URL'] : dotenv.env['BASE_URL_DEV'];
+      isProduction
+          ? dotenv.env['BASE_URL']
+          : isStaging
+          ? dotenv.env['BASE_URL_STAGING']
+          : dotenv.env['BASE_URL_DEV'];
   static final socketUrl =
       isProduction
           ? dotenv.env['SOCKET_URL']
+          : isStaging
+          ? dotenv.env['BASE_SOCKET_URL_STAGING']
           : dotenv.env['BASE_SOCKET_URL_DEV'];
   static final webrtcUrl =
       isProduction

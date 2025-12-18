@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
 import 'package:earkart_omni/features/network/presentation/widgets/wakelock_status_widget.dart';
 import 'package:earkart_omni/config/widgets/device_status_widget.dart';
+import 'package:earkart_omni/config/utils/constants.dart';
 
 class GlassmorphismAppBar extends StatelessWidget
     implements PreferredSizeWidget {
@@ -61,6 +62,45 @@ class GlassmorphismAppBar extends StatelessWidget
             leading: leading,
             title: title,
             actions: [
+              // Environment label (only for non-production)
+              if (!Constants.isProduction)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            Constants.isStaging
+                                ? Colors.orange.withOpacity(0.2)
+                                : Colors.blue.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(borderRadius),
+                        border: Border.all(
+                          color:
+                              Constants.isStaging
+                                  ? Colors.orange.withOpacity(0.5)
+                                  : Colors.blue.withOpacity(0.5),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        Constants.isStaging ? 'STAGING' : 'DEVELOPMENT',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color:
+                              Constants.isStaging
+                                  ? Colors.orange.shade900
+                                  : Colors.blue.shade900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               // Status widgets row with consistent height
               IntrinsicHeight(
                 child: Row(
