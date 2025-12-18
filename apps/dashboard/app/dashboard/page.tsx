@@ -28,6 +28,8 @@ import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import getConsultation from "@/actions/consultations/get_consultation";
 import { toast } from "sonner";
+import { ConsultationGridSkeleton } from "@/components/ui/consultation-skeleton";
+import { ConsultationEmptyState } from "@/components/ui/consultation-empty-state";
 
 // Removed RecordingLink component – we will use consultation.recordings provided by API
 
@@ -156,80 +158,194 @@ export default function DashboardPage() {
       });
     };
 
+    // Handle when another audiologist joins a consultation
+    const handleAudiologistJoinedConsultation = (data: ConsultationModelData | { consultation: ConsultationModelData }) => {
+      console.log("📢 Another audiologist joined consultation:", data);
+      
+      // Handle both event formats: direct consultation object or nested in consultation property
+      const consultation = (data as any).consultation || data as ConsultationModelData;
+      
+      if (!consultation?.id) {
+        console.warn("Invalid consultation data in audiologist_joined_consultation event");
+        return;
+      }
+
+      // Update consultation in state
+      setAllConsulations((prev) => {
+        const updated = prev.map((c) => 
+          c.id === consultation.id ? consultation : c
+        );
+        
+        // If consultation not in list, add it (shouldn't happen but handle edge case)
+        if (!prev.some(c => c.id === consultation.id)) {
+          return [consultation, ...updated];
+        }
+        
+        return updated;
+      });
+
+      // Remove from blinking IDs if it was blinking
+      setBlinkingIds((prev) => prev.filter((id) => id !== consultation.id));
+
+      // Show notification if this consultation was available and now taken by someone else
+      const isAudiologistUser = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+      if (isAudiologistUser && consultation.audiologist?.userId !== user?.id) {
+        const patientName = consultation.patient?.name || "Unknown Patient";
+        const audiologistName = consultation.audiologist?.user?.name || "Another audiologist";
+        toast.info(`Consultation #${consultation.id.substring(0, 8)}... has been taken by ${audiologistName}`, {
+          description: `Patient: ${patientName}`,
+          duration: 5000,
+        });
+      }
+
+      // Stop notification sound if this consultation was causing alerts
+      const stopSoundEvent = new CustomEvent('stopContinuousSound');
+      window.dispatchEvent(stopSoundEvent);
+    };
+
     // NEW: Listen for connect/disconnect
     const handleConnect = () => setIsSocketConnected(true);
     const handleDisconnect = () => setIsSocketConnected(false);
 
     // Handle join consultation responses
-    const handleJoined = async (data: string) => {
-      console.log("Joined consultation:", data);
-      if (joiningConsultationId && data === joiningConsultationId) {
+    const handleJoined = async (data: string | ConsultationModelData) => {
+      console.log("✅ Successfully joined consultation:", data);
+      
+      // Handle both string (consultationId) and object (full consultation) formats
+      const consultationId = typeof data === 'string' ? data : data.id;
+      
+      if (joiningConsultationId && consultationId === joiningConsultationId) {
         try {
-          // Fetch current consultation data
-          const consultationResponse = await getConsultation(data);
-          if (consultationResponse.success && consultationResponse.data) {
-            const currentConsultation = consultationResponse.data as ConsultationModelData;
-            
-            // Update consultation status to IN_PROGRESS if it's currently PENDING
-            if (currentConsultation.status === SessionStatus.PENDING) {
-              const updatedConsultation = {
-                ...currentConsultation,
-                status: SessionStatus.IN_PROGRESS,
-                updatedAt: new Date().toISOString(),
-              };
-              
-              console.log("Updating consultation status to IN_PROGRESS for:", data);
-              
-              // Update consultation status
-              updateConsultationMutation(updatedConsultation, {
-                onSuccess: (response) => {
-                  if (response.success) {
-                    console.log("Successfully updated consultation status to IN_PROGRESS");
-                    toast.success("Consultation started successfully");
-                    
-                    // Stop notification sound when audiologist joins consultation
-                    const stopSoundEvent = new CustomEvent('stopContinuousSound');
-                    window.dispatchEvent(stopSoundEvent);
-                    
-                    // Emit socket event to notify other audiologists that this consultation is answered
-                    socket.emit("audiologist_joined", {
-                      consultationId: data,
-                      audiologistId: user?.id,
-                      timestamp: new Date().toISOString(),
-                    });
-                  }
-                },
-                onError: (error) => {
-                  console.error("Failed to update consultation status:", error);
-                  toast.error("Failed to update consultation status");
-                },
-              });
-            } else {
-              // Even if status wasn't PENDING, stop notification sound when joining
-              const stopSoundEvent = new CustomEvent('stopContinuousSound');
-              window.dispatchEvent(stopSoundEvent);
-              
-              // Emit socket event to notify other audiologists
-              socket.emit("audiologist_joined", {
-                consultationId: data,
-                audiologistId: user?.id,
-                timestamp: new Date().toISOString(),
-              });
+          // If we received full consultation object, use it; otherwise fetch
+          let currentConsultation: ConsultationModelData;
+          
+          if (typeof data === 'object' && data.id) {
+            currentConsultation = data as ConsultationModelData;
+            // Update state immediately with received consultation
+            setAllConsulations((prev) => {
+              return prev.map((c) => 
+                c.id === currentConsultation.id ? currentConsultation : c
+              );
+            });
+          } else {
+            // Fetch current consultation data
+            const consultationResponse = await getConsultation(consultationId);
+            if (!consultationResponse.success || !consultationResponse.data) {
+              throw new Error("Failed to fetch consultation data");
             }
+            currentConsultation = consultationResponse.data as ConsultationModelData;
           }
-        } catch (error) {
+          
+          // Additional validation: Check if another audiologist was assigned
+          if (currentConsultation.audiologist && currentConsultation.audiologist.userId !== user?.id) {
+            toast.error("This consultation has already been assigned to another audiologist");
+            setJoiningConsultationId(null);
+            return;
+          }
+          
+          // Update consultation status to IN_PROGRESS if it's currently PENDING
+          if (currentConsultation.status === SessionStatus.PENDING) {
+            const updatedConsultation = {
+              ...currentConsultation,
+              status: SessionStatus.IN_PROGRESS,
+              updatedAt: new Date().toISOString(),
+            };
+            
+            console.log("Updating consultation status to IN_PROGRESS for:", consultationId);
+            
+            // Update consultation status
+            updateConsultationMutation(updatedConsultation, {
+              onSuccess: (response) => {
+                if (response.success) {
+                  console.log("Successfully updated consultation status to IN_PROGRESS");
+                  toast.success("Consultation started successfully");
+                  
+                  // Stop notification sound when audiologist joins consultation
+                  const stopSoundEvent = new CustomEvent('stopContinuousSound');
+                  window.dispatchEvent(stopSoundEvent);
+                }
+              },
+              onError: (error: any) => {
+                console.error("Failed to update consultation status:", error);
+                
+                // Handle 409 Conflict - Another audiologist already joined
+                if (error?.statusCode === 409 || error?.status === 409) {
+                  toast.error("Another audiologist has already joined this consultation");
+                  setJoiningConsultationId(null);
+                  return;
+                }
+                
+                toast.error("Failed to update consultation status");
+              },
+            });
+          } else {
+            // Even if status wasn't PENDING, stop notification sound when joining
+            const stopSoundEvent = new CustomEvent('stopContinuousSound');
+            window.dispatchEvent(stopSoundEvent);
+          }
+          
+          // Only navigate if no errors occurred
+          setJoiningConsultationId(null);
+          router.push(`/consultation/${consultationId}`);
+        } catch (error: any) {
           console.error("Error updating consultation status:", error);
+          
+          // Handle 409 Conflict - Another audiologist already joined
+          if (error?.statusCode === 409 || error?.status === 409) {
+            toast.error("Another audiologist has already joined this consultation");
+            setJoiningConsultationId(null);
+            return;
+          }
+          
           toast.error("Failed to update consultation status");
+          setJoiningConsultationId(null);
+          return;
         }
-        
-        setJoiningConsultationId(null);
-        router.push(`/consultation/${data}`);
       }
     };
 
     const handleJoinError = (error: unknown) => {
       console.error("Failed to join consultation:", error);
+      
+      // Handle 409 Conflict from socket error (if backend sends status code)
+      if (typeof error === 'object' && error !== null) {
+        const errorObj = error as any;
+        if (errorObj.statusCode === 409 || errorObj.status === 409) {
+          toast.error("Another audiologist has already joined this consultation");
+          setJoiningConsultationId(null);
+          return;
+        }
+      }
+      
+      const errorMessage = typeof error === 'string' 
+        ? error 
+        : (error as any)?.message || "Failed to join consultation. It may have already been assigned to another audiologist.";
+      toast.error(errorMessage);
       setJoiningConsultationId(null);
+    };
+
+    // Handle generic socket errors (non-409 errors from backend)
+    const handleSocketError = (error: unknown) => {
+      console.error("Socket error received:", error);
+      
+      if (typeof error === 'object' && error !== null) {
+        const errorObj = error as any;
+        // If it's a 409 error, it should be handled by join_error, but handle here as fallback
+        if (errorObj.statusCode === 409 || errorObj.status === 409) {
+          toast.error("Another audiologist has already joined this consultation");
+          setJoiningConsultationId(null);
+          return;
+        }
+        
+        // Handle other errors with status codes
+        const message = errorObj.message || "An error occurred";
+        toast.error(message);
+        
+        // Reset joining state if there's an active join attempt
+        if (joiningConsultationId) {
+          setJoiningConsultationId(null);
+        }
+      }
     };
 
     socket.on("new_consultation", onNewConsultation);
@@ -238,6 +354,24 @@ export default function DashboardPage() {
     socket.on("disconnect", handleDisconnect);
     socket.on("joined", handleJoined);
     socket.on("join_error", handleJoinError);
+    socket.on("error", handleSocketError); // Generic error handler for non-409 errors
+    
+    // Listen for when another audiologist joins a consultation (real-time updates)
+    socket.on("audiologist_joined_consultation", handleAudiologistJoinedConsultation);
+    // Also listen to the existing audiologist_joined event (for backward compatibility)
+    socket.on("audiologist_joined", (data: any) => {
+      // If backend sends full consultation object, handle it
+      if (data?.consultation) {
+        handleAudiologistJoinedConsultation(data);
+      } else if (data?.consultationId) {
+        // If only consultationId is sent, fetch the full consultation
+        getConsultation(data.consultationId).then((response) => {
+          if (response.success && response.data) {
+            handleAudiologistJoinedConsultation(response.data as ConsultationModelData);
+          }
+        }).catch(console.error);
+      }
+    });
 
     // Set initial status
     setIsSocketConnected(socket.connected);
@@ -250,11 +384,21 @@ export default function DashboardPage() {
       socket.off("disconnect", handleDisconnect);
       socket.off("joined", handleJoined);
       socket.off("join_error", handleJoinError);
+      socket.off("error", handleSocketError);
+      socket.off("audiologist_joined_consultation", handleAudiologistJoinedConsultation);
+      socket.off("audiologist_joined");
     };
   }, [socket, joiningConsultationId, router, user?.role]);
 
   const joinRoom = (consultationId: string) => {
     console.log(consultationId);
+
+    // Frontend defensive check: Verify consultation is still available before joining
+    const consultation = consultations?.data?.find(c => c.id === consultationId);
+    if (consultation?.audiologist && consultation.audiologist.userId !== user?.id) {
+      toast.error("This consultation has already been assigned to another audiologist");
+      return;
+    }
 
     // Set loading state
     setJoiningConsultationId(consultationId);
@@ -380,8 +524,9 @@ export default function DashboardPage() {
               consultation.status === SessionStatus.PENDING && (
                 <button
                   onClick={() => joinRoom(consultation.id)}
-                  disabled={joiningConsultationId === consultation.id}
+                  disabled={joiningConsultationId === consultation.id || !!consultation.audiologist}
                   className={buttonClassName}
+                  title={consultation.audiologist ? "This consultation has been assigned to another audiologist" : ""}
                 >
                   {joiningConsultationId === consultation.id ? (
                     <>
@@ -476,29 +621,53 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-      {isLoading && <div>Loading...</div>}
-      {isError && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded mb-4">
-          <p className="text-red-800 font-semibold">Error loading consultations</p>
-          <p className="text-red-600 text-sm mt-1">
-            {(consultations as any)?.error?.message || "Unknown error occurred"}
-          </p>
-          <p className="text-red-500 text-xs mt-2">
-            Check browser console for detailed validation errors
-          </p>
+      {/* Loading State */}
+      {isLoading && (
+        <div className="w-full">
+          <ConsultationGridSkeleton count={4} />
         </div>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {allConsulations?.map((consultation) => {
-          const Card = renderConsultationCard(consultation);
-          const shouldBlinkPending = (!consultation.audiologist) && consultation.status === SessionStatus.PENDING;
-          return (
-            <div key={consultation.id} className={`${blinkingIds.includes(consultation.id) ? 'blink-card' : ''} ${shouldBlinkPending ? 'pending-blink' : ''}`}>
-              {Card}
+
+      {/* Error State */}
+      {isError && (
+        <div className="p-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl mb-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-red-800 dark:text-red-200 font-semibold mb-1">
+                Error loading consultations
+              </p>
+              <p className="text-red-700 dark:text-red-300 text-sm">
+                {(consultations as any)?.error?.message || "Unknown error occurred"}
+              </p>
+              <p className="text-red-600 dark:text-red-400 text-xs mt-2">
+                Check browser console for detailed validation errors
+              </p>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        </div>
+      )}
+
+      {/* Consultations Grid or Empty State */}
+      {!isLoading && !isError && (
+        <>
+          {allConsulations && allConsulations.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {allConsulations.map((consultation) => {
+                const Card = renderConsultationCard(consultation);
+                const shouldBlinkPending = (!consultation.audiologist) && consultation.status === SessionStatus.PENDING;
+                return (
+                  <div key={consultation.id} className={`${blinkingIds.includes(consultation.id) ? 'blink-card' : ''} ${shouldBlinkPending ? 'pending-blink' : ''}`}>
+                    {Card}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <ConsultationEmptyState type="active" />
+          )}
+        </>
+      )}
     </DashboardBodyWrapper>
   );
 }

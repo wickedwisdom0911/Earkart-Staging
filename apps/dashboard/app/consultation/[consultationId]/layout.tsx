@@ -17,6 +17,7 @@ import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { SessionStatus } from "@/models/enums";
 import { RedirectLoadingModal } from "@/components/ui/redirect-loading-modal";
 import useDemoAccount from "@/hooks/use-demo-account";
+import { toast } from "sonner";
 
 // Import debug utilities in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -355,6 +356,36 @@ export default function ConsultationLayout({
     // Cleanup
     return () => {
       socket.off("connect", handleConnect);
+    };
+  }, [socket, consultationId]);
+
+  // Listen for real-time consultation updates (when another audiologist joins)
+  useEffect(() => {
+    if (!socket || !consultationId) return;
+
+    // Handle real-time broadcast when an audiologist joins any consultation
+    const handleAudiologistJoinedConsultation = (data: { consultation: ConsultationModelData; audiologistId: string; timestamp: string }) => {
+      const { consultation: updatedConsultation } = data;
+      if (updatedConsultation.id === consultationId) {
+        console.log("📢 Audiologist joined this consultation:", updatedConsultation);
+        // The consultation data will be updated via the useGetConsultation hook's refetch
+        toast.info("Consultation has been assigned to an audiologist");
+      }
+    };
+
+    const handleConsultationUpdate = (data: ConsultationModelData) => {
+      if (data.id === consultationId) {
+        console.log("📢 Consultation updated in layout:", data);
+        // Consultation will be refetched by the hook
+      }
+    };
+
+    socket.on("audiologist_joined_consultation", handleAudiologistJoinedConsultation);
+    socket.on("consultation_updated", handleConsultationUpdate);
+
+    return () => {
+      socket.off("audiologist_joined_consultation", handleAudiologistJoinedConsultation);
+      socket.off("consultation_updated", handleConsultationUpdate);
     };
   }, [socket, consultationId]);
 

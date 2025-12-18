@@ -27,11 +27,14 @@ import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
+import { useSocket } from "@/providers/socket-provider";
+import { toast } from "sonner";
 
 export default function ConsultationDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const consultationId = params.consultationId as string;
+  const socket = useSocket();
   
   const [consultation, setConsultation] = useState<ConsultationModelData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,6 +83,36 @@ export default function ConsultationDetailsPage() {
       fetchConsultation();
     }
   }, [consultationId]);
+
+  // Listen for real-time consultation updates via WebSocket
+  useEffect(() => {
+    if (!socket || !consultationId) return;
+
+    const handleConsultationUpdate = (data: ConsultationModelData) => {
+      if (data.id === consultationId) {
+        console.log("📢 Consultation updated in detail view:", data);
+        setConsultation(data);
+      }
+    };
+
+    // Handle real-time broadcast when an audiologist joins any consultation
+    const handleAudiologistJoinedConsultation = (data: { consultation: ConsultationModelData; audiologistId: string; timestamp: string }) => {
+      const { consultation: updatedConsultation } = data;
+      if (updatedConsultation.id === consultationId) {
+        console.log("📢 Audiologist joined this consultation:", updatedConsultation);
+        setConsultation(updatedConsultation);
+        toast.info("Consultation has been assigned to an audiologist");
+      }
+    };
+
+    socket.on("consultation_updated", handleConsultationUpdate);
+    socket.on("audiologist_joined_consultation", handleAudiologistJoinedConsultation);
+
+    return () => {
+      socket.off("consultation_updated", handleConsultationUpdate);
+      socket.off("audiologist_joined_consultation", handleAudiologistJoinedConsultation);
+    };
+  }, [socket, consultationId]);
 
   if (loading) {
     return (

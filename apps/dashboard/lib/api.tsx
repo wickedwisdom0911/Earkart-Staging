@@ -37,13 +37,18 @@ export async function apiRequest<T extends ApiResponse<any>>(
         console.warn("⚠️ [apiRequest] Rate limited. Please wait before retrying.");
         const rateLimitError = new Error(errorMessage);
         (rateLimitError as any).status = 429;
+        (rateLimitError as any).statusCode = 429;
         (rateLimitError as any).isRateLimit = true;
         throw rateLimitError;
       }
 
-      throw new Error(
+      // Attach status code to all errors for proper error handling
+      const error = new Error(
         errorData?.message || `HTTP ${response.status}: ${response.statusText}`
       );
+      (error as any).status = response.status;
+      (error as any).statusCode = response.status;
+      throw error;
     }
     
     const result = await response.json();

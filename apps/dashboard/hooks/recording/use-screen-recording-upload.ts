@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { chunkStorage, type ChunkData, type SessionMetadata } from "@/lib/indexeddb-chunks";
+import { toast } from "sonner";
+
+// Retry configuration constants
+const RETRY_CONFIG = {
+	INITIAL_DELAY_MS: 5000,      // Start with 5 seconds
+	MAX_DELAY_MS: 60000,         // Cap at 60 seconds
+	BACKOFF_MULTIPLIER: 2,       // Double each time
+	MAX_RETRY_ATTEMPTS: 10,      // Stop after 10 attempts
+};
 
 type InitiateResponse = {
 	uploadId: string;
@@ -641,10 +650,23 @@ export function useScreenRecordingUpload(consultationId: string) {
 				});
 				setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null }));
 				
-				// Update session as completed and schedule cleanup
+				// Update session as completed and schedule safe cleanup
 				await chunkStorage.updateSessionStatus(consultationId, 'completed');
-				setTimeout(() => {
-					chunkStorage.clearSession(consultationId).catch(console.error);
+				setTimeout(async () => {
+					try {
+						const session = await chunkStorage.getSession(consultationId);
+						if (session) {
+							const unuploadedChunks = await chunkStorage.getUnuploadedChunks(consultationId);
+							if (unuploadedChunks.length === 0) {
+								console.log("✅ [CLEANUP] All chunks uploaded, clearing session");
+								await chunkStorage.clearSession(consultationId);
+							} else {
+								console.warn(`⚠️ [CLEANUP] Cannot clear session: ${unuploadedChunks.length} chunks still pending upload`);
+							}
+						}
+					} catch (err) {
+						console.error("❌ [CLEANUP] Error checking session before cleanup:", err);
+					}
 				}, 5000);
 			} else {
 				console.log("⚠️ [RECORDING_COMPLETE] No upload ID found - recording may not have been saved");
@@ -715,9 +737,23 @@ export function useScreenRecordingUpload(consultationId: string) {
 			
 			setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null, isUploading: false }));
 			
-			// Clean up session data after completion
-			setTimeout(() => {
-				chunkStorage.clearSession(consultationId).catch(console.error);
+			// Safe cleanup: Only clear session after verifying all chunks are uploaded
+			setTimeout(async () => {
+				try {
+					const session = await chunkStorage.getSession(consultationId);
+					if (session) {
+						const unuploadedChunks = await chunkStorage.getUnuploadedChunks(consultationId);
+						if (unuploadedChunks.length === 0) {
+							console.log("✅ [CLEANUP] All chunks uploaded, clearing session");
+							await chunkStorage.clearSession(consultationId);
+						} else {
+							console.warn(`⚠️ [CLEANUP] Cannot clear session: ${unuploadedChunks.length} chunks still pending upload`);
+							// Don't clear - let retry mechanism handle it
+						}
+					}
+				} catch (err) {
+					console.error("❌ [CLEANUP] Error checking session before cleanup:", err);
+				}
 			}, 5000);
 
 			return { key, playbackUrl };
@@ -939,14 +975,52 @@ export function useScreenRecordingUpload(consultationId: string) {
 						await finalizeRecording();
 					}
 				} else {
-					// No active session, check for orphaned uploads
-					console.log(`🔍 [RECOVERY] No active session found, checking for orphaned data...`);
+					// No active session, check for incomplete sessions that might need recovery
+					console.log(`🔍 [RECOVERY] No active session found, checking for incomplete sessions...`);
 					
-					// Clean up any old orphaned chunks for this consultation
-					const orphanedChunks = await chunkStorage.getUnuploadedChunks(consultationId);
-					if (orphanedChunks.length > 0) {
-						console.log(`🧹 [RECOVERY] Found ${orphanedChunks.length} orphaned chunks, cleaning up...`);
-						await chunkStorage.clearSession(consultationId);
+					const incompleteSession = await chunkStorage.getSession(consultationId);
+					if (incompleteSession && incompleteSession.status !== 'completed') {
+						const orphanedChunks = await chunkStorage.getUnuploadedChunks(consultationId);
+						if (orphanedChunks.length > 0 && incompleteSession.uploadId) {
+							console.log(`🔄 [RECOVERY] Found incomplete session with ${orphanedChunks.length} orphaned chunks, attempting recovery...`);
+							
+							// Try to recover the session
+							try {
+								// Restore session state
+								currentSessionRef.current = incompleteSession;
+								uploadIdRef.current = incompleteSession.uploadId;
+								partSizeRef.current = incompleteSession.partSize;
+								nextPartNumberRef.current = incompleteSession.nextPartNumber;
+								uploadedPartsRef.current = [...incompleteSession.uploadedParts];
+								
+								setState(s => ({
+									...s,
+									uploadId: incompleteSession.uploadId,
+									s3Key: incompleteSession.s3Key || null,
+									uploadedParts: incompleteSession.uploadedParts.length,
+									isUploading: true
+								}));
+								
+								// Mark session as recording to allow retry mechanism to handle it
+								await chunkStorage.updateSessionStatus(consultationId, 'recording');
+								
+								console.log(`✅ [RECOVERY] Session restored, retry mechanism will handle upload`);
+							} catch (err) {
+								console.error(`❌ [RECOVERY] Failed to recover incomplete session:`, err);
+								// If recovery fails, don't clear - let user manually recover or retry mechanism handle it
+							}
+						} else if (orphanedChunks.length === 0) {
+							// No chunks but incomplete session - might be safe to clean up
+							console.log(`🧹 [RECOVERY] No orphaned chunks found, cleaning up incomplete session...`);
+							await chunkStorage.clearSession(consultationId);
+						}
+					} else {
+						// Check for truly orphaned chunks (no session at all)
+						const orphanedChunks = await chunkStorage.getUnuploadedChunks(consultationId);
+						if (orphanedChunks.length > 0) {
+							console.log(`⚠️ [RECOVERY] Found ${orphanedChunks.length} orphaned chunks without session - cannot recover automatically`);
+							// Don't clear - these might be recoverable manually
+						}
 					}
 				}
 				
@@ -960,6 +1034,159 @@ export function useScreenRecordingUpload(consultationId: string) {
 		
 		recoverSession();
 	}, [consultationId, resumeChunkUpload, finalizeRecording]);
+
+	// Exponential backoff retry mechanism for failed uploads
+	useEffect(() => {
+		let retryAttempt = 0;
+		let currentDelay = RETRY_CONFIG.INITIAL_DELAY_MS;
+		let retryTimeout: NodeJS.Timeout | null = null;
+		let isRetrying = false;
+		let hasGivenUp = false;
+
+		const calculateNextDelay = (attempt: number): number => {
+			// Exponential backoff: 5s, 10s, 20s, 40s, 60s (capped)
+			const delay = RETRY_CONFIG.INITIAL_DELAY_MS * Math.pow(RETRY_CONFIG.BACKOFF_MULTIPLIER, attempt);
+			return Math.min(delay, RETRY_CONFIG.MAX_DELAY_MS);
+		};
+
+		const retryFailedUploads = async () => {
+			// Prevent concurrent retries
+			if (isRetrying) return;
+			isRetrying = true;
+
+			try {
+				// Don't retry if we're currently recording or uploading
+				if (state.isRecording || state.isUploading) {
+					isRetrying = false;
+					return;
+				}
+
+				const session = await chunkStorage.getSession(consultationId);
+				if (!session || session.status === 'completed') {
+					// No pending work, reset retry state
+					retryAttempt = 0;
+					currentDelay = RETRY_CONFIG.INITIAL_DELAY_MS;
+					hasGivenUp = false;
+					isRetrying = false;
+					return;
+				}
+
+				// Check for pending chunks that need uploading
+				const unuploadedChunks = await chunkStorage.getUnuploadedChunks(consultationId);
+				if (unuploadedChunks.length > 0 && session.uploadId) {
+					// Check if we've exceeded max retries
+					if (retryAttempt >= RETRY_CONFIG.MAX_RETRY_ATTEMPTS) {
+						if (!hasGivenUp) {
+							hasGivenUp = true;
+							console.error(`❌ [RETRY] Max retry attempts (${RETRY_CONFIG.MAX_RETRY_ATTEMPTS}) reached. Giving up.`);
+							toast.error(
+								`Recording upload failed after ${RETRY_CONFIG.MAX_RETRY_ATTEMPTS} attempts. ${unuploadedChunks.length} chunks could not be uploaded. Please check your network connection.`,
+								{ duration: 10000 }
+							);
+						}
+						isRetrying = false;
+						return;
+					}
+
+					retryAttempt++;
+					console.log(`🔄 [RETRY] Attempt ${retryAttempt}/${RETRY_CONFIG.MAX_RETRY_ATTEMPTS}: Found ${unuploadedChunks.length} pending chunks...`);
+					
+					// Restore session state if needed
+					if (!uploadIdRef.current) {
+						uploadIdRef.current = session.uploadId;
+						partSizeRef.current = session.partSize;
+						nextPartNumberRef.current = session.nextPartNumber;
+						uploadedPartsRef.current = [...session.uploadedParts];
+						setState(s => ({ ...s, uploadId: session.uploadId, isUploading: true }));
+					}
+
+					let uploadSuccess = false;
+
+					// Aggregate unuploaded chunks into parts of >= 5MB
+					const partSize = partSizeRef.current || 5 * 1024 * 1024;
+					let currentBatch: ChunkData[] = [];
+					let currentSize = 0;
+
+					for (const chunk of unuploadedChunks) {
+						currentBatch.push(chunk);
+						currentSize += chunk.blob.size;
+						if (currentSize >= partSize) {
+							try {
+								await resumeChunkUpload(currentBatch);
+								console.log(`✅ [RETRY] Successfully uploaded batch of ${currentBatch.length} chunks`);
+								uploadSuccess = true;
+							} catch (err) {
+								console.error(`❌ [RETRY] Failed to upload batch:`, err);
+							}
+							currentBatch = [];
+							currentSize = 0;
+						}
+					}
+
+					// Upload any remaining chunks as the final part
+					if (currentBatch.length > 0) {
+						try {
+							await resumeChunkUpload(currentBatch);
+							console.log(`✅ [RETRY] Successfully uploaded final batch of ${currentBatch.length} chunks`);
+							uploadSuccess = true;
+						} catch (err) {
+							console.error(`❌ [RETRY] Failed to upload final batch:`, err);
+						}
+					}
+
+					// Check if all chunks are now uploaded and finalize if needed
+					const remainingChunks = await chunkStorage.getUnuploadedChunks(consultationId);
+					if (remainingChunks.length === 0) {
+						// Success! Reset retry state
+						console.log(`✅ [RETRY] All chunks uploaded successfully after ${retryAttempt} attempt(s)`);
+						retryAttempt = 0;
+						currentDelay = RETRY_CONFIG.INITIAL_DELAY_MS;
+						hasGivenUp = false;
+						
+						if (session.status === 'stopping') {
+							console.log(`🏁 [RETRY] Finalizing recording...`);
+							try {
+								await finalizeRecording();
+								toast.success('Recording recovered and saved successfully!', { duration: 5000 });
+							} catch (err) {
+								console.error(`❌ [RETRY] Failed to finalize:`, err);
+							}
+						}
+					} else if (uploadSuccess) {
+						// Partial success - reset backoff but keep trying
+						console.log(`⏳ [RETRY] Partial progress: ${remainingChunks.length} chunks still pending`);
+						currentDelay = RETRY_CONFIG.INITIAL_DELAY_MS;
+					} else {
+						// Complete failure - increase backoff delay
+						currentDelay = calculateNextDelay(retryAttempt);
+						console.log(`⏳ [RETRY] Will retry in ${currentDelay / 1000}s (attempt ${retryAttempt}/${RETRY_CONFIG.MAX_RETRY_ATTEMPTS})`);
+					}
+
+					// Schedule next retry with exponential backoff
+					if (remainingChunks.length > 0 && retryAttempt < RETRY_CONFIG.MAX_RETRY_ATTEMPTS) {
+						retryTimeout = setTimeout(retryFailedUploads, currentDelay);
+					}
+				}
+			} catch (err) {
+				console.error('❌ [RETRY] Error in retry mechanism:', err);
+				// Schedule retry with increased backoff on error
+				currentDelay = calculateNextDelay(retryAttempt);
+				if (retryAttempt < RETRY_CONFIG.MAX_RETRY_ATTEMPTS) {
+					retryTimeout = setTimeout(retryFailedUploads, currentDelay);
+				}
+			} finally {
+				isRetrying = false;
+			}
+		};
+
+		// Initial check after a short delay to catch any missed chunks
+		const initialTimeout = setTimeout(retryFailedUploads, RETRY_CONFIG.INITIAL_DELAY_MS);
+		
+		return () => {
+			if (retryTimeout) clearTimeout(retryTimeout);
+			clearTimeout(initialTimeout);
+		};
+	}, [consultationId, resumeChunkUpload, finalizeRecording, state.isRecording, state.isUploading]);
 
 	return useMemo(() => ({ state, start, stop, complete, abort }), [state, start, stop, complete, abort]);
 }
