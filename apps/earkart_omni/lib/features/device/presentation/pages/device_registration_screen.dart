@@ -1,4 +1,5 @@
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
+import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/device/presentation/widgets/centre_assignment_dialog.dart';
 import 'package:earkart_omni/features/device/presentation/widgets/device_registration_form.dart';
 import 'package:earkart_omni/features/device/presentation/widgets/local_device_information.dart';
@@ -247,7 +248,7 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                 // Navigate back to root screen to trigger other API calls
                 Navigator.pushNamedAndRemoveUntil(
                   context,
-                  '/',
+                  RootScreen.routeName,
                   (route) => false,
                 );
               }

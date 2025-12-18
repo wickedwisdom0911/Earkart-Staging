@@ -111,13 +111,7 @@ Route<dynamic> generateRoute(RouteSettings settings) {
         ),
       );
     case DeviceInfoScreen.routeName:
-      return router(
-        Builder(
-          builder: (context) {
-            return const DeviceInfoScreen();
-          },
-        ),
-      );
+      return router(const DeviceInfoScreen());
     case AppointmentsScreen.routeName:
       return router(const AppointmentsScreen());
     case AllConsultationsScreen.routeName:
