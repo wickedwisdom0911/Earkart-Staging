@@ -265,10 +265,52 @@ export default function DashboardPage() {
                   window.dispatchEvent(stopSoundEvent);
                 }
               },
-                 onError: (error: any) => {
+                 onError: async (error: any) => {
                  console.error("Failed to update consultation status:", error);
                  
-                 // Even on error, navigate to consultation - let the page handle the state
+                 // Handle 409 Conflict - Check if it's the same audiologist trying to rejoin
+                 if (error?.statusCode === 409 || error?.status === 409) {
+                   // Fetch fresh consultation data to check who is assigned
+                   try {
+                     const consultationResponse = await getConsultation(consultationId);
+                     if (consultationResponse.success && consultationResponse.data) {
+                       const consultation = consultationResponse.data as ConsultationModelData;
+                       
+                       if (consultation.audiologist?.userId === user?.id) {
+                         // Same audiologist trying to rejoin - allow it
+                         console.log("✅ Same audiologist rejoining their own consultation, allowing rejoin");
+                         const stopSoundEvent = new CustomEvent('stopContinuousSound');
+                         window.dispatchEvent(stopSoundEvent);
+                         setJoiningConsultationId(null);
+                         router.push(`/consultation/${consultationId}`);
+                         return;
+                       } else {
+                         // Different audiologist - block and show error
+                         toast.error("Another audiologist has already joined this consultation");
+                         setJoiningConsultationId(null);
+                         return;
+                       }
+                     }
+                   } catch (fetchError) {
+                     console.error("Error fetching consultation:", fetchError);
+                     // Fallback: check cached data
+                     const consultation = consultations?.data?.find(c => c.id === consultationId);
+                     if (consultation?.audiologist?.userId === user?.id) {
+                       console.log("✅ Same audiologist rejoining (from cache), allowing rejoin");
+                       const stopSoundEvent = new CustomEvent('stopContinuousSound');
+                       window.dispatchEvent(stopSoundEvent);
+                       setJoiningConsultationId(null);
+                       router.push(`/consultation/${consultationId}`);
+                       return;
+                     } else {
+                       toast.error("Another audiologist has already joined this consultation");
+                       setJoiningConsultationId(null);
+                       return;
+                     }
+                   }
+                 }
+                 
+                 // For other errors, navigate anyway
                  const stopSoundEvent = new CustomEvent('stopContinuousSound');
                  window.dispatchEvent(stopSoundEvent);
                  setJoiningConsultationId(null);
@@ -287,7 +329,49 @@ export default function DashboardPage() {
         } catch (error: any) {
           console.error("Error updating consultation status:", error);
           
-          // Even on error, navigate to consultation - let the page handle the state
+          // Handle 409 Conflict - Check if it's the same audiologist trying to rejoin
+          if (error?.statusCode === 409 || error?.status === 409) {
+            // Fetch fresh consultation data to check who is assigned
+            try {
+              const consultationResponse = await getConsultation(consultationId);
+              if (consultationResponse.success && consultationResponse.data) {
+                const consultation = consultationResponse.data as ConsultationModelData;
+                
+                if (consultation.audiologist?.userId === user?.id) {
+                  // Same audiologist trying to rejoin - allow it
+                  console.log("✅ Same audiologist rejoining their own consultation, allowing rejoin");
+                  const stopSoundEvent = new CustomEvent('stopContinuousSound');
+                  window.dispatchEvent(stopSoundEvent);
+                  setJoiningConsultationId(null);
+                  router.push(`/consultation/${consultationId}`);
+                  return;
+                } else {
+                  // Different audiologist - block and show error
+                  toast.error("Another audiologist has already joined this consultation");
+                  setJoiningConsultationId(null);
+                  return;
+                }
+              }
+            } catch (fetchError) {
+              console.error("Error fetching consultation:", fetchError);
+              // Fallback: check cached data
+              const consultation = consultations?.data?.find(c => c.id === consultationId);
+              if (consultation?.audiologist?.userId === user?.id) {
+                console.log("✅ Same audiologist rejoining (from cache), allowing rejoin");
+                const stopSoundEvent = new CustomEvent('stopContinuousSound');
+                window.dispatchEvent(stopSoundEvent);
+                setJoiningConsultationId(null);
+                router.push(`/consultation/${consultationId}`);
+                return;
+              } else {
+                toast.error("Another audiologist has already joined this consultation");
+                setJoiningConsultationId(null);
+                return;
+              }
+            }
+          }
+          
+          // For other errors, navigate anyway
           const stopSoundEvent = new CustomEvent('stopContinuousSound');
           window.dispatchEvent(stopSoundEvent);
           setJoiningConsultationId(null);
@@ -296,18 +380,61 @@ export default function DashboardPage() {
       }
     };
 
-    const handleJoinError = (error: unknown) => {
+    const handleJoinError = async (error: unknown) => {
       console.error("Failed to join consultation:", error);
       
-      // On any join error, just navigate to the consultation page
-      // The backend will handle the actual join logic
-      if (joiningConsultationId) {
-        console.log("Navigating to consultation despite join error:", joiningConsultationId);
-        setJoiningConsultationId(null);
-        router.push(`/consultation/${joiningConsultationId}`);
-        return;
+      // Handle 409 Conflict - Another audiologist already joined
+      if (typeof error === 'object' && error !== null) {
+        const errorObj = error as any;
+        if (errorObj.statusCode === 409 || errorObj.status === 409) {
+          // Fetch the latest consultation data to check who is assigned
+          if (joiningConsultationId) {
+            try {
+              console.log("🔄 Fetching consultation to check assigned audiologist:", joiningConsultationId);
+              const consultationResponse = await getConsultation(joiningConsultationId);
+              if (consultationResponse.success && consultationResponse.data) {
+                const consultation = consultationResponse.data as ConsultationModelData;
+                
+                // Check if the current user is the one already assigned
+                if (consultation.audiologist?.userId === user?.id) {
+                  // Same audiologist trying to rejoin - allow it
+                  console.log("✅ Same audiologist rejoining their own consultation, allowing rejoin");
+                  setJoiningConsultationId(null);
+                  router.push(`/consultation/${joiningConsultationId}`);
+                  return;
+                } else {
+                  // Different audiologist - block and show error
+                  console.log("❌ Different audiologist already assigned:", consultation.audiologist?.userId, "Current user:", user?.id);
+                  toast.error("Another audiologist has already joined this consultation");
+                  setJoiningConsultationId(null);
+                  return;
+                }
+              }
+            } catch (fetchError) {
+              console.error("Error fetching consultation:", fetchError);
+              // Fallback: check cached data
+              const consultation = consultations?.data?.find(c => c.id === joiningConsultationId);
+              if (consultation?.audiologist?.userId === user?.id) {
+                console.log("✅ Same audiologist rejoining (from cache), allowing rejoin");
+                setJoiningConsultationId(null);
+                router.push(`/consultation/${joiningConsultationId}`);
+                return;
+              } else {
+                toast.error("Another audiologist has already joined this consultation");
+                setJoiningConsultationId(null);
+                return;
+              }
+            }
+          }
+          
+          // If we can't determine, show error
+          toast.error("Another audiologist has already joined this consultation");
+          setJoiningConsultationId(null);
+          return;
+        }
       }
       
+      // For non-409 errors, show error message
       const errorMessage = typeof error === 'string' 
         ? error 
         : (error as any)?.message || "Failed to join consultation. Please try again.";
@@ -316,19 +443,59 @@ export default function DashboardPage() {
     };
 
     // Handle generic socket errors (non-409 errors from backend)
-    const handleSocketError = (error: unknown) => {
+    const handleSocketError = async (error: unknown) => {
       console.error("Socket error received:", error);
       
-      // Don't block navigation on socket errors - let the consultation page handle it
-      if (joiningConsultationId) {
-        console.log("Navigating to consultation despite socket error:", joiningConsultationId);
-        setJoiningConsultationId(null);
-        router.push(`/consultation/${joiningConsultationId}`);
-        return;
-      }
-      
+      // Handle 409 Conflict - Another audiologist already joined
       if (typeof error === 'object' && error !== null) {
         const errorObj = error as any;
+        if (errorObj.statusCode === 409 || errorObj.status === 409) {
+          // Fetch the latest consultation data to check who is assigned
+          if (joiningConsultationId) {
+            try {
+              console.log("🔄 Fetching consultation to check assigned audiologist:", joiningConsultationId);
+              const consultationResponse = await getConsultation(joiningConsultationId);
+              if (consultationResponse.success && consultationResponse.data) {
+                const consultation = consultationResponse.data as ConsultationModelData;
+                
+                // Check if the current user is the one already assigned
+                if (consultation.audiologist?.userId === user?.id) {
+                  // Same audiologist trying to rejoin - allow it
+                  console.log("✅ Same audiologist rejoining their own consultation, allowing rejoin");
+                  setJoiningConsultationId(null);
+                  router.push(`/consultation/${joiningConsultationId}`);
+                  return;
+                } else {
+                  // Different audiologist - block and show error
+                  console.log("❌ Different audiologist already assigned");
+                  toast.error("Another audiologist has already joined this consultation");
+                  setJoiningConsultationId(null);
+                  return;
+                }
+              }
+            } catch (fetchError) {
+              console.error("Error fetching consultation:", fetchError);
+              // Fallback: check cached data
+              const consultation = consultations?.data?.find(c => c.id === joiningConsultationId);
+              if (consultation?.audiologist?.userId === user?.id) {
+                console.log("✅ Same audiologist rejoining (from cache), allowing rejoin");
+                setJoiningConsultationId(null);
+                router.push(`/consultation/${joiningConsultationId}`);
+                return;
+              } else {
+                toast.error("Another audiologist has already joined this consultation");
+                setJoiningConsultationId(null);
+                return;
+              }
+            }
+          }
+          
+          toast.error("Another audiologist has already joined this consultation");
+          setJoiningConsultationId(null);
+          return;
+        }
+        
+        // For other errors, show error message
         const message = errorObj.message || "An error occurred";
         toast.error(message);
         
