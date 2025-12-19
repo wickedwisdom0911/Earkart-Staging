@@ -265,18 +265,15 @@ export default function DashboardPage() {
                   window.dispatchEvent(stopSoundEvent);
                 }
               },
-              onError: (error: any) => {
-                console.error("Failed to update consultation status:", error);
-                
-                // Handle 409 Conflict - Another audiologist already joined
-                if (error?.statusCode === 409 || error?.status === 409) {
-                  toast.error("Another audiologist has already joined this consultation");
-                  setJoiningConsultationId(null);
-                  return;
-                }
-                
-                toast.error("Failed to update consultation status");
-              },
+                 onError: (error: any) => {
+                 console.error("Failed to update consultation status:", error);
+                 
+                 // Even on error, navigate to consultation - let the page handle the state
+                 const stopSoundEvent = new CustomEvent('stopContinuousSound');
+                 window.dispatchEvent(stopSoundEvent);
+                 setJoiningConsultationId(null);
+                 router.push(`/consultation/${consultationId}`);
+               },
             });
           } else {
             // Even if status wasn't PENDING, stop notification sound when joining
@@ -290,16 +287,11 @@ export default function DashboardPage() {
         } catch (error: any) {
           console.error("Error updating consultation status:", error);
           
-          // Handle 409 Conflict - Another audiologist already joined
-          if (error?.statusCode === 409 || error?.status === 409) {
-            toast.error("Another audiologist has already joined this consultation");
-            setJoiningConsultationId(null);
-            return;
-          }
-          
-          toast.error("Failed to update consultation status");
+          // Even on error, navigate to consultation - let the page handle the state
+          const stopSoundEvent = new CustomEvent('stopContinuousSound');
+          window.dispatchEvent(stopSoundEvent);
           setJoiningConsultationId(null);
-          return;
+          router.push(`/consultation/${consultationId}`);
         }
       }
     };
@@ -307,19 +299,18 @@ export default function DashboardPage() {
     const handleJoinError = (error: unknown) => {
       console.error("Failed to join consultation:", error);
       
-      // Handle 409 Conflict from socket error (if backend sends status code)
-      if (typeof error === 'object' && error !== null) {
-        const errorObj = error as any;
-        if (errorObj.statusCode === 409 || errorObj.status === 409) {
-          toast.error("Another audiologist has already joined this consultation");
-          setJoiningConsultationId(null);
-          return;
-        }
+      // On any join error, just navigate to the consultation page
+      // The backend will handle the actual join logic
+      if (joiningConsultationId) {
+        console.log("Navigating to consultation despite join error:", joiningConsultationId);
+        setJoiningConsultationId(null);
+        router.push(`/consultation/${joiningConsultationId}`);
+        return;
       }
       
       const errorMessage = typeof error === 'string' 
         ? error 
-        : (error as any)?.message || "Failed to join consultation. It may have already been assigned to another audiologist.";
+        : (error as any)?.message || "Failed to join consultation. Please try again.";
       toast.error(errorMessage);
       setJoiningConsultationId(null);
     };
@@ -328,16 +319,16 @@ export default function DashboardPage() {
     const handleSocketError = (error: unknown) => {
       console.error("Socket error received:", error);
       
+      // Don't block navigation on socket errors - let the consultation page handle it
+      if (joiningConsultationId) {
+        console.log("Navigating to consultation despite socket error:", joiningConsultationId);
+        setJoiningConsultationId(null);
+        router.push(`/consultation/${joiningConsultationId}`);
+        return;
+      }
+      
       if (typeof error === 'object' && error !== null) {
         const errorObj = error as any;
-        // If it's a 409 error, it should be handled by join_error, but handle here as fallback
-        if (errorObj.statusCode === 409 || errorObj.status === 409) {
-          toast.error("Another audiologist has already joined this consultation");
-          setJoiningConsultationId(null);
-          return;
-        }
-        
-        // Handle other errors with status codes
         const message = errorObj.message || "An error occurred";
         toast.error(message);
         
