@@ -29,6 +29,7 @@ import {
   CalendarCheck,
   Ticket,
   List,
+  PhoneOff,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -69,9 +70,16 @@ const adminSidebarItems: SidebarItem[] = [
     url: "/dashboard/all-consultations",
   },
   {
-    name: "Analytics",
+    name: "Audiologist Monitoring",
     icon: <BarChartIcon className="text-slate-600" />,
     url: "/dashboard/analytics",
+    subItems: [
+      {
+        name: "Missed Calls",
+        icon: <PhoneOff className="text-slate-600" />,
+        url: "/dashboard/analytics/missed-calls",
+      },
+    ],
   },
   {
     name: "Audiologists",

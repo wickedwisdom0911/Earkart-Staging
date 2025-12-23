@@ -8,9 +8,13 @@ import { AudiologistModelData } from "@/models/audiologist.model";
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
 import DeleteAudiologistDialog from "./_components/delete-audiologist-dialog";
+import { useGetUser } from "@/hooks/auth/use-get-user";
+import { Role } from "@/models/enums";
 
 export default function Audiologists() {
   const { data, isLoading, isError } = useGetAllAudiologists();
+  const { data: user } = useGetUser();
+  const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
   return (
     <DashboardBodyWrapper
       pageTitle="Audiologists"
@@ -54,18 +58,20 @@ export default function Audiologists() {
                       </Button>
                     }
                   />
-                  <DeleteAudiologistDialog
-                    trigger={
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="text-red-500 hover:bg-red-100 dark:hover:bg-red-900 cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    }
-                    audiologist={audiologist}
-                  />
+                  {!isAdmin && (
+                    <DeleteAudiologistDialog
+                      trigger={
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-red-500 hover:bg-red-100 dark:hover:bg-red-900 cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      }
+                      audiologist={audiologist}
+                    />
+                  )}
                 </div>
                 {/* Audiologist Info */}
                 <div className="text-xl font-bold text-primary-700 dark:text-primary-300  truncate flex items-center gap-2">

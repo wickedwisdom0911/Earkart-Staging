@@ -8,9 +8,13 @@ import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
 import DeleteCentreDialog from "./_components/delete-centre-dialog";
 import { CentreModelData } from "@/models/centre.model";
+import { useGetUser } from "@/hooks/auth/use-get-user";
+import { Role } from "@/models/enums";
 
 export default function CentresPage() {
   const { data, isLoading, error } = useGetAllCentres();
+  const { data: user } = useGetUser();
+  const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
   
   // Safely get centres array
   const centres = data?.data?.data?.filter((c): c is CentreModelData => c !== null) || [];
@@ -61,18 +65,20 @@ export default function CentresPage() {
                     </Button>
                   }
                 />
-                <DeleteCentreDialog
-                  centre={centre}
-                  trigger={
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="text-red-500 hover:bg-red-100 dark:hover:bg-red-900 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  }
-                />
+                {!isAdmin && (
+                  <DeleteCentreDialog
+                    centre={centre}
+                    trigger={
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-red-500 hover:bg-red-100 dark:hover:bg-red-900 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    }
+                  />
+                )}
               </div>
               {/* Centre Info */}
               <div className="text-xl font-bold text-primary-700 dark:text-primary-300  truncate">

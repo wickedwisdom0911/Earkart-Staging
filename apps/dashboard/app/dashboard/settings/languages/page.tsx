@@ -5,8 +5,13 @@ import { Edit, PlusIcon, Trash } from "lucide-react";
 import HandleLanguageDialog from "./_components/handle-language-dialog";
 import useGetAllLanguages from "@/hooks/languages/use-get-all-languages";
 import DeleteLanguageDialog from "./_components/delete-language-dialog";
+import { useGetUser } from "@/hooks/auth/use-get-user";
+import { Role } from "@/models/enums";
+
 export default function LanguagesPage() {
   const { data, isLoading, isError } = useGetAllLanguages();
+  const { data: user } = useGetUser();
+  const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
   return (
     <DashboardBodyWrapper
       pageTitle="Languages"
@@ -44,12 +49,14 @@ export default function LanguagesPage() {
                     }
                     language={language}
                   />
-                  <DeleteLanguageDialog
-                    trigger={
-                      <Trash className="w-4 h-4 cursor-pointer stroke-1" />
-                    }
-                    language={language}
-                  />
+                  {!isAdmin && (
+                    <DeleteLanguageDialog
+                      trigger={
+                        <Trash className="w-4 h-4 cursor-pointer stroke-1" />
+                      }
+                      language={language}
+                    />
+                  )}
                 </div>
               </div>
             </div>

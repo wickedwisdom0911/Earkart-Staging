@@ -17,11 +17,15 @@ import {
   Draggable,
   DropResult,
 } from "@hello-pangea/dnd";
+import { useGetUser } from "@/hooks/auth/use-get-user";
+import { Role } from "@/models/enums";
 
 export default function QuestionnairePage() {
   const { data, isLoading, isError } = useGetAllQuestions();
   const [items, setItems] = useState(data?.data ?? []);
   const { mutate: reorder } = useReorderQuestion();
+  const { data: user } = useGetUser();
+  const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
 
   useEffect(() => {
     if (data?.data) {
@@ -104,12 +108,14 @@ export default function QuestionnairePage() {
                           }
                           question={question}
                         />
-                        <DeleteQuestionDialog
-                          trigger={
-                            <Trash2 className="w-4 h-4 cursor-pointer text-red-500" />
-                          }
-                          questionId={question?.id}
-                        />
+                        {!isAdmin && (
+                          <DeleteQuestionDialog
+                            trigger={
+                              <Trash2 className="w-4 h-4 cursor-pointer text-red-500" />
+                            }
+                            questionId={question?.id}
+                          />
+                        )}
                       </div>
                     </div>
                   )}
