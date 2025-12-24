@@ -20,6 +20,7 @@ import useDemoAccount from "@/hooks/use-demo-account";
 import { toast } from "sonner";
 import { EndConsultationProvider } from "@/providers/end-consultation-provider";
 import { updateConsultation } from "@/actions/consultations/update-consultation";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Import debug utilities in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -34,6 +35,7 @@ export default function ConsultationLayout({
   const { consultationId } = useParams() as { consultationId: string };
   const router = useRouter();
   const socket = useSocket();
+  const queryClient = useQueryClient();
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC
   const {
@@ -417,6 +419,16 @@ export default function ConsultationLayout({
         console.error("❌ [END] API error:", apiError);
       }
       
+      // STOP notification sound immediately
+      console.log("🔕 [END] Stopping notification sounds");
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('stopContinuousSound'));
+      }
+      
+      // Invalidate consultations cache so dashboard shows fresh data
+      console.log("🔄 [END] Invalidating consultations cache");
+      queryClient.invalidateQueries({ queryKey: ["consultations"] });
+      
       // IMMEDIATE socket disconnect to prevent rejoin
       if (socket) {
         socket.disconnect();
@@ -565,7 +577,7 @@ export default function ConsultationLayout({
         router.push("/dashboard");
       }
     }
-  }, [socket, stopRecording, recordingState.isRecording, recordingState.sessionId, recordingState.isUploading, recordingState.hasActiveSession, recordingState.playbackUrl, router, consultationId]);
+  }, [socket, stopRecording, recordingState.isRecording, recordingState.sessionId, recordingState.isUploading, recordingState.hasActiveSession, recordingState.playbackUrl, router, consultationId, queryClient]);
 
   // Listen for explicit end event from socket and redirect to dashboard after finalizing recording
   useEffect(() => {
