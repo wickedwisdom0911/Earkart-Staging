@@ -17,6 +17,7 @@ import useCreateToken from "@/hooks/agora/use-create-token";
 import { Mic, MicOff, PhoneOff, User, Loader2, Video, VideoOff } from "lucide-react";
 import { useDialog } from "@/hooks/use-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEndConsultation } from "@/providers/end-consultation-provider";
 
 interface VideoCallProps {
   channel: string;
@@ -105,6 +106,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   const remoteRef = useRef<HTMLDivElement>(null);
   const { mutateAsync: fetchToken } = useCreateToken();
   const router = useRouter();
+  const { endConsultation } = useEndConsultation();
   const [error, setError] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
   const [micOn, setMic] = useState(true);
@@ -456,11 +458,16 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
     }
   }, [isConnected, remoteUsers.length, filteredRemoteUsers.length, showOtoscopyOnly]);
 
-  // Handle leaving
+  // Handle leaving - this ends the consultation
+  // Calls the provider's endConsultation which handles:
+  // - API call to update status to COMPLETED
+  // - Socket disconnect
+  // - Recording finalization
+  // - Navigation to dashboard
   const handleLeave = useCallback(async () => {
     openDialog({
-      title: "Leave Call",
-      description: "Are you sure you want to leave this call?",
+      title: "End Consultation",
+      description: "Are you sure you want to end this consultation? The patient will be notified.",
       onConfirm: async () => {
         if (isLeaving) return;
 
@@ -468,121 +475,25 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           setIsLeaving(true);
           setError(null);
 
-          // finalize screen recording (if provided by parent)
-          if (onBeforeLeaveCall) {
-            try { await onBeforeLeaveCall(); } catch {}
-          }
-
-          // Aggressive cleanup of tracks
-          const cleanupTrack = async (track: ILocalTrack) => {
-            if (!track) return;
-
-            try {
-              // Stop the track first
-              await track.stop();
-
-              // Get and stop the underlying MediaStreamTrack
-              if (track.getMediaStreamTrack) {
-                const mediaStreamTrack = track.getMediaStreamTrack();
-                if (mediaStreamTrack) {
-                  mediaStreamTrack.stop();
-                  mediaStreamTrack.enabled = false;
-                }
-              }
-
-              // Close the track last
-              await track.close();
-            } catch (err) {
-              console.warn("Error during track cleanup:", err);
-            }
-          };
-
-          // Cleanup local tracks
-          if (localMicrophoneTrack) {
-            await cleanupTrack(localMicrophoneTrack as any);
-          }
-          if (localCameraTrack) {
-            await cleanupTrack(localCameraTrack as any);
-          }
-
-          // Unpublish and leave if connected
-          if (isConnected) {
-            try {
-              if (localMicrophoneTrack) {
-                await client.unpublish(localMicrophoneTrack as any);
-              }
-              if (localCameraTrack) {
-                await client.unpublish(localCameraTrack as any);
-              }
-              await client.leave();
-            } catch (err) {
-              console.warn("Error during unpublish/leave:", err);
-            }
-          }
-
-          // Reset states
-          setToken(null);
-          setAppId(null);
-          setUid(null);
-          setIsInitializing(false);
-          setIsReconnecting(false);
-          setShowRefreshHint(false);
-
-          // Force cleanup of any remaining tracks
-          if ((client as any).localTracks) {
-            for (const track of (client as any).localTracks as any[]) {
-              await cleanupTrack(track as any);
-            }
-          }
-
-          // Additional cleanup of media devices
-          try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            for (const device of devices) {
-              if (
-                device.kind === "videoinput" ||
-                device.kind === "audioinput"
-              ) {
-                try {
-                  const stream = await navigator.mediaDevices.getUserMedia({
-                    [device.kind]: { deviceId: device.deviceId },
-                  } as any);
-                  stream.getTracks().forEach((track) => {
-                    track.stop();
-                    track.enabled = false;
-                  });
-                } catch (err) {
-                  // Ignore errors for devices that might be in use
-                  console.warn(
-                    `Could not access device ${device.deviceId}:`,
-                    err
-                  );
-                }
-              }
-            }
-          } catch (err) {
-            console.warn("Error during media devices cleanup:", err);
-          }
-
-          // Navigate away
-          router.push("/dashboard");
+          console.log("🔴 [END] Ending consultation from video call...");
+          
+          // Call the provider's endConsultation which handles everything:
+          // - API call to update status to COMPLETED
+          // - Socket disconnect  
+          // - Recording finalization and save
+          // - Navigation to dashboard
+          // Agora cleanup will happen automatically when component unmounts
+          await endConsultation();
+          
         } catch (err) {
-          console.error("Error leaving channel:", err);
+          console.error("Error ending consultation:", err);
           setError((err as Error).message);
-        } finally {
           setIsLeaving(false);
         }
+        // Note: Don't reset isLeaving in finally because navigation will unmount this component
       },
     });
-  }, [
-    isLeaving,
-    localMicrophoneTrack,
-    localCameraTrack,
-    client,
-    router,
-    isConnected,
-    openDialog,
-  ]);
+  }, [isLeaving, openDialog, endConsultation]);
 
   // Show loading skeleton during initialization
   if (isInitializing || (!isConnected && (!token || !appId))) {
@@ -712,9 +623,13 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                   transition-colors duration-200
                   ${isLeaving ? "text-gray-500" : "text-red-500 hover:text-red-600"}
                 `}
-                title="End Call"
+                title="End Consultation"
               >
-                <PhoneOff size={20} />
+                {isLeaving ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
+                  <PhoneOff size={20} />
+                )}
               </button>
             </div>
           </div>

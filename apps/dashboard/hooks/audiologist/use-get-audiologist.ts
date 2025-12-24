@@ -6,5 +6,8 @@ export default function useGetAudiologist(id: string, options?: { enabled?: bool
     queryFn: async () => await getAudiologist(id),
     enabled: options?.enabled !== false && !!id,
     retry: false,
+    refetchOnMount: true, // Refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    staleTime: 0, // Data is immediately considered stale, forcing fresh fetches
   });
 }
