@@ -19,7 +19,7 @@ import { RedirectLoadingModal } from "@/components/ui/redirect-loading-modal";
 import useDemoAccount from "@/hooks/use-demo-account";
 import { toast } from "sonner";
 import { EndConsultationProvider } from "@/providers/end-consultation-provider";
-import { endConsultation as endConsultationApi } from "@/actions/consultations/end-consultation";
+import { updateConsultation } from "@/actions/consultations/update-consultation";
 
 // Import debug utilities in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -402,11 +402,15 @@ export default function ConsultationLayout({
       // Call API to update consultation status to COMPLETED
       console.log("📡 [END] Calling API to update status to COMPLETED");
       try {
-        const result = await endConsultationApi(consultationId);
+        const result = await updateConsultation({
+          id: consultationId,
+          status: "COMPLETED",
+          audiologistStatus: "COMPLETED",
+        } as any);
         if (result.success) {
           console.log("✅ [END] Consultation status updated to COMPLETED");
         } else {
-          console.error("❌ [END] Failed to update consultation status:", result.error);
+          console.error("❌ [END] Failed to update consultation status:", result.message);
           // Continue with cleanup even if API fails
         }
       } catch (apiError) {
