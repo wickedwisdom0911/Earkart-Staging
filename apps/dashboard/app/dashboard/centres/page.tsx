@@ -33,8 +33,13 @@ export default function CentresPage() {
   // Apply filters
   const centres = useMemo(() => {
     return allCentres.filter((centre) => {
-      // Search by centre name
-      const matchesSearch = centre.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+      // Search by centre name, ENT name, or code
+      const query = searchQuery.toLowerCase().trim();
+      const matchesSearch = !query || 
+        centre.user?.name?.toLowerCase().includes(query) ||
+        centre.entName?.toLowerCase().includes(query) ||
+        centre.code?.toLowerCase().includes(query) ||
+        centre.assistantName?.toLowerCase().includes(query);
       
       // Filter by assistant type
       const matchesAssistant = 
@@ -42,8 +47,8 @@ export default function CentresPage() {
         (assistantFilter === "our" && centre.isOurAssistant) ||
         (assistantFilter === "external" && !centre.isOurAssistant);
       
-      // Filter by device assignment
-      const hasDevice = centre.devices && centre.devices.length > 0;
+      // Filter by device assignment (device is singular, not an array)
+      const hasDevice = !!centre.device;
       const matchesDevice = 
         deviceFilter === "all" ||
         (deviceFilter === "assigned" && hasDevice) ||
@@ -57,7 +62,7 @@ export default function CentresPage() {
   const stats = useMemo(() => {
     const ourAssistant = allCentres.filter(c => c.isOurAssistant).length;
     const external = allCentres.filter(c => !c.isOurAssistant).length;
-    const withDevice = allCentres.filter(c => c.devices && c.devices.length > 0).length;
+    const withDevice = allCentres.filter(c => !!c.device).length;
     const active = allCentres.filter(c => c.user?.status === "ACTIVE").length;
     return { total: allCentres.length, ourAssistant, external, withDevice, active };
   }, [allCentres]);
