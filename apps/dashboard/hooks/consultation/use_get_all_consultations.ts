@@ -32,7 +32,8 @@ export const useGetAllConsultations = () => {
       // Exponential backoff: 1s, 2s, 4s...
       return Math.min(1000 * 2 ** attemptIndex, 30000);
     },
-    retryOnMount: false, // Don't retry on mount if it failed
-    staleTime: 30000, // Consider data fresh for 30 seconds to reduce requests
+    refetchOnMount: true, // Always refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when window gains focus
+    staleTime: 0, // Always consider data stale to ensure fresh data
   });
 };
