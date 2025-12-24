@@ -10,13 +10,9 @@ export default async function getAllCentres(params?: {
   districtId?: string;
   stateId?: string;
   countryId?: string;
-  limit?: number;
 }): Promise<CentreModel> {
   const baseUrl = await getBaseUrl();
   const searchParams = new URLSearchParams();
-
-  // Set a high limit to fetch all centres (default: 1000)
-  searchParams.append("limit", String(params?.limit || 1000));
 
   if (params?.cityId) searchParams.append("cityId", params.cityId);
   if (params?.districtId) searchParams.append("districtId", params.districtId);

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { format, isSameDay } from "date-fns";
+import { format, isSameDay, subDays } from "date-fns";
 import { SessionStatus } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
@@ -40,13 +40,12 @@ export default function MissedCallsPage() {
   // Date filter state
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const today = new Date();
+  const yesterday = subDays(today, 1);
 
   // Filter consultations that are NOT assigned to any audiologist
   const missedCalls = useMemo(() => {
     if (!consultations?.data || !Array.isArray(consultations.data))
       return [];
-
-    const targetDate = selectedDate || today;
 
     return consultations.data.filter((c) => {
       // Only show consultations WITHOUT audiologist assigned
@@ -57,21 +56,21 @@ export default function MissedCallsPage() {
         return false; // Has audiologist - not a missed call
       }
       
-      // If we reach here, no audiologist is assigned - include this consultation
-      
-      // Only show pending consultations (not completed/cancelled)
-      if (
-        c.status === SessionStatus.COMPLETED ||
-        c.status === SessionStatus.CANCELLED
-      )
-        return false;
+      // If we reach here, no audiologist is assigned - this IS a missed call
+      // Include all statuses (PENDING, IN_PROGRESS, COMPLETED, CANCELLED)
+      // because all represent consultations where no audiologist was assigned
 
-      // Filter by date if selected
-      if (!c.createdAt) return false;
-      const consultationDate = new Date(c.createdAt);
-      return isSameDay(consultationDate, targetDate);
+      // Filter by date only if a date is selected
+      if (selectedDate) {
+        if (!c.createdAt) return false;
+        const consultationDate = new Date(c.createdAt);
+        return isSameDay(consultationDate, selectedDate);
+      }
+
+      // No date filter - show all missed calls
+      return true;
     });
-  }, [consultations, selectedDate, today]);
+  }, [consultations, selectedDate]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -82,11 +81,42 @@ export default function MissedCallsPage() {
     const inProgress = missedCalls.filter(
       (c) => c.status === SessionStatus.IN_PROGRESS
     ).length;
+    const completed = missedCalls.filter(
+      (c) => c.status === SessionStatus.COMPLETED
+    ).length;
+    const cancelled = missedCalls.filter(
+      (c) => c.status === SessionStatus.CANCELLED
+    ).length;
 
-    return { total, pending, inProgress };
+    return { total, pending, inProgress, completed, cancelled };
   }, [missedCalls]);
 
-  const statusConfig = {
+  // Debug: Count all consultations without audiologist (ignoring status filter)
+  const debugStats = useMemo(() => {
+    if (!consultations?.data || !Array.isArray(consultations.data)) return { total: 0, withoutAudiologist: 0 };
+    
+    const allConsultations = consultations.data;
+    const withoutAudiologist = allConsultations.filter(c => !c.audiologist?.user?.name);
+    
+    console.log("[MissedCalls Debug]", {
+      totalConsultations: allConsultations.length,
+      withoutAudiologist: withoutAudiologist.length,
+      withoutAudiologistDetails: withoutAudiologist.map(c => ({
+        id: c.id,
+        status: c.status,
+        audiologist: c.audiologist,
+        audiologistId: c.audiologistId,
+        createdAt: c.createdAt
+      }))
+    });
+    
+    return { 
+      total: allConsultations.length, 
+      withoutAudiologist: withoutAudiologist.length 
+    };
+  }, [consultations]);
+
+  const statusConfig: Record<string, { color: string; label: string }> = {
     [SessionStatus.PENDING]: {
       color: "bg-amber-50 text-amber-700 border-amber-200",
       label: "Pending",
@@ -94,6 +124,14 @@ export default function MissedCallsPage() {
     [SessionStatus.IN_PROGRESS]: {
       color: "bg-blue-50 text-blue-700 border-blue-200",
       label: "In Progress",
+    },
+    [SessionStatus.COMPLETED]: {
+      color: "bg-gray-50 text-gray-700 border-gray-200",
+      label: "Completed",
+    },
+    [SessionStatus.CANCELLED]: {
+      color: "bg-red-50 text-red-700 border-red-200",
+      label: "Cancelled",
     },
   };
 
@@ -187,9 +225,17 @@ export default function MissedCallsPage() {
               variant="outline"
               size="sm"
               onClick={() => setSelectedDate(today)}
-              className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
+              className={`h-9 ${selectedDate && isSameDay(selectedDate, today) ? "bg-white/30 border-white/50" : "bg-white/10 border-white/30"} hover:bg-white/20 text-white`}
             >
               Today
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedDate(yesterday)}
+              className={`h-9 ${selectedDate && isSameDay(selectedDate, yesterday) ? "bg-white/30 border-white/50" : "bg-white/10 border-white/30"} hover:bg-white/20 text-white`}
+            >
+              Yesterday
             </Button>
             {selectedDate && (
               <Button
@@ -251,6 +297,9 @@ export default function MissedCallsPage() {
                       {selectedDate
                         ? `All consultations on ${format(selectedDate, "dd/MM/yy")} have been assigned.`
                         : "All consultations have been assigned to audiologists."}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-4">
+                      Total consultations: {debugStats.total} | Without audiologist: {debugStats.withoutAudiologist}
                     </p>
                   </div>
                 </CardContent>
