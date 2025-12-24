@@ -6,6 +6,8 @@ export default function useGetAllAudiologists() {
     queryKey: ["audiologists"],
     queryFn: async () => await getAllAudiologists(),
     retry: false, // Don't retry on permission errors
-    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnMount: true, // Refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    staleTime: 0, // Data is immediately considered stale, forcing fresh fetches
   });
 }

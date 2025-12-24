@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { format, isToday, isSameDay } from "date-fns";
+import { format, isToday, isSameDay, subDays } from "date-fns";
 import { SessionStatus, Role } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
@@ -55,6 +55,7 @@ export default function AnalyticsPage() {
   // Date filter state
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const today = new Date();
+  const yesterday = subDays(today, 1);
 
   // Filter consultations by selected date (today by default, or selected date)
   // Only show consultations that have an audiologist assigned
@@ -227,6 +228,14 @@ export default function AnalyticsPage() {
                   />
                 </PopoverContent>
               </Popover>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedDate(yesterday)}
+                className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
+              >
+                Yesterday
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

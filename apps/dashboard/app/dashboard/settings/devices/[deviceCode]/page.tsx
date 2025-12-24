@@ -246,11 +246,21 @@ export default function DevicePage() {
                             "Unknown"}
                         </span>
                       </div>
-                      <span className="text-xs text-neutral-500">
-                        {activity.centre?.user?.name ||
-                          activity.centre?.code ||
-                          "Unknown"}
-                      </span>
+                      {activity.centre && (
+                        <div className="flex items-center gap-2 text-xs text-neutral-700 mt-1">
+                          {activity.deviceActivityType?.toLowerCase() === "assigned" && (
+                            <span className="text-neutral-400">to</span>
+                          )}
+                          <span className="font-medium">
+                            {activity.centre.user?.name || activity.centre.entName || "Unknown Centre"}
+                          </span>
+                          {activity.centre.code && (
+                            <span className="text-neutral-400">
+                              ({activity.centre.code})
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="text-xs text-neutral-500 md:text-right">
                       {activity.createdAt

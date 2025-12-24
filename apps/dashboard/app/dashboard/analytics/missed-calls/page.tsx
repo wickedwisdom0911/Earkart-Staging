@@ -50,7 +50,31 @@ export default function MissedCallsPage() {
 
     return consultations.data.filter((c) => {
       // Only show consultations WITHOUT audiologist assigned
-      if (c.audiologist && c.audiologist.userId) return false;
+      // Use the same logic as All Consultations page:
+      // Check if audiologist.user.name exists (same check used in card display)
+      const hasAudiologistName = c.audiologist?.user?.name && 
+        typeof c.audiologist.user.name === 'string' && 
+        c.audiologist.user.name.trim() !== "";
+      
+      // Also check other indicators of assigned audiologist:
+      const hasAudiologistId = c.audiologistId && 
+        typeof c.audiologistId === 'string' && 
+        c.audiologistId.trim() !== "";
+      
+      const hasAudiologistUserId = c.audiologist?.userId && 
+        typeof c.audiologist.userId === 'string' && 
+        c.audiologist.userId.trim() !== "";
+      
+      const hasAudiologistIdInObject = c.audiologist?.id && 
+        typeof c.audiologist.id === 'string' && 
+        c.audiologist.id.trim() !== "";
+      
+      // If any of these indicate an assigned audiologist, exclude this consultation
+      if (hasAudiologistName || hasAudiologistId || hasAudiologistUserId || hasAudiologistIdInObject) {
+        return false;
+      }
+      
+      // If we reach here, no audiologist is assigned - include this consultation
       
       // Only show pending consultations (not completed/cancelled)
       if (
