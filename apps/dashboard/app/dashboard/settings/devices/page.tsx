@@ -7,9 +7,14 @@ import useGetDevices from "@/hooks/device/use-get-devices";
 import DeleteDeviceDialog from "./_components/delete-device-dialog";
 import { ROUTES } from "@/lib/routes";
 import { useRouter } from "next/navigation";
+import { useGetUser } from "@/hooks/auth/use-get-user";
+import { Role } from "@/models/enums";
+
 export default function DevicesPage() {
   const router = useRouter();
   const { data: devices, error, isLoading, isError } = useGetDevices();
+  const { data: user } = useGetUser();
+  const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
 
   return (
     <DashboardBodyWrapper
@@ -53,18 +58,20 @@ export default function DevicesPage() {
                 }
                 device={device}
               />
-              <DeleteDeviceDialog
-                trigger={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="cursor-pointer"
-                  >
-                    <Trash /> Delete
-                  </Button>
-                }
-                device={device}
-              />
+              {!isAdmin && (
+                <DeleteDeviceDialog
+                  trigger={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="cursor-pointer"
+                    >
+                      <Trash /> Delete
+                    </Button>
+                  }
+                  device={device}
+                />
+              )}
               <Button
                 variant="outline"
                 size="sm"

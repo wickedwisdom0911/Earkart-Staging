@@ -17,7 +17,7 @@ import {
   AlertCircle,
   XCircle,
   FileText,
-  Calendar,
+  Calendar as CalendarIcon,
   Eye,
   Download,
   ArrowLeft,
@@ -33,7 +33,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DatetimePicker } from "@/components/DateTimePicker";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Badge } from "@/components/ui/Badge";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
@@ -62,10 +67,11 @@ export default function AudiologistDetailsPage() {
   }, [audiologists, audiologistId]);
 
   // Get all consultations for this audiologist
+  // Only include consultations that have an audiologist assigned
   const allConsultations = useMemo(() => {
     if (!consultations?.data || !Array.isArray(consultations.data)) return [];
     return consultations.data.filter(
-      (c) => c.audiologist?.userId === audiologistId
+      (c) => c.audiologist?.userId === audiologistId && c.audiologist?.userId
     );
   }, [consultations, audiologistId]);
 
@@ -151,7 +157,7 @@ export default function AudiologistDetailsPage() {
     if (!dateStr) return "N/A";
     try {
       const d = new Date(dateStr);
-      return format(d, "dd MMM yyyy, hh:mm a");
+      return format(d, "dd/MM/yy, hh:mm a");
     } catch {
       return "Invalid date";
     }
@@ -238,7 +244,7 @@ export default function AudiologistDetailsPage() {
               {status.label}
             </span>
             <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full">
-              <Calendar className="w-3.5 h-3.5" />
+              <CalendarIcon className="w-3.5 h-3.5" />
               {dateStr}
             </div>
           </div>
@@ -485,19 +491,33 @@ export default function AudiologistDetailsPage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
-                <DatetimePicker
-                  value={selectedDate || undefined}
-                  onChange={(date) => setSelectedDate(date || null)}
-                  format={[["months", "days", "years"], []]}
-                  className="h-10 border-2 border-gray-200 hover:border-primary-300 focus:border-primary-500 rounded-lg shadow-sm"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-10 border-2 border-gray-200 hover:border-primary-300 focus:border-primary-500 rounded-lg shadow-sm"
+                    >
+                      <Calendar className="w-4 h-4 mr-2" />
+                      {selectedDate ? format(selectedDate, "dd/MM/yy") : "Select date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate || undefined}
+                      onSelect={(date) => setSelectedDate(date || null)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setSelectedDate(today)}
                   className="h-10 shadow-sm hover:shadow-md transition-shadow"
                 >
-                  <Calendar className="w-4 h-4 mr-2" />
+                  <CalendarIcon className="w-4 h-4 mr-2" />
                   Today
                 </Button>
                 {selectedDate && (
@@ -525,7 +545,7 @@ export default function AudiologistDetailsPage() {
                 {filteredConsultations.length} Consultation{filteredConsultations.length !== 1 ? 's' : ''}
               </p>
               <p className="text-sm text-gray-600">
-                {selectedDate ? `on ${format(selectedDate, "MMMM d, yyyy")}` : "All time"}
+                {selectedDate ? `on ${format(selectedDate, "dd/MM/yy")}` : "All time"}
               </p>
             </div>
           </div>
@@ -535,14 +555,14 @@ export default function AudiologistDetailsPage() {
         {filteredConsultations.length === 0 ? (
           <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-white rounded-2xl border-2 border-dashed border-gray-200">
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Calendar className="w-10 h-10 text-gray-400" />
+              <CalendarIcon className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">
               No Consultations Found
             </h3>
             <p className="text-gray-600 max-w-md mx-auto">
               {selectedDate
-                ? `No consultations were recorded on ${format(selectedDate, "MMMM d, yyyy")}. Try selecting a different date.`
+                ? `No consultations were recorded on ${format(selectedDate, "dd/MM/yy")}. Try selecting a different date.`
                 : "This audiologist hasn't completed any consultations yet."}
             </p>
           </div>

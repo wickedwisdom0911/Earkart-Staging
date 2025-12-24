@@ -16,14 +16,19 @@ import {
   PlayCircle,
   AlertCircle,
   Stethoscope,
-  Calendar,
+  Calendar as CalendarIcon,
   Eye,
   Phone,
   PhoneOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { DatetimePicker } from "@/components/DateTimePicker";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Filter, XCircle } from "lucide-react";
 
 export default function AnalyticsPage() {
@@ -52,6 +57,7 @@ export default function AnalyticsPage() {
   const today = new Date();
 
   // Filter consultations by selected date (today by default, or selected date)
+  // Only show consultations that have an audiologist assigned
   const filteredConsultations = useMemo(() => {
     if (!consultations?.data || !Array.isArray(consultations.data))
       return [];
@@ -59,6 +65,8 @@ export default function AnalyticsPage() {
     const targetDate = selectedDate || today;
 
     return consultations.data.filter((c) => {
+      // Only show consultations with audiologist assigned
+      if (!c.audiologist || !c.audiologist.userId) return false;
       if (!c.createdAt) return false;
       const consultationDate = new Date(c.createdAt);
       return isSameDay(consultationDate, targetDate);
@@ -66,12 +74,14 @@ export default function AnalyticsPage() {
   }, [consultations, selectedDate, today]);
 
   // Group all consultations by audiologist for the details modal
+  // Only include consultations that have an audiologist assigned
   const consultationsByAudiologist = useMemo(() => {
     if (!consultations?.data || !Array.isArray(consultations.data)) return new Map();
     
     const map = new Map<string, ConsultationModelData[]>();
     
     consultations.data.forEach((c) => {
+      // Only include consultations with audiologist assigned
       const audiologistId = c.audiologist?.userId;
       if (audiologistId) {
         if (!map.has(audiologistId)) {
@@ -158,9 +168,9 @@ export default function AnalyticsPage() {
                   <Eye className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-white">Audiologist Monitoring Dashboard</h1>
+                  <h1 className="text-xl font-bold text-white">Audiologist Monitoring</h1>
                   <p className="text-primary-100 text-xs">
-                    {format(new Date(), "EEEE, MMMM d, yyyy • hh:mm a")}
+                    {format(new Date(), "EEEE, dd/MM/yy • hh:mm a")}
                   </p>
                 </div>
               </div>
@@ -184,32 +194,45 @@ export default function AnalyticsPage() {
               <div className="w-px h-10 bg-white/20" />
               <div className="text-center">
                 <p className="text-primary-100 text-[10px] font-medium uppercase">
-                  {selectedDate ? format(selectedDate, "MMM d") : "Today"}
+                  {selectedDate ? format(selectedDate, "dd/MM/yy") : "Today"}
                 </p>
                 <p className="text-2xl font-bold text-white">{summaryStats.totalTodayConsultations}</p>
               </div>
               </div>
             </div>
             
-            {/* Date Filter */}
+            {/* Calendar Filter */}
             <div className="flex items-center gap-3 pt-2 border-t border-white/20">
               <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-white" />
-                <span className="text-sm font-medium text-white">Filter by Date:</span>
+                <CalendarIcon className="w-4 h-4 text-white" />
+                <span className="text-sm font-medium text-white">Select Date:</span>
               </div>
-              <DatetimePicker
-                value={selectedDate || undefined}
-                onChange={(date) => setSelectedDate(date || null)}
-                format={[["months", "days", "years"], []]}
-                className="h-9 bg-white/10 border-white/30 text-white placeholder:text-white/70 hover:bg-white/20 focus:border-white/50 [&_input]:text-white"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
+                  >
+                    <CalendarIcon className="w-3 h-3 mr-2" />
+                    {selectedDate ? format(selectedDate, "dd/MM/yy") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate || undefined}
+                    onSelect={(date) => setSelectedDate(date || null)}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setSelectedDate(today)}
                 className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
               >
-                <Calendar className="w-3 h-3 mr-1" />
                 Today
               </Button>
               {selectedDate && (
