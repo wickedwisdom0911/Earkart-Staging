@@ -1,5 +1,6 @@
 import 'package:earkart_omni/features/appointments/presentation/pages/appointments_screen.dart';
 import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart';
+import 'package:earkart_omni/features/chat/presentation/pages/chat_with_audiologists_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/all_consultations_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
@@ -120,9 +121,18 @@ Route<dynamic> generateRoute(RouteSettings settings) {
     case ConsultationEndedScreen.routeName:
       return router(
         ConsultationEndedScreen(
-          endedBy: args is ConsultationEndedBy
-              ? args
-              : ConsultationEndedBy.audiologist,
+          endedBy:
+              args is ConsultationEndedBy
+                  ? args
+                  : ConsultationEndedBy.audiologist,
+        ),
+      );
+    case ChatWithAudiologistsScreen.routeName:
+      return router(
+        Builder(
+          builder: (context) {
+            return const ChatWithAudiologistsScreen();
+          },
         ),
       );
     default:

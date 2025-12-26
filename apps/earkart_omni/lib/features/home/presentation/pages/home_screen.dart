@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
+import 'package:earkart_omni/features/chat/presentation/pages/chat_with_audiologists_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/widgets/widgets.dart';
@@ -32,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
     context.read<AuthCubit>().getCentre();
     context.read<AuthCubit>().getCentreData();
     context.read<ConsultationCubit>().getConsultationsByCentreId();
-    
+
     // Force refresh lookup data on pull-to-refresh
     await Future.wait([
       di<LookupCubit>().getLanguages(forceRefresh: true),
@@ -45,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
         if (!mounted) return;
-        
+
         if (state is AuthCentreSuccess) {
           context.read<ConsultationCubit>().getConsultationsByCentreId();
         } else if (state is AuthError || state is AuthCentreError) {
@@ -85,6 +87,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            Navigator.pushNamed(context, ChatWithAudiologistsScreen.routeName);
+          },
+          backgroundColor: Colors.white,
+          shape: CircleBorder(side: BorderSide(color: Constants.primaryColor)),
+          elevation: 2,
+          child: Icon(Icons.chat, color: Constants.primaryColor),
         ),
       ),
     );
