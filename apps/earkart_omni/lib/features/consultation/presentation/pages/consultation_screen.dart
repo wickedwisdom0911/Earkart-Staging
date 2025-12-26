@@ -16,6 +16,7 @@ import 'package:earkart_omni/features/consultation/presentation/widgets/video_ca
 import 'package:earkart_omni/features/consultation/presentation/widgets/socket_status_button.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/consultation_layout.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/consultation_loading_view.dart';
+import 'package:earkart_omni/features/consultation/presentation/widgets/consultation_ended_screen.dart';
 import 'package:earkart_omni/features/consultation/services/device_event_emitter.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
@@ -26,7 +27,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
-import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/config/release_config.dart';
 import 'package:earkart_omni/config/utils/error_handler.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
@@ -62,6 +62,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   bool _isCameraOpen = false;
   DeviceEventEmitter? _deviceEventEmitter;
   Timer? _stateUpdateDebounceTimer;
+  bool _consultationCompletionHandled = false;
+  Timer? _completionTimeoutTimer;
+  ConsultationEndedBy? _consultationEndedBy;
 
   @override
   void initState() {
@@ -176,6 +179,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void dispose() {
     try {
       _stateUpdateDebounceTimer?.cancel();
+      _completionTimeoutTimer?.cancel();
       _deviceEventEmitter?.dispose();
 
       if (_isSocketInitialized) {
@@ -690,6 +694,28 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         }
       });
     });
+
+    socket.on("end:consultation", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('End consultation event received: $data');
+
+      // Prevent duplicate handling
+      if (_endCallInProgress || _consultationCompletionHandled) {
+        di<ILogger>().debug(
+          'End call already in progress or completed, ignoring duplicate event',
+        );
+        return;
+      }
+
+      // Mark that we've received/processed the end consultation event
+      _endCallInProgress = true;
+      _hasEmittedEndCall = true;
+      _consultationEndedBy = ConsultationEndedBy.audiologist;
+
+      // Don't call updateConsultation API here - audiologist already handled it on their side
+      // Just handle completion and cleanup
+      _handleConsultationCompletion();
+    });
   }
 
   void _tryJoinConsultation() {
@@ -790,6 +816,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     }
 
     _endCallInProgress = true;
+    _consultationEndedBy = ConsultationEndedBy.user; // User ended the call
     try {
       // Emit socket event immediately on button press
       if (_isSocketInitialized && !_hasEmittedEndCall) {
@@ -797,19 +824,40 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         _hasEmittedEndCall = true;
       }
 
-      // Leave Agora channel via controller without clearing sessions
-      try {
-        await _videoController.leaveChannelOnly();
-      } catch (e) {
-        di<ILogger>().error('Error leaving video channel: $e');
-      }
-
+      // Update consultation status - this will trigger BlocListener which calls _handleConsultationCompletion
+      // Don't leave channel here to avoid duplicate leaveChannel calls
       context.read<ConsultationCubit>().updateConsultation(
         ConsultationEntity(id: consultationId, status: SessionStatus.completed),
       );
-    } finally {
-      _endCallInProgress = false;
+
+      // Set a timeout fallback in case BlocListener doesn't fire
+      _completionTimeoutTimer?.cancel();
+      _completionTimeoutTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted && !_consultationCompletionHandled && _endCallInProgress) {
+          di<ILogger>().warning(
+            'BlocListener did not fire within timeout, handling completion directly',
+          );
+          _handleConsultationCompletion();
+        }
+      });
+    } catch (e) {
+      di<ILogger>().error('Error ending consultation: $e');
+      // If updateConsultation throws an exception, handle completion directly
+      if (_endCallInProgress && !_consultationCompletionHandled) {
+        di<ILogger>().warning(
+          'updateConsultation threw exception, handling completion directly',
+        );
+        _handleConsultationCompletion();
+      } else {
+        // Reset flag on error so user can retry
+        _endCallInProgress = false;
+        if (mounted) {
+          _showErrorSnackBar('Failed to end consultation. Please try again.');
+        }
+      }
     }
+    // Note: Don't reset _endCallInProgress here - let _handleConsultationCompletion() handle it
+    // This prevents race conditions between socket handler and BlocListener
   }
 
   @override
@@ -926,6 +974,14 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               // Handle consultation update error
               if (state is ConsultationError) {
                 ErrorHandler.handleConsultationError(context, state.message);
+                // If we were trying to complete the consultation, handle it anyway
+                // This ensures cleanup happens even if the API call fails
+                if (_endCallInProgress && !_consultationCompletionHandled) {
+                  di<ILogger>().warning(
+                    'Consultation update failed but end call was in progress, handling completion anyway',
+                  );
+                  _handleConsultationCompletion();
+                }
               }
             },
           ),
@@ -1355,6 +1411,19 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   }
 
   void _handleConsultationCompletion() async {
+    // Idempotency check: prevent duplicate processing
+    if (_consultationCompletionHandled) {
+      di<ILogger>().debug(
+        'Consultation completion already handled, ignoring duplicate call',
+      );
+      return;
+    }
+
+    _consultationCompletionHandled = true;
+    // Cancel any pending timeout since we're handling completion now
+    _completionTimeoutTimer?.cancel();
+    _completionTimeoutTimer = null;
+
     try {
       // Ensure we leave the Agora video call channel and stop token monitoring
       try {
@@ -1365,7 +1434,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         di<ILogger>().error('Error leaving Agora channel on completion: $e');
       }
 
-      // Leave the consultation channel via socket
+      // Leave the consultation channel via socket (if not already emitted)
       if (_isSocketInitialized &&
           consultation?.id != null &&
           !_hasEmittedEndCall) {
@@ -1377,12 +1446,23 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       context.read<PatientCubit>().deletePatientSession();
       context.read<ConsultationCubit>().deleteCurrentConsultationSession();
 
-      // Navigate to root screen
+      // Reset flags before navigation
+      _endCallInProgress = false;
+
+      // Always navigate to consultation ended screen with appropriate parameter
       if (mounted) {
-        Navigator.pushReplacementNamed(context, RootScreen.routeName);
+        Navigator.pushReplacementNamed(
+          context,
+          ConsultationEndedScreen.routeName,
+          arguments: _consultationEndedBy ?? ConsultationEndedBy.audiologist,
+        );
+        _consultationEndedBy = null; // Reset after navigation
       }
     } catch (e) {
       di<ILogger>().error('Error handling consultation completion: $e');
+      // Reset flag on error so user can retry if navigation fails
+      _endCallInProgress = false;
+      _consultationEndedBy = null;
       if (mounted) {
         _showErrorSnackBar(
           'Failed to complete consultation. Please try again.',

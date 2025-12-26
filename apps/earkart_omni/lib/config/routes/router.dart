@@ -3,6 +3,7 @@ import 'package:earkart_omni/features/auth/presentation/pages/login_screen.dart'
 import 'package:earkart_omni/features/consultation/presentation/pages/all_consultations_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_request_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/pages/consultation_screen.dart';
+import 'package:earkart_omni/features/consultation/presentation/widgets/consultation_ended_screen.dart';
 import 'package:earkart_omni/features/device/presentation/pages/device_info_screen.dart';
 import 'package:earkart_omni/features/device/presentation/pages/device_registration_screen.dart';
 import 'package:earkart_omni/features/home/presentation/pages/home_screen.dart';
@@ -116,6 +117,14 @@ Route<dynamic> generateRoute(RouteSettings settings) {
       return router(const AppointmentsScreen());
     case AllConsultationsScreen.routeName:
       return router(const AllConsultationsScreen());
+    case ConsultationEndedScreen.routeName:
+      return router(
+        ConsultationEndedScreen(
+          endedBy: args is ConsultationEndedBy
+              ? args
+              : ConsultationEndedBy.audiologist,
+        ),
+      );
     default:
       return CupertinoPageRoute(
         settings: settings,
