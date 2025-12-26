@@ -81,6 +81,7 @@ import 'package:earkart_omni/features/device/domain/usecases/get_device_by_value
 import 'package:earkart_omni/features/device/domain/usecases/setup_device.usecase.dart';
 import 'package:earkart_omni/features/device/presentation/cubit/device_registration.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
+import 'package:earkart_omni/features/chat/presentation/cubit/chat.cubit.dart';
 import 'package:earkart_omni/config/services/battery_service.dart';
 import 'package:earkart_omni/config/services/auto_update_service.dart';
 
@@ -376,6 +377,9 @@ Future<void> setupDI() async {
 
   //network
   di.registerLazySingleton<NetworkCubit>(() => NetworkCubit());
+
+  //chat
+  di.registerLazySingleton<ChatCubit>(() => ChatCubit());
 
   //battery
   di.registerLazySingleton<BatteryService>(() => BatteryService());
