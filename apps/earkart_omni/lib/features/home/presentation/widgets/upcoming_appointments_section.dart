@@ -28,54 +28,86 @@ class _UpcomingAppointmentsSectionState
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              "Upcoming Appointments",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pushNamed(context, AppointmentsScreen.routeName);
-              },
-              child: const Text(
-                'View All',
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.withAlpha(90), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Upcoming Appointments",
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: Colors.blue,
+                  color: Colors.black87,
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: BlocBuilder<AppointmentsCubit, AppointmentsState>(
-            builder: (context, state) {
-              return state.when(
-                initial: () => _buildLoadingState(),
-                loading: () => _buildLoadingState(),
-                success:
-                    (appointments, total) =>
-                        _buildAppointmentsList(appointments),
-                appointmentByIdSuccess: (appointment) => _buildLoadingState(),
-                createAppointmentSuccess: (appointment) => _buildLoadingState(),
-                updateAppointmentSuccess: (appointment) => _buildLoadingState(),
-                error: (message) => _buildErrorState(message),
-              );
-            },
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, AppointmentsScreen.routeName);
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  side: BorderSide(color: Colors.grey.shade300, width: 1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  backgroundColor: Colors.transparent,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'View All',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          Expanded(
+            child: BlocBuilder<AppointmentsCubit, AppointmentsState>(
+              builder: (context, state) {
+                return state.when(
+                  initial: () => _buildLoadingState(),
+                  loading: () => _buildLoadingState(),
+                  success:
+                      (appointments, total) =>
+                          _buildAppointmentsList(appointments),
+                  appointmentByIdSuccess: (appointment) => _buildLoadingState(),
+                  createAppointmentSuccess:
+                      (appointment) => _buildLoadingState(),
+                  updateAppointmentSuccess:
+                      (appointment) => _buildLoadingState(),
+                  error: (message) => _buildErrorState(message),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -130,42 +162,60 @@ class _UpcomingAppointmentsSectionState
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.calendar_today_outlined,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No upcoming appointments',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
+      child: Container(
+        padding: const EdgeInsets.all(40),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Appointments will appear here when scheduled',
-            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, AppointmentsScreen.routeName);
-            },
-            icon: const Icon(Icons.calendar_today, size: 16),
-            label: const Text('View All Appointments'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Constants.primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 64,
+              color: Colors.grey[400],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              'No upcoming appointments',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Appointments will appear here when scheduled',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pushNamed(context, AppointmentsScreen.routeName);
+              },
+              icon: const Icon(Icons.calendar_today, size: 16),
+              label: const Text('View All Appointments'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Constants.primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -188,7 +238,7 @@ class _UpcomingAppointmentsSectionState
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Colors.grey.shade50,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(

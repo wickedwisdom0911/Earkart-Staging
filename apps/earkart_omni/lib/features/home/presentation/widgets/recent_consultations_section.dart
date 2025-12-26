@@ -11,79 +11,112 @@ class RecentConsultationsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              "Recent Consultations",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pushNamed(context, AllConsultationsScreen.routeName);
-              },
-              child: const Text(
-                'View All',
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.withAlpha(90), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Recent Consultations",
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: Colors.blue,
+                  color: Colors.black87,
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: BlocBuilder<ConsultationCubit, ConsultationState>(
-            builder: (context, state) {
-              if (state is ConsultationLoading) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (state is AllConsultationsError) {
-                return ErrorStateWidget(
-                  title: 'Unable to load consultations',
-                  message: state.message,
-                  onRetry: () {
-                    context
-                        .read<ConsultationCubit>()
-                        .getConsultationsByCentreId();
-                  },
-                );
-              }
-              if (state is AllConsultationsSuccess) {
-                if (state.consultations.isEmpty) {
-                  return const EmptyStateCard();
-                }
-                return ListView.separated(
-                  itemCount: state.consultations.length,
-                  separatorBuilder:
-                      (context, index) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final consultation = state.consultations[index];
-                    return ConsultationCard(
-                      patientName:
-                          consultation.patient?.name ?? "Unknown Patient",
-                      date:
-                          consultation.createdAt?.toString().split(' ')[0] ??
-                          "No date",
-                      status: consultation.status?.name ?? "Unknown",
-                    );
-                  },
-                );
-              }
-              return const EmptyStateCard();
-            },
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    AllConsultationsScreen.routeName,
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  side: BorderSide(color: Colors.grey.shade300, width: 1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  backgroundColor: Colors.transparent,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'View All',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          Expanded(
+            child: BlocBuilder<ConsultationCubit, ConsultationState>(
+              builder: (context, state) {
+                if (state is ConsultationLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (state is AllConsultationsError) {
+                  return ErrorStateWidget(
+                    title: 'Unable to load consultations',
+                    message: state.message,
+                    onRetry: () {
+                      context
+                          .read<ConsultationCubit>()
+                          .getConsultationsByCentreId();
+                    },
+                  );
+                }
+                if (state is AllConsultationsSuccess) {
+                  if (state.consultations.isEmpty) {
+                    return const EmptyStateCard();
+                  }
+                  return ListView.separated(
+                    itemCount: state.consultations.length,
+                    separatorBuilder:
+                        (context, index) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final consultation = state.consultations[index];
+                      return ConsultationCard(
+                        patientName:
+                            consultation.patient?.name ?? "Unknown Patient",
+                        date:
+                            consultation.createdAt?.toString().split(' ')[0] ??
+                            "No date",
+                        status: consultation.status?.name ?? "Unknown",
+                      );
+                    },
+                  );
+                }
+                return const EmptyStateCard();
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -105,7 +138,7 @@ class ConsultationCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -190,8 +223,8 @@ class EmptyStateCard extends StatelessWidget {
       padding: const EdgeInsets.all(40),
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
