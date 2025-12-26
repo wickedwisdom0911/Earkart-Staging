@@ -20,7 +20,7 @@ class ActionCardsSection extends StatelessWidget {
             color: Colors.black87,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         Row(
           children: [
             Expanded(

@@ -66,12 +66,35 @@ class _HomeScreenState extends State<HomeScreen> {
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const ActionCardsSection(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 20),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pushNamed(
+                        context,
+                        ChatWithAudiologistsScreen.routeName,
+                      );
+                    },
+
+                    label: const Text('Chat with Audiologists'),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: Colors.grey.withAlpha(90),
+                        width: 1,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      foregroundColor: Constants.primaryColor,
+                      minimumSize: const Size(double.infinity, 48),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
                   SizedBox(
                     height: 400,
                     child: Row(
@@ -87,15 +110,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            Navigator.pushNamed(context, ChatWithAudiologistsScreen.routeName);
-          },
-          backgroundColor: Colors.white,
-          shape: CircleBorder(side: BorderSide(color: Constants.primaryColor)),
-          elevation: 2,
-          child: Icon(Icons.chat, color: Constants.primaryColor),
         ),
       ),
     );
