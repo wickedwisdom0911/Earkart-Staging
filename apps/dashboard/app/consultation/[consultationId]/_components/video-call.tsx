@@ -28,32 +28,14 @@ interface VideoCallProps {
   showOtoscopyOnly?: boolean; // New prop to show only otoscopy stream
 }
 
-const VideoCallSkeleton = () => {
+// Remote user loading skeleton - only shows the remote video area loading
+const RemoteUserSkeleton = () => {
   return (
-    <div className="flex flex-col items-center h-full min-w-1/3 w-fit relative">
-      <div className="flex flex-col h-full w-full gap-1 mb-2">
-        {/* Remote user skeleton */}
-        <div className="w-full h-full rounded-2xl border bg-gray-900 overflow-hidden relative">
-          <Skeleton className="w-full h-full rounded-2xl" />
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-white mb-2" />
-            <div className="text-white text-sm">Connecting to patient...</div>
-          </div>
-        </div>
-
-        {/* Local user skeleton */}
-        <div className="absolute top-4 right-4 flex flex-col items-center gap-2">
-          <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-white shadow-lg bg-gray-900 relative">
-            <Skeleton className="w-full h-full rounded-full" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-white" />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Skeleton className="w-10 h-10 rounded-full" />
-            <Skeleton className="w-10 h-10 rounded-full" />
-          </div>
-        </div>
+    <div className="w-full h-full rounded-2xl border bg-gray-900 overflow-hidden relative">
+      <Skeleton className="w-full h-full rounded-2xl" />
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-white mb-2" />
+        <div className="text-white text-sm">Connecting to patient...</div>
       </div>
     </div>
   );
@@ -495,10 +477,8 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
     });
   }, [isLeaving, openDialog, endConsultation]);
 
-  // Show loading skeleton during initialization
-  if (isInitializing || (!isConnected && (!token || !appId))) {
-    return <VideoCallSkeleton />;
-  }
+  // Track if we're still loading
+  const isLoading = isInitializing || (!isConnected && (!token || !appId));
 
   return (
     <div className={`flex flex-col items-center h-full relative ${
@@ -506,18 +486,18 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
     }`}>
       <Dialog />
       {error && (
-        <div className="mb-4 p-2 bg-red-100 text-red-700 rounded-md">
+        <div className="absolute top-2 left-2 right-2 z-20 p-2 bg-red-100 text-red-700 rounded-md text-sm">
           {error}
         </div>
       )}
       {isReconnecting && (
-        <div className="mb-4 p-2 bg-yellow-100 text-yellow-700 rounded-md flex items-center gap-2">
+        <div className="absolute top-2 left-2 right-2 z-20 p-2 bg-yellow-100 text-yellow-700 rounded-md flex items-center gap-2 text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Reconnecting...
         </div>
       )}
       {showRefreshHint && (
-        <div className="mb-4 p-2 bg-blue-100 text-blue-700 rounded-md flex items-center gap-2">
+        <div className="absolute top-2 left-2 right-2 z-20 p-2 bg-blue-100 text-blue-700 rounded-md flex items-center gap-2 text-sm">
           <User className="w-4 h-4" />
           {showOtoscopyOnly 
             ? "Otoscope stream not detected. Make sure the camera is open on the device."
@@ -533,7 +513,9 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
             isFullscreen ? 'rounded-none border-none' : 'rounded-2xl border'
           }`}
         >
-          {filteredRemoteUsers.length > 0 ? (
+          {isLoading ? (
+            <RemoteUserSkeleton />
+          ) : filteredRemoteUsers.length > 0 ? (
             filteredRemoteUsers.map((user) => {
               // Force re-render when video track changes
               const videoTrackId = user.videoTrack?.getTrackId?.();
@@ -564,14 +546,14 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           )}
         </div>
 
-        {/* Local user (audiologist) - floating circle */}
+        {/* Local user (audiologist) - floating circle top right */}
         {!hideLocalUser && (
-          <div className="absolute top-4 right-4 flex flex-col items-center gap-2">
+          <div className="absolute top-4 right-4 flex flex-col items-center gap-2 z-10">
             <div
               ref={localRef}
               className="w-32 h-32 rounded-full overflow-hidden border-2 border-white shadow-lg bg-gray-900"
             >
-              {cameraOn && localCameraTrack ? (
+              {localCameraTrack ? (
                 <LocalUser
                   audioTrack={localMicrophoneTrack as any}
                   cameraOn={cameraOn}
@@ -580,60 +562,58 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                   videoTrack={localCameraTrack as any}
                   style={{ width: "100%", height: "100%" }}
                 >
-                  <div className="absolute bottom-1 left-1 text-white text-xs">
+                  <div className="absolute bottom-1 left-1 text-white text-xs bg-black/50 px-1 rounded">
                     You
                   </div>
                 </LocalUser>
               ) : (
-                <VideoPlaceholder name="You" size="small" isLoading={isReconnecting} />
+                <VideoPlaceholder name="You" size="small" isLoading={true} />
               )}
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMic(!micOn)}
-                className={`
-                  p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
-                  z-10
-                  transition-colors duration-200
-                  ${micOn ? "text-white" : "text-red-500"}
-                `}
-                title={micOn ? "Mute" : "Unmute"}
-              >
-              {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+          </div>
+        )}
+
+        {/* Control buttons - floating at bottom center */}
+        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20">
+          <div className="flex items-center gap-3 bg-black/60 backdrop-blur-sm px-4 py-3 rounded-full shadow-lg">
+            <button
+              onClick={() => setMic(!micOn)}
+              className={`
+                p-3 rounded-full transition-colors duration-200 cursor-pointer
+                ${micOn ? "bg-gray-700 hover:bg-gray-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}
+              `}
+              title={micOn ? "Mute" : "Unmute"}
+            >
+              {micOn ? <Mic size={22} /> : <MicOff size={22} />}
             </button>
             <button
               onClick={() => setCameraOn((prev) => !prev)}
               disabled={!localCameraTrack}
               className={`
-                p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
-                z-10
-                transition-colors duration-200
-                ${!localCameraTrack ? "text-gray-500 cursor-not-allowed" : cameraOn ? "text-white" : "text-red-500"}
+                p-3 rounded-full transition-colors duration-200 cursor-pointer
+                ${!localCameraTrack ? "bg-gray-800 text-gray-500 cursor-not-allowed" : cameraOn ? "bg-gray-700 hover:bg-gray-600 text-white" : "bg-red-500 hover:bg-red-600 text-white"}
               `}
               title={cameraOn ? "Turn Camera Off" : "Turn Camera On"}
             >
-              {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+              {cameraOn ? <Video size={22} /> : <VideoOff size={22} />}
             </button>
-              <button
-                onClick={handleLeave}
-                disabled={isLeaving}
-                className={`
-                  p-2 rounded-full bg-black/50 hover:bg-black/70 cursor-pointer
-                  z-10
-                  transition-colors duration-200
-                  ${isLeaving ? "text-gray-500" : "text-red-500 hover:text-red-600"}
-                `}
-                title="End Consultation"
-              >
-                {isLeaving ? (
-                  <Loader2 size={20} className="animate-spin" />
-                ) : (
-                  <PhoneOff size={20} />
-                )}
-              </button>
-            </div>
+            <button
+              onClick={handleLeave}
+              disabled={isLeaving}
+              className={`
+                p-3 rounded-full transition-colors duration-200 cursor-pointer
+                ${isLeaving ? "bg-gray-600 text-gray-400" : "bg-red-600 hover:bg-red-700 text-white"}
+              `}
+              title="End Consultation"
+            >
+              {isLeaving ? (
+                <Loader2 size={22} className="animate-spin" />
+              ) : (
+                <PhoneOff size={22} />
+              )}
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

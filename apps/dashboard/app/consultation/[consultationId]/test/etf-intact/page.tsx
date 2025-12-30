@@ -52,7 +52,7 @@ type EtfCurve = {
   rawComplianceData?: number[];
 };
 
-const CURVE_LABELS = ["Curve 1", "Curve 2", "Curve 3"];
+const CURVE_LABELS = ["Baseline", "Swallow", "Valsalva"];
 const CURVE_COLORS = ["#3B82F6", "#EF4444", "#10B981"];
 const RANGE_PRESETS = [
   { label: "200/-400", start: 200, stop: -400 },

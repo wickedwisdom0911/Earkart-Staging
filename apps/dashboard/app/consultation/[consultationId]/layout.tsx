@@ -407,7 +407,6 @@ export default function ConsultationLayout({
         const result = await updateConsultation({
           id: consultationId,
           status: "COMPLETED",
-          audiologistStatus: "COMPLETED",
         } as any);
         if (result.success) {
           console.log("✅ [END] Consultation status updated to COMPLETED");
@@ -428,6 +427,12 @@ export default function ConsultationLayout({
       // Invalidate consultations cache so dashboard shows fresh data
       console.log("🔄 [END] Invalidating consultations cache");
       queryClient.invalidateQueries({ queryKey: ["consultations"] });
+      
+      // Emit end:consultation socket event to notify backend and other clients
+      if (socket && socket.connected) {
+        console.log("📤 [END] Emitting end:consultation socket event");
+        socket.emit("end:consultation", { consultationId });
+      }
       
       // IMMEDIATE socket disconnect to prevent rejoin
       if (socket) {

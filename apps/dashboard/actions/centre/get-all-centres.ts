@@ -12,71 +12,99 @@ export default async function getAllCentres(params?: {
   countryId?: string;
 }): Promise<CentreModel> {
   const baseUrl = await getBaseUrl();
-  const searchParams = new URLSearchParams();
-
-  if (params?.cityId) searchParams.append("cityId", params.cityId);
-  if (params?.districtId) searchParams.append("districtId", params.districtId);
-  if (params?.stateId) searchParams.append("stateId", params.stateId);
-  if (params?.countryId) searchParams.append("countryId", params.countryId);
-
-  const url = `${baseUrl}centre/get-all?${searchParams.toString()}`;
   const user = await verifySession();
+  
   if (!user?.token) {
     throw new Error("Unauthorized");
   }
-  const response = await apiRequest(
-    url,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${user.token}`,
-      },
-    },
-    CentreModelSchema
-  );
-  
-  // Normalize the response to ensure consistent structure
-  // Handle case where data is a direct array
-  if (Array.isArray(response.data)) {
-    const centresArray = response.data;
-    response.data = {
-      data: centresArray,
-      total: centresArray.length,
-      limit: centresArray.length,
-      offset: 0,
-      page: 1,
-      totalPages: 1,
-      hasNext: false,
-      hasPrevious: false,
-    };
+
+  // Fetch all centres using pagination
+  let allCentres: any[] = [];
+  let offset = 0;
+  const limit = 100; // Max per request as per backend documentation
+  let hasMore = true;
+
+  console.log("[getAllCentres] Starting pagination fetch...");
+
+  while (hasMore) {
+    // Build query string with URLSearchParams
+    const searchParams = new URLSearchParams();
+    
+    // Add pagination parameters as clean numeric strings
+    searchParams.append("limit", String(limit));
+    searchParams.append("offset", String(offset));
+
+    // Add filter parameters if provided
+    if (params?.cityId) searchParams.append("cityId", params.cityId);
+    if (params?.districtId) searchParams.append("districtId", params.districtId);
+    if (params?.stateId) searchParams.append("stateId", params.stateId);
+    if (params?.countryId) searchParams.append("countryId", params.countryId);
+
+    const url = `${baseUrl}centre/get-all?${searchParams.toString()}`;
+    
+    console.log(`[getAllCentres] Fetching page: limit=${limit}, offset=${offset}`);
+
+    try {
+      const response = await apiRequest(
+        url,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${user.token}`,
+          },
+        },
+        CentreModelSchema
+      );
+
+      // Handle case where data is a direct array
+      if (Array.isArray(response.data)) {
+        allCentres = [...allCentres, ...response.data];
+        hasMore = false; // No pagination info, assume this is all data
+        console.log(`[getAllCentres] Fetched ${response.data.length} centres (direct array)`);
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        const fetchedCount = response.data.data.length;
+        allCentres = [...allCentres, ...response.data.data];
+        hasMore = response.data.hasNext || false;
+        
+        console.log(`[getAllCentres] Fetched ${fetchedCount} centres, total so far: ${allCentres.length}, hasNext: ${hasMore}`);
+        
+        // Move to next page
+        if (hasMore) {
+          offset += limit;
+        }
+      } else {
+        console.warn("[getAllCentres] Unexpected response structure:", response);
+        hasMore = false;
+      }
+    } catch (error) {
+      console.error(`[getAllCentres] Error fetching page at offset ${offset}:`, error);
+      throw error;
+    }
   }
-  
-  // Ensure we always have a valid data structure
-  if (!response.data || typeof response.data !== 'object' || Array.isArray(response.data)) {
-    response.data = {
-      data: [],
-      total: 0,
-      limit: 0,
-      offset: 0,
-      page: 0,
-      totalPages: 0,
-      hasNext: false,
-      hasPrevious: false,
-    };
-  }
-  
-  // Ensure data.data is always an array
-  if (!response.data.data || !Array.isArray(response.data.data)) {
-    response.data.data = [];
-  }
-  
-  // Fix pricing for each centre in the array
-  response.data.data.forEach((centre) => {
+
+  console.log(`[getAllCentres] Completed! Total centres fetched: ${allCentres.length}`);
+
+  // Fix pricing for each centre
+  allCentres.forEach((centre) => {
     if (centre && centre.pricing === undefined) {
       centre.pricing = [];
     }
   });
 
-  return response as unknown as CentreModel;
+  // Return in the expected format
+  return {
+    success: true,
+    message: "Centres fetched successfully",
+    data: {
+      data: allCentres,
+      total: allCentres.length,
+      limit: allCentres.length,
+      offset: 0,
+      page: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasPrevious: false,
+    },
+  } as unknown as CentreModel;
 }
