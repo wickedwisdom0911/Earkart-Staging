@@ -5,7 +5,7 @@ import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/Badge";
 import { Building2, Send, Users, MessageCircle, Loader2 } from "lucide-react";
 import { chatSocketService, ChatMessage, RoomParticipant } from "@/services/chat-socket.service";
 import { useGetUser } from "@/hooks/auth/use-get-user";
