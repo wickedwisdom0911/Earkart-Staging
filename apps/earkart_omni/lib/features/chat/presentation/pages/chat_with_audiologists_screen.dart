@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
@@ -28,6 +27,7 @@ class _ChatWithAudiologistsScreenState
   late final ChatCubit _chatCubit;
   bool _isAtBottom = true;
   bool _showScrollToBottomButton = false;
+  bool _hasInitiallyScrolled = false;
 
   @override
   void initState() {
@@ -62,22 +62,35 @@ class _ChatWithAudiologistsScreenState
     }
   }
 
-  void _scrollToBottom({bool smooth = true}) {
-    if (_scrollController.hasClients) {
-      if (smooth) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      } else {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  void _scrollToBottom({bool smooth = true, bool force = false}) {
+    if (!_scrollController.hasClients) return;
+
+    // Don't scroll if user is actively scrolling and not forcing
+    if (!force && _scrollController.position.isScrollingNotifier.value) {
+      // Check if user scrolled away from bottom
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final currentScroll = _scrollController.position.pixels;
+      final distanceFromBottom = maxScroll - currentScroll;
+
+      // If user is more than 200px from bottom, don't auto-scroll
+      if (distanceFromBottom > 200) {
+        return;
       }
-      setState(() {
-        _isAtBottom = true;
-        _showScrollToBottomButton = false;
-      });
     }
+
+    if (smooth) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    }
+    setState(() {
+      _isAtBottom = true;
+      _showScrollToBottomButton = false;
+    });
   }
 
   /// Converts UTC DateTime to Indian Standard Time (IST) and formats it
@@ -172,12 +185,8 @@ class _ChatWithAudiologistsScreenState
                   }
                   // Emit viewing_messages socket event when screen opens (after roomId is set)
                   // This will be called after the 'connected' event sets the roomId
-                  // Auto-scroll to bottom when screen opens
-                  Future.delayed(const Duration(milliseconds: 100), () {
-                    if (mounted) {
-                      _scrollToBottom(smooth: false);
-                    }
-                  });
+                  // Reset initial scroll flag when screen opens
+                  _hasInitiallyScrolled = false;
                 });
               }
 
@@ -198,10 +207,15 @@ class _ChatWithAudiologistsScreenState
                       }
                     },
                     messagesLoaded: (messages, roomId, hasMore) {
-                      // Auto-scroll to bottom when messages are first loaded
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _scrollToBottom(smooth: false);
-                      });
+                      // Auto-scroll to bottom only on initial load and if user is at bottom
+                      if (!_hasInitiallyScrolled) {
+                        _hasInitiallyScrolled = true;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && _isAtBottom) {
+                            _scrollToBottom(smooth: false);
+                          }
+                        });
+                      }
                     },
                     error: (message) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -266,7 +280,7 @@ class _ChatWithAudiologistsScreenState
                           bottom: 80,
                           right: 16,
                           child: FloatingActionButton.small(
-                            onPressed: () => _scrollToBottom(),
+                            onPressed: () => _scrollToBottom(force: true),
                             backgroundColor: Constants.primaryColor,
                             child: const Icon(
                               Icons.keyboard_arrow_down,
