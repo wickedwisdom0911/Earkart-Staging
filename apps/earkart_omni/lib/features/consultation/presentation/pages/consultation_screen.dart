@@ -65,6 +65,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   bool _consultationCompletionHandled = false;
   Timer? _completionTimeoutTimer;
   ConsultationEndedBy? _consultationEndedBy;
+  bool _isCheckingInitialStatus = false;
 
   @override
   void initState() {
@@ -950,30 +951,91 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 setState(() {
                   consultation = state.consultation;
                 });
-                _tryJoinConsultation();
-                // Trigger device event emission when consultation is loaded
-                _deviceEventEmitter?.forceEmitDeviceEvent();
+
+                // Check if consultation is already completed by fetching latest status from server
+                if (state.consultation.id != null &&
+                    state.consultation.id!.isNotEmpty) {
+                  _isCheckingInitialStatus = true;
+                  di<ILogger>().debug(
+                    'ConsultationScreen: Fetching latest consultation status from server',
+                  );
+                  context.read<ConsultationCubit>().getConsultationById(
+                    state.consultation.id!,
+                  );
+                } else {
+                  // If no ID, proceed with normal flow
+                  _tryJoinConsultation();
+                  _deviceEventEmitter?.forceEmitDeviceEvent();
+                }
               }
-              // Handle consultation update success
+              // Handle consultation update success (from both updateConsultation and getConsultationById)
               if (state is ConsultationSuccess) {
                 di<ILogger>().debug(
-                  'ConsultationScreen: Consultation update success - status: ${state.consultation.status}',
+                  'ConsultationScreen: Consultation success - status: ${state.consultation.status}',
                 );
-                // Show success message if consultation was completed
-                if (state.consultation.status == SessionStatus.completed) {
-                  di<ILogger>().debug(
-                    'ConsultationScreen: Consultation completed, calling _handleConsultationCompletion',
-                  );
-                  if (!mounted) return;
-                  _showSuccessSnackBar('Consultation completed successfully');
 
-                  // Leave the channel and clear data
-                  _handleConsultationCompletion();
+                // Update local consultation reference
+                setState(() {
+                  consultation = state.consultation;
+                });
+
+                // Check if consultation is completed
+                if (state.consultation.status == SessionStatus.completed) {
+                  // If we're checking initial status and consultation is already completed,
+                  // navigate to ended screen without showing success message
+                  if (_isCheckingInitialStatus) {
+                    di<ILogger>().debug(
+                      'ConsultationScreen: Consultation already completed on server, navigating to ended screen',
+                    );
+                    _isCheckingInitialStatus = false;
+                    if (!mounted) return;
+
+                    // Set ended by as audiologist since it was completed before user joined
+                    _consultationEndedBy = ConsultationEndedBy.audiologist;
+                    _handleConsultationCompletion();
+                  } else {
+                    // Normal completion flow (user or audiologist ended during session)
+                    di<ILogger>().debug(
+                      'ConsultationScreen: Consultation completed, calling _handleConsultationCompletion',
+                    );
+                    if (!mounted) return;
+                    _showSuccessSnackBar('Consultation completed successfully');
+
+                    // Leave the channel and clear data
+                    _handleConsultationCompletion();
+                  }
+                } else {
+                  // Consultation is not completed, proceed with normal flow
+                  if (_isCheckingInitialStatus) {
+                    di<ILogger>().debug(
+                      'ConsultationScreen: Consultation is active, proceeding with normal flow',
+                    );
+                    _isCheckingInitialStatus = false;
+                    _tryJoinConsultation();
+                    // Trigger device event emission when consultation is loaded
+                    _deviceEventEmitter?.forceEmitDeviceEvent();
+                  }
                 }
               }
               // Handle consultation update error
               if (state is ConsultationError) {
-                ErrorHandler.handleConsultationError(context, state.message);
+                // If we were checking initial status and getConsultationById failed,
+                // proceed with normal flow using the consultation from getCurrentConsultation
+                if (_isCheckingInitialStatus) {
+                  di<ILogger>().warning(
+                    'ConsultationScreen: Failed to fetch latest consultation status, proceeding with cached consultation',
+                  );
+                  _isCheckingInitialStatus = false;
+                  // Proceed with normal flow using the consultation we already have
+                  if (consultation?.id != null &&
+                      consultation!.id!.isNotEmpty) {
+                    _tryJoinConsultation();
+                    _deviceEventEmitter?.forceEmitDeviceEvent();
+                  }
+                } else {
+                  ErrorHandler.handleConsultationError(context, state.message);
+                }
+
                 // If we were trying to complete the consultation, handle it anyway
                 // This ensures cleanup happens even if the API call fails
                 if (_endCallInProgress && !_consultationCompletionHandled) {
