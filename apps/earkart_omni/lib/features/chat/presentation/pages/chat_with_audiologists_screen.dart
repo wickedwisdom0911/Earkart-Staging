@@ -5,7 +5,6 @@ import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:earkart_omni/features/chat/presentation/cubit/chat.cubit.dart';
 import 'package:earkart_omni/features/chat/presentation/cubit/chat.state.dart';
 import 'package:earkart_omni/models/chat/chat_message.entity.dart';
-import 'package:earkart_omni/models/chat/read_receipt.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:flutter/material.dart';
@@ -26,7 +25,6 @@ class _ChatWithAudiologistsScreenState
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
-  Timer? _viewingMessagesTimer;
   late final ChatCubit _chatCubit;
   bool _isAtBottom = true;
   bool _showScrollToBottomButton = false;
@@ -40,7 +38,6 @@ class _ChatWithAudiologistsScreenState
 
   @override
   void dispose() {
-    _viewingMessagesTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _messageController.dispose();
     _scrollController.dispose();
@@ -52,11 +49,11 @@ class _ChatWithAudiologistsScreenState
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    
+
     final maxScroll = _scrollController.position.maxScrollExtent;
     final currentScroll = _scrollController.position.pixels;
     final isAtBottom = (maxScroll - currentScroll) < 100; // 100px threshold
-    
+
     if (_isAtBottom != isAtBottom) {
       setState(() {
         _isAtBottom = isAtBottom;
@@ -95,12 +92,6 @@ class _ChatWithAudiologistsScreenState
     return DateFormat('h:mm a').format(indianTime);
   }
 
-  /// Formats date and time in Indian timezone
-  String _formatIndianDateTime(DateTime utcTime) {
-    final indianTime = _toIndianTime(utcTime);
-    return DateFormat('MMM dd, yyyy • h:mm a').format(indianTime);
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(
@@ -110,10 +101,7 @@ class _ChatWithAudiologistsScreenState
         appBar: GlassmorphismAppBar(
           title: const Text(
             "Chat",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           actions: [
             BlocBuilder<ChatCubit, ChatState>(
@@ -128,9 +116,10 @@ class _ChatWithAudiologistsScreenState
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: isConnected
-                          ? Colors.green.withOpacity(0.1)
-                          : Colors.orange.withOpacity(0.1),
+                      color:
+                          isConnected
+                              ? Colors.green.withOpacity(0.1)
+                              : Colors.orange.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -149,9 +138,10 @@ class _ChatWithAudiologistsScreenState
                           isConnected ? 'Online' : 'Connecting',
                           style: TextStyle(
                             fontSize: 11,
-                            color: isConnected
-                                ? Colors.green.shade700
-                                : Colors.orange.shade700,
+                            color:
+                                isConnected
+                                    ? Colors.green.shade700
+                                    : Colors.orange.shade700,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -167,7 +157,7 @@ class _ChatWithAudiologistsScreenState
           listener: (context, authState) {
             if (authState is AuthCentreSuccess &&
                 authState.centre?.id != null) {
-              context.read<ChatCubit>().connect(authState.centre!.id);
+              context.read<ChatCubit>().connect();
             }
           },
           child: BlocBuilder<AuthCubit, AuthState>(
@@ -177,20 +167,11 @@ class _ChatWithAudiologistsScreenState
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   final chatCubit = context.read<ChatCubit>();
                   if (!chatCubit.isConnected) {
-                    chatCubit.connect(authState.centre!.id);
+                    // Connect without passing centreId - backend will determine room from auth token
+                    chatCubit.connect();
                   }
-                  // Emit viewing_messages socket event
-                  chatCubit.emitViewingMessages();
-                  // Set up periodic emission every 30 seconds while viewing
-                  _viewingMessagesTimer?.cancel();
-                  _viewingMessagesTimer = Timer.periodic(
-                    const Duration(seconds: 30),
-                    (_) {
-                      if (mounted && chatCubit.isConnected) {
-                        chatCubit.emitViewingMessages();
-                      }
-                    },
-                  );
+                  // Emit viewing_messages socket event when screen opens (after roomId is set)
+                  // This will be called after the 'connected' event sets the roomId
                   // Auto-scroll to bottom when screen opens
                   Future.delayed(const Duration(milliseconds: 100), () {
                     if (mounted) {
@@ -243,32 +224,41 @@ class _ChatWithAudiologistsScreenState
                     children: [
                       Column(
                         children: [
-                          // Active participants badge
-                          _buildParticipantsBadge(context),
-                          // Messages list
+                          // Messages list (full screen)
                           Expanded(
                             child: state.maybeWhen(
-                              initial: () => _buildEmptyState('Initializing...'),
-                              connecting: () => _buildEmptyState('Connecting...'),
-                              connected: (roomId) => _buildMessagesList(context),
-                              messagesLoaded: (messages, roomId, hasMore) =>
-                                  _buildMessagesList(context),
-                              messageReceived: (message, messages) =>
-                                  _buildMessagesList(context),
-                              participantsUpdated: (participants) =>
-                                  _buildMessagesList(context),
-                              disconnected: () =>
-                                  _buildEmptyState('Disconnected'),
-                              error: (message) => _buildEmptyState(
-                                message,
-                                isError: true,
-                              ),
+                              initial:
+                                  () => _buildEmptyState('Initializing...'),
+                              connecting:
+                                  () => _buildEmptyState('Connecting...'),
+                              connected:
+                                  (roomId) => _buildMessagesList(context),
+                              messagesLoaded:
+                                  (messages, roomId, hasMore) =>
+                                      _buildMessagesList(context),
+                              messageReceived:
+                                  (message, messages) =>
+                                      _buildMessagesList(context),
+                              participantsUpdated:
+                                  (participants) => _buildMessagesList(context),
+                              disconnected:
+                                  () => _buildEmptyState('Disconnected'),
+                              error:
+                                  (message) =>
+                                      _buildEmptyState(message, isError: true),
                               orElse: () => _buildMessagesList(context),
                             ),
                           ),
                           // Input section
                           _buildInputSection(context),
                         ],
+                      ),
+                      // Floating participants badge at the top
+                      Positioned(
+                        top: 8,
+                        left: 0,
+                        right: 0,
+                        child: Center(child: _buildParticipantsBadge(context)),
                       ),
                       // Floating scroll to bottom button
                       if (_showScrollToBottomButton)
@@ -333,7 +323,8 @@ class _ChatWithAudiologistsScreenState
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 60, 16, 12),
       itemCount: messages.length,
       itemBuilder: (context, index) {
         final message = messages[index];
@@ -343,7 +334,7 @@ class _ChatWithAudiologistsScreenState
 
         final isLastMessage = index == messages.length - 1;
         final shouldAnimate = isLastMessage && _isAtBottom;
-        
+
         return Column(
           children: [
             if (showDateSeparator) _buildDateSeparator(message.timestamp),
@@ -359,7 +350,7 @@ class _ChatWithAudiologistsScreenState
     final isToday = _isToday(indianDate);
     final isYesterday = _isYesterday(indianDate);
     String displayText;
-    
+
     if (isToday) {
       displayText = 'Today';
     } else if (isYesterday) {
@@ -401,10 +392,9 @@ class _ChatWithAudiologistsScreenState
         }
 
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: Constants.primaryColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: Constants.primaryColor.withOpacity(0.2),
@@ -453,20 +443,10 @@ class _ChatWithAudiologistsScreenState
           Flexible(
             child: Column(
               crossAxisAlignment:
-                  isSentByMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  isSentByMe
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
               children: [
-                if (!isSentByMe && message.senderName != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4, left: 4),
-                    child: Text(
-                      message.senderName!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ),
                 Container(
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width * 0.75,
@@ -476,16 +456,16 @@ class _ChatWithAudiologistsScreenState
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: isSentByMe
-                        ? Constants.primaryColor
-                        : Colors.white,
+                    color: isSentByMe ? Constants.primaryColor : Colors.white,
                     borderRadius: BorderRadius.circular(16).copyWith(
-                      bottomRight: isSentByMe
-                          ? const Radius.circular(4)
-                          : const Radius.circular(16),
-                      bottomLeft: isSentByMe
-                          ? const Radius.circular(16)
-                          : const Radius.circular(4),
+                      bottomRight:
+                          isSentByMe
+                              ? const Radius.circular(4)
+                              : const Radius.circular(16),
+                      bottomLeft:
+                          isSentByMe
+                              ? const Radius.circular(16)
+                              : const Radius.circular(4),
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -498,6 +478,25 @@ class _ChatWithAudiologistsScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Sender name inside bubble
+                      if (message.senderName != null && !isSentByMe)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text(
+                            message.senderName!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color:
+                                  isSentByMe
+                                      ? Colors.white.withOpacity(0.9)
+                                      : _getRoleColor(
+                                        message.senderRole,
+                                      ).withOpacity(0.9),
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
                       Text(
                         message.message,
                         style: TextStyle(
@@ -514,23 +513,12 @@ class _ChatWithAudiologistsScreenState
                             timeStr,
                             style: TextStyle(
                               fontSize: 10,
-                              color: isSentByMe
-                                  ? Colors.white.withOpacity(0.7)
-                                  : Colors.grey.shade500,
+                              color:
+                                  isSentByMe
+                                      ? Colors.white.withOpacity(0.7)
+                                      : Colors.grey.shade500,
                             ),
                           ),
-                          if (isSentByMe) ...[
-                            const SizedBox(width: 4),
-                            GestureDetector(
-                              onTap: () =>
-                                  _showReadReceipts(context, message.id),
-                              child: Icon(
-                                Icons.done_all,
-                                size: 12,
-                                color: Colors.white.withOpacity(0.7),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ],
@@ -555,130 +543,144 @@ class _ChatWithAudiologistsScreenState
         builder: (context, value, child) {
           return Transform.translate(
             offset: Offset(0, 20 * (1 - value)),
-            child: Opacity(
-              opacity: value,
-              child: bubble,
-            ),
+            child: Opacity(opacity: value, child: bubble),
           );
         },
       );
     }
-    
+
     return bubble;
   }
 
   Widget _buildAvatar(Role role, {bool isMe = false}) {
+    Color iconColor;
     IconData icon;
+    List<Color> gradientColors;
+
     if (isMe) {
-      icon = Icons.person;
-    } else if (role.name == 'audiologist' ||
-        role.name == 'headAudiologist') {
+      // Me - Show "ME" text
+      return Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Constants.primaryColor,
+              Constants.primaryColor.withOpacity(0.7),
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Constants.primaryColor.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            'ME',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+      );
+    } else if (role == Role.admin || role == Role.superAdmin) {
+      // Admin/SuperAdmin - Use app icon
+      return Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Constants.primaryColor,
+          shape: BoxShape.circle,
+        ),
+        child: ClipOval(
+          child: Image.asset(
+            'assets/images/app_icon.png',
+
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              // Fallback to icon if image fails to load
+              return Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFF6366F1), // Indigo
+                      const Color(0xFF8B5CF6), // Purple
+                    ],
+                  ),
+                ),
+                child: const Icon(
+                  Icons.verified,
+                  size: 20,
+                  color: Colors.white,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } else if (role == Role.audiologist || role == Role.headAudiologist) {
+      // Audiologist - Green gradient
+      gradientColors = [
+        const Color(0xFF10B981), // Emerald
+        const Color(0xFF059669), // Darker emerald
+      ];
       icon = Icons.hearing;
+      iconColor = Colors.white;
     } else {
+      // Centre/Other - Orange gradient
+      gradientColors = [
+        const Color(0xFFF59E0B), // Amber
+        const Color(0xFFD97706), // Darker amber
+      ];
       icon = Icons.business;
+      iconColor = Colors.white;
     }
 
-    return CircleAvatar(
-      radius: 18,
-      backgroundColor: Constants.primaryColor.withOpacity(0.1),
-      child: Icon(
-        icon,
-        size: 18,
-        color: Constants.primaryColor,
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: gradientColors,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors[0].withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
+      child: Icon(icon, size: 20, color: iconColor),
     );
   }
 
-
-  void _showReadReceipts(BuildContext context, String messageId) {
-    context.read<ChatCubit>().getReadReceipts(messageId);
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => BlocBuilder<ChatCubit, ChatState>(
-        builder: (context, state) {
-          List<ReadReceipt> receipts = [];
-          state.maybeWhen(
-            readReceiptsLoaded: (id, readReceipts) {
-              if (id == messageId) {
-                receipts = readReceipts;
-              }
-            },
-            orElse: () {},
-          );
-
-          return SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'Read by',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (receipts.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'No read receipts yet',
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
-                  )
-                else
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: receipts.length,
-                      itemBuilder: (context, index) {
-                        final receipt = receipts[index];
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor:
-                                Constants.primaryColor.withOpacity(0.1),
-                            child: Icon(
-                              receipt.userRole.name == 'audiologist' ||
-                                      receipt.userRole.name == 'headAudiologist'
-                                  ? Icons.hearing
-                                  : Icons.person,
-                              color: Constants.primaryColor,
-                              size: 20,
-                            ),
-                          ),
-                          title: Text(receipt.userName),
-                          subtitle: Text(
-                            _formatIndianDateTime(receipt.readAt),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          );
-        },
-      ),
-    );
+  Color _getRoleColor(Role role) {
+    switch (role) {
+      case Role.admin:
+      case Role.superAdmin:
+        return const Color(0xFF6366F1); // Indigo
+      case Role.audiologist:
+      case Role.headAudiologist:
+        return const Color(0xFF10B981); // Emerald
+      default:
+        return const Color(0xFFF59E0B); // Amber
+    }
   }
 
   Widget _buildInputSection(BuildContext context) {
@@ -731,9 +733,10 @@ class _ChatWithAudiologistsScreenState
                   final cubit = context.read<ChatCubit>();
                   final isConnected = cubit.isConnected;
                   return Material(
-                    color: isConnected
-                        ? Constants.primaryColor
-                        : Colors.grey.shade300,
+                    color:
+                        isConnected
+                            ? Constants.primaryColor
+                            : Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(24),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(24),

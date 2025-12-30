@@ -49,7 +49,7 @@ class ChatCubit extends Cubit<ChatState> {
   String? get currentRoomId => _currentRoomId;
   int get unreadCount => _unreadCount;
 
-  Future<void> connect(String? centreId) async {
+  Future<void> connect() async {
     try {
       emit(const ChatState.connecting());
 
@@ -64,7 +64,8 @@ class ChatCubit extends Cubit<ChatState> {
       }
 
       _currentUserId = user.id;
-      _currentRoomId = centreId;
+      // Don't set _currentRoomId here - let backend determine it from auth token
+      _currentRoomId = null;
 
       // Build socket URL with /chat namespace
       // Remove trailing slashes and socket.io paths, then append /chat namespace
@@ -131,6 +132,8 @@ class ChatCubit extends Cubit<ChatState> {
           getRoomParticipants(_currentRoomId!);
           loadMessages();
           refreshUnreadCount();
+          // Emit viewing_messages after roomId is set
+          emitViewingMessages();
         }
       }
     });
@@ -157,6 +160,8 @@ class ChatCubit extends Cubit<ChatState> {
               ),
             );
           }
+          // Emit viewing_messages when a new message is received
+          emitViewingMessages();
         } catch (e) {
           _logger.error('Error parsing message: $e');
         }
@@ -276,6 +281,8 @@ class ChatCubit extends Cubit<ChatState> {
         "senderName": _userDataSource.getUserEntity()?.name,
       });
       _logger.info('Message sent: $message');
+      // Emit viewing_messages when sending a message
+      emitViewingMessages();
     } catch (e) {
       _logger.error('Error sending message: $e');
       emit(ChatState.error(message: 'Failed to send message: ${e.toString()}'));
