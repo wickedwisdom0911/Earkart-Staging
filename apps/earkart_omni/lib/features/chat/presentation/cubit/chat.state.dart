@@ -1,4 +1,6 @@
 import 'package:earkart_omni/models/chat/chat_message.entity.dart';
+import 'package:earkart_omni/models/chat/read_receipt.entity.dart';
+import 'package:earkart_omni/models/chat/unread_count.entity.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'chat.state.freezed.dart';
@@ -11,6 +13,7 @@ class ChatState with _$ChatState {
   const factory ChatState.messagesLoaded({
     required List<ChatMessage> messages,
     String? roomId,
+    @Default(false) bool hasMore,
   }) = ChatMessagesLoaded;
   const factory ChatState.messageReceived({
     required ChatMessage message,
@@ -19,6 +22,13 @@ class ChatState with _$ChatState {
   const factory ChatState.participantsUpdated({
     required List<ChatParticipant> participants,
   }) = ChatParticipantsUpdated;
+  const factory ChatState.unreadCountLoaded({
+    required UnreadCount unreadCount,
+  }) = ChatUnreadCountLoaded;
+  const factory ChatState.readReceiptsLoaded({
+    required String messageId,
+    required List<ReadReceipt> readReceipts,
+  }) = ChatReadReceiptsLoaded;
   const factory ChatState.error({required String message}) = ChatError;
   const factory ChatState.disconnected() = ChatDisconnected;
 }

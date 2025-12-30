@@ -21,12 +21,16 @@ mixin _$ChatState {
     required TResult Function() initial,
     required TResult Function() connecting,
     required TResult Function(String? roomId) connected,
-    required TResult Function(List<ChatMessage> messages, String? roomId)
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
         messagesLoaded,
     required TResult Function(ChatMessage message, List<ChatMessage> messages)
         messageReceived,
     required TResult Function(List<ChatParticipant> participants)
         participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
     required TResult Function(String message) error,
     required TResult Function() disconnected,
   }) =>
@@ -36,11 +40,14 @@ mixin _$ChatState {
     TResult? Function()? initial,
     TResult? Function()? connecting,
     TResult? Function(String? roomId)? connected,
-    TResult? Function(List<ChatMessage> messages, String? roomId)?
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult? Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult? Function(String message)? error,
     TResult? Function()? disconnected,
   }) =>
@@ -50,11 +57,14 @@ mixin _$ChatState {
     TResult Function()? initial,
     TResult Function()? connecting,
     TResult Function(String? roomId)? connected,
-    TResult Function(List<ChatMessage> messages, String? roomId)?
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult Function(String message)? error,
     TResult Function()? disconnected,
     required TResult orElse(),
@@ -69,6 +79,8 @@ mixin _$ChatState {
     required TResult Function(ChatMessageReceived value) messageReceived,
     required TResult Function(ChatParticipantsUpdated value)
         participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
     required TResult Function(ChatError value) error,
     required TResult Function(ChatDisconnected value) disconnected,
   }) =>
@@ -81,6 +93,8 @@ mixin _$ChatState {
     TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult? Function(ChatMessageReceived value)? messageReceived,
     TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult? Function(ChatError value)? error,
     TResult? Function(ChatDisconnected value)? disconnected,
   }) =>
@@ -93,6 +107,8 @@ mixin _$ChatState {
     TResult Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult Function(ChatMessageReceived value)? messageReceived,
     TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult Function(ChatError value)? error,
     TResult Function(ChatDisconnected value)? disconnected,
     required TResult orElse(),
@@ -158,12 +174,16 @@ class _$ChatInitialImpl implements ChatInitial {
     required TResult Function() initial,
     required TResult Function() connecting,
     required TResult Function(String? roomId) connected,
-    required TResult Function(List<ChatMessage> messages, String? roomId)
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
         messagesLoaded,
     required TResult Function(ChatMessage message, List<ChatMessage> messages)
         messageReceived,
     required TResult Function(List<ChatParticipant> participants)
         participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
     required TResult Function(String message) error,
     required TResult Function() disconnected,
   }) {
@@ -176,11 +196,14 @@ class _$ChatInitialImpl implements ChatInitial {
     TResult? Function()? initial,
     TResult? Function()? connecting,
     TResult? Function(String? roomId)? connected,
-    TResult? Function(List<ChatMessage> messages, String? roomId)?
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult? Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult? Function(String message)? error,
     TResult? Function()? disconnected,
   }) {
@@ -193,11 +216,14 @@ class _$ChatInitialImpl implements ChatInitial {
     TResult Function()? initial,
     TResult Function()? connecting,
     TResult Function(String? roomId)? connected,
-    TResult Function(List<ChatMessage> messages, String? roomId)?
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult Function(String message)? error,
     TResult Function()? disconnected,
     required TResult orElse(),
@@ -218,6 +244,8 @@ class _$ChatInitialImpl implements ChatInitial {
     required TResult Function(ChatMessageReceived value) messageReceived,
     required TResult Function(ChatParticipantsUpdated value)
         participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
     required TResult Function(ChatError value) error,
     required TResult Function(ChatDisconnected value) disconnected,
   }) {
@@ -233,6 +261,8 @@ class _$ChatInitialImpl implements ChatInitial {
     TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult? Function(ChatMessageReceived value)? messageReceived,
     TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult? Function(ChatError value)? error,
     TResult? Function(ChatDisconnected value)? disconnected,
   }) {
@@ -248,6 +278,8 @@ class _$ChatInitialImpl implements ChatInitial {
     TResult Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult Function(ChatMessageReceived value)? messageReceived,
     TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult Function(ChatError value)? error,
     TResult Function(ChatDisconnected value)? disconnected,
     required TResult orElse(),
@@ -304,12 +336,16 @@ class _$ChatConnectingImpl implements ChatConnecting {
     required TResult Function() initial,
     required TResult Function() connecting,
     required TResult Function(String? roomId) connected,
-    required TResult Function(List<ChatMessage> messages, String? roomId)
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
         messagesLoaded,
     required TResult Function(ChatMessage message, List<ChatMessage> messages)
         messageReceived,
     required TResult Function(List<ChatParticipant> participants)
         participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
     required TResult Function(String message) error,
     required TResult Function() disconnected,
   }) {
@@ -322,11 +358,14 @@ class _$ChatConnectingImpl implements ChatConnecting {
     TResult? Function()? initial,
     TResult? Function()? connecting,
     TResult? Function(String? roomId)? connected,
-    TResult? Function(List<ChatMessage> messages, String? roomId)?
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult? Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult? Function(String message)? error,
     TResult? Function()? disconnected,
   }) {
@@ -339,11 +378,14 @@ class _$ChatConnectingImpl implements ChatConnecting {
     TResult Function()? initial,
     TResult Function()? connecting,
     TResult Function(String? roomId)? connected,
-    TResult Function(List<ChatMessage> messages, String? roomId)?
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult Function(String message)? error,
     TResult Function()? disconnected,
     required TResult orElse(),
@@ -364,6 +406,8 @@ class _$ChatConnectingImpl implements ChatConnecting {
     required TResult Function(ChatMessageReceived value) messageReceived,
     required TResult Function(ChatParticipantsUpdated value)
         participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
     required TResult Function(ChatError value) error,
     required TResult Function(ChatDisconnected value) disconnected,
   }) {
@@ -379,6 +423,8 @@ class _$ChatConnectingImpl implements ChatConnecting {
     TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult? Function(ChatMessageReceived value)? messageReceived,
     TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult? Function(ChatError value)? error,
     TResult? Function(ChatDisconnected value)? disconnected,
   }) {
@@ -394,6 +440,8 @@ class _$ChatConnectingImpl implements ChatConnecting {
     TResult Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult Function(ChatMessageReceived value)? messageReceived,
     TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult Function(ChatError value)? error,
     TResult Function(ChatDisconnected value)? disconnected,
     required TResult orElse(),
@@ -476,12 +524,16 @@ class _$ChatConnectedImpl implements ChatConnected {
     required TResult Function() initial,
     required TResult Function() connecting,
     required TResult Function(String? roomId) connected,
-    required TResult Function(List<ChatMessage> messages, String? roomId)
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
         messagesLoaded,
     required TResult Function(ChatMessage message, List<ChatMessage> messages)
         messageReceived,
     required TResult Function(List<ChatParticipant> participants)
         participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
     required TResult Function(String message) error,
     required TResult Function() disconnected,
   }) {
@@ -494,11 +546,14 @@ class _$ChatConnectedImpl implements ChatConnected {
     TResult? Function()? initial,
     TResult? Function()? connecting,
     TResult? Function(String? roomId)? connected,
-    TResult? Function(List<ChatMessage> messages, String? roomId)?
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult? Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult? Function(String message)? error,
     TResult? Function()? disconnected,
   }) {
@@ -511,11 +566,14 @@ class _$ChatConnectedImpl implements ChatConnected {
     TResult Function()? initial,
     TResult Function()? connecting,
     TResult Function(String? roomId)? connected,
-    TResult Function(List<ChatMessage> messages, String? roomId)?
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult Function(String message)? error,
     TResult Function()? disconnected,
     required TResult orElse(),
@@ -536,6 +594,8 @@ class _$ChatConnectedImpl implements ChatConnected {
     required TResult Function(ChatMessageReceived value) messageReceived,
     required TResult Function(ChatParticipantsUpdated value)
         participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
     required TResult Function(ChatError value) error,
     required TResult Function(ChatDisconnected value) disconnected,
   }) {
@@ -551,6 +611,8 @@ class _$ChatConnectedImpl implements ChatConnected {
     TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult? Function(ChatMessageReceived value)? messageReceived,
     TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult? Function(ChatError value)? error,
     TResult? Function(ChatDisconnected value)? disconnected,
   }) {
@@ -566,6 +628,8 @@ class _$ChatConnectedImpl implements ChatConnected {
     TResult Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult Function(ChatMessageReceived value)? messageReceived,
     TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult Function(ChatError value)? error,
     TResult Function(ChatDisconnected value)? disconnected,
     required TResult orElse(),
@@ -592,7 +656,7 @@ abstract class _$$ChatMessagesLoadedImplCopyWith<$Res> {
           $Res Function(_$ChatMessagesLoadedImpl) then) =
       __$$ChatMessagesLoadedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({List<ChatMessage> messages, String? roomId});
+  $Res call({List<ChatMessage> messages, String? roomId, bool hasMore});
 }
 
 /// @nodoc
@@ -608,6 +672,7 @@ class __$$ChatMessagesLoadedImplCopyWithImpl<$Res>
   $Res call({
     Object? messages = null,
     Object? roomId = freezed,
+    Object? hasMore = null,
   }) {
     return _then(_$ChatMessagesLoadedImpl(
       messages: null == messages
@@ -618,6 +683,10 @@ class __$$ChatMessagesLoadedImplCopyWithImpl<$Res>
           ? _value.roomId
           : roomId // ignore: cast_nullable_to_non_nullable
               as String?,
+      hasMore: null == hasMore
+          ? _value.hasMore
+          : hasMore // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -626,7 +695,9 @@ class __$$ChatMessagesLoadedImplCopyWithImpl<$Res>
 
 class _$ChatMessagesLoadedImpl implements ChatMessagesLoaded {
   const _$ChatMessagesLoadedImpl(
-      {required final List<ChatMessage> messages, this.roomId})
+      {required final List<ChatMessage> messages,
+      this.roomId,
+      this.hasMore = false})
       : _messages = messages;
 
   final List<ChatMessage> _messages;
@@ -639,10 +710,13 @@ class _$ChatMessagesLoadedImpl implements ChatMessagesLoaded {
 
   @override
   final String? roomId;
+  @override
+  @JsonKey()
+  final bool hasMore;
 
   @override
   String toString() {
-    return 'ChatState.messagesLoaded(messages: $messages, roomId: $roomId)';
+    return 'ChatState.messagesLoaded(messages: $messages, roomId: $roomId, hasMore: $hasMore)';
   }
 
   @override
@@ -651,12 +725,13 @@ class _$ChatMessagesLoadedImpl implements ChatMessagesLoaded {
         (other.runtimeType == runtimeType &&
             other is _$ChatMessagesLoadedImpl &&
             const DeepCollectionEquality().equals(other._messages, _messages) &&
-            (identical(other.roomId, roomId) || other.roomId == roomId));
+            (identical(other.roomId, roomId) || other.roomId == roomId) &&
+            (identical(other.hasMore, hasMore) || other.hasMore == hasMore));
   }
 
   @override
-  int get hashCode => Object.hash(
-      runtimeType, const DeepCollectionEquality().hash(_messages), roomId);
+  int get hashCode => Object.hash(runtimeType,
+      const DeepCollectionEquality().hash(_messages), roomId, hasMore);
 
   @JsonKey(ignore: true)
   @override
@@ -671,16 +746,20 @@ class _$ChatMessagesLoadedImpl implements ChatMessagesLoaded {
     required TResult Function() initial,
     required TResult Function() connecting,
     required TResult Function(String? roomId) connected,
-    required TResult Function(List<ChatMessage> messages, String? roomId)
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
         messagesLoaded,
     required TResult Function(ChatMessage message, List<ChatMessage> messages)
         messageReceived,
     required TResult Function(List<ChatParticipant> participants)
         participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
     required TResult Function(String message) error,
     required TResult Function() disconnected,
   }) {
-    return messagesLoaded(messages, roomId);
+    return messagesLoaded(messages, roomId, hasMore);
   }
 
   @override
@@ -689,15 +768,18 @@ class _$ChatMessagesLoadedImpl implements ChatMessagesLoaded {
     TResult? Function()? initial,
     TResult? Function()? connecting,
     TResult? Function(String? roomId)? connected,
-    TResult? Function(List<ChatMessage> messages, String? roomId)?
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult? Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult? Function(String message)? error,
     TResult? Function()? disconnected,
   }) {
-    return messagesLoaded?.call(messages, roomId);
+    return messagesLoaded?.call(messages, roomId, hasMore);
   }
 
   @override
@@ -706,17 +788,20 @@ class _$ChatMessagesLoadedImpl implements ChatMessagesLoaded {
     TResult Function()? initial,
     TResult Function()? connecting,
     TResult Function(String? roomId)? connected,
-    TResult Function(List<ChatMessage> messages, String? roomId)?
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult Function(String message)? error,
     TResult Function()? disconnected,
     required TResult orElse(),
   }) {
     if (messagesLoaded != null) {
-      return messagesLoaded(messages, roomId);
+      return messagesLoaded(messages, roomId, hasMore);
     }
     return orElse();
   }
@@ -731,6 +816,8 @@ class _$ChatMessagesLoadedImpl implements ChatMessagesLoaded {
     required TResult Function(ChatMessageReceived value) messageReceived,
     required TResult Function(ChatParticipantsUpdated value)
         participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
     required TResult Function(ChatError value) error,
     required TResult Function(ChatDisconnected value) disconnected,
   }) {
@@ -746,6 +833,8 @@ class _$ChatMessagesLoadedImpl implements ChatMessagesLoaded {
     TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult? Function(ChatMessageReceived value)? messageReceived,
     TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult? Function(ChatError value)? error,
     TResult? Function(ChatDisconnected value)? disconnected,
   }) {
@@ -761,6 +850,8 @@ class _$ChatMessagesLoadedImpl implements ChatMessagesLoaded {
     TResult Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult Function(ChatMessageReceived value)? messageReceived,
     TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult Function(ChatError value)? error,
     TResult Function(ChatDisconnected value)? disconnected,
     required TResult orElse(),
@@ -775,10 +866,12 @@ class _$ChatMessagesLoadedImpl implements ChatMessagesLoaded {
 abstract class ChatMessagesLoaded implements ChatState {
   const factory ChatMessagesLoaded(
       {required final List<ChatMessage> messages,
-      final String? roomId}) = _$ChatMessagesLoadedImpl;
+      final String? roomId,
+      final bool hasMore}) = _$ChatMessagesLoadedImpl;
 
   List<ChatMessage> get messages;
   String? get roomId;
+  bool get hasMore;
   @JsonKey(ignore: true)
   _$$ChatMessagesLoadedImplCopyWith<_$ChatMessagesLoadedImpl> get copyWith =>
       throw _privateConstructorUsedError;
@@ -868,12 +961,16 @@ class _$ChatMessageReceivedImpl implements ChatMessageReceived {
     required TResult Function() initial,
     required TResult Function() connecting,
     required TResult Function(String? roomId) connected,
-    required TResult Function(List<ChatMessage> messages, String? roomId)
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
         messagesLoaded,
     required TResult Function(ChatMessage message, List<ChatMessage> messages)
         messageReceived,
     required TResult Function(List<ChatParticipant> participants)
         participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
     required TResult Function(String message) error,
     required TResult Function() disconnected,
   }) {
@@ -886,11 +983,14 @@ class _$ChatMessageReceivedImpl implements ChatMessageReceived {
     TResult? Function()? initial,
     TResult? Function()? connecting,
     TResult? Function(String? roomId)? connected,
-    TResult? Function(List<ChatMessage> messages, String? roomId)?
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult? Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult? Function(String message)? error,
     TResult? Function()? disconnected,
   }) {
@@ -903,11 +1003,14 @@ class _$ChatMessageReceivedImpl implements ChatMessageReceived {
     TResult Function()? initial,
     TResult Function()? connecting,
     TResult Function(String? roomId)? connected,
-    TResult Function(List<ChatMessage> messages, String? roomId)?
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult Function(String message)? error,
     TResult Function()? disconnected,
     required TResult orElse(),
@@ -928,6 +1031,8 @@ class _$ChatMessageReceivedImpl implements ChatMessageReceived {
     required TResult Function(ChatMessageReceived value) messageReceived,
     required TResult Function(ChatParticipantsUpdated value)
         participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
     required TResult Function(ChatError value) error,
     required TResult Function(ChatDisconnected value) disconnected,
   }) {
@@ -943,6 +1048,8 @@ class _$ChatMessageReceivedImpl implements ChatMessageReceived {
     TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult? Function(ChatMessageReceived value)? messageReceived,
     TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult? Function(ChatError value)? error,
     TResult? Function(ChatDisconnected value)? disconnected,
   }) {
@@ -958,6 +1065,8 @@ class _$ChatMessageReceivedImpl implements ChatMessageReceived {
     TResult Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult Function(ChatMessageReceived value)? messageReceived,
     TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult Function(ChatError value)? error,
     TResult Function(ChatDisconnected value)? disconnected,
     required TResult orElse(),
@@ -1060,12 +1169,16 @@ class _$ChatParticipantsUpdatedImpl implements ChatParticipantsUpdated {
     required TResult Function() initial,
     required TResult Function() connecting,
     required TResult Function(String? roomId) connected,
-    required TResult Function(List<ChatMessage> messages, String? roomId)
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
         messagesLoaded,
     required TResult Function(ChatMessage message, List<ChatMessage> messages)
         messageReceived,
     required TResult Function(List<ChatParticipant> participants)
         participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
     required TResult Function(String message) error,
     required TResult Function() disconnected,
   }) {
@@ -1078,11 +1191,14 @@ class _$ChatParticipantsUpdatedImpl implements ChatParticipantsUpdated {
     TResult? Function()? initial,
     TResult? Function()? connecting,
     TResult? Function(String? roomId)? connected,
-    TResult? Function(List<ChatMessage> messages, String? roomId)?
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult? Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult? Function(String message)? error,
     TResult? Function()? disconnected,
   }) {
@@ -1095,11 +1211,14 @@ class _$ChatParticipantsUpdatedImpl implements ChatParticipantsUpdated {
     TResult Function()? initial,
     TResult Function()? connecting,
     TResult Function(String? roomId)? connected,
-    TResult Function(List<ChatMessage> messages, String? roomId)?
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult Function(String message)? error,
     TResult Function()? disconnected,
     required TResult orElse(),
@@ -1120,6 +1239,8 @@ class _$ChatParticipantsUpdatedImpl implements ChatParticipantsUpdated {
     required TResult Function(ChatMessageReceived value) messageReceived,
     required TResult Function(ChatParticipantsUpdated value)
         participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
     required TResult Function(ChatError value) error,
     required TResult Function(ChatDisconnected value) disconnected,
   }) {
@@ -1135,6 +1256,8 @@ class _$ChatParticipantsUpdatedImpl implements ChatParticipantsUpdated {
     TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult? Function(ChatMessageReceived value)? messageReceived,
     TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult? Function(ChatError value)? error,
     TResult? Function(ChatDisconnected value)? disconnected,
   }) {
@@ -1150,6 +1273,8 @@ class _$ChatParticipantsUpdatedImpl implements ChatParticipantsUpdated {
     TResult Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult Function(ChatMessageReceived value)? messageReceived,
     TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult Function(ChatError value)? error,
     TResult Function(ChatDisconnected value)? disconnected,
     required TResult orElse(),
@@ -1169,6 +1294,421 @@ abstract class ChatParticipantsUpdated implements ChatState {
   List<ChatParticipant> get participants;
   @JsonKey(ignore: true)
   _$$ChatParticipantsUpdatedImplCopyWith<_$ChatParticipantsUpdatedImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$ChatUnreadCountLoadedImplCopyWith<$Res> {
+  factory _$$ChatUnreadCountLoadedImplCopyWith(
+          _$ChatUnreadCountLoadedImpl value,
+          $Res Function(_$ChatUnreadCountLoadedImpl) then) =
+      __$$ChatUnreadCountLoadedImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({UnreadCount unreadCount});
+}
+
+/// @nodoc
+class __$$ChatUnreadCountLoadedImplCopyWithImpl<$Res>
+    extends _$ChatStateCopyWithImpl<$Res, _$ChatUnreadCountLoadedImpl>
+    implements _$$ChatUnreadCountLoadedImplCopyWith<$Res> {
+  __$$ChatUnreadCountLoadedImplCopyWithImpl(_$ChatUnreadCountLoadedImpl _value,
+      $Res Function(_$ChatUnreadCountLoadedImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? unreadCount = null,
+  }) {
+    return _then(_$ChatUnreadCountLoadedImpl(
+      unreadCount: null == unreadCount
+          ? _value.unreadCount
+          : unreadCount // ignore: cast_nullable_to_non_nullable
+              as UnreadCount,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$ChatUnreadCountLoadedImpl implements ChatUnreadCountLoaded {
+  const _$ChatUnreadCountLoadedImpl({required this.unreadCount});
+
+  @override
+  final UnreadCount unreadCount;
+
+  @override
+  String toString() {
+    return 'ChatState.unreadCountLoaded(unreadCount: $unreadCount)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ChatUnreadCountLoadedImpl &&
+            (identical(other.unreadCount, unreadCount) ||
+                other.unreadCount == unreadCount));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, unreadCount);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ChatUnreadCountLoadedImplCopyWith<_$ChatUnreadCountLoadedImpl>
+      get copyWith => __$$ChatUnreadCountLoadedImplCopyWithImpl<
+          _$ChatUnreadCountLoadedImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() initial,
+    required TResult Function() connecting,
+    required TResult Function(String? roomId) connected,
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
+        messagesLoaded,
+    required TResult Function(ChatMessage message, List<ChatMessage> messages)
+        messageReceived,
+    required TResult Function(List<ChatParticipant> participants)
+        participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
+    required TResult Function(String message) error,
+    required TResult Function() disconnected,
+  }) {
+    return unreadCountLoaded(unreadCount);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? initial,
+    TResult? Function()? connecting,
+    TResult? Function(String? roomId)? connected,
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
+        messagesLoaded,
+    TResult? Function(ChatMessage message, List<ChatMessage> messages)?
+        messageReceived,
+    TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
+    TResult? Function(String message)? error,
+    TResult? Function()? disconnected,
+  }) {
+    return unreadCountLoaded?.call(unreadCount);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? initial,
+    TResult Function()? connecting,
+    TResult Function(String? roomId)? connected,
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
+        messagesLoaded,
+    TResult Function(ChatMessage message, List<ChatMessage> messages)?
+        messageReceived,
+    TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
+    TResult Function(String message)? error,
+    TResult Function()? disconnected,
+    required TResult orElse(),
+  }) {
+    if (unreadCountLoaded != null) {
+      return unreadCountLoaded(unreadCount);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(ChatInitial value) initial,
+    required TResult Function(ChatConnecting value) connecting,
+    required TResult Function(ChatConnected value) connected,
+    required TResult Function(ChatMessagesLoaded value) messagesLoaded,
+    required TResult Function(ChatMessageReceived value) messageReceived,
+    required TResult Function(ChatParticipantsUpdated value)
+        participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
+    required TResult Function(ChatError value) error,
+    required TResult Function(ChatDisconnected value) disconnected,
+  }) {
+    return unreadCountLoaded(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(ChatInitial value)? initial,
+    TResult? Function(ChatConnecting value)? connecting,
+    TResult? Function(ChatConnected value)? connected,
+    TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
+    TResult? Function(ChatMessageReceived value)? messageReceived,
+    TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
+    TResult? Function(ChatError value)? error,
+    TResult? Function(ChatDisconnected value)? disconnected,
+  }) {
+    return unreadCountLoaded?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(ChatInitial value)? initial,
+    TResult Function(ChatConnecting value)? connecting,
+    TResult Function(ChatConnected value)? connected,
+    TResult Function(ChatMessagesLoaded value)? messagesLoaded,
+    TResult Function(ChatMessageReceived value)? messageReceived,
+    TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
+    TResult Function(ChatError value)? error,
+    TResult Function(ChatDisconnected value)? disconnected,
+    required TResult orElse(),
+  }) {
+    if (unreadCountLoaded != null) {
+      return unreadCountLoaded(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class ChatUnreadCountLoaded implements ChatState {
+  const factory ChatUnreadCountLoaded(
+      {required final UnreadCount unreadCount}) = _$ChatUnreadCountLoadedImpl;
+
+  UnreadCount get unreadCount;
+  @JsonKey(ignore: true)
+  _$$ChatUnreadCountLoadedImplCopyWith<_$ChatUnreadCountLoadedImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$ChatReadReceiptsLoadedImplCopyWith<$Res> {
+  factory _$$ChatReadReceiptsLoadedImplCopyWith(
+          _$ChatReadReceiptsLoadedImpl value,
+          $Res Function(_$ChatReadReceiptsLoadedImpl) then) =
+      __$$ChatReadReceiptsLoadedImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({String messageId, List<ReadReceipt> readReceipts});
+}
+
+/// @nodoc
+class __$$ChatReadReceiptsLoadedImplCopyWithImpl<$Res>
+    extends _$ChatStateCopyWithImpl<$Res, _$ChatReadReceiptsLoadedImpl>
+    implements _$$ChatReadReceiptsLoadedImplCopyWith<$Res> {
+  __$$ChatReadReceiptsLoadedImplCopyWithImpl(
+      _$ChatReadReceiptsLoadedImpl _value,
+      $Res Function(_$ChatReadReceiptsLoadedImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? messageId = null,
+    Object? readReceipts = null,
+  }) {
+    return _then(_$ChatReadReceiptsLoadedImpl(
+      messageId: null == messageId
+          ? _value.messageId
+          : messageId // ignore: cast_nullable_to_non_nullable
+              as String,
+      readReceipts: null == readReceipts
+          ? _value._readReceipts
+          : readReceipts // ignore: cast_nullable_to_non_nullable
+              as List<ReadReceipt>,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$ChatReadReceiptsLoadedImpl implements ChatReadReceiptsLoaded {
+  const _$ChatReadReceiptsLoadedImpl(
+      {required this.messageId, required final List<ReadReceipt> readReceipts})
+      : _readReceipts = readReceipts;
+
+  @override
+  final String messageId;
+  final List<ReadReceipt> _readReceipts;
+  @override
+  List<ReadReceipt> get readReceipts {
+    if (_readReceipts is EqualUnmodifiableListView) return _readReceipts;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_readReceipts);
+  }
+
+  @override
+  String toString() {
+    return 'ChatState.readReceiptsLoaded(messageId: $messageId, readReceipts: $readReceipts)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ChatReadReceiptsLoadedImpl &&
+            (identical(other.messageId, messageId) ||
+                other.messageId == messageId) &&
+            const DeepCollectionEquality()
+                .equals(other._readReceipts, _readReceipts));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, messageId,
+      const DeepCollectionEquality().hash(_readReceipts));
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ChatReadReceiptsLoadedImplCopyWith<_$ChatReadReceiptsLoadedImpl>
+      get copyWith => __$$ChatReadReceiptsLoadedImplCopyWithImpl<
+          _$ChatReadReceiptsLoadedImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() initial,
+    required TResult Function() connecting,
+    required TResult Function(String? roomId) connected,
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
+        messagesLoaded,
+    required TResult Function(ChatMessage message, List<ChatMessage> messages)
+        messageReceived,
+    required TResult Function(List<ChatParticipant> participants)
+        participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
+    required TResult Function(String message) error,
+    required TResult Function() disconnected,
+  }) {
+    return readReceiptsLoaded(messageId, readReceipts);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? initial,
+    TResult? Function()? connecting,
+    TResult? Function(String? roomId)? connected,
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
+        messagesLoaded,
+    TResult? Function(ChatMessage message, List<ChatMessage> messages)?
+        messageReceived,
+    TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
+    TResult? Function(String message)? error,
+    TResult? Function()? disconnected,
+  }) {
+    return readReceiptsLoaded?.call(messageId, readReceipts);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? initial,
+    TResult Function()? connecting,
+    TResult Function(String? roomId)? connected,
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
+        messagesLoaded,
+    TResult Function(ChatMessage message, List<ChatMessage> messages)?
+        messageReceived,
+    TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
+    TResult Function(String message)? error,
+    TResult Function()? disconnected,
+    required TResult orElse(),
+  }) {
+    if (readReceiptsLoaded != null) {
+      return readReceiptsLoaded(messageId, readReceipts);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(ChatInitial value) initial,
+    required TResult Function(ChatConnecting value) connecting,
+    required TResult Function(ChatConnected value) connected,
+    required TResult Function(ChatMessagesLoaded value) messagesLoaded,
+    required TResult Function(ChatMessageReceived value) messageReceived,
+    required TResult Function(ChatParticipantsUpdated value)
+        participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
+    required TResult Function(ChatError value) error,
+    required TResult Function(ChatDisconnected value) disconnected,
+  }) {
+    return readReceiptsLoaded(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(ChatInitial value)? initial,
+    TResult? Function(ChatConnecting value)? connecting,
+    TResult? Function(ChatConnected value)? connected,
+    TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
+    TResult? Function(ChatMessageReceived value)? messageReceived,
+    TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
+    TResult? Function(ChatError value)? error,
+    TResult? Function(ChatDisconnected value)? disconnected,
+  }) {
+    return readReceiptsLoaded?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(ChatInitial value)? initial,
+    TResult Function(ChatConnecting value)? connecting,
+    TResult Function(ChatConnected value)? connected,
+    TResult Function(ChatMessagesLoaded value)? messagesLoaded,
+    TResult Function(ChatMessageReceived value)? messageReceived,
+    TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
+    TResult Function(ChatError value)? error,
+    TResult Function(ChatDisconnected value)? disconnected,
+    required TResult orElse(),
+  }) {
+    if (readReceiptsLoaded != null) {
+      return readReceiptsLoaded(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class ChatReadReceiptsLoaded implements ChatState {
+  const factory ChatReadReceiptsLoaded(
+          {required final String messageId,
+          required final List<ReadReceipt> readReceipts}) =
+      _$ChatReadReceiptsLoadedImpl;
+
+  String get messageId;
+  List<ReadReceipt> get readReceipts;
+  @JsonKey(ignore: true)
+  _$$ChatReadReceiptsLoadedImplCopyWith<_$ChatReadReceiptsLoadedImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
 
@@ -1239,12 +1779,16 @@ class _$ChatErrorImpl implements ChatError {
     required TResult Function() initial,
     required TResult Function() connecting,
     required TResult Function(String? roomId) connected,
-    required TResult Function(List<ChatMessage> messages, String? roomId)
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
         messagesLoaded,
     required TResult Function(ChatMessage message, List<ChatMessage> messages)
         messageReceived,
     required TResult Function(List<ChatParticipant> participants)
         participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
     required TResult Function(String message) error,
     required TResult Function() disconnected,
   }) {
@@ -1257,11 +1801,14 @@ class _$ChatErrorImpl implements ChatError {
     TResult? Function()? initial,
     TResult? Function()? connecting,
     TResult? Function(String? roomId)? connected,
-    TResult? Function(List<ChatMessage> messages, String? roomId)?
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult? Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult? Function(String message)? error,
     TResult? Function()? disconnected,
   }) {
@@ -1274,11 +1821,14 @@ class _$ChatErrorImpl implements ChatError {
     TResult Function()? initial,
     TResult Function()? connecting,
     TResult Function(String? roomId)? connected,
-    TResult Function(List<ChatMessage> messages, String? roomId)?
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult Function(String message)? error,
     TResult Function()? disconnected,
     required TResult orElse(),
@@ -1299,6 +1849,8 @@ class _$ChatErrorImpl implements ChatError {
     required TResult Function(ChatMessageReceived value) messageReceived,
     required TResult Function(ChatParticipantsUpdated value)
         participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
     required TResult Function(ChatError value) error,
     required TResult Function(ChatDisconnected value) disconnected,
   }) {
@@ -1314,6 +1866,8 @@ class _$ChatErrorImpl implements ChatError {
     TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult? Function(ChatMessageReceived value)? messageReceived,
     TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult? Function(ChatError value)? error,
     TResult? Function(ChatDisconnected value)? disconnected,
   }) {
@@ -1329,6 +1883,8 @@ class _$ChatErrorImpl implements ChatError {
     TResult Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult Function(ChatMessageReceived value)? messageReceived,
     TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult Function(ChatError value)? error,
     TResult Function(ChatDisconnected value)? disconnected,
     required TResult orElse(),
@@ -1390,12 +1946,16 @@ class _$ChatDisconnectedImpl implements ChatDisconnected {
     required TResult Function() initial,
     required TResult Function() connecting,
     required TResult Function(String? roomId) connected,
-    required TResult Function(List<ChatMessage> messages, String? roomId)
+    required TResult Function(
+            List<ChatMessage> messages, String? roomId, bool hasMore)
         messagesLoaded,
     required TResult Function(ChatMessage message, List<ChatMessage> messages)
         messageReceived,
     required TResult Function(List<ChatParticipant> participants)
         participantsUpdated,
+    required TResult Function(UnreadCount unreadCount) unreadCountLoaded,
+    required TResult Function(String messageId, List<ReadReceipt> readReceipts)
+        readReceiptsLoaded,
     required TResult Function(String message) error,
     required TResult Function() disconnected,
   }) {
@@ -1408,11 +1968,14 @@ class _$ChatDisconnectedImpl implements ChatDisconnected {
     TResult? Function()? initial,
     TResult? Function()? connecting,
     TResult? Function(String? roomId)? connected,
-    TResult? Function(List<ChatMessage> messages, String? roomId)?
+    TResult? Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult? Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult? Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult? Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult? Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult? Function(String message)? error,
     TResult? Function()? disconnected,
   }) {
@@ -1425,11 +1988,14 @@ class _$ChatDisconnectedImpl implements ChatDisconnected {
     TResult Function()? initial,
     TResult Function()? connecting,
     TResult Function(String? roomId)? connected,
-    TResult Function(List<ChatMessage> messages, String? roomId)?
+    TResult Function(List<ChatMessage> messages, String? roomId, bool hasMore)?
         messagesLoaded,
     TResult Function(ChatMessage message, List<ChatMessage> messages)?
         messageReceived,
     TResult Function(List<ChatParticipant> participants)? participantsUpdated,
+    TResult Function(UnreadCount unreadCount)? unreadCountLoaded,
+    TResult Function(String messageId, List<ReadReceipt> readReceipts)?
+        readReceiptsLoaded,
     TResult Function(String message)? error,
     TResult Function()? disconnected,
     required TResult orElse(),
@@ -1450,6 +2016,8 @@ class _$ChatDisconnectedImpl implements ChatDisconnected {
     required TResult Function(ChatMessageReceived value) messageReceived,
     required TResult Function(ChatParticipantsUpdated value)
         participantsUpdated,
+    required TResult Function(ChatUnreadCountLoaded value) unreadCountLoaded,
+    required TResult Function(ChatReadReceiptsLoaded value) readReceiptsLoaded,
     required TResult Function(ChatError value) error,
     required TResult Function(ChatDisconnected value) disconnected,
   }) {
@@ -1465,6 +2033,8 @@ class _$ChatDisconnectedImpl implements ChatDisconnected {
     TResult? Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult? Function(ChatMessageReceived value)? messageReceived,
     TResult? Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult? Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult? Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult? Function(ChatError value)? error,
     TResult? Function(ChatDisconnected value)? disconnected,
   }) {
@@ -1480,6 +2050,8 @@ class _$ChatDisconnectedImpl implements ChatDisconnected {
     TResult Function(ChatMessagesLoaded value)? messagesLoaded,
     TResult Function(ChatMessageReceived value)? messageReceived,
     TResult Function(ChatParticipantsUpdated value)? participantsUpdated,
+    TResult Function(ChatUnreadCountLoaded value)? unreadCountLoaded,
+    TResult Function(ChatReadReceiptsLoaded value)? readReceiptsLoaded,
     TResult Function(ChatError value)? error,
     TResult Function(ChatDisconnected value)? disconnected,
     required TResult orElse(),

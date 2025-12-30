@@ -3,6 +3,8 @@ import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
+import 'package:earkart_omni/features/chat/presentation/cubit/chat.cubit.dart';
+import 'package:earkart_omni/features/chat/presentation/cubit/chat.state.dart';
 import 'package:earkart_omni/features/chat/presentation/pages/chat_with_audiologists_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
@@ -72,26 +74,64 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const ActionCardsSection(),
                   const SizedBox(height: 20),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        ChatWithAudiologistsScreen.routeName,
+                  BlocBuilder<ChatCubit, ChatState>(
+                    builder: (context, state) {
+                      final chatCubit = context.read<ChatCubit>();
+                      final unreadCount = chatCubit.unreadCount;
+
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pushNamed(
+                                context,
+                                ChatWithAudiologistsScreen.routeName,
+                              );
+                            },
+                            icon: const Icon(Icons.chat_bubble_outline),
+                            label: const Text('Chat with Audiologists'),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: Colors.grey.withAlpha(90),
+                                width: 1,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              foregroundColor: Constants.primaryColor,
+                              minimumSize: const Size(double.infinity, 48),
+                            ),
+                          ),
+                          if (unreadCount > 0)
+                            Positioned(
+                              right: 8,
+                              top: -4,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 20,
+                                  minHeight: 20,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    unreadCount > 99 ? '99+' : '$unreadCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       );
                     },
-
-                    label: const Text('Chat with Audiologists'),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(
-                        color: Colors.grey.withAlpha(90),
-                        width: 1,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      foregroundColor: Constants.primaryColor,
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
                   ),
                   const SizedBox(height: 18),
 

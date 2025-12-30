@@ -67,4 +67,18 @@ class Constants {
   static final getAppointmentByIdUrl = "${baseUrl}appointment/get-by-id";
   static final updateAppointmentUrl = "${baseUrl}appointment/update";
   static final getAppointmentsUrl = "${baseUrl}appointment/get-all";
+
+  // Chat endpoints
+  static String getChatRoomMessagesUrl(String roomId) =>
+      "${baseUrl}chat/room/$roomId/messages";
+  static String getChatRoomParticipantsUrl(String roomId) =>
+      "${baseUrl}chat/room/$roomId/participants";
+  static String getChatRoomUnreadCountUrl(String roomId) =>
+      "${baseUrl}chat/room/$roomId/unread-count";
+  static String markMessageReadUrl(String messageId) =>
+      "${baseUrl}chat/message/$messageId/read";
+  static String getMessageReadReceiptsUrl(String messageId) =>
+      "${baseUrl}chat/message/$messageId/read-receipts";
+  static String markAllAsReadUrl(String roomId) =>
+      "${baseUrl}chat/room/$roomId/mark-all-read";
 }

@@ -82,6 +82,16 @@ import 'package:earkart_omni/features/device/domain/usecases/setup_device.usecas
 import 'package:earkart_omni/features/device/presentation/cubit/device_registration.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 import 'package:earkart_omni/features/chat/presentation/cubit/chat.cubit.dart';
+import 'package:earkart_omni/features/chat/data/source/remote/chat.remote.source.dart';
+import 'package:earkart_omni/features/chat/data/source/remote/chat.remote.source.impl.dart';
+import 'package:earkart_omni/features/chat/data/repositories/chat.repository.impl.dart';
+import 'package:earkart_omni/features/chat/domain/repositories/chat.repository.dart';
+import 'package:earkart_omni/features/chat/domain/usecases/get_room_messages.usecase.dart';
+import 'package:earkart_omni/features/chat/domain/usecases/get_room_participants.usecase.dart';
+import 'package:earkart_omni/features/chat/domain/usecases/get_room_unread_count.usecase.dart';
+import 'package:earkart_omni/features/chat/domain/usecases/mark_message_read.usecase.dart';
+import 'package:earkart_omni/features/chat/domain/usecases/mark_all_as_read.usecase.dart';
+import 'package:earkart_omni/features/chat/domain/usecases/get_message_read_receipts.usecase.dart';
 import 'package:earkart_omni/config/services/battery_service.dart';
 import 'package:earkart_omni/config/services/auto_update_service.dart';
 
@@ -379,6 +389,33 @@ Future<void> setupDI() async {
   di.registerLazySingleton<NetworkCubit>(() => NetworkCubit());
 
   //chat
+  di.registerLazySingleton<IChatRemoteSource>(
+    () => ChatRemoteSourceImpl(
+      dio: di.call(),
+      userEntityDataSource: di.call(),
+    ),
+  );
+  di.registerLazySingleton<IChatRepository>(
+    () => ChatRepositoryImpl(remoteSource: di.call()),
+  );
+  di.registerLazySingleton<GetRoomMessagesUsecase>(
+    () => GetRoomMessagesUsecase(chatRepository: di.call()),
+  );
+  di.registerLazySingleton<GetRoomParticipantsUsecase>(
+    () => GetRoomParticipantsUsecase(chatRepository: di.call()),
+  );
+  di.registerLazySingleton<GetRoomUnreadCountUsecase>(
+    () => GetRoomUnreadCountUsecase(chatRepository: di.call()),
+  );
+  di.registerLazySingleton<MarkMessageReadUsecase>(
+    () => MarkMessageReadUsecase(chatRepository: di.call()),
+  );
+  di.registerLazySingleton<MarkAllAsReadUsecase>(
+    () => MarkAllAsReadUsecase(chatRepository: di.call()),
+  );
+  di.registerLazySingleton<GetMessageReadReceiptsUsecase>(
+    () => GetMessageReadReceiptsUsecase(chatRepository: di.call()),
+  );
   di.registerLazySingleton<ChatCubit>(() => ChatCubit());
 
   //battery
