@@ -30,6 +30,7 @@ import {
   Ticket,
   List,
   PhoneOff,
+  MessageCircle,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -69,6 +70,11 @@ const adminSidebarItems: SidebarItem[] = [
     icon: <List className="text-slate-600" />,
     url: "/dashboard/all-consultations",
   },
+  // {
+  //   name: "Chat",
+  //   icon: <MessageCircle className="text-slate-600" />,
+  //   url: "/dashboard/chat",
+  // },
   {
     name: "Audiologist Monitoring",
     icon: <BarChartIcon className="text-slate-600" />,
@@ -80,6 +86,11 @@ const adminSidebarItems: SidebarItem[] = [
         url: "/dashboard/analytics/missed-calls",
       },
     ],
+  },
+  {
+    name: "Centre Analytics",
+    icon: <Building2Icon className="text-slate-600" />,
+    url: "/dashboard/centre-analytics",
   },
   {
     name: "Audiologists",
@@ -154,7 +165,11 @@ const headAudiologistSidebarItems: SidebarItem[] = [
     icon: <List className="text-slate-600" />,
     url: "/dashboard/all-consultations",
   },
- 
+  // {
+  //   name: "Chat",
+  //   icon: <MessageCircle className="text-slate-600" />,
+  //   url: "/dashboard/chat",
+  // },
   {
     name: "Audiologists",
     icon: <UserIcon className="text-slate-600" />,
@@ -193,7 +208,11 @@ const audiologistSidebarItems: SidebarItem[] = [
     icon: <List className="text-slate-600" />,
     url: "/dashboard/all-consultations",
   },
- 
+  // {
+  //   name: "Chat",
+  //   icon: <MessageCircle className="text-slate-600" />,
+  //   url: "/dashboard/chat",
+  // },
   {
     name: "Questionnaire",
     icon: <ClipboardList className="text-slate-600" />,

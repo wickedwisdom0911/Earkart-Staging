@@ -383,9 +383,16 @@ export default function DashboardPage() {
     const handleJoinError = async (error: unknown) => {
       console.error("Failed to join consultation:", error);
       
-      // Handle 409 Conflict - Another audiologist already joined
+      // Handle 410 Gone - Consultation already ended (COMPLETED/CANCELLED)
       if (typeof error === 'object' && error !== null) {
         const errorObj = error as any;
+        if (errorObj.statusCode === 410 || errorObj.status === 410) {
+          toast.error("This consultation has already ended");
+          setJoiningConsultationId(null);
+          return;
+        }
+        
+        // Handle 409 Conflict - Another audiologist already joined
         if (errorObj.statusCode === 409 || errorObj.status === 409) {
           // Fetch the latest consultation data to check who is assigned
           if (joiningConsultationId) {
@@ -446,9 +453,16 @@ export default function DashboardPage() {
     const handleSocketError = async (error: unknown) => {
       console.error("Socket error received:", error);
       
-      // Handle 409 Conflict - Another audiologist already joined
+      // Handle 410 Gone - Consultation already ended (COMPLETED/CANCELLED)
       if (typeof error === 'object' && error !== null) {
         const errorObj = error as any;
+        if (errorObj.statusCode === 410 || errorObj.status === 410) {
+          toast.error("This consultation has already ended");
+          setJoiningConsultationId(null);
+          return;
+        }
+        
+        // Handle 409 Conflict - Another audiologist already joined
         if (errorObj.statusCode === 409 || errorObj.status === 409) {
           // Fetch the latest consultation data to check who is assigned
           if (joiningConsultationId) {
@@ -548,14 +562,41 @@ export default function DashboardPage() {
     };
   }, [socket, joiningConsultationId, router, user?.role]);
 
-  const joinRoom = (consultationId: string) => {
+  const joinRoom = async (consultationId: string) => {
     console.log(consultationId);
 
     // Frontend defensive check: Verify consultation is still available before joining
     const consultation = consultations?.data?.find(c => c.id === consultationId);
+    
+    // Check if consultation is already completed or cancelled
+    if (consultation?.status === SessionStatus.COMPLETED || 
+        consultation?.status === SessionStatus.CANCELLED) {
+      toast.error("This consultation has already ended");
+      return;
+    }
+    
+    // Check if another audiologist is assigned
     if (consultation?.audiologist && consultation.audiologist.userId !== user?.id) {
       toast.error("This consultation has already been assigned to another audiologist");
       return;
+    }
+
+    // Additional defensive check: Fetch fresh consultation data to ensure status hasn't changed
+    try {
+      const consultationResponse = await getConsultation(consultationId);
+      if (consultationResponse.success && consultationResponse.data) {
+        const freshConsultation = consultationResponse.data as ConsultationModelData;
+        
+        // Check if consultation was completed/cancelled between page load and join attempt
+        if (freshConsultation.status === SessionStatus.COMPLETED || 
+            freshConsultation.status === SessionStatus.CANCELLED) {
+          toast.error("This consultation has already ended");
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to fetch fresh consultation data, proceeding with cached data:", error);
+      // Continue with join attempt if fetch fails (backend will block if needed)
     }
 
     // Set loading state

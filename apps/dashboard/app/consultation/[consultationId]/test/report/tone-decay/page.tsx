@@ -46,6 +46,62 @@ export default function ToneDecayReportPage() {
     error: screenShareError 
   } = useSharedScreenShare();
   const [isShowingReport, setIsShowingReport] = useState(false);
+  
+  // AIIMS editable date state
+  const [isAiims, setIsAiims] = useState(false);
+  const [reportDate, setReportDate] = useState<string>("");
+  const [isEditingDate, setIsEditingDate] = useState(false);
+  const [isSavingDate, setIsSavingDate] = useState(false);
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const aiims = localStorage.getItem('isAiims') === 'true';
+      setIsAiims(aiims);
+    }
+  }, []);
+  
+  useEffect(() => {
+    if (consultationData?.createdAt) {
+      const dateStr = format(new Date(consultationData.createdAt), "dd/MM/yyyy");
+      setReportDate(dateStr);
+    }
+  }, [consultationData]);
+  
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setReportDate(e.target.value);
+  };
+  
+  const handleDateSave = async () => {
+    if (!consultationData || !reportDate) return;
+    
+    try {
+      setIsSavingDate(true);
+      // Parse the date from dd/MM/yyyy format
+      const [day, month, year] = reportDate.split('/');
+      const newDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      
+      await updateConsultationMutation.mutateAsync({
+        id: consultationId,
+        createdAt: newDate.toISOString(),
+      });
+      
+      setIsEditingDate(false);
+      toast.success("Report date updated successfully");
+    } catch (error) {
+      console.error("Error updating date:", error);
+      toast.error("Failed to update report date");
+    } finally {
+      setIsSavingDate(false);
+    }
+  };
+  
+  const handleDateCancel = () => {
+    if (consultationData?.createdAt) {
+      const dateStr = format(new Date(consultationData.createdAt), "dd/MM/yyyy");
+      setReportDate(dateStr);
+    }
+    setIsEditingDate(false);
+  };
 
   // WhatsApp sharing hook
   const {
@@ -262,9 +318,44 @@ export default function ToneDecayReportPage() {
               </div>
               <div className="col-span-3 flex items-center">
                 <span className="font-medium mr-2">Date :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
-                  {format(new Date(consultationData.createdAt), "dd/MM/yyyy")}
-                </span>
+                {isAiims && isEditingDate ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      type="text"
+                      value={reportDate}
+                      onChange={handleDateChange}
+                      placeholder="dd/MM/yyyy"
+                      className="border-b border-dotted border-gray-400 flex-1 pb-1 h-auto px-0 text-sm"
+                      maxLength={10}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleDateSave}
+                      disabled={isSavingDate}
+                      className="h-6 px-2 text-xs"
+                    >
+                      {isSavingDate ? "Saving..." : "Save"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleDateCancel}
+                      disabled={isSavingDate}
+                      className="h-6 px-2 text-xs"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <span 
+                    className={`border-b border-dotted border-gray-400 flex-1 pb-1 ${isAiims ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                    onClick={() => isAiims && setIsEditingDate(true)}
+                    title={isAiims ? "Click to edit date" : ""}
+                  >
+                    {reportDate || format(new Date(consultationData.createdAt), "dd/MM/yyyy")}
+                  </span>
+                )}
               </div>
             </div>
 

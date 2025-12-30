@@ -31,6 +31,8 @@ import {
   Legend,
 } from "recharts";
 
+const CURVE_LABELS = ["Baseline", "Swallow", "Valsalva"];
+
 export default function ETFIntactReportPage() {
   const { consultationId } = useParams();
   const router = useRouter();
@@ -58,6 +60,62 @@ export default function ETFIntactReportPage() {
   const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare, error: screenShareError } = useSharedScreenShare();
   const [isShowingReport, setIsShowingReport] = useState(false);
   const { isDemoAccount } = useDemoAccount();
+  
+  // AIIMS editable date state
+  const [isAiims, setIsAiims] = useState(false);
+  const [reportDate, setReportDate] = useState<string>("");
+  const [isEditingDate, setIsEditingDate] = useState(false);
+  const [isSavingDate, setIsSavingDate] = useState(false);
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const aiims = localStorage.getItem('isAiims') === 'true';
+      setIsAiims(aiims);
+    }
+  }, []);
+  
+  useEffect(() => {
+    if (consultationData?.createdAt) {
+      const dateStr = format(new Date(consultationData.createdAt), "dd/MM/yyyy");
+      setReportDate(dateStr);
+    }
+  }, [consultationData]);
+  
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setReportDate(e.target.value);
+  };
+  
+  const handleDateSave = async () => {
+    if (!consultationData || !reportDate) return;
+    
+    try {
+      setIsSavingDate(true);
+      // Parse the date from dd/MM/yyyy format
+      const [day, month, year] = reportDate.split('/');
+      const newDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      
+      await updateConsultationMutation.mutateAsync({
+        id: consultationId as string,
+        createdAt: newDate.toISOString(),
+      });
+      
+      setIsEditingDate(false);
+      toast.success("Report date updated successfully");
+    } catch (error) {
+      console.error("Error updating date:", error);
+      toast.error("Failed to update report date");
+    } finally {
+      setIsSavingDate(false);
+    }
+  };
+  
+  const handleDateCancel = () => {
+    if (consultationData?.createdAt) {
+      const dateStr = format(new Date(consultationData.createdAt), "dd/MM/yyyy");
+      setReportDate(dateStr);
+    }
+    setIsEditingDate(false);
+  };
 
   // WhatsApp sharing hook
   const {
@@ -269,7 +327,44 @@ export default function ETFIntactReportPage() {
               </div>
               <div className="col-span-3 flex items-center">
                 <span className="font-medium mr-2">Date :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{format(new Date(consultationData.createdAt), "dd/MM/yyyy")}</span>
+                {isAiims && isEditingDate ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      type="text"
+                      value={reportDate}
+                      onChange={handleDateChange}
+                      placeholder="dd/MM/yyyy"
+                      className="border-b border-dotted border-gray-400 flex-1 pb-1 h-auto px-0 text-sm"
+                      maxLength={10}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleDateSave}
+                      disabled={isSavingDate}
+                      className="h-6 px-2 text-xs"
+                    >
+                      {isSavingDate ? "Saving..." : "Save"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleDateCancel}
+                      disabled={isSavingDate}
+                      className="h-6 px-2 text-xs"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <span 
+                    className={`border-b border-dotted border-gray-400 flex-1 pb-1 ${isAiims ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                    onClick={() => isAiims && setIsEditingDate(true)}
+                    title={isAiims ? "Click to edit date" : ""}
+                  >
+                    {reportDate || format(new Date(consultationData.createdAt), "dd/MM/yyyy")}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -449,7 +544,7 @@ export default function ETFIntactReportPage() {
                     />
                     {[1, 2, 3].map((curveNum) => {
                       const color = curveNum === 1 ? "#3B82F6" : curveNum === 2 ? "#EF4444" : "#10B981";
-                      const label = `Curve ${curveNum}`;
+                      const label = CURVE_LABELS[curveNum - 1];
                       return (
                         <Line
                           key={`curve${curveNum}`}
@@ -550,7 +645,7 @@ export default function ETFIntactReportPage() {
                         />
                         {[1, 2, 3].map((curveNum) => {
                           const color = curveNum === 1 ? "#3B82F6" : curveNum === 2 ? "#EF4444" : "#10B981";
-                          const label = `Curve ${curveNum}`;
+                          const label = CURVE_LABELS[curveNum - 1];
                           return (
                             <Line
                               key={`curve${curveNum}`}
@@ -597,11 +692,11 @@ export default function ETFIntactReportPage() {
                   .filter((c: any) => c.ear === "LEFT" || c.ear === "L")
                   .map((curve: any, index: number) => (
                   <React.Fragment key={`left-${index}`}>
-                    <div className="font-semibold border border-gray-400 p-2 text-gray-800">Curve {index + 1} Peak Pressure</div>
+                    <div className="font-semibold border border-gray-400 p-2 text-gray-800">{CURVE_LABELS[index]} Peak Pressure</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">daPa</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">{curve.peakPressure?.toFixed(1) || '—'}</div>
-                    <div className="font-semibold border border-gray-400 p-2 text-gray-800">Curve {index + 1} Peak Compliance</div>
+                    <div className="font-semibold border border-gray-400 p-2 text-gray-800">{CURVE_LABELS[index]} Peak Compliance</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">ml</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">{curve.peakCompliance?.toFixed(2) || '—'}</div>
@@ -613,11 +708,11 @@ export default function ETFIntactReportPage() {
                   .filter((c: any) => c.ear === "RIGHT" || c.ear === "R")
                   .map((curve: any, index: number) => (
                   <React.Fragment key={`right-${index}`}>
-                    <div className="font-semibold border border-gray-400 p-2 text-gray-800">Curve {index + 1} Peak Pressure</div>
+                    <div className="font-semibold border border-gray-400 p-2 text-gray-800">{CURVE_LABELS[index]} Peak Pressure</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">daPa</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">{curve.peakPressure?.toFixed(1) || '—'}</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
-                    <div className="font-semibold border border-gray-400 p-2 text-gray-800">Curve {index + 1} Peak Compliance</div>
+                    <div className="font-semibold border border-gray-400 p-2 text-gray-800">{CURVE_LABELS[index]} Peak Compliance</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">ml</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">{curve.peakCompliance?.toFixed(2) || '—'}</div>
                     <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
