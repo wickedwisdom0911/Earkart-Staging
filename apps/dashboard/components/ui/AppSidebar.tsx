@@ -70,11 +70,11 @@ const adminSidebarItems: SidebarItem[] = [
     icon: <List className="text-slate-600" />,
     url: "/dashboard/all-consultations",
   },
-  // {
-  //   name: "Chat",
-  //   icon: <MessageCircle className="text-slate-600" />,
-  //   url: "/dashboard/chat",
-  // },
+  {
+    name: "Chat",
+    icon: <MessageCircle className="text-slate-600" />,
+    url: "/dashboard/chat",
+  },
   {
     name: "Audiologist Monitoring",
     icon: <BarChartIcon className="text-slate-600" />,
@@ -165,11 +165,11 @@ const headAudiologistSidebarItems: SidebarItem[] = [
     icon: <List className="text-slate-600" />,
     url: "/dashboard/all-consultations",
   },
-  // {
-  //   name: "Chat",
-  //   icon: <MessageCircle className="text-slate-600" />,
-  //   url: "/dashboard/chat",
-  // },
+  {
+    name: "Chat",
+    icon: <MessageCircle className="text-slate-600" />,
+    url: "/dashboard/chat",
+  },
   {
     name: "Audiologists",
     icon: <UserIcon className="text-slate-600" />,
@@ -208,11 +208,11 @@ const audiologistSidebarItems: SidebarItem[] = [
     icon: <List className="text-slate-600" />,
     url: "/dashboard/all-consultations",
   },
-  // {
-  //   name: "Chat",
-  //   icon: <MessageCircle className="text-slate-600" />,
-  //   url: "/dashboard/chat",
-  // },
+  {
+    name: "Chat",
+    icon: <MessageCircle className="text-slate-600" />,
+    url: "/dashboard/chat",
+  },
   {
     name: "Questionnaire",
     icon: <ClipboardList className="text-slate-600" />,

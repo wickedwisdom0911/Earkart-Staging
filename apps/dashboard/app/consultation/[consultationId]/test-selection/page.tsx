@@ -50,7 +50,7 @@ const testOptions = [
     id: "otoacoustic",
     name: "Otoacoustic Emissions",
     description: "Measure inner ear response to sound",
-    available: false,
+    available: true,
   }
 ];
 
@@ -61,7 +61,7 @@ export default function TestSelectionPage() {
   const lastRequestedTestRef = useRef<string | null>(null);
   const consultationId = params.consultationId as string;
 
-  // Consume tympanometry readiness/issue events
+  // Consume test readiness/issue events
   useEffect(() => {
     if (!socket) return;
 
@@ -70,7 +70,9 @@ export default function TestSelectionPage() {
       router.push(`/consultation/${consultationId}/test/${targetTest}`);
     };
     const onIssue = (payload: { message?: string }) => {
-      toast.error(payload?.message || "Tympanometry device not ready");
+      const targetTest = lastRequestedTestRef.current ?? "tympanometry";
+      const testName = testOptions.find(t => t.id === targetTest)?.name || "Test";
+      toast.error(payload?.message || `${testName} device not ready`);
     };
 
     socket.on("ack-tympanometry-received", onAck);
