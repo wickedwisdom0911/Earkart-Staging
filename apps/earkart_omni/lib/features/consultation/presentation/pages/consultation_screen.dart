@@ -50,6 +50,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   UsbDevice? revo2Device;
   TestType? testType;
   dynamic _lastImpedanceStatus;
+  dynamic _lastDpoaeStatus;
+  dynamic _lastDpoaeData;
   bool? _lastPatientResponse;
   bool _showCamera = false;
   bool _socketReconnectFailed = false;
@@ -634,6 +636,40 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         di<ILogger>().error('Error handling reflexes-stopped event: $e');
       }
     });
+    socket.on("dpoae-started", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('DPOAE started: $data');
+      try {
+        if (data == null) {
+          di<ILogger>().error('Received null data in dpoae-started event');
+          return;
+        }
+        // Convert frequencies from List<dynamic> to List<Map<String, dynamic>>
+        final frequenciesList = data["frequencies"] as List<dynamic>;
+        final frequencies =
+            frequenciesList.map((e) => e as Map<String, dynamic>).toList();
+
+        context.read<CommunicationCubit>().sendStartDpOaePacket(
+          realTimeStatusUpdateDuringExecution:
+              data["realTimeStatusUpdateDuringExecution"],
+          timeoutTime: data["timeoutTime"],
+          timeoutAuto: data["timeoutAuto"],
+          stimulusLevelL2: data["stimulusLevelL2"],
+          stimulusLevelL1: data["stimulusLevelL1"],
+          stimulusLevelAuto: data["stimulusLevelAuto"],
+          artefactLevel: data["artefactLevel"],
+          retest: data["retest"],
+          frequencies: frequencies,
+          numberPass: data["numberPass"],
+          skipEarVolumeCheck: data["skipEarVolumeCheck"],
+          stopOnPass: data["stopOnPass"],
+          invertedFrequencyOrder: data["invertedFrequencyOrder"],
+          minimumSignalThreshold: data["minimumSignalThreshold"],
+        );
+      } catch (e) {
+        di<ILogger>().error('Error handling dpoae-started event: $e');
+      }
+    });
     socket.on("end-test", (data) {
       if (!mounted) return;
 
@@ -1141,6 +1177,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   previous.impedanceStatus != current.impedanceStatus ||
                   (current.isNewImpedanceData &&
                       current.impedanceData != null) ||
+                  previous.dpoaeStatus != current.dpoaeStatus ||
+                  previous.dpoaeData != current.dpoaeData ||
                   previous.patientResponse != current.patientResponse ||
                   previous.isInBeginMode != current.isInBeginMode ||
                   previous.connectionStatus != current.connectionStatus;
@@ -1169,6 +1207,18 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               // Only emit impedance data if it's a new data event
               if (state.impedanceData != null && state.isNewImpedanceData) {
                 _emitTympanometryData(state);
+              }
+
+              // Handle DPOAE status
+              if (state.dpoaeStatus != null &&
+                  state.dpoaeStatus != _lastDpoaeStatus) {
+                _emitDpoaeStatus(state);
+              }
+
+              // Emit DPOAE data when it changes
+              if (state.dpoaeData != null &&
+                  state.dpoaeData != _lastDpoaeData) {
+                _emitDpoaeData(state);
               }
 
               // Debounce device connection logic to prevent excessive processing
@@ -1333,6 +1383,32 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         "consultationId": consultation?.id,
         "tympanometryData": state.impedanceData,
       });
+    }
+  }
+
+  void _emitDpoaeStatus(CommunicationState state) {
+    if (_isSocketInitialized &&
+        state.dpoaeStatus != null &&
+        state.dpoaeStatus != _lastDpoaeStatus) {
+      di<ILogger>().debug('Emitting DPOAE status: ${state.dpoaeStatus}');
+      socket.emit("dpoae-status", {
+        "consultationId": consultation?.id,
+        "dpoaeStatus": state.dpoaeStatus,
+      });
+      _lastDpoaeStatus = state.dpoaeStatus;
+    }
+  }
+
+  void _emitDpoaeData(CommunicationState state) {
+    if (_isSocketInitialized &&
+        state.dpoaeData != null &&
+        state.dpoaeData != _lastDpoaeData) {
+      di<ILogger>().debug('Emitting DPOAE data: ${state.dpoaeData}');
+      socket.emit("dpoae-data", {
+        "consultationId": consultation?.id,
+        "dpoaeData": state.dpoaeData,
+      });
+      _lastDpoaeData = state.dpoaeData;
     }
   }
 

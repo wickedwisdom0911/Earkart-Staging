@@ -3,6 +3,8 @@ import 'dart:async' show unawaited;
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:earkart_omni/models/communication/dpoae_data.dart';
+import 'package:earkart_omni/models/communication/dpoae_status.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:earkart_omni/config/utils/packet_format_interpreter.dart';
@@ -304,6 +306,16 @@ class CommunicationCubit extends Cubit<CommunicationState> {
           emit(
             state.copyWith(isCharging: isCharging, batteryLevel: batteryLevel),
           );
+          break;
+        case 28: // DPOAE Data
+          if (isClosed) return;
+          final dpoaeData = DpoaeData.fromJson(json);
+          emit(state.copyWith(dpoaeData: dpoaeData, error: null));
+          break;
+        case 29: // DPOAE Status
+          if (isClosed) return;
+          final dpoaeStatus = DpoaeStatus.fromJson(json);
+          emit(state.copyWith(dpoaeStatus: dpoaeStatus, error: null));
           break;
       }
     } catch (e) {
@@ -829,6 +841,57 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       });
       await sendCommand(packet);
     }
+  }
+
+  Future<void> sendStartDpOaePacket({
+    bool realTimeStatusUpdateDuringExecution = false,
+    int timeoutTime = 16000,
+    bool timeoutAuto = false,
+    int stimulusLevelL2 = 55,
+    int? stimulusLevelL1,
+    bool stimulusLevelAuto = false,
+    int artefactLevel = 40,
+    bool retest = false,
+    required List<Map<String, dynamic>> frequencies,
+    int numberPass = 3,
+    bool skipEarVolumeCheck = false,
+    bool stopOnPass = true,
+    bool invertedFrequencyOrder = true,
+    int minimumSignalThreshold = -10,
+  }) async {
+    // Build RealTimeStatusUpdate object
+    final realTimeStatusUpdate = {
+      "DuringExecution": realTimeStatusUpdateDuringExecution,
+    };
+
+    // Build Timeout object
+    final timeout = {"Time": timeoutTime, "Auto": timeoutAuto};
+
+    // Build StimulusLevel object
+    final stimulusLevel = <String, dynamic>{
+      "L2": stimulusLevelL2,
+      "Auto": stimulusLevelAuto,
+    };
+    if (stimulusLevelL1 != null) {
+      stimulusLevel["L1"] = stimulusLevelL1;
+    }
+
+    final packet = _packetInterpreter.constructPacket({
+      "PacketType": 27,
+      "PacketName": "StartDpOae",
+      "RealTimeStatusUpdate": realTimeStatusUpdate,
+      "Timeout": timeout,
+      "StimulusLevel": stimulusLevel,
+      "ArtefactLevel": artefactLevel,
+      "Retest": retest,
+      "Frequencies": frequencies,
+      "NumberPass": numberPass,
+      "SkipEarVolumeCheck": skipEarVolumeCheck,
+      "StopOnPass": stopOnPass,
+      "InvertedFrequencyOrder": invertedFrequencyOrder,
+      "MinimumSignalThreshold": minimumSignalThreshold,
+    });
+    await sendCommand(packet);
   }
 
   Future<void> sendExitAndPowerOffPacket(bool powerOff) async {

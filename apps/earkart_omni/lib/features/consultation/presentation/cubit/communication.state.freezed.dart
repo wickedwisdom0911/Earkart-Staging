@@ -33,6 +33,8 @@ mixin _$CommunicationState {
       throw _privateConstructorUsedError;
   ImpedanceStatus? get impedanceStatus => throw _privateConstructorUsedError;
   ImpedanceData? get impedanceData => throw _privateConstructorUsedError;
+  DpoaeData? get dpoaeData => throw _privateConstructorUsedError;
+  DpoaeStatus? get dpoaeStatus => throw _privateConstructorUsedError;
   bool get isNewImpedanceData =>
       throw _privateConstructorUsedError; // R15C device serial number
   String? get r15cSerialNumber => throw _privateConstructorUsedError;
@@ -64,6 +66,8 @@ abstract class $CommunicationStateCopyWith<$Res> {
       TransducerResponse? transducerResponse,
       ImpedanceStatus? impedanceStatus,
       ImpedanceData? impedanceData,
+      DpoaeData? dpoaeData,
+      DpoaeStatus? dpoaeStatus,
       bool isNewImpedanceData,
       String? r15cSerialNumber,
       String? error});
@@ -96,6 +100,8 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
     Object? transducerResponse = freezed,
     Object? impedanceStatus = freezed,
     Object? impedanceData = freezed,
+    Object? dpoaeData = freezed,
+    Object? dpoaeStatus = freezed,
     Object? isNewImpedanceData = null,
     Object? r15cSerialNumber = freezed,
     Object? error = freezed,
@@ -157,6 +163,14 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
           ? _value.impedanceData
           : impedanceData // ignore: cast_nullable_to_non_nullable
               as ImpedanceData?,
+      dpoaeData: freezed == dpoaeData
+          ? _value.dpoaeData
+          : dpoaeData // ignore: cast_nullable_to_non_nullable
+              as DpoaeData?,
+      dpoaeStatus: freezed == dpoaeStatus
+          ? _value.dpoaeStatus
+          : dpoaeStatus // ignore: cast_nullable_to_non_nullable
+              as DpoaeStatus?,
       isNewImpedanceData: null == isNewImpedanceData
           ? _value.isNewImpedanceData
           : isNewImpedanceData // ignore: cast_nullable_to_non_nullable
@@ -196,6 +210,8 @@ abstract class _$$CommunicationStateImplCopyWith<$Res>
       TransducerResponse? transducerResponse,
       ImpedanceStatus? impedanceStatus,
       ImpedanceData? impedanceData,
+      DpoaeData? dpoaeData,
+      DpoaeStatus? dpoaeStatus,
       bool isNewImpedanceData,
       String? r15cSerialNumber,
       String? error});
@@ -226,6 +242,8 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
     Object? transducerResponse = freezed,
     Object? impedanceStatus = freezed,
     Object? impedanceData = freezed,
+    Object? dpoaeData = freezed,
+    Object? dpoaeStatus = freezed,
     Object? isNewImpedanceData = null,
     Object? r15cSerialNumber = freezed,
     Object? error = freezed,
@@ -287,6 +305,14 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
           ? _value.impedanceData
           : impedanceData // ignore: cast_nullable_to_non_nullable
               as ImpedanceData?,
+      dpoaeData: freezed == dpoaeData
+          ? _value.dpoaeData
+          : dpoaeData // ignore: cast_nullable_to_non_nullable
+              as DpoaeData?,
+      dpoaeStatus: freezed == dpoaeStatus
+          ? _value.dpoaeStatus
+          : dpoaeStatus // ignore: cast_nullable_to_non_nullable
+              as DpoaeStatus?,
       isNewImpedanceData: null == isNewImpedanceData
           ? _value.isNewImpedanceData
           : isNewImpedanceData // ignore: cast_nullable_to_non_nullable
@@ -321,6 +347,8 @@ class _$CommunicationStateImpl implements _CommunicationState {
       this.transducerResponse,
       this.impedanceStatus,
       this.impedanceData,
+      this.dpoaeData,
+      this.dpoaeStatus,
       this.isNewImpedanceData = false,
       this.r15cSerialNumber,
       this.error});
@@ -363,6 +391,10 @@ class _$CommunicationStateImpl implements _CommunicationState {
   @override
   final ImpedanceData? impedanceData;
   @override
+  final DpoaeData? dpoaeData;
+  @override
+  final DpoaeStatus? dpoaeStatus;
+  @override
   @JsonKey()
   final bool isNewImpedanceData;
 // R15C device serial number
@@ -373,7 +405,7 @@ class _$CommunicationStateImpl implements _CommunicationState {
 
   @override
   String toString() {
-    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, patientResponse: $patientResponse, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, isTabletBatteryLoading: $isTabletBatteryLoading, connectionStatus: $connectionStatus, isCameraOpen: $isCameraOpen, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, isNewImpedanceData: $isNewImpedanceData, r15cSerialNumber: $r15cSerialNumber, error: $error)';
+    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, patientResponse: $patientResponse, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, isTabletBatteryLoading: $isTabletBatteryLoading, connectionStatus: $connectionStatus, isCameraOpen: $isCameraOpen, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, dpoaeData: $dpoaeData, dpoaeStatus: $dpoaeStatus, isNewImpedanceData: $isNewImpedanceData, r15cSerialNumber: $r15cSerialNumber, error: $error)';
   }
 
   @override
@@ -410,6 +442,10 @@ class _$CommunicationStateImpl implements _CommunicationState {
                 other.impedanceStatus == impedanceStatus) &&
             (identical(other.impedanceData, impedanceData) ||
                 other.impedanceData == impedanceData) &&
+            (identical(other.dpoaeData, dpoaeData) ||
+                other.dpoaeData == dpoaeData) &&
+            (identical(other.dpoaeStatus, dpoaeStatus) ||
+                other.dpoaeStatus == dpoaeStatus) &&
             (identical(other.isNewImpedanceData, isNewImpedanceData) ||
                 other.isNewImpedanceData == isNewImpedanceData) &&
             (identical(other.r15cSerialNumber, r15cSerialNumber) ||
@@ -418,25 +454,28 @@ class _$CommunicationStateImpl implements _CommunicationState {
   }
 
   @override
-  int get hashCode => Object.hash(
-      runtimeType,
-      isConnected,
-      isSynced,
-      patientResponse,
-      isInBeginMode,
-      batteryLevel,
-      isCharging,
-      tabletBatteryLevel,
-      isTabletBatteryCharging,
-      isTabletBatteryLoading,
-      connectionStatus,
-      isCameraOpen,
-      transducerResponse,
-      impedanceStatus,
-      impedanceData,
-      isNewImpedanceData,
-      r15cSerialNumber,
-      error);
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        isConnected,
+        isSynced,
+        patientResponse,
+        isInBeginMode,
+        batteryLevel,
+        isCharging,
+        tabletBatteryLevel,
+        isTabletBatteryCharging,
+        isTabletBatteryLoading,
+        connectionStatus,
+        isCameraOpen,
+        transducerResponse,
+        impedanceStatus,
+        impedanceData,
+        dpoaeData,
+        dpoaeStatus,
+        isNewImpedanceData,
+        r15cSerialNumber,
+        error
+      ]);
 
   @JsonKey(ignore: true)
   @override
@@ -462,6 +501,8 @@ abstract class _CommunicationState implements CommunicationState {
       final TransducerResponse? transducerResponse,
       final ImpedanceStatus? impedanceStatus,
       final ImpedanceData? impedanceData,
+      final DpoaeData? dpoaeData,
+      final DpoaeStatus? dpoaeStatus,
       final bool isNewImpedanceData,
       final String? r15cSerialNumber,
       final String? error}) = _$CommunicationStateImpl;
@@ -494,6 +535,10 @@ abstract class _CommunicationState implements CommunicationState {
   ImpedanceStatus? get impedanceStatus;
   @override
   ImpedanceData? get impedanceData;
+  @override
+  DpoaeData? get dpoaeData;
+  @override
+  DpoaeStatus? get dpoaeStatus;
   @override
   bool get isNewImpedanceData;
   @override // R15C device serial number
