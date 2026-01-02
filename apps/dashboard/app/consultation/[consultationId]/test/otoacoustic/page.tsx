@@ -228,28 +228,89 @@ export default function OtoacousticPage() {
       return;
     }
 
-    // TODO: Implement OAE data structure when backend is ready
-    // For now, just mark the test as completed
+    // Get existing OAE data or create new structure
+    const existingOae = consultationData.oae || {};
+    const existingEarTests = existingOae.earTests || [];
+
+    // Process current ear's frequency responses
+    const currentEarResponses = frequencyResponses
+      .filter(fr => fr.frequency !== null && fr.responseDb !== null)
+      .map(fr => {
+        const freqConfig = frequencies.find(f => f.Frequency === fr.frequency);
+        const threshold = freqConfig?.SNR ?? 6;
+        const passed = fr.snr !== null ? fr.snr >= threshold : false;
+
+        return {
+          frequencyHz: fr.frequency,
+          pass: passed,
+          noise: fr.noiseLevel ?? null,
+          signal: fr.responseDb,
+          artefacts: 0, // Default to 0 if not available
+        };
+      });
+
+    // Determine if current ear passed overall
+    const currentEarPassed = currentEarResponses.length > 0 
+      ? currentEarResponses.every(fr => fr.pass)
+      : false;
+
+    // Get ear volume and minimum signal threshold from test results or use defaults
+    const earKey = selectedEar.toLowerCase() as "left" | "right";
+    const currentEarData = testResults[earKey] || {};
+    const earVolume = currentEarData?.EarVolume || currentEarData?.earVolume || null;
+    const minSignalThreshold = currentEarData?.MinimumSignalThreshold || 
+                            currentEarData?.minimumSignalThreshold || 
+                            minimumSignalThreshold;
+
+    // Create or update ear test entry
+    const earTestEntry: any = {
+      ear: selectedEar === "L" ? "LEFT" : "RIGHT",
+      pass: currentEarPassed,
+      result: currentEarPassed ? "Pass" : "Refer",
+      frequencyResponses: currentEarResponses,
+    };
+
+    // Only include these fields if they have values
+    if (minSignalThreshold !== null && minSignalThreshold !== undefined) {
+      earTestEntry.minimumSignalThreshold = minSignalThreshold;
+    }
+    if (earVolume !== null && earVolume !== undefined) {
+      earTestEntry.earVolume = earVolume;
+    }
+
+    // Update or add ear test
+    const updatedEarTests = existingEarTests.filter(
+      (et: any) => et.ear !== earTestEntry.ear
+    );
+    updatedEarTests.push(earTestEntry);
+
+    // Determine overall status
+    const allEarsCompleted = updatedEarTests.length === 2;
+    const allEarsPassed = updatedEarTests.every((et: any) => et.pass);
+    const status = allEarsCompleted
+      ? (allEarsPassed ? "COMPLETED" : "COMPLETED")
+      : "IN_PROGRESS";
+
+    // Create OAE test data
     const oaeTest = {
-      sessionId: consultationData.id,
-      status: TestStatus.COMPLETED,
-      ear: selectedEar === "L" ? Ear.LEFT : Ear.RIGHT,
-      // Add OAE-specific fields here when backend model is ready
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      status: status,
+      notes: existingOae.notes || "",
+      earTests: updatedEarTests,
     };
 
     // Update consultation with OAE data
     const updatedConsultation: ConsultationModelData = {
       ...consultationData,
-      // TODO: Add otoacoustic field when backend model is ready
-      // otoacoustic: oaeTest,
+      id: consultationData.id, // Required field
+      oae: oaeTest,
       updatedAt: new Date().toISOString(),
     };
 
+    console.log("💾 [OAE Save] Saving OAE data:", JSON.stringify(oaeTest, null, 2));
+
     try {
       await updateConsultationMutation.mutateAsync(updatedConsultation);
-      console.log("OAE results saved successfully");
+      console.log("✅ OAE results saved successfully");
 
       // Add current ear to completed set
       const newCompletedEars = new Set(completedEars);
@@ -271,7 +332,7 @@ export default function OtoacousticPage() {
         setIsTestCompleted(false);
       }
     } catch (error) {
-      console.error("Failed to save OAE results:", error);
+      console.error("❌ Failed to save OAE results:", error);
       toast.error("Failed to save OAE results. Please try again.");
     }
   }, [
@@ -279,6 +340,10 @@ export default function OtoacousticPage() {
     selectedEar,
     completedEars,
     updateConsultationMutation,
+    frequencyResponses,
+    frequencies,
+    testResults,
+    minimumSignalThreshold,
   ]);
 
   // Start/Stop OAE test
@@ -492,8 +557,8 @@ export default function OtoacousticPage() {
           const newResponse: FrequencyResponseData = {
             frequency: frequency,
             responseDb: signal, // Signal is the response level
-            snr: snrValue ?? null,
-            noiseLevel: noise ?? null,
+            snr: snrValue ?? 0, // Use 0 as default if null
+            noiseLevel: noise ?? 0, // Use 0 as default if null
             passed: passed,
             isTesting: true,
           };

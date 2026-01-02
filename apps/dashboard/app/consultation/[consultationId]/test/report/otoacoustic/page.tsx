@@ -59,6 +59,12 @@ export default function OtoacousticReportPage() {
     }
   }, [consultationData]);
 
+  useEffect(() => {
+    if (consultationData?.oae?.notes) {
+      setComments(consultationData.oae.notes);
+    }
+  }, [consultationData]);
+
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setReportDate(e.target.value);
   };
@@ -120,14 +126,15 @@ export default function OtoacousticReportPage() {
     e.preventDefault();
     if (!consultationData) return;
     try {
-      // TODO: Update when backend model is ready
-      // await updateConsultationMutation.mutateAsync({
-      //   ...consultationData,
-      //   otoacoustic: {
-      //     ...consultationData.otoacoustic!,
-      //     notes: comments,
-      //   },
-      // });
+      await updateConsultationMutation.mutateAsync({
+        ...consultationData,
+        id: consultationData.id,
+        oae: {
+          ...consultationData.oae!,
+          notes: comments,
+        },
+        updatedAt: new Date().toISOString(),
+      });
       toast.success("Comments saved");
     } catch (err) {
       console.error(err);
@@ -376,22 +383,26 @@ export default function OtoacousticReportPage() {
   if (!consultationData)
     return <div className="p-6">No consultation data found</div>;
 
-  // TODO: Check for otoacoustic data when backend model is ready
-  // const oaeData = consultationData.otoacoustic;
-  // if (!oaeData) {
-  //   return (
-  //     <div className="p-6">
-  //       <div className="text-center py-12">
-  //         <h2 className="text-2xl font-bold text-gray-600 mb-4">
-  //           No OAE Data
-  //         </h2>
-  //         <p className="text-gray-500">
-  //           No otoacoustic emissions test has been performed for this consultation.
-  //         </p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+  // Check for OAE data
+  const oaeData = consultationData.oae;
+  if (!oaeData || !oaeData.earTests || oaeData.earTests.length === 0) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold text-gray-600 mb-4">
+            No OAE Data
+          </h2>
+          <p className="text-gray-500">
+            No otoacoustic emissions test has been performed for this consultation.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Extract left and right ear data
+  const leftEarData = oaeData.earTests.find((et: any) => et.ear === "LEFT");
+  const rightEarData = oaeData.earTests.find((et: any) => et.ear === "RIGHT");
 
   return (
     <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
@@ -520,13 +531,141 @@ export default function OtoacousticReportPage() {
 
           {/* OAE Test Results */}
           <div className="px-8 py-6 bg-gray-50 relative z-0">
-            <div className="border rounded p-4 bg-white">
-              <div className="text-center text-gray-500">
-                <div className="text-6xl mb-4">📊</div>
-                <p className="text-lg font-medium">OAE Test Results</p>
-                <p className="text-sm mt-2">Test results will appear here when backend is ready</p>
+            <h3 className="text-lg font-bold mb-4">OAE Test Results</h3>
+            
+            {/* Left Ear Results */}
+            {leftEarData && (
+              <div className="mb-6 border rounded-lg p-4 bg-white">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-blue-600">Left Ear</h4>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded text-sm font-medium ${
+                      leftEarData.pass ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                    }`}>
+                      {leftEarData.pass ? "✓ Pass" : "✗ Refer"}
+                    </span>
+                    {leftEarData.result && (
+                      <span className="text-sm text-gray-600">({leftEarData.result})</span>
+                    )}
+                  </div>
+                </div>
+                
+                {leftEarData.earVolume !== null && leftEarData.earVolume !== undefined && (
+                  <p className="text-sm text-gray-600 mb-2">
+                    <span className="font-medium">Ear Volume:</span> {leftEarData.earVolume.toFixed(2)} ml
+                  </p>
+                )}
+                
+                {leftEarData.minimumSignalThreshold !== null && leftEarData.minimumSignalThreshold !== undefined && (
+                  <p className="text-sm text-gray-600 mb-3">
+                    <span className="font-medium">Minimum Signal Threshold:</span> {leftEarData.minimumSignalThreshold} dB SPL
+                  </p>
+                )}
+
+                {leftEarData.frequencyResponses && leftEarData.frequencyResponses.length > 0 && (
+                  <div className="mt-3">
+                    <h5 className="font-medium text-sm mb-2">Frequency Responses:</h5>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border p-2 text-left">Frequency (Hz)</th>
+                            <th className="border p-2 text-left">Signal (dB SPL)</th>
+                            <th className="border p-2 text-left">Noise (dB SPL)</th>
+                            <th className="border p-2 text-left">Artefacts</th>
+                            <th className="border p-2 text-left">Result</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {leftEarData.frequencyResponses.map((fr: any, idx: number) => (
+                            <tr key={idx} className={fr.pass ? "bg-green-50" : "bg-red-50"}>
+                              <td className="border p-2">{fr.frequencyHz}</td>
+                              <td className="border p-2">{fr.signal?.toFixed(2) ?? "N/A"}</td>
+                              <td className="border p-2">{fr.noise?.toFixed(2) ?? "N/A"}</td>
+                              <td className="border p-2">{fr.artefacts ?? 0}</td>
+                              <td className="border p-2">
+                                <span className={`px-2 py-1 rounded text-xs ${
+                                  fr.pass ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"
+                                }`}>
+                                  {fr.pass ? "Pass" : "Fail"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
+
+            {/* Right Ear Results */}
+            {rightEarData && (
+              <div className="mb-6 border rounded-lg p-4 bg-white">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-red-600">Right Ear</h4>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded text-sm font-medium ${
+                      rightEarData.pass ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                    }`}>
+                      {rightEarData.pass ? "✓ Pass" : "✗ Refer"}
+                    </span>
+                    {rightEarData.result && (
+                      <span className="text-sm text-gray-600">({rightEarData.result})</span>
+                    )}
+                  </div>
+                </div>
+                
+                {rightEarData.earVolume !== null && rightEarData.earVolume !== undefined && (
+                  <p className="text-sm text-gray-600 mb-2">
+                    <span className="font-medium">Ear Volume:</span> {rightEarData.earVolume.toFixed(2)} ml
+                  </p>
+                )}
+                
+                {rightEarData.minimumSignalThreshold !== null && rightEarData.minimumSignalThreshold !== undefined && (
+                  <p className="text-sm text-gray-600 mb-3">
+                    <span className="font-medium">Minimum Signal Threshold:</span> {rightEarData.minimumSignalThreshold} dB SPL
+                  </p>
+                )}
+
+                {rightEarData.frequencyResponses && rightEarData.frequencyResponses.length > 0 && (
+                  <div className="mt-3">
+                    <h5 className="font-medium text-sm mb-2">Frequency Responses:</h5>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border p-2 text-left">Frequency (Hz)</th>
+                            <th className="border p-2 text-left">Signal (dB SPL)</th>
+                            <th className="border p-2 text-left">Noise (dB SPL)</th>
+                            <th className="border p-2 text-left">Artefacts</th>
+                            <th className="border p-2 text-left">Result</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rightEarData.frequencyResponses.map((fr: any, idx: number) => (
+                            <tr key={idx} className={fr.pass ? "bg-green-50" : "bg-red-50"}>
+                              <td className="border p-2">{fr.frequencyHz}</td>
+                              <td className="border p-2">{fr.signal?.toFixed(2) ?? "N/A"}</td>
+                              <td className="border p-2">{fr.noise?.toFixed(2) ?? "N/A"}</td>
+                              <td className="border p-2">{fr.artefacts ?? 0}</td>
+                              <td className="border p-2">
+                                <span className={`px-2 py-1 rounded text-xs ${
+                                  fr.pass ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"
+                                }`}>
+                                  {fr.pass ? "Pass" : "Fail"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Investigation: OAE */}
@@ -541,11 +680,15 @@ export default function OtoacousticReportPage() {
                 <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Lt</div>
                 <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Rt</div>
 
-                {/* TODO: Add OAE-specific test rows when backend is ready */}
+                {/* OAE Test Results */}
                 <div className="font-semibold border border-gray-400 p-2 text-gray-800">OAE Test</div>
-                <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
-                <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
-                <div className="border border-gray-400 p-2 text-center text-gray-800">—</div>
+                <div className="border border-gray-400 p-2 text-center text-gray-800">Pass/Refer</div>
+                <div className="border border-gray-400 p-2 text-center text-gray-800">
+                  {leftEarData ? (leftEarData.pass ? "Pass" : "Refer") : "—"}
+                </div>
+                <div className="border border-gray-400 p-2 text-center text-gray-800">
+                  {rightEarData ? (rightEarData.pass ? "Pass" : "Refer") : "—"}
+                </div>
               </div>
             </div>
           </div>
