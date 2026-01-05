@@ -405,7 +405,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         }
         setState(() {
           testType =
-              data["testId"] == "pure-tone" ? TestType.PTA : TestType.Impedance;
+              data["testId"] == "pure-tone"
+                  ? data["testId"] == "OAE"
+                      ? TestType.OAE
+                      : TestType.Impedance
+                  : TestType.PTA;
         });
         _handleBeginPacket(testType);
       }

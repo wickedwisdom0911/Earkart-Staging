@@ -617,7 +617,12 @@ class CommunicationCubit extends Cubit<CommunicationState> {
       final packet = _packetInterpreter.constructPacket({
         "PacketType": 5,
         "PacketName": "Begin",
-        "Modality": testType == TestType.Impedance ? 2 : 1,
+        "Modality":
+            testType == TestType.Impedance
+                ? 2
+                : testType == TestType.OAE
+                ? 3
+                : 1,
         "Impedance": {
           "ProbetoneFrequency": 226,
           "RealTimeStatusUpdate": {"InIdle": false, "DuringExecution": true},
