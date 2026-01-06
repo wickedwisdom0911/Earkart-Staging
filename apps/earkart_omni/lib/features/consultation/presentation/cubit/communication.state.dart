@@ -3,6 +3,7 @@ import 'package:earkart_omni/models/communication/dpoae_data.dart';
 import 'package:earkart_omni/models/communication/dpoae_status.dart';
 import 'package:earkart_omni/models/communication/impedance_data.dart';
 import 'package:earkart_omni/models/communication/impedance_status.dart';
+import 'package:earkart_omni/models/communication/nack.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'communication.state.freezed.dart';
@@ -32,5 +33,7 @@ class CommunicationState with _$CommunicationState {
     // R15C device serial number
     String? r15cSerialNumber,
     String? error,
+    Nack? nack,
+    @Default(false) bool isNewNack,
   }) = _CommunicationState;
 }

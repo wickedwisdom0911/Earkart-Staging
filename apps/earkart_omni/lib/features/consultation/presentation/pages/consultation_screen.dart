@@ -404,12 +404,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           di<ILogger>().warning('Skipping stop command; device not connected');
         }
         setState(() {
-          testType =
-              data["testId"] == "pure-tone"
-                  ? data["testId"] == "OAE"
-                      ? TestType.OAE
-                      : TestType.Impedance
-                  : TestType.PTA;
+          final testId = data["testId"] as String;
+          if (testId == "OAE") {
+            testType = TestType.OAE;
+          } else if (testId == "pure-tone") {
+            testType = TestType.PTA;
+          } else if (testId == "impedance" || testId == "Impedance") {
+            testType = TestType.Impedance;
+          } else {
+            // Default to PTA for unknown test types
+            testType = TestType.PTA;
+          }
         });
         _handleBeginPacket(testType);
       }
@@ -1185,7 +1190,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   previous.dpoaeData != current.dpoaeData ||
                   previous.patientResponse != current.patientResponse ||
                   previous.isInBeginMode != current.isInBeginMode ||
-                  previous.connectionStatus != current.connectionStatus;
+                  previous.connectionStatus != current.connectionStatus ||
+                  (current.isNewNack && current.nack != null);
             },
             listener: (context, state) {
               if (!mounted) return;
@@ -1223,6 +1229,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               if (state.dpoaeData != null &&
                   state.dpoaeData != _lastDpoaeData) {
                 _emitDpoaeData(state);
+              }
+
+              // Handle NACK - emit socket event when new NACK is received
+              if (state.nack != null && state.isNewNack) {
+                _emitNackEvent(state);
               }
 
               // Debounce device connection logic to prevent excessive processing
@@ -1549,6 +1560,18 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.emit("patient-response-tonedecay", {
       "consultationId": consultation?.id,
       "patientResponse": isPressed,
+    });
+  }
+
+  void _emitNackEvent(CommunicationState state) {
+    if (!mounted || !_isSocketInitialized || state.nack == null) return;
+
+    final nackMessage = state.nack!.error?.description ?? 'NACK received';
+    di<ILogger>().debug('Emitting NACK event: $nackMessage');
+
+    socket.emit("nack", {
+      "consultationId": consultation?.id,
+      "message": nackMessage,
     });
   }
 

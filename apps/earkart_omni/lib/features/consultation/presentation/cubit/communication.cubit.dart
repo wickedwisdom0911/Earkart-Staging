@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:earkart_omni/models/communication/dpoae_data.dart';
 import 'package:earkart_omni/models/communication/dpoae_status.dart';
+import 'package:earkart_omni/models/communication/nack.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:earkart_omni/config/utils/packet_format_interpreter.dart';
@@ -277,6 +278,21 @@ class CommunicationCubit extends Cubit<CommunicationState> {
                 error: null,
               ),
             );
+          }
+          break;
+        case 13: //NACK
+          if (isClosed) return;
+          final nack = Nack.fromJson(json);
+          emit(
+            state.copyWith(
+              error: nack.error?.description,
+              nack: nack,
+              isNewNack: true,
+            ),
+          );
+          // Reset the flag after emitting
+          if (!isClosed) {
+            emit(state.copyWith(isNewNack: false));
           }
           break;
         case 14: // Impedance Status
@@ -997,6 +1013,8 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         tabletBatteryLevel: null,
         isTabletBatteryCharging: null,
         isTabletBatteryLoading: true,
+        nack: null,
+        isNewNack: false,
       ),
     );
   }

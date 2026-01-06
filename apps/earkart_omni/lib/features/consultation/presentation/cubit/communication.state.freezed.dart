@@ -39,6 +39,8 @@ mixin _$CommunicationState {
       throw _privateConstructorUsedError; // R15C device serial number
   String? get r15cSerialNumber => throw _privateConstructorUsedError;
   String? get error => throw _privateConstructorUsedError;
+  Nack? get nack => throw _privateConstructorUsedError;
+  bool get isNewNack => throw _privateConstructorUsedError;
 
   @JsonKey(ignore: true)
   $CommunicationStateCopyWith<CommunicationState> get copyWith =>
@@ -70,7 +72,9 @@ abstract class $CommunicationStateCopyWith<$Res> {
       DpoaeStatus? dpoaeStatus,
       bool isNewImpedanceData,
       String? r15cSerialNumber,
-      String? error});
+      String? error,
+      Nack? nack,
+      bool isNewNack});
 }
 
 /// @nodoc
@@ -105,6 +109,8 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
     Object? isNewImpedanceData = null,
     Object? r15cSerialNumber = freezed,
     Object? error = freezed,
+    Object? nack = freezed,
+    Object? isNewNack = null,
   }) {
     return _then(_value.copyWith(
       isConnected: null == isConnected
@@ -183,6 +189,14 @@ class _$CommunicationStateCopyWithImpl<$Res, $Val extends CommunicationState>
           ? _value.error
           : error // ignore: cast_nullable_to_non_nullable
               as String?,
+      nack: freezed == nack
+          ? _value.nack
+          : nack // ignore: cast_nullable_to_non_nullable
+              as Nack?,
+      isNewNack: null == isNewNack
+          ? _value.isNewNack
+          : isNewNack // ignore: cast_nullable_to_non_nullable
+              as bool,
     ) as $Val);
   }
 }
@@ -214,7 +228,9 @@ abstract class _$$CommunicationStateImplCopyWith<$Res>
       DpoaeStatus? dpoaeStatus,
       bool isNewImpedanceData,
       String? r15cSerialNumber,
-      String? error});
+      String? error,
+      Nack? nack,
+      bool isNewNack});
 }
 
 /// @nodoc
@@ -247,6 +263,8 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
     Object? isNewImpedanceData = null,
     Object? r15cSerialNumber = freezed,
     Object? error = freezed,
+    Object? nack = freezed,
+    Object? isNewNack = null,
   }) {
     return _then(_$CommunicationStateImpl(
       isConnected: null == isConnected
@@ -325,6 +343,14 @@ class __$$CommunicationStateImplCopyWithImpl<$Res>
           ? _value.error
           : error // ignore: cast_nullable_to_non_nullable
               as String?,
+      nack: freezed == nack
+          ? _value.nack
+          : nack // ignore: cast_nullable_to_non_nullable
+              as Nack?,
+      isNewNack: null == isNewNack
+          ? _value.isNewNack
+          : isNewNack // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -351,7 +377,9 @@ class _$CommunicationStateImpl implements _CommunicationState {
       this.dpoaeStatus,
       this.isNewImpedanceData = false,
       this.r15cSerialNumber,
-      this.error});
+      this.error,
+      this.nack,
+      this.isNewNack = false});
 
   @override
   @JsonKey()
@@ -402,10 +430,15 @@ class _$CommunicationStateImpl implements _CommunicationState {
   final String? r15cSerialNumber;
   @override
   final String? error;
+  @override
+  final Nack? nack;
+  @override
+  @JsonKey()
+  final bool isNewNack;
 
   @override
   String toString() {
-    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, patientResponse: $patientResponse, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, isTabletBatteryLoading: $isTabletBatteryLoading, connectionStatus: $connectionStatus, isCameraOpen: $isCameraOpen, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, dpoaeData: $dpoaeData, dpoaeStatus: $dpoaeStatus, isNewImpedanceData: $isNewImpedanceData, r15cSerialNumber: $r15cSerialNumber, error: $error)';
+    return 'CommunicationState(isConnected: $isConnected, isSynced: $isSynced, patientResponse: $patientResponse, isInBeginMode: $isInBeginMode, batteryLevel: $batteryLevel, isCharging: $isCharging, tabletBatteryLevel: $tabletBatteryLevel, isTabletBatteryCharging: $isTabletBatteryCharging, isTabletBatteryLoading: $isTabletBatteryLoading, connectionStatus: $connectionStatus, isCameraOpen: $isCameraOpen, transducerResponse: $transducerResponse, impedanceStatus: $impedanceStatus, impedanceData: $impedanceData, dpoaeData: $dpoaeData, dpoaeStatus: $dpoaeStatus, isNewImpedanceData: $isNewImpedanceData, r15cSerialNumber: $r15cSerialNumber, error: $error, nack: $nack, isNewNack: $isNewNack)';
   }
 
   @override
@@ -450,7 +483,10 @@ class _$CommunicationStateImpl implements _CommunicationState {
                 other.isNewImpedanceData == isNewImpedanceData) &&
             (identical(other.r15cSerialNumber, r15cSerialNumber) ||
                 other.r15cSerialNumber == r15cSerialNumber) &&
-            (identical(other.error, error) || other.error == error));
+            (identical(other.error, error) || other.error == error) &&
+            (identical(other.nack, nack) || other.nack == nack) &&
+            (identical(other.isNewNack, isNewNack) ||
+                other.isNewNack == isNewNack));
   }
 
   @override
@@ -474,7 +510,9 @@ class _$CommunicationStateImpl implements _CommunicationState {
         dpoaeStatus,
         isNewImpedanceData,
         r15cSerialNumber,
-        error
+        error,
+        nack,
+        isNewNack
       ]);
 
   @JsonKey(ignore: true)
@@ -505,7 +543,9 @@ abstract class _CommunicationState implements CommunicationState {
       final DpoaeStatus? dpoaeStatus,
       final bool isNewImpedanceData,
       final String? r15cSerialNumber,
-      final String? error}) = _$CommunicationStateImpl;
+      final String? error,
+      final Nack? nack,
+      final bool isNewNack}) = _$CommunicationStateImpl;
 
   @override
   bool get isConnected;
@@ -545,6 +585,10 @@ abstract class _CommunicationState implements CommunicationState {
   String? get r15cSerialNumber;
   @override
   String? get error;
+  @override
+  Nack? get nack;
+  @override
+  bool get isNewNack;
   @override
   @JsonKey(ignore: true)
   _$$CommunicationStateImplCopyWith<_$CommunicationStateImpl> get copyWith =>
