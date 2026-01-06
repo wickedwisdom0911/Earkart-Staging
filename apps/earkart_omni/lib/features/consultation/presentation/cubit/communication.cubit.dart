@@ -283,13 +283,7 @@ class CommunicationCubit extends Cubit<CommunicationState> {
         case 13: //NACK
           if (isClosed) return;
           final nack = Nack.fromJson(json);
-          emit(
-            state.copyWith(
-              error: nack.error?.description,
-              nack: nack,
-              isNewNack: true,
-            ),
-          );
+          emit(state.copyWith(nack: nack, isNewNack: true));
           // Reset the flag after emitting
           if (!isClosed) {
             emit(state.copyWith(isNewNack: false));
