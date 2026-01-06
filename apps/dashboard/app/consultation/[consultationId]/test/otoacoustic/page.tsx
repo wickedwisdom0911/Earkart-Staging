@@ -8,9 +8,13 @@ import { ConsultationModelData } from "@/models/consultation.model";
 import { TestStatus, Ear } from "@/models/enums";
 import { toast } from "sonner";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle } from "lucide-react";
 import {
-  BarChart,
-  Bar,
+  ComposedChart,
+  Scatter,
+  Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -50,112 +54,212 @@ function DpoaeGraph({ data, frequencies, selectedEar }: DpoaeGraphProps) {
       isTesting: response?.isTesting ?? false,
       threshold: freqConfig.SNR, // Required SNR threshold
       frequencyLabel: freqConfig.Frequency >= 1000 
-        ? `${freqConfig.Frequency / 1000}k` 
+        ? freqConfig.Frequency % 1000 === 0
+          ? `${freqConfig.Frequency / 1000}K`  // e.g., 2000 -> "2K"
+          : `${(freqConfig.Frequency / 1000).toFixed(1)}K`  // e.g., 1500 -> "1.5K", 2500 -> "2.5K"
         : `${freqConfig.Frequency}`,
     };
   });
 
-  const color = selectedEar === "L" ? "#3B82F6" : "#EF4444";
   const passColor = "#10B981"; // Green
   const failColor = "#EF4444"; // Red
   const testingColor = "#F59E0B"; // Amber
+
+  // Prepare plot data - include ALL frequencies (even without data) for proper X-axis display
+  // Sort by frequency for proper line connection
+  const plotData = chartData
+    .sort((a, b) => a.frequency - b.frequency)
+    .map(entry => ({
+      frequency: entry.frequency,
+      frequencyLabel: entry.frequencyLabel,
+      signal: entry.responseDb,  // Signal (green line with dots) - can be null
+      noise: entry.noiseLevel,   // Noise (grey dots) - can be null
+      snr: entry.snr,
+      isTesting: entry.isTesting,
+      threshold: entry.threshold,
+      passed: entry.passed,
+    }));
+
+  // Y-axis domain: fixed from -30 to 40 dB SPL (matching device display)
+  const yDomain: [number, number] = [-30, 40];
+
+  // Noise floor - average of noise values
+  const noiseValues = plotData.map(d => d.noise).filter(v => v !== null) as number[];
+  const noiseFloorValue = noiseValues.length > 0 
+    ? noiseValues.reduce((sum, v) => sum + v, 0) / noiseValues.length 
+    : -20;
 
   return (
     <div className="border rounded p-4 bg-white">
       <div className="h-[400px] relative">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={chartData}
-            margin={{ top: 20, right: 20, bottom: 40, left: 50 }}
+          <ComposedChart
+            data={plotData}
+            margin={{ top: 20, right: 20, bottom: 60, left: 50 }}
           >
+            <defs>
+              {/* Gradient for area fill under noise line (downward) */}
+              <linearGradient id="noiseGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#9ca3af" stopOpacity={0.3}/>
+                <stop offset="100%" stopColor="#9ca3af" stopOpacity={0.1}/>
+              </linearGradient>
+            </defs>
+            
             <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+            
+            {/* X-Axis: Frequency - show all frequencies */}
             <XAxis
               dataKey="frequencyLabel"
-              label={{ value: "Frequency (Hz)", position: "insideBottom", offset: -5 }}
-              tick={{ fontSize: 11 }}
+              label={{ value: "Frequency", position: "insideBottom", offset: -10 }}
+              tick={{ fontSize: 12, fill: "#333" }}
+              tickLine={{ stroke: "#666", strokeWidth: 1 }}
+              interval={0} // Show all frequency labels
             />
+            
+            {/* Y-Axis: dB SPL */}
             <YAxis
-              domain={[-20, 20]}
-              label={{ value: "Response Level (dB SPL)", angle: -90, position: "insideLeft" }}
-              tick={{ fontSize: 11 }}
+              domain={yDomain}
+              ticks={[-30, -20, -10, 0, 10, 20, 30, 40]}
+              label={{ value: "dB SPL", angle: -90, position: "insideLeft", offset: -5 }}
+              tick={{ fontSize: 12, fill: "#333" }}
+              tickLine={{ stroke: "#666", strokeWidth: 1 }}
             />
+            
             <Tooltip
               formatter={(value: number, name: string, props: any) => {
-                if (name === "responseDb") {
-                  return [
-                    `${value !== null ? value.toFixed(1) : "--"} dB SPL`,
-                    "Response Level",
-                  ];
-                }
-                if (name === "snr") {
-                  return [
-                    `${value !== null ? value.toFixed(1) : "--"} dB`,
-                    "SNR",
-                  ];
-                }
-                if (name === "noiseLevel") {
-                  return [
-                    `${value !== null ? value.toFixed(1) : "--"} dB SPL`,
-                    "Noise Level",
-                  ];
-                }
-                return [value, name];
+                const formatValue = (val: any): string => {
+                  if (val === null || val === undefined) return "--";
+                  if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return "--";
+                  return val.toFixed(1);
+                };
+                if (name === "signal") return [`${formatValue(value)} dB SPL`, "Signal (S)"];
+                if (name === "noise") return [`${formatValue(value)} dB SPL`, "Noise (N)"];
+                if (name === "snr") return [`${formatValue(value)} dB`, "SNR"];
+                return value;
               }}
-              labelFormatter={(label) => `Frequency: ${label} Hz`}
+              labelFormatter={(label, payload) => {
+                if (payload && payload[0] && payload[0].payload) {
+                  const freq = payload[0].payload.frequency;
+                  return `Frequency: ${freq >= 1000 ? `${freq/1000}K` : freq} Hz`;
+                }
+                return label;
+              }}
               contentStyle={{
                 backgroundColor: "rgba(255, 255, 255, 0.95)",
                 border: "1px solid #ccc",
                 borderRadius: "4px",
               }}
             />
-            {/* SNR Threshold Reference Line */}
-            <ReferenceLine
-              y={0}
-              stroke="#666"
-              strokeDasharray="2 2"
-              label={{ value: "0 dB", position: "right" }}
+            
+            {/* Reference line at 0 dB */}
+            <ReferenceLine y={0} stroke="#666" strokeDasharray="2 2" strokeWidth={1} />
+            
+            {/* Noise floor reference line */}
+            {plotData.length > 0 && noiseFloorValue !== null && (
+              <ReferenceLine
+                y={noiseFloorValue as number}
+                stroke="#9ca3af"
+                strokeDasharray="5 5"
+                strokeWidth={1.5}
+                label={{ value: "Noise Floor", position: "right", fill: "#6b7280", fontSize: 10 }}
+              />
+            )}
+            
+            {/* Grey shaded area under noise line (fills downward) */}
+            <Area
+              type="monotone"
+              dataKey="noise"
+              fill="url(#noiseGradient)"
+              stroke="none"
+              fillOpacity={1}
+              isAnimationActive={false}
+              connectNulls={true}
+              baseValue={-30} // Fill from noise line down to -30 dB (bottom of graph)
             />
-            {/* Bars for Response Level */}
-            <Bar dataKey="responseDb" name="responseDb" radius={[4, 4, 0, 0]}>
-              {chartData.map((entry, index) => {
-                let barColor = "#D1D5DB"; // Gray for no data
-                
-                if (entry.isTesting) {
-                  barColor = testingColor; // Amber for testing
-                } else if (entry.responseDb !== null) {
-                  // Check if passed based on SNR threshold
-                  if (entry.snr !== null && entry.snr >= entry.threshold) {
-                    barColor = passColor; // Green for pass
-                  } else if (entry.snr !== null && entry.snr < entry.threshold) {
-                    barColor = failColor; // Red for fail
-                  } else {
-                    barColor = color; // Default color if no SNR but has response
-                  }
+            
+            {/* Noise points (grey dots, marked but not connected) */}
+            <Line
+              type="monotone"
+              dataKey="noise"
+              stroke="none"
+              strokeWidth={0}
+              dot={(props: any) => {
+                const { cx, cy } = props;
+                if (cx === undefined || cy === undefined) {
+                  return <circle cx={0} cy={0} r={0} fill="none" />;
+                }
+                return (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={4}
+                    fill="#9ca3af"
+                    stroke="#fff"
+                    strokeWidth={1.5}
+                  />
+                );
+              }}
+              isAnimationActive={false}
+              connectNulls={false}
+            />
+            
+            {/* Signal line (green with dots, connected) */}
+            <Line
+              type="monotone"
+              dataKey="signal"
+              stroke={passColor}
+              strokeWidth={2.5}
+              dot={(props: any) => {
+                const { cx, cy, payload } = props;
+                if (cx === undefined || cy === undefined) {
+                  return <circle cx={0} cy={0} r={0} fill="none" />;
                 }
                 
-                return <Cell key={`cell-${index}`} fill={barColor} />;
-              })}
-            </Bar>
-          </BarChart>
+                let dotColor = passColor; // Default green
+                if (payload?.isTesting) {
+                  dotColor = testingColor; // Amber for testing
+                } else if (payload?.snr !== null && payload?.snr < payload?.threshold) {
+                  dotColor = failColor; // Red for fail
+                }
+                
+                return (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={5}
+                    fill={dotColor}
+                    stroke="#fff"
+                    strokeWidth={2}
+                  />
+                );
+              }}
+              connectNulls={true}
+              isAnimationActive={false}
+            />
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       {/* Legend */}
       <div className="mt-4 flex flex-wrap gap-4 justify-center text-xs">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-green-500"></div>
-          <span>Pass (SNR ≥ threshold)</span>
+          <div className="w-4 h-4 rounded-full bg-green-500 border-2 border-white shadow"></div>
+          <span>Signal (Pass)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-red-500"></div>
-          <span>Fail (SNR &lt; threshold)</span>
+          <div className="w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow"></div>
+          <span>Signal (Fail)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-amber-500"></div>
-          <span>Testing</span>
+          <div className="w-4 h-4 rounded-full bg-amber-500 border-2 border-white shadow"></div>
+          <span>Signal (Testing)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-gray-300"></div>
-          <span>No Data</span>
+          <div className="w-4 h-4 rounded-full bg-gray-400 border-2 border-white shadow"></div>
+          <span>Noise Points</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-gray-300 opacity-50"></div>
+          <span>Shaded Area</span>
         </div>
       </div>
     </div>
@@ -175,6 +279,10 @@ export default function OtoacousticPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [isTestCompleted, setIsTestCompleted] = useState(false);
   const [completedEars, setCompletedEars] = useState<Set<"L" | "R">>(new Set());
+  
+  // NACK dialog state
+  const [showNackDialog, setShowNackDialog] = useState(false);
+  const [nackMessage, setNackMessage] = useState("");
 
   // OAE test parameters - matching backend API documentation
   const [testType, setTestType] = useState<"DPOAE" | "TEOAE">("DPOAE");
@@ -736,9 +844,34 @@ export default function OtoacousticPage() {
     };
 
     const handleDpoaeError = (data: { message?: string }) => {
-      console.error("DPOAE error:", data);
+      console.error("❌ [DPOAE Error]:", data);
       setIsRunning(false);
+      setIsTestCompleted(false);
       toast.error(data.message || "DPOAE test error occurred");
+    };
+
+    // Dedicated handler for nack-received (test cannot be performed)
+    const handleNackReceived = (data: { message?: string; testId?: string }) => {
+      console.warn("⚠️ [NACK Received] Test not ready or error:", data);
+      
+      // Stop the test if it was running
+      setIsRunning(false);
+      setIsTestCompleted(false);
+      
+      // Extract message
+      const errorMessage = data.message || "Test device not ready or test cannot be performed at this time";
+      
+      // Show big dialog instead of toast - requires audiologist confirmation
+      setNackMessage(errorMessage);
+      setShowNackDialog(true);
+      
+      // Log for debugging
+      console.error("❌ [NACK] Test cannot proceed:", {
+        message: errorMessage,
+        testId: data.testId,
+        selectedEar,
+        consultationId: params.consultationId,
+      });
     };
 
     // Register socket listeners
@@ -746,19 +879,89 @@ export default function OtoacousticPage() {
     socket.on("dpoae-status", handleDpoaeStatus);
     socket.on("dpoae-data", handleDpoaeData);
     socket.on("dpoae-error", handleDpoaeError);
-    socket.on("nack-received", handleDpoaeError);
+    socket.on("nack-received", handleNackReceived);
 
     return () => {
       socket.off("dpoae-started", handleDpoaeStarted);
       socket.off("dpoae-status", handleDpoaeStatus);
       socket.off("dpoae-data", handleDpoaeData);
       socket.off("dpoae-error", handleDpoaeError);
-      socket.off("nack-received", handleDpoaeError);
+      socket.off("nack-received", handleNackReceived);
     };
-  }, [socket, selectedEar]);
+  }, [socket, selectedEar, params.consultationId]);
 
   return (
-    <DashboardBodyWrapper pageTitle="Otoacoustic Emissions">
+    <>
+      {/* NACK Dialog - Big warning like patient response */}
+      {showNackDialog && (
+        <>
+          <style jsx>{`
+            @keyframes shake {
+              0%, 100% { transform: translateX(0); }
+              10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+              20%, 40%, 60%, 80% { transform: translateX(10px); }
+            }
+          `}</style>
+          {/* Full-screen overlay */}
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            {/* Pulsing red background */}
+            <div className="absolute inset-0 bg-red-500/10 animate-pulse" />
+            
+            {/* Dialog box */}
+            <div 
+              className="relative bg-white border-4 border-red-500 rounded-2xl shadow-2xl p-8 max-w-lg mx-4"
+              style={{ animation: 'shake 0.5s ease-in-out' }}
+            >
+              {/* Warning icon with animation */}
+              <div className="mx-auto mb-6 relative flex h-20 w-20 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-16 w-16 bg-red-600 items-center justify-center">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </span>
+              </div>
+              
+              {/* Title */}
+              <h2 className="text-2xl font-bold text-red-700 text-center mb-4">
+                Test Cannot Be Performed
+              </h2>
+              
+              {/* Message */}
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+                <p className="text-red-800 text-lg font-medium text-center">
+                  {nackMessage}
+                </p>
+              </div>
+              
+              {/* Instructions */}
+              <p className="text-gray-700 text-center mb-6">
+                Please ensure the device is properly connected and ready before continuing.
+              </p>
+              
+              {/* Confirmation button */}
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    setShowNackDialog(false);
+                    setNackMessage("");
+                  }}
+                  className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-red-300"
+                >
+                  Yes, I Understand
+                </button>
+              </div>
+              
+              {/* Additional note */}
+              <p className="text-xs text-gray-500 text-center mt-4">
+                Only the audiologist can dismiss this warning
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+      
+      <DashboardBodyWrapper pageTitle="Otoacoustic Emissions">
       <div className="p-6 lg:pr-80">
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-4">Otoacoustic Emissions (OAE)</h1>
@@ -908,30 +1111,54 @@ export default function OtoacousticPage() {
                 </div>
               </div>
 
-              {/* Live Measurements */}
+              {/* Live Measurements - Matching device display format */}
               <div className="mb-2">
-                <div className="text-[10px] font-medium mb-1">Live</div>
+                <div className="text-[10px] font-medium mb-1">Live Measurements</div>
                 <div className="grid grid-cols-2 gap-1 text-[10px]">
                   <div>
-                    <div className="text-[9px] text-gray-500">Freq</div>
-                    <div className="font-semibold">{currentFrequency !== null ? `${currentFrequency}` : "--"} Hz</div>
+                    <div className="text-[9px] text-gray-500">F KHz</div>
+                    <div className="font-semibold">
+                      {currentFrequency !== null && typeof currentFrequency === 'number' && !isNaN(currentFrequency) && isFinite(currentFrequency) 
+                        ? `${(currentFrequency / 1000).toFixed(1)}` 
+                        : "--"}
+                    </div>
                   </div>
                   <div>
-                    <div className="text-[9px] text-gray-500">SNR</div>
-                    <div className="font-semibold">{snr !== null ? `${snr.toFixed(1)}` : "--"} dB</div>
+                    <div className="text-[9px] text-gray-500">SNR dB</div>
+                    <div className="font-semibold">
+                      {snr !== null && typeof snr === 'number' && !isNaN(snr) && isFinite(snr) ? `${snr.toFixed(1)}` : "--"}
+                    </div>
                   </div>
                   <div>
-                    <div className="text-[9px] text-gray-500">Response</div>
-                    <div className="font-semibold">{responseLevel !== null ? `${responseLevel.toFixed(1)}` : "--"} dB</div>
+                    <div className="text-[9px] text-gray-500">S dBSPL</div>
+                    <div className="font-semibold">
+                      {responseLevel !== null && typeof responseLevel === 'number' && !isNaN(responseLevel) && isFinite(responseLevel) ? `${responseLevel.toFixed(1)}` : "--"}
+                    </div>
                   </div>
                   <div>
-                    <div className="text-[9px] text-gray-500">Noise</div>
-                    <div className="font-semibold">{noiseLevel !== null ? `${noiseLevel.toFixed(1)}` : "--"} dB</div>
+                    <div className="text-[9px] text-gray-500">N dBSPL</div>
+                    <div className="font-semibold">
+                      {noiseLevel !== null && typeof noiseLevel === 'number' && !isNaN(noiseLevel) && isFinite(noiseLevel) ? `${noiseLevel.toFixed(1)}` : "--"}
+                    </div>
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     <div className="text-[9px] text-gray-500">Status</div>
                     <div className="font-semibold text-[9px]">
                       {isRunning ? "Running" : isTestCompleted ? "Done" : "Ready"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-gray-500">Ear Volume</div>
+                    <div className="font-semibold text-[9px]">
+                      {(() => {
+                        const earKey = selectedEar.toLowerCase() as "left" | "right";
+                        const earData = testResults[earKey];
+                        const volume = earData?.EarVolume || earData?.earVolume;
+                        if (volume !== null && volume !== undefined && typeof volume === 'number' && !isNaN(volume) && isFinite(volume)) {
+                          return `${volume.toFixed(1)}ml`;
+                        }
+                        return "--";
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1110,7 +1337,8 @@ export default function OtoacousticPage() {
             </div>
           )}
         </div>
-      </div>
-    </DashboardBodyWrapper>
+        </div>
+      </DashboardBodyWrapper>
+    </>
   );
 }
