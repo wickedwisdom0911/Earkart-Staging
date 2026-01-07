@@ -16,6 +16,7 @@ import 'package:earkart_omni/features/consultation/presentation/widgets/video_ca
 import 'package:earkart_omni/features/consultation/presentation/widgets/socket_status_button.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/consultation_layout.dart';
 import 'package:earkart_omni/features/consultation/presentation/widgets/consultation_loading_view.dart';
+import 'package:earkart_omni/features/consultation/presentation/widgets/consultation_ended_screen.dart';
 import 'package:earkart_omni/features/consultation/services/device_event_emitter.dart';
 import 'package:earkart_omni/models/communication/enums.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
@@ -26,7 +27,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:usb_serial_kotlin/usb_serial_kotlin.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
-import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/config/release_config.dart';
 import 'package:earkart_omni/config/utils/error_handler.dart';
 import 'package:earkart_omni/features/consultation/data/source/local/consultation.enitity.source.dart';
@@ -50,6 +50,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   UsbDevice? revo2Device;
   TestType? testType;
   dynamic _lastImpedanceStatus;
+  dynamic _lastDpoaeStatus;
+  dynamic _lastDpoaeData;
   bool? _lastPatientResponse;
   bool _showCamera = false;
   bool _socketReconnectFailed = false;
@@ -62,6 +64,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   bool _isCameraOpen = false;
   DeviceEventEmitter? _deviceEventEmitter;
   Timer? _stateUpdateDebounceTimer;
+  bool _consultationCompletionHandled = false;
+  Timer? _completionTimeoutTimer;
+  ConsultationEndedBy? _consultationEndedBy;
+  bool _isCheckingInitialStatus = false;
 
   @override
   void initState() {
@@ -176,6 +182,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   void dispose() {
     try {
       _stateUpdateDebounceTimer?.cancel();
+      _completionTimeoutTimer?.cancel();
       _deviceEventEmitter?.dispose();
 
       if (_isSocketInitialized) {
@@ -397,8 +404,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           di<ILogger>().warning('Skipping stop command; device not connected');
         }
         setState(() {
-          testType =
-              data["testId"] == "pure-tone" ? TestType.PTA : TestType.Impedance;
+          final testId = data["testId"] as String;
+          if (testId == "OAE") {
+            testType = TestType.OAE;
+          } else if (testId == "pure-tone") {
+            testType = TestType.PTA;
+          } else if (testId == "impedance" || testId == "Impedance") {
+            testType = TestType.Impedance;
+          } else {
+            // Default to PTA for unknown test types
+            testType = TestType.PTA;
+          }
         });
         _handleBeginPacket(testType);
       }
@@ -629,6 +645,40 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         di<ILogger>().error('Error handling reflexes-stopped event: $e');
       }
     });
+    socket.on("dpoae-started", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('DPOAE started: $data');
+      try {
+        if (data == null) {
+          di<ILogger>().error('Received null data in dpoae-started event');
+          return;
+        }
+        // Convert frequencies from List<dynamic> to List<Map<String, dynamic>>
+        final frequenciesList = data["frequencies"] as List<dynamic>;
+        final frequencies =
+            frequenciesList.map((e) => e as Map<String, dynamic>).toList();
+
+        context.read<CommunicationCubit>().sendStartDpOaePacket(
+          realTimeStatusUpdateDuringExecution:
+              data["realTimeStatusUpdateDuringExecution"],
+          timeoutTime: data["timeoutTime"],
+          timeoutAuto: data["timeoutAuto"],
+          stimulusLevelL2: data["stimulusLevelL2"],
+          stimulusLevelL1: data["stimulusLevelL1"],
+          stimulusLevelAuto: data["stimulusLevelAuto"],
+          artefactLevel: data["artefactLevel"],
+          retest: data["retest"],
+          frequencies: frequencies,
+          numberPass: data["numberPass"],
+          skipEarVolumeCheck: data["skipEarVolumeCheck"],
+          stopOnPass: data["stopOnPass"],
+          invertedFrequencyOrder: data["invertedFrequencyOrder"],
+          minimumSignalThreshold: data["minimumSignalThreshold"],
+        );
+      } catch (e) {
+        di<ILogger>().error('Error handling dpoae-started event: $e');
+      }
+    });
     socket.on("end-test", (data) {
       if (!mounted) return;
 
@@ -689,6 +739,28 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           }
         }
       });
+    });
+
+    socket.on("end:consultation", (data) {
+      if (!mounted) return;
+      di<ILogger>().debug('End consultation event received: $data');
+
+      // Prevent duplicate handling
+      if (_endCallInProgress || _consultationCompletionHandled) {
+        di<ILogger>().debug(
+          'End call already in progress or completed, ignoring duplicate event',
+        );
+        return;
+      }
+
+      // Mark that we've received/processed the end consultation event
+      _endCallInProgress = true;
+      _hasEmittedEndCall = true;
+      _consultationEndedBy = ConsultationEndedBy.audiologist;
+
+      // Don't call updateConsultation API here - audiologist already handled it on their side
+      // Just handle completion and cleanup
+      _handleConsultationCompletion();
     });
   }
 
@@ -790,6 +862,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     }
 
     _endCallInProgress = true;
+    _consultationEndedBy = ConsultationEndedBy.user; // User ended the call
     try {
       // Emit socket event immediately on button press
       if (_isSocketInitialized && !_hasEmittedEndCall) {
@@ -797,19 +870,40 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         _hasEmittedEndCall = true;
       }
 
-      // Leave Agora channel via controller without clearing sessions
-      try {
-        await _videoController.leaveChannelOnly();
-      } catch (e) {
-        di<ILogger>().error('Error leaving video channel: $e');
-      }
-
+      // Update consultation status - this will trigger BlocListener which calls _handleConsultationCompletion
+      // Don't leave channel here to avoid duplicate leaveChannel calls
       context.read<ConsultationCubit>().updateConsultation(
         ConsultationEntity(id: consultationId, status: SessionStatus.completed),
       );
-    } finally {
-      _endCallInProgress = false;
+
+      // Set a timeout fallback in case BlocListener doesn't fire
+      _completionTimeoutTimer?.cancel();
+      _completionTimeoutTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted && !_consultationCompletionHandled && _endCallInProgress) {
+          di<ILogger>().warning(
+            'BlocListener did not fire within timeout, handling completion directly',
+          );
+          _handleConsultationCompletion();
+        }
+      });
+    } catch (e) {
+      di<ILogger>().error('Error ending consultation: $e');
+      // If updateConsultation throws an exception, handle completion directly
+      if (_endCallInProgress && !_consultationCompletionHandled) {
+        di<ILogger>().warning(
+          'updateConsultation threw exception, handling completion directly',
+        );
+        _handleConsultationCompletion();
+      } else {
+        // Reset flag on error so user can retry
+        _endCallInProgress = false;
+        if (mounted) {
+          _showErrorSnackBar('Failed to end consultation. Please try again.');
+        }
+      }
     }
+    // Note: Don't reset _endCallInProgress here - let _handleConsultationCompletion() handle it
+    // This prevents race conditions between socket handler and BlocListener
   }
 
   @override
@@ -902,30 +996,99 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 setState(() {
                   consultation = state.consultation;
                 });
-                _tryJoinConsultation();
-                // Trigger device event emission when consultation is loaded
-                _deviceEventEmitter?.forceEmitDeviceEvent();
+
+                // Check if consultation is already completed by fetching latest status from server
+                if (state.consultation.id != null &&
+                    state.consultation.id!.isNotEmpty) {
+                  _isCheckingInitialStatus = true;
+                  di<ILogger>().debug(
+                    'ConsultationScreen: Fetching latest consultation status from server',
+                  );
+                  context.read<ConsultationCubit>().getConsultationById(
+                    state.consultation.id!,
+                  );
+                } else {
+                  // If no ID, proceed with normal flow
+                  _tryJoinConsultation();
+                  _deviceEventEmitter?.forceEmitDeviceEvent();
+                }
               }
-              // Handle consultation update success
+              // Handle consultation update success (from both updateConsultation and getConsultationById)
               if (state is ConsultationSuccess) {
                 di<ILogger>().debug(
-                  'ConsultationScreen: Consultation update success - status: ${state.consultation.status}',
+                  'ConsultationScreen: Consultation success - status: ${state.consultation.status}',
                 );
-                // Show success message if consultation was completed
-                if (state.consultation.status == SessionStatus.completed) {
-                  di<ILogger>().debug(
-                    'ConsultationScreen: Consultation completed, calling _handleConsultationCompletion',
-                  );
-                  if (!mounted) return;
-                  _showSuccessSnackBar('Consultation completed successfully');
 
-                  // Leave the channel and clear data
-                  _handleConsultationCompletion();
+                // Update local consultation reference
+                setState(() {
+                  consultation = state.consultation;
+                });
+
+                // Check if consultation is completed
+                if (state.consultation.status == SessionStatus.completed) {
+                  // If we're checking initial status and consultation is already completed,
+                  // navigate to ended screen without showing success message
+                  if (_isCheckingInitialStatus) {
+                    di<ILogger>().debug(
+                      'ConsultationScreen: Consultation already completed on server, navigating to ended screen',
+                    );
+                    _isCheckingInitialStatus = false;
+                    if (!mounted) return;
+
+                    // Set ended by as audiologist since it was completed before user joined
+                    _consultationEndedBy = ConsultationEndedBy.audiologist;
+                    _handleConsultationCompletion();
+                  } else {
+                    // Normal completion flow (user or audiologist ended during session)
+                    di<ILogger>().debug(
+                      'ConsultationScreen: Consultation completed, calling _handleConsultationCompletion',
+                    );
+                    if (!mounted) return;
+                    _showSuccessSnackBar('Consultation completed successfully');
+
+                    // Leave the channel and clear data
+                    _handleConsultationCompletion();
+                  }
+                } else {
+                  // Consultation is not completed, proceed with normal flow
+                  if (_isCheckingInitialStatus) {
+                    di<ILogger>().debug(
+                      'ConsultationScreen: Consultation is active, proceeding with normal flow',
+                    );
+                    _isCheckingInitialStatus = false;
+                    _tryJoinConsultation();
+                    // Trigger device event emission when consultation is loaded
+                    _deviceEventEmitter?.forceEmitDeviceEvent();
+                  }
                 }
               }
               // Handle consultation update error
               if (state is ConsultationError) {
-                ErrorHandler.handleConsultationError(context, state.message);
+                // If we were checking initial status and getConsultationById failed,
+                // proceed with normal flow using the consultation from getCurrentConsultation
+                if (_isCheckingInitialStatus) {
+                  di<ILogger>().warning(
+                    'ConsultationScreen: Failed to fetch latest consultation status, proceeding with cached consultation',
+                  );
+                  _isCheckingInitialStatus = false;
+                  // Proceed with normal flow using the consultation we already have
+                  if (consultation?.id != null &&
+                      consultation!.id!.isNotEmpty) {
+                    _tryJoinConsultation();
+                    _deviceEventEmitter?.forceEmitDeviceEvent();
+                  }
+                } else {
+                  ErrorHandler.handleConsultationError(context, state.message);
+                }
+
+                // If we were trying to complete the consultation, handle it anyway
+                // This ensures cleanup happens even if the API call fails
+                if (_endCallInProgress && !_consultationCompletionHandled) {
+                  di<ILogger>().warning(
+                    'Consultation update failed but end call was in progress, handling completion anyway',
+                  );
+                  _handleConsultationCompletion();
+                }
               }
             },
           ),
@@ -1023,9 +1186,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   previous.impedanceStatus != current.impedanceStatus ||
                   (current.isNewImpedanceData &&
                       current.impedanceData != null) ||
+                  previous.dpoaeStatus != current.dpoaeStatus ||
+                  previous.dpoaeData != current.dpoaeData ||
                   previous.patientResponse != current.patientResponse ||
                   previous.isInBeginMode != current.isInBeginMode ||
-                  previous.connectionStatus != current.connectionStatus;
+                  previous.connectionStatus != current.connectionStatus ||
+                  (current.isNewNack && current.nack != null);
             },
             listener: (context, state) {
               if (!mounted) return;
@@ -1051,6 +1217,23 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
               // Only emit impedance data if it's a new data event
               if (state.impedanceData != null && state.isNewImpedanceData) {
                 _emitTympanometryData(state);
+              }
+
+              // Handle DPOAE status
+              if (state.dpoaeStatus != null &&
+                  state.dpoaeStatus != _lastDpoaeStatus) {
+                _emitDpoaeStatus(state);
+              }
+
+              // Emit DPOAE data when it changes
+              if (state.dpoaeData != null &&
+                  state.dpoaeData != _lastDpoaeData) {
+                _emitDpoaeData(state);
+              }
+
+              // Handle NACK - emit socket event when new NACK is received
+              if (state.nack != null && state.isNewNack) {
+                _emitNackEvent(state);
               }
 
               // Debounce device connection logic to prevent excessive processing
@@ -1218,6 +1401,32 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     }
   }
 
+  void _emitDpoaeStatus(CommunicationState state) {
+    if (_isSocketInitialized &&
+        state.dpoaeStatus != null &&
+        state.dpoaeStatus != _lastDpoaeStatus) {
+      di<ILogger>().debug('Emitting DPOAE status: ${state.dpoaeStatus}');
+      socket.emit("dpoae-status", {
+        "consultationId": consultation?.id,
+        "dpoaeStatus": state.dpoaeStatus,
+      });
+      _lastDpoaeStatus = state.dpoaeStatus;
+    }
+  }
+
+  void _emitDpoaeData(CommunicationState state) {
+    if (_isSocketInitialized &&
+        state.dpoaeData != null &&
+        state.dpoaeData != _lastDpoaeData) {
+      di<ILogger>().debug('Emitting DPOAE data: ${state.dpoaeData}');
+      socket.emit("dpoae-data", {
+        "consultationId": consultation?.id,
+        "dpoaeData": state.dpoaeData,
+      });
+      _lastDpoaeData = state.dpoaeData;
+    }
+  }
+
   // Process device connection state changes (debounced to prevent excessive processing)
   void _processDeviceConnectionState(CommunicationState state) {
     if (!mounted) return;
@@ -1354,7 +1563,32 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     });
   }
 
+  void _emitNackEvent(CommunicationState state) {
+    if (!mounted || !_isSocketInitialized || state.nack == null) return;
+
+    final nackMessage = state.nack!.error?.description ?? 'NACK received';
+    di<ILogger>().debug('Emitting NACK event: $nackMessage');
+
+    socket.emit("nack", {
+      "consultationId": consultation?.id,
+      "message": nackMessage,
+    });
+  }
+
   void _handleConsultationCompletion() async {
+    // Idempotency check: prevent duplicate processing
+    if (_consultationCompletionHandled) {
+      di<ILogger>().debug(
+        'Consultation completion already handled, ignoring duplicate call',
+      );
+      return;
+    }
+
+    _consultationCompletionHandled = true;
+    // Cancel any pending timeout since we're handling completion now
+    _completionTimeoutTimer?.cancel();
+    _completionTimeoutTimer = null;
+
     try {
       // Ensure we leave the Agora video call channel and stop token monitoring
       try {
@@ -1365,7 +1599,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         di<ILogger>().error('Error leaving Agora channel on completion: $e');
       }
 
-      // Leave the consultation channel via socket
+      // Leave the consultation channel via socket (if not already emitted)
       if (_isSocketInitialized &&
           consultation?.id != null &&
           !_hasEmittedEndCall) {
@@ -1377,12 +1611,23 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       context.read<PatientCubit>().deletePatientSession();
       context.read<ConsultationCubit>().deleteCurrentConsultationSession();
 
-      // Navigate to root screen
+      // Reset flags before navigation
+      _endCallInProgress = false;
+
+      // Always navigate to consultation ended screen with appropriate parameter
       if (mounted) {
-        Navigator.pushReplacementNamed(context, RootScreen.routeName);
+        Navigator.pushReplacementNamed(
+          context,
+          ConsultationEndedScreen.routeName,
+          arguments: _consultationEndedBy ?? ConsultationEndedBy.audiologist,
+        );
+        _consultationEndedBy = null; // Reset after navigation
       }
     } catch (e) {
       di<ILogger>().error('Error handling consultation completion: $e');
+      // Reset flag on error so user can retry if navigation fails
+      _endCallInProgress = false;
+      _consultationEndedBy = null;
       if (mounted) {
         _showErrorSnackBar(
           'Failed to complete consultation. Please try again.',

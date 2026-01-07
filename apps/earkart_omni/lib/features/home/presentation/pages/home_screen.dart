@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
 import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
+import 'package:earkart_omni/features/chat/presentation/cubit/chat.cubit.dart';
+import 'package:earkart_omni/features/chat/presentation/cubit/chat.state.dart';
+import 'package:earkart_omni/features/chat/presentation/pages/chat_with_audiologists_screen.dart';
 import 'package:earkart_omni/features/consultation/presentation/cubit/consultation.cubit.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/home/presentation/widgets/widgets.dart';
@@ -32,7 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
     context.read<AuthCubit>().getCentre();
     context.read<AuthCubit>().getCentreData();
     context.read<ConsultationCubit>().getConsultationsByCentreId();
-    
+
     // Force refresh lookup data on pull-to-refresh
     await Future.wait([
       di<LookupCubit>().getLanguages(forceRefresh: true),
@@ -45,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return BlocListener<AuthCubit, AuthState>(
       listener: (context, state) {
         if (!mounted) return;
-        
+
         if (state is AuthCentreSuccess) {
           context.read<ConsultationCubit>().getConsultationsByCentreId();
         } else if (state is AuthError || state is AuthCentreError) {
@@ -64,12 +68,73 @@ class _HomeScreenState extends State<HomeScreen> {
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const ActionCardsSection(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 20),
+                  BlocBuilder<ChatCubit, ChatState>(
+                    builder: (context, state) {
+                      final chatCubit = context.read<ChatCubit>();
+                      final unreadCount = chatCubit.unreadCount;
+
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pushNamed(
+                                context,
+                                ChatWithAudiologistsScreen.routeName,
+                              );
+                            },
+                            icon: const Icon(Icons.chat_bubble_outline),
+                            label: const Text('Chat with Audiologists'),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: Colors.grey.withAlpha(90),
+                                width: 1,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              foregroundColor: Constants.primaryColor,
+                              minimumSize: const Size(double.infinity, 48),
+                            ),
+                          ),
+                          if (unreadCount > 0)
+                            Positioned(
+                              right: 8,
+                              top: -4,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 20,
+                                  minHeight: 20,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    unreadCount > 99 ? '99+' : '$unreadCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 18),
+
                   SizedBox(
                     height: 400,
                     child: Row(

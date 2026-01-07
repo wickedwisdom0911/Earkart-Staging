@@ -36,9 +36,12 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
   @override
   void initState() {
     super.initState();
-    _getDeviceInfo();
-    // Load current device information
-    context.read<DeviceRegistrationCubit>().getCurrentDevice();
+    // Defer heavy operations until after the first frame to avoid navigation delay
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _getDeviceInfo();
+      // Load current device information
+      context.read<DeviceRegistrationCubit>().getCurrentDevice();
+    });
   }
 
   Future<void> _getDeviceInfo() async {
