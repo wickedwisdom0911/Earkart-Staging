@@ -69,14 +69,38 @@ export const AgoraOtoscopyProvider: React.FC<AgoraOtoscopyProviderProps> = ({ ch
           user: IAgoraRTCRemoteUser,
           mediaType: "audio" | "video"
         ) => {
-          console.log(`👤 Remote user ${user.uid} published ${mediaType}`);
+          console.log(`🔬 [OTOSCOPY] ========== REMOTE USER PUBLISHED ${mediaType.toUpperCase()} ==========`);
+          console.log(`🔬 [OTOSCOPY] User ${user.uid} published ${mediaType}`);
+          console.log(`🔬 [OTOSCOPY] User state:`, {
+            uid: user.uid,
+            hasVideo: user.hasVideo,
+            hasAudio: user.hasAudio,
+            videoTrack: !!user.videoTrack,
+            audioTrack: !!user.audioTrack,
+            publishedMediaType: mediaType,
+          });
+          
           // The user object is automatically updated. We just need to trigger a re-render.
           // By creating a new array reference from the client's remoteUsers, we ensure React detects the change.
-          setRemoteUsers([...agoraClient.remoteUsers]);
+          const updatedUsers = [...agoraClient.remoteUsers];
+          setRemoteUsers(updatedUsers);
+          console.log(`🔬 [OTOSCOPY] Updated remote users after publish:`, updatedUsers.map(u => ({ uid: u.uid, hasVideo: u.hasVideo, hasAudio: u.hasAudio })));
           
           if (mediaType === "video" && user.hasVideo) {
-            console.log("✅ Otoscopy stream detected!");
+            console.log("🔬 [OTOSCOPY] ✅ Otoscopy VIDEO stream detected!");
+            console.log("🔬 [OTOSCOPY] Video track details:", {
+              trackId: user.videoTrack?.getTrackId(),
+              isPlaying: user.videoTrack?.isPlaying,
+            });
           }
+          if (mediaType === "audio" && user.hasAudio) {
+            console.log("🔬 [OTOSCOPY] ✅ Otoscopy AUDIO stream detected!");
+            console.log("🔬 [OTOSCOPY] Audio track details:", {
+              trackId: user.audioTrack?.getTrackId(),
+              isPlaying: user.audioTrack?.isPlaying,
+            });
+          }
+          console.log("🔬 [OTOSCOPY] ============================================");
         };
 
         const handleUserUnpublished = (
@@ -93,20 +117,46 @@ export const AgoraOtoscopyProvider: React.FC<AgoraOtoscopyProviderProps> = ({ ch
         };
 
         const handleUserJoined = (user: IAgoraRTCRemoteUser) => {
-          console.log("👤 Remote user joined otoscopy:", user.uid);
-          setRemoteUsers((prev) => [...prev, user]);
+          console.log("🔬 [OTOSCOPY] ========== NEW REMOTE USER JOINED ==========");
+          console.log("🔬 [OTOSCOPY] User UID:", user.uid);
+          console.log("🔬 [OTOSCOPY] User Details:", {
+            uid: user.uid,
+            hasVideo: user.hasVideo,
+            hasAudio: user.hasAudio,
+            videoTrack: !!user.videoTrack,
+            audioTrack: !!user.audioTrack,
+            videoTrackState: user.videoTrack?.isPlaying ? "playing" : "not playing",
+            audioTrackState: user.audioTrack?.isPlaying ? "playing" : "not playing",
+          });
+          console.log("🔬 [OTOSCOPY] Current remote users count:", agoraClient.remoteUsers.length);
+          console.log("🔬 [OTOSCOPY] All remote users UIDs:", agoraClient.remoteUsers.map(u => u.uid));
+          setRemoteUsers((prev) => {
+            const updated = [...prev, user];
+            console.log("🔬 [OTOSCOPY] Updated remote users state:", updated.map(u => ({ uid: u.uid, hasVideo: u.hasVideo, hasAudio: u.hasAudio })));
+            return updated;
+          });
+          console.log("🔬 [OTOSCOPY] ============================================");
         };
 
         const handleUserLeft = (user: IAgoraRTCRemoteUser, reason: string) => {
-          console.log("👋 Remote user left otoscopy:", user.uid, "reason:", reason);
-          setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+          console.log("🔬 [OTOSCOPY] ========== REMOTE USER LEFT ==========");
+          console.log("🔬 [OTOSCOPY] User left otoscopy:", user.uid, "reason:", reason);
+          console.log("🔬 [OTOSCOPY] User that left had video:", user.hasVideo, "audio:", user.hasAudio);
+          setRemoteUsers((prev) => {
+            const filtered = prev.filter((u) => u.uid !== user.uid);
+            console.log("🔬 [OTOSCOPY] Remaining remote users after leave:", filtered.map(u => ({ uid: u.uid, hasVideo: u.hasVideo, hasAudio: u.hasAudio })));
+            return filtered;
+          });
           
           // If the user who left was the one with the video stream, the stream is no longer ready.
           // We check all remaining users. If none have video, we set to false.
-          const remainingVideoUsers = client.remoteUsers.some(u => u.hasVideo);
+          const remainingVideoUsers = agoraClient.remoteUsers.some(u => u.hasVideo);
           if (!remainingVideoUsers) {
-            console.log("❌ Otoscopy stream user left.");
+            console.log("🔬 [OTOSCOPY] ❌ Otoscopy stream user left - no remaining video users.");
+          } else {
+            console.log("🔬 [OTOSCOPY] ✅ Other users still have video streams.");
           }
+          console.log("🔬 [OTOSCOPY] ============================================");
         };
 
         agoraClient.on("user-joined", handleUserJoined);
@@ -115,13 +165,22 @@ export const AgoraOtoscopyProvider: React.FC<AgoraOtoscopyProviderProps> = ({ ch
         agoraClient.on("user-unpublished", handleUserUnpublished);
 
         agoraClient.on("connection-state-change", (curState: any, revState: any) => {
-          console.log("🔗 Otoscopy connection state changed:", { curState, revState });
+          console.log("🔬 [OTOSCOPY] ========== CONNECTION STATE CHANGED ==========");
+          console.log("🔬 [OTOSCOPY] Connection state changed:", { curState, revState });
+          console.log("🔬 [OTOSCOPY] Previous state:", revState, "→ New state:", curState);
           setIsConnected(curState === "CONNECTED");
           
+          if (curState === "CONNECTED") {
+            console.log("🔬 [OTOSCOPY] ✅ Connected to otoscopy channel");
+            console.log("🔬 [OTOSCOPY] Current remote users:", agoraClient.remoteUsers.map(u => ({ uid: u.uid, hasVideo: u.hasVideo, hasAudio: u.hasAudio })));
+          }
+          
           if (curState === "DISCONNECTED") {
+            console.log("🔬 [OTOSCOPY] ❌ Disconnected from otoscopy channel");
             setRemoteUsers([]);
             setCurrentChannel(null);
           }
+          console.log("🔬 [OTOSCOPY] ============================================");
         });
 
         agoraClient.on("exception", (evt) => {
@@ -180,8 +239,10 @@ export const AgoraOtoscopyProvider: React.FC<AgoraOtoscopyProviderProps> = ({ ch
       await client.join(appId, channelName, token, uid);
 
       setCurrentChannel(channelName);
-      console.log("✅ Successfully joined otoscopy channel:", channelName);
-      console.log("🔗 Ready to receive remote otoscopy stream");
+      console.log("🔬 [OTOSCOPY] ✅ Successfully joined otoscopy channel:", channelName);
+      console.log("🔬 [OTOSCOPY] 🔗 Ready to receive remote otoscopy stream");
+      console.log("🔬 [OTOSCOPY] Current remote users after join:", client.remoteUsers.map(u => ({ uid: u.uid, hasVideo: u.hasVideo, hasAudio: u.hasAudio })));
+      console.log("🔬 [OTOSCOPY] Listening for new remote users to join...");
       
     } catch (err) {
       console.error("❌ Error joining otoscopy channel:", err);
@@ -197,6 +258,33 @@ export const AgoraOtoscopyProvider: React.FC<AgoraOtoscopyProviderProps> = ({ ch
       setIsInitializing(false);
     }
   }, [client, isClientInitialized]);
+
+  // Monitor remote users changes for otoscopy debugging
+  useEffect(() => {
+    console.log("🔬 [OTOSCOPY] ========== REMOTE USERS STATE CHANGED ==========");
+    console.log("🔬 [OTOSCOPY] Total remote users:", remoteUsers.length);
+    console.log("🔬 [OTOSCOPY] Remote users details:", remoteUsers.map(user => ({
+      uid: user.uid,
+      hasVideo: user.hasVideo,
+      hasAudio: user.hasAudio,
+      videoTrack: !!user.videoTrack,
+      audioTrack: !!user.audioTrack,
+      videoTrackPlaying: user.videoTrack?.isPlaying || false,
+      audioTrackPlaying: user.audioTrack?.isPlaying || false,
+    })));
+    if (remoteUsers.length > 0) {
+      console.log("🔬 [OTOSCOPY] ✅ At least one remote user is present");
+      const usersWithVideo = remoteUsers.filter(u => u.hasVideo);
+      if (usersWithVideo.length > 0) {
+        console.log("🔬 [OTOSCOPY] ✅ Users with video:", usersWithVideo.map(u => u.uid));
+      } else {
+        console.log("🔬 [OTOSCOPY] ⚠️ No users with video yet");
+      }
+    } else {
+      console.log("🔬 [OTOSCOPY] ⚠️ No remote users currently");
+    }
+    console.log("🔬 [OTOSCOPY] ============================================");
+  }, [remoteUsers]);
 
   // Leave channel function
   const leaveChannel = useCallback(async () => {

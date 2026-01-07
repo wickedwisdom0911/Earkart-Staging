@@ -108,7 +108,8 @@ export const OtoscopyProvider: React.FC<OtoscopyProviderProps> = ({
   }, [socket, consultationId]);
 
   const startOtoscopy = useCallback(() => {
-    console.log("🔬 startOtoscopy called - checking socket...", {
+    console.log("🔬 [OTOSCOPY PROVIDER] ========== START OTOSCOPY CALLED ==========");
+    console.log("🔬 [OTOSCOPY PROVIDER] Checking socket and connection state...", {
       hasSocket: !!socket,
       socketConnected: socket?.connected,
       socketId: socket?.id,
@@ -117,14 +118,17 @@ export const OtoscopyProvider: React.FC<OtoscopyProviderProps> = ({
     });
 
     if (!socket) {
-      console.error("❌ Socket not available");
+      console.error("🔬 [OTOSCOPY PROVIDER] ❌ Socket not available");
       return;
     }
 
     if (!socket.connected) {
-      console.error("❌ Socket not connected");
+      console.error("🔬 [OTOSCOPY PROVIDER] ❌ Socket not connected");
       return;
     }
+    
+    console.log("🔬 [OTOSCOPY PROVIDER] ✅ Socket is available and connected");
+    console.log("🔬 [OTOSCOPY PROVIDER] Room joined status:", isRoomJoined);
 
     // Wait for room to be joined before emitting start-otoscopy
     if (!isRoomJoined) {
@@ -180,11 +184,14 @@ export const OtoscopyProvider: React.FC<OtoscopyProviderProps> = ({
 
     function emitStartOtoscopy() {
       if (!socket) {
-        console.error("❌ Socket not available in emitStartOtoscopy");
+        console.error("🔬 [OTOSCOPY PROVIDER] ❌ Socket not available in emitStartOtoscopy");
         return;
       }
       
-      console.log("🔬 Emitting start-otoscopy event for consultation:", consultationId);
+      console.log("🔬 [OTOSCOPY PROVIDER] ========== EMITTING START-OTOSCOPY ==========");
+      console.log("🔬 [OTOSCOPY PROVIDER] Consultation ID:", consultationId);
+      console.log("🔬 [OTOSCOPY PROVIDER] Socket ID:", socket.id);
+      console.log("🔬 [OTOSCOPY PROVIDER] Socket connected:", socket.connected);
       
       // Emit start-otoscopy event (backend will broadcast otoscopy-started to all room members)
       // NOTE: Backend does NOT return acknowledgment, so we listen for otoscopy-started event instead
@@ -192,18 +199,22 @@ export const OtoscopyProvider: React.FC<OtoscopyProviderProps> = ({
         consultationId,
       };
       
-      console.log("📡 Emitting start-otoscopy event with data:", eventData);
-      console.log("⏳ Waiting for otoscopy-started event from backend...");
+      console.log("🔬 [OTOSCOPY PROVIDER] Event data:", eventData);
+      console.log("🔬 [OTOSCOPY PROVIDER] ⏳ Emitting start-otoscopy event...");
+      console.log("🔬 [OTOSCOPY PROVIDER] ⏳ Waiting for otoscopy-started event from backend...");
 
       try {
         // Backend doesn't support acknowledgment, so just emit
         socket.emit("start-otoscopy", eventData);
-        console.log("✅ start-otoscopy event emitted. Waiting for backend broadcast...");
+        console.log("🔬 [OTOSCOPY PROVIDER] ✅ start-otoscopy event emitted successfully");
+        console.log("🔬 [OTOSCOPY PROVIDER] ⏳ Waiting for backend to broadcast otoscopy-started event...");
+        console.log("🔬 [OTOSCOPY PROVIDER] ============================================");
         
         // Don't set isOtoscopyActive here - wait for otoscopy-started event from backend
         // This ensures we only mark it as active when backend confirms it
       } catch (err) {
-        console.error("❌ Failed to emit start-otoscopy:", err);
+        console.error("🔬 [OTOSCOPY PROVIDER] ❌ Failed to emit start-otoscopy:", err);
+        console.error("🔬 [OTOSCOPY PROVIDER] Error details:", err);
       }
     }
   }, [socket, consultationId, isRoomJoined]);

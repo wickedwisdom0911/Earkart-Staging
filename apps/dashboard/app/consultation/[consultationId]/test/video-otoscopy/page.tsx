@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useOtoscopy } from "@/providers/otoscopy-provider";
 import { useDevice } from "@/providers/device-provider";
+import { useRTCClient, useRemoteUsers, useIsConnected } from "agora-rtc-react";
 
 export default function VideoOtoscopyPage() {
   const { consultationId } = useParams();
@@ -16,19 +17,80 @@ export default function VideoOtoscopyPage() {
   } = useOtoscopy();
   const { deviceState } = useDevice();
   
+  // Get video call state to check users before starting otoscopy
+  const client = useRTCClient();
+  const remoteUsers = useRemoteUsers();
+  const isConnected = useIsConnected();
+  
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
 
   // Check if camera is open for UI feedback
   const isCameraOpen = deviceState.r15c.isCameraOpen;
   
+  // Log when page loads
+  React.useEffect(() => {
+    console.log("🔬 [OTOSCOPY PAGE] ========== PAGE LOADED ==========");
+    console.log("🔬 [OTOSCOPY PAGE] Consultation ID:", consultationId);
+    console.log("🔬 [OTOSCOPY PAGE] Initial state:", {
+      isOtoscopyActive,
+      isCameraOpen,
+      deviceState: deviceState.r15c,
+    });
+    console.log("🔬 [OTOSCOPY PAGE] ============================================");
+  }, []);
+  
   // Handle start otoscopy with loading state
   const handleStartOtoscopy = async () => {
+    console.log("🔬 [OTOSCOPY PAGE] ========== START OTOSCOPY CLICKED ==========");
+    console.log("🔬 [OTOSCOPY PAGE] ========== CHECKING USERS BEFORE START ==========");
+    
+    // Check video call connection status
+    console.log("🔬 [OTOSCOPY PAGE] Video call connection status:", {
+      isConnected,
+      hasClient: !!client,
+      clientState: client?.connectionState,
+    });
+    
+    // Check current remote users BEFORE starting otoscopy
+    console.log("🔬 [OTOSCOPY PAGE] Current remote users count:", remoteUsers.length);
+    console.log("🔬 [OTOSCOPY PAGE] Remote users BEFORE starting otoscopy:", remoteUsers.map(user => ({
+      uid: user.uid,
+      hasVideo: user.hasVideo,
+      hasAudio: user.hasAudio,
+      videoTrack: !!user.videoTrack,
+      audioTrack: !!user.audioTrack,
+      videoTrackPlaying: user.videoTrack?.isPlaying || false,
+      audioTrackPlaying: user.audioTrack?.isPlaying || false,
+    })));
+    
+    // Check if client has remote users
+    if (client) {
+      const clientRemoteUsers = client.remoteUsers || [];
+      console.log("🔬 [OTOSCOPY PAGE] Client remote users (from agora client):", clientRemoteUsers.length);
+      console.log("🔬 [OTOSCOPY PAGE] Client remote users details:", clientRemoteUsers.map(u => ({
+        uid: u.uid,
+        hasVideo: u.hasVideo,
+        hasAudio: u.hasAudio,
+        videoTrack: !!u.videoTrack,
+        audioTrack: !!u.audioTrack,
+      })));
+    }
+    
+    console.log("🔬 [OTOSCOPY PAGE] Current state:", {
+      isOtoscopyActive,
+      isCameraOpen,
+      consultationId,
+    });
+    console.log("🔬 [OTOSCOPY PAGE] ============================================");
+    
     setIsStarting(true);
     try {
+      console.log("🔬 [OTOSCOPY PAGE] Calling startOtoscopy()...");
       await startOtoscopy();
+      console.log("🔬 [OTOSCOPY PAGE] startOtoscopy() completed");
     } catch (error) {
-      console.error("Error starting otoscopy:", error);
+      console.error("🔬 [OTOSCOPY PAGE] ❌ Error starting otoscopy:", error);
     } finally {
       setTimeout(() => setIsStarting(false), 1000);
     }
@@ -36,15 +98,25 @@ export default function VideoOtoscopyPage() {
 
   // Handle stop otoscopy with loading state
   const handleStopOtoscopy = async () => {
+    console.log("🔬 [OTOSCOPY PAGE] ========== STOP OTOSCOPY CLICKED ==========");
     setIsStopping(true);
     try {
       await stopOtoscopy();
+      console.log("🔬 [OTOSCOPY PAGE] stopOtoscopy() completed");
     } catch (error) {
-      console.error("Error stopping otoscopy:", error);
+      console.error("🔬 [OTOSCOPY PAGE] ❌ Error stopping otoscopy:", error);
     } finally {
       setTimeout(() => setIsStopping(false), 1000);
     }
   };
+  
+  // Monitor otoscopy state changes
+  React.useEffect(() => {
+    console.log("🔬 [OTOSCOPY PAGE] ========== OTOSCOPY STATE CHANGED ==========");
+    console.log("🔬 [OTOSCOPY PAGE] isOtoscopyActive:", isOtoscopyActive);
+    console.log("🔬 [OTOSCOPY PAGE] isCameraOpen:", isCameraOpen);
+    console.log("🔬 [OTOSCOPY PAGE] ============================================");
+  }, [isOtoscopyActive, isCameraOpen]);
 
   return (
     <div className="flex flex-col gap-6 p-6">
