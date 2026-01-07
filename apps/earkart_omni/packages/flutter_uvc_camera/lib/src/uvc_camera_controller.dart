@@ -261,6 +261,41 @@ class UVCCameraController {
     }
   }
 
+  /// Capture frame as raw NV21 format (no JPEG conversion) - optimized for Agora streaming
+  /// This method returns raw NV21/YUV data directly from the camera queue
+  /// Use this instead of getLastCapturedFrameBinary() for better performance with Agora
+  Future<Uint8List?> captureFrameAsNV21() async {
+    try {
+      final result = await _cameraChannel?.invokeMethod('captureFrameAsNV21');
+      if (result is Uint8List) {
+        return result;
+      } else if (result is List<int>) {
+        return Uint8List.fromList(result);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Error capturing frame as NV21: $e");
+      return null;
+    }
+  }
+
+  /// Get the last captured frame as raw NV21 format (no JPEG conversion)
+  /// This is the recommended method for Agora streaming as it avoids JPEG compression overhead
+  Future<Uint8List?> getLastCapturedFrameNV21() async {
+    try {
+      final result = await _cameraChannel?.invokeMethod('getLastCapturedFrameNV21');
+      if (result is Uint8List) {
+        return result;
+      } else if (result is List<int>) {
+        return Uint8List.fromList(result);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Error getting last captured frame as NV21: $e");
+      return null;
+    }
+  }
+
   /// Start continuous frame capture for streaming
   void startFrameCapture() {
     if (_cameraState == UVCCameraState.opened) {

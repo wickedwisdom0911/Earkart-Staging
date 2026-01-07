@@ -133,5 +133,23 @@ class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private va
         }
     }
 
+    fun captureFrameAsNV21(callback: UVCBinaryCallback) {
+        if (cameraView != null) {
+            cameraView!!.captureFrameAsNV21(callback)
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+            callback.onError("Camera view not initialized")
+        }
+    }
+
+    fun getLastCapturedFrameNV21(callback: UVCBinaryCallback) {
+        if (cameraView != null) {
+            cameraView!!.getLastCapturedFrameNV21(callback)
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+            callback.onError("Camera view not initialized")
+        }
+    }
+
 
 }

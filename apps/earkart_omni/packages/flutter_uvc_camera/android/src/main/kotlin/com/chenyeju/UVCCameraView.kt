@@ -166,14 +166,37 @@ internal class UVCCameraView(
     fun openUVCCamera() {
         try {
             // Add delay for camera opening to ensure proper initialization
-            // Always add a small delay to ensure proper initialization
             Log.i(TAG, "Adding camera opening delay for stability...")
             Thread.sleep(1000) // 1 second delay for stability
             
             checkCameraPermission()
-            openCamera()
             
-            Log.i(TAG, "UVC camera opened successfully")
+            // Wait for camera to be available (USB device connection)
+            // The camera will be opened automatically when onConnectDev is called
+            // But we can also try to open it manually if it's already available
+            val maxWaitTime = 5000L // 5 seconds max wait
+            val checkInterval = 100L // Check every 100ms
+            var waited = 0L
+            
+            while (waited < maxWaitTime) {
+                val currentCamera = getCurrentCamera()
+                if (currentCamera != null && mCameraView != null) {
+                    // Camera is available, open it
+                    Log.d(TAG, "Camera available, opening with surface")
+                    openCamera(mCameraView)
+                    Log.i(TAG, "UVC camera opened successfully")
+                    return
+                }
+                
+                // Wait a bit before checking again
+                Thread.sleep(checkInterval)
+                waited += checkInterval
+            }
+            
+            // If we get here, camera wasn't available yet
+            // It will be opened automatically when onConnectDev is called
+            Log.i(TAG, "Camera not yet available, will open when USB device connects")
+            
         } catch (e: Exception) {
             Log.e(TAG, "Error in openUVCCamera: ${e.message}", e)
             setCameraERRORState("Failed to open camera: ${e.message}")
@@ -885,6 +908,41 @@ internal class UVCCameraView(
     fun getLastCapturedFrameBinary(callback: UVCBinaryCallback) {
         // Always capture a fresh frame instead of returning cached one
         captureFrameAsBinary(callback)
+    }
+
+    fun captureFrameAsNV21(callback: UVCBinaryCallback) {
+        if (!isCameraOpened()) {
+            callback.onError("Camera not opened")
+            return
+        }
+        
+        if (!isFrameCaptureActive) {
+            callback.onError("Frame capture not active")
+            return
+        }
+        
+        try {
+            val currentCamera = getCurrentCamera()
+            if (currentCamera is CameraUVC) {
+                // Use direct NV21 capture (no JPEG conversion)
+                currentCamera.captureFrameAsNV21 { nv21Data ->
+                    if (nv21Data != null && nv21Data.isNotEmpty()) {
+                        callback.onSuccess(nv21Data)
+                    } else {
+                        callback.onError("No NV21 frame data available")
+                    }
+                }
+            } else {
+                callback.onError("Camera not available")
+            }
+        } catch (e: Exception) {
+            callback.onError("NV21 frame capture error: ${e.message}")
+        }
+    }
+
+    fun getLastCapturedFrameNV21(callback: UVCBinaryCallback) {
+        // Always capture a fresh NV21 frame instead of returning cached one
+        captureFrameAsNV21(callback)
     }
 
 }

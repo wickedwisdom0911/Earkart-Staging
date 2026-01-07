@@ -58,6 +58,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     with WidgetsBindingObserver {
   bool _isDisposed = false;
   late final AgoraCubit _agoraCubit;
+  int _videoSetupVersion = 0; // Increment on rejoin to force video view rebuild
+  int? _lastRemoteUid; // Track remote UID changes
+  bool _wasLocalUserJoined = false; // Track local user join state changes
 
   @override
   void initState() {
@@ -224,6 +227,33 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                 di<ILogger>().info(
                   '[VIDEO_CALL] Mic on: $isMicOn, Camera on: $isCameraOn',
                 );
+                
+                // Increment video setup version when:
+                // 1. Remote UID changes
+                // 2. Local user rejoins (was not joined, now joined) with remote user present
+                // This forces remote video view to rebuild properly on rejoin/refresh
+                if (localUserJoined && remoteUid != null) {
+                  final remoteUidChanged = _lastRemoteUid != remoteUid;
+                  final localUserRejoined = !_wasLocalUserJoined && localUserJoined;
+                  
+                  if (remoteUidChanged || localUserRejoined) {
+                    di<ILogger>().info(
+                      '[VIDEO_CALL] Video setup trigger - remoteUidChanged: $remoteUidChanged, localUserRejoined: $localUserRejoined',
+                    );
+                    _videoSetupVersion++;
+                    _lastRemoteUid = remoteUid;
+                    // Force rebuild to update video view with new key
+                    if (mounted && !_isDisposed) {
+                      setState(() {});
+                    }
+                  }
+                } else if (!localUserJoined && _lastRemoteUid != null) {
+                  // Reset when local user leaves to ensure fresh setup on rejoin
+                  _lastRemoteUid = null;
+                }
+                
+                // Track local user join state
+                _wasLocalUserJoined = localUserJoined;
               },
               error: (message) {
                 di<ILogger>().error('[VIDEO_CALL] Agora state error: $message');
@@ -249,7 +279,11 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
           return Scaffold(
             body: Stack(
               children: [
-                Center(child: _remoteVideo(agoraCubit)),
+                // Remote video - full screen background
+                Positioned.fill(
+                  child: _remoteVideo(agoraCubit),
+                ),
+                // Local video - small overlay in top-left corner
                 Align(
                   alignment: Alignment.topLeft,
                   child: Container(
@@ -529,28 +563,49 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
 
   Widget _remoteVideo(AgoraCubit agoraCubit) {
     di<ILogger>().debug(
-      '[VIDEO_CALL] Remote video - remoteUid: ${agoraCubit.remoteUid}, engine: ${agoraCubit.engine != null}',
+      '[VIDEO_CALL] Remote video - remoteUid: ${agoraCubit.remoteUid}, engine: ${agoraCubit.engine != null}, localJoined: ${agoraCubit.localUserJoined}',
     );
 
-    if (agoraCubit.remoteUid != null && agoraCubit.engine != null) {
+    // Ensure both engine is initialized AND local user has joined before rendering remote video
+    // This prevents white screen when remote user joins before local user
+    // NOTE: remoteUid is already filtered to exclude our own UVC user (handled in AgoraCubit)
+    // So we can safely render any remoteUid that is set here
+    if (agoraCubit.remoteUid != null &&
+        agoraCubit.engine != null &&
+        agoraCubit.localUserJoined) {
       di<ILogger>().debug(
         '[VIDEO_CALL] Rendering remote video view for UID: ${agoraCubit.remoteUid}',
       );
       final channelForRender =
           agoraCubit.joinedChannelName ?? widget.channelName;
+      
+      // Use main connection explicitly to ensure we're rendering from the correct connection
+      // This prevents issues when UVC connection is also active in the same channel
+      // Create connection with the channel name - this ensures proper routing
+      final connectionForRender = RtcConnection(channelId: channelForRender);
+      
+      // Use a unique key that includes video setup version to force rebuild on rejoin/refresh
+      // This ensures the video view is properly recreated when rejoining without constant rebuilds
+      final uniqueKey = 'remote-$channelForRender-${agoraCubit.remoteUid}-v$_videoSetupVersion';
+      
       return AgoraVideoView(
-        key: ValueKey('remote-$channelForRender-${agoraCubit.remoteUid}'),
+        key: ValueKey(uniqueKey),
         controller: VideoViewController.remote(
           rtcEngine: agoraCubit.engine!,
-          canvas: VideoCanvas(uid: agoraCubit.remoteUid),
-          connection: RtcConnection(channelId: channelForRender),
+          canvas: VideoCanvas(
+            uid: agoraCubit.remoteUid,
+            renderMode: RenderModeType.renderModeFit, // Fit to screen with proper aspect ratio
+          ),
+          connection: connectionForRender,
         ),
       );
     } else {
       di<ILogger>().debug(
-        '[VIDEO_CALL] Remote video not ready, showing waiting screen',
+        '[VIDEO_CALL] Remote video not ready - remoteUid: ${agoraCubit.remoteUid}, engine: ${agoraCubit.engine != null}, localJoined: ${agoraCubit.localUserJoined}',
       );
       return Container(
+        width: double.infinity,
+        height: double.infinity,
         color: Colors.black87,
         child: Center(
           child: Column(
@@ -569,10 +624,12 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Waiting for Audiologist to join...',
+              Text(
+                agoraCubit.localUserJoined
+                    ? 'Waiting for remote user video...'
+                    : 'Waiting for connection...',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -580,7 +637,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
               ),
               const SizedBox(height: 8),
               const Text(
-                'The video will appear here once they join',
+                'The video will appear here once ready',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white38, fontSize: 14),
               ),

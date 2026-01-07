@@ -5,6 +5,9 @@ import 'dart:async';
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 
 class UVCCameraWidget extends StatefulWidget {
   final Function(bool)? onCameraStateChanged;
@@ -41,6 +44,13 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   bool _hasEverOpened = false;
   Timer? _initializationTimer;
   Timer? _platformViewTimer;
+  // Frame capture loop for Agora streaming
+  Timer? _frameCaptureTimer;
+  static const Duration _frameCaptureInterval = Duration(
+    milliseconds: 33,
+  ); // ~30fps
+  static const int _frameWidth = 1280;
+  static const int _frameHeight = 720;
   // Note: Permission checks removed - permissions are granted at app startup
 
   @override
@@ -277,6 +287,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       _initializationTimer = null;
       _platformViewTimer?.cancel();
       _platformViewTimer = null;
+      _stopFrameCaptureLoop(); // Stop frame capture loop
     } catch (e) {
       di<ILogger>().error('[UVC_CAMERA] Error canceling timers: $e');
     }
@@ -575,6 +586,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               'Camera state: opened - camera is ready and working',
             );
 
+            // Start frame capture for Agora streaming
+            _startFrameCaptureLoop();
+
             // Notify parent about camera state change
             widget.onCameraStateChanged?.call(true);
             break;
@@ -585,6 +599,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               isInitialized = false;
               _isViewReady = false;
             });
+
+            // Stop frame capture loop
+            _stopFrameCaptureLoop();
 
             // Notify parent only if camera was opened before to avoid flicker during init
             if (_hasEverOpened) {
@@ -603,6 +620,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               isInitialized = false;
               _isViewReady = false;
             });
+
+            // Stop frame capture loop on error
+            _stopFrameCaptureLoop();
 
             // Notify parent about camera state change on error only if opened once
             if (_hasEverOpened) {
@@ -957,6 +977,123 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           ),
         ),
       );
+    }
+  }
+
+  /// Start frame capture loop for Agora streaming
+  void _startFrameCaptureLoop() {
+    if (_frameCaptureTimer != null || _isDisposed || !mounted) {
+      return;
+    }
+
+    try {
+      // Start native frame capture
+      cameraController?.startFrameCapture();
+      di<ILogger>().info('[UVC_CAMERA] Started native frame capture');
+
+      // Wait longer for frames to start coming in and populate the queue
+      // The native side needs time to process frames and build up the queue
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (_isDisposed || !mounted || cameraController == null) {
+          return;
+        }
+
+        // Start periodic frame capture and push to Agora
+        _frameCaptureTimer = Timer.periodic(_frameCaptureInterval, (timer) {
+          if (_isDisposed || !mounted || cameraController == null) {
+            _stopFrameCaptureLoop();
+            return;
+          }
+
+          // Only capture frames if camera is initialized and opened
+          if (isInitialized && cameraController != null) {
+            _captureAndPushFrame();
+          }
+        });
+
+        di<ILogger>().info(
+          '[UVC_CAMERA] Frame capture loop started at ~${1000 / _frameCaptureInterval.inMilliseconds}fps',
+        );
+      });
+    } catch (e) {
+      di<ILogger>().error('[UVC_CAMERA] Error starting frame capture loop: $e');
+    }
+  }
+
+  /// Stop frame capture loop
+  void _stopFrameCaptureLoop() {
+    try {
+      _frameCaptureTimer?.cancel();
+      _frameCaptureTimer = null;
+      cameraController?.stopFrameCapture();
+      di<ILogger>().info('[UVC_CAMERA] Frame capture loop stopped');
+    } catch (e) {
+      di<ILogger>().error('[UVC_CAMERA] Error stopping frame capture loop: $e');
+    }
+  }
+
+  /// Capture a frame and push it to Agora
+  ///
+  /// OPTIMIZED: Now uses getLastCapturedFrameNV21() which returns raw NV21 format
+  /// directly from the camera queue, avoiding JPEG compression/decompression overhead.
+  /// This provides:
+  /// - Better performance (no format conversion)
+  /// - Lower latency (direct NV21 transfer)
+  /// - Reduced CPU usage (no JPEG compression)
+  /// - Correct format for Agora (NV21 is what Agora expects)
+  Future<void> _captureAndPushFrame() async {
+    if (_isDisposed || !mounted || cameraController == null) {
+      return;
+    }
+
+    try {
+      // Get the latest captured frame as raw NV21 format (no JPEG conversion)
+      // This is optimized for Agora streaming and provides better performance
+      final frameData = await cameraController!.getLastCapturedFrameNV21();
+
+      if (frameData != null && frameData.isNotEmpty) {
+        // Push frame to Agora using context
+        // Note: We need to access AgoraCubit, but we're in a timer callback
+        // So we need to check if context is still valid
+        if (mounted) {
+          try {
+            final agoraCubit = context.read<AgoraCubit>();
+            // Frame data is now raw NV21 format (no JPEG conversion)
+            // This matches Agora's expected format and provides optimal performance
+            await agoraCubit.pushExternalFrame(
+              frameData,
+              width: _frameWidth,
+              height: _frameHeight,
+              format: VideoPixelFormat.videoPixelNv21,
+              rotation: 0,
+            );
+          } catch (e) {
+            // Context might be invalid or AgoraCubit not available
+            // This is expected during widget disposal or when Agora is not initialized
+            di<ILogger>().debug(
+              '[UVC_CAMERA] Could not push frame to Agora (may be expected): $e',
+            );
+          }
+        }
+      }
+      // If frameData is null or empty, silently skip - this is expected when:
+      // 1. Frames aren't ready yet (initial startup)
+      // 2. Frame processing is in progress on native side
+      // 3. Queue is temporarily empty
+    } catch (e) {
+      // Handle PlatformException gracefully - "No binary frame data available" is expected
+      // when frames aren't ready yet or queue is empty
+      final errorMessage = e.toString();
+      if (errorMessage.contains('No binary frame data available')) {
+        // This is expected during initial startup or when queue is empty
+        // Don't log as error, just skip this frame
+        di<ILogger>().debug(
+          '[UVC_CAMERA] Frame not available yet (expected during startup/transitions)',
+        );
+      } else {
+        // Log other errors but don't spam logs
+        di<ILogger>().debug('[UVC_CAMERA] Error capturing frame: $e');
+      }
     }
   }
 

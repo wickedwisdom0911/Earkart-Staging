@@ -1135,6 +1135,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                           : '📷 Revo2 device detached - hiding camera',
                     );
 
+                    // Notify AgoraCubit about Revo2 connection status
+                    // This will trigger UVC channel join/leave as needed
+                    context.read<AgoraCubit>().setRevo2ConnectionStatus(
+                      isNowRevo2Connected,
+                    );
+
                     // Auto-show camera when Revo2 is connected with delay
                     if (isNowRevo2Connected && _showCamera) {
                       // Add delay before showing camera to ensure device is stable
@@ -1321,40 +1327,21 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         }
       });
 
-      // Handle automatic screen sharing based on camera state
-      _handleAutomaticScreenSharing(isOpen);
+      // Notify AgoraCubit about UVC camera state for streaming control
+      try {
+        final agoraCubit = context.read<AgoraCubit>();
+        agoraCubit.setUVCCameraOpenState(isOpen);
+        di<ILogger>().info(
+          '📷🔴 Notified AgoraCubit: UVC camera is ${isOpen ? "OPEN" : "CLOSED"}',
+        );
+      } catch (e) {
+        di<ILogger>().error(
+          '❌ Error notifying AgoraCubit about camera state: $e',
+        );
+      }
 
       // Trigger device event emission with camera state change
       _deviceEventEmitter?.scheduleDeviceEventEmission();
-    }
-  }
-
-  // Handle automatic screen sharing based on UVC camera state
-  void _handleAutomaticScreenSharing(bool cameraIsOpen) {
-    if (!mounted) return;
-
-    try {
-      final agoraCubit = context.read<AgoraCubit>();
-
-      if (cameraIsOpen) {
-        // Start screen sharing when UVC camera opens
-        if (!agoraCubit.isScreenSharing) {
-          di<ILogger>().info(
-            '📷🖥️ UVC camera opened - starting automatic screen sharing',
-          );
-          agoraCubit.toggleScreenSharing();
-        }
-      } else {
-        // Stop screen sharing when UVC camera closes
-        if (agoraCubit.isScreenSharing) {
-          di<ILogger>().info(
-            '📷🖥️ UVC camera closed - stopping automatic screen sharing',
-          );
-          agoraCubit.toggleScreenSharing();
-        }
-      }
-    } catch (e) {
-      di<ILogger>().error('❌ Error handling automatic screen sharing: $e');
     }
   }
 
