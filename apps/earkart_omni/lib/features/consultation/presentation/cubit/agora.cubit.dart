@@ -505,16 +505,8 @@ class AgoraCubit extends Cubit<AgoraState> {
               _ensureCameraPublishing();
               _emitCurrentState();
 
-              // After main channel joins successfully, check if Revo2 is connected
-              // and join UVC channel if needed
-              if (_isRevo2Connected &&
-                  _currentChannelName != null &&
-                  !_isUVCJoined) {
-                di<ILogger>().info(
-                  '[UVC_CHANNEL] Main channel joined and Revo2 is connected, requesting UVC token',
-                );
-                _requestUVCToken(_currentChannelName!);
-              }
+              // Note: UVC channel join is now triggered by "otoscopy-started" socket event
+              // instead of automatically when Revo2 is connected or main channel joins
             }
           },
           onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
@@ -1686,8 +1678,8 @@ class AgoraCubit extends Cubit<AgoraState> {
   }
 
   /// Set Revo2 device connection status
-  /// When Revo2 connects, join UVC channel if main channel is already joined
-  /// When Revo2 disconnects, leave UVC channel
+  /// This only tracks the connection status - UVC channel join is triggered by "otoscopy-started" event
+  /// When Revo2 disconnects, leave UVC channel if joined
   Future<void> setRevo2ConnectionStatus(bool isConnected) async {
     final wasConnected = _isRevo2Connected;
     _isRevo2Connected = isConnected;
@@ -1696,15 +1688,9 @@ class AgoraCubit extends Cubit<AgoraState> {
       '[UVC_CHANNEL] Revo2 connection status changed: $wasConnected -> $isConnected',
     );
 
-    if (isConnected && !wasConnected) {
-      // Revo2 just connected - join UVC channel if main channel is already joined
-      if (_localUserJoined && _currentChannelName != null && !_isUVCJoined) {
-        di<ILogger>().info(
-          '[UVC_CHANNEL] Revo2 connected and main channel is joined, requesting UVC token',
-        );
-        await _requestUVCToken(_currentChannelName!);
-      }
-    } else if (!isConnected && wasConnected) {
+    // Only leave UVC channel when Revo2 disconnects
+    // Join is now handled by startOtoscopy() method when "otoscopy-started" event is received
+    if (!isConnected && wasConnected) {
       // Revo2 just disconnected - leave UVC channel
       if (_isUVCJoined) {
         di<ILogger>().info(
@@ -1712,6 +1698,51 @@ class AgoraCubit extends Cubit<AgoraState> {
         );
         await leaveUVCChannel();
       }
+    }
+  }
+
+  /// Start otoscopy - join UVC channel when "otoscopy-started" socket event is received
+  /// This method should be called when the server sends the "otoscopy-started" event
+  Future<void> startOtoscopy() async {
+    if (!_isRevo2Connected) {
+      di<ILogger>().warning(
+        '[UVC_CHANNEL] Cannot start otoscopy - Revo2 device is not connected',
+      );
+      return;
+    }
+
+    if (!_localUserJoined || _currentChannelName == null) {
+      di<ILogger>().warning(
+        '[UVC_CHANNEL] Cannot start otoscopy - main channel not joined yet',
+      );
+      return;
+    }
+
+    if (_isUVCJoined) {
+      di<ILogger>().info(
+        '[UVC_CHANNEL] UVC channel already joined, skipping duplicate join',
+      );
+      return;
+    }
+
+    di<ILogger>().info(
+      '[UVC_CHANNEL] Starting otoscopy - requesting UVC token and joining channel',
+    );
+    await _requestUVCToken(_currentChannelName!);
+  }
+
+  /// Stop otoscopy - leave UVC channel when "otoscopy-stopped" socket event is received
+  /// This method should be called when the server sends the "otoscopy-stopped" event
+  Future<void> stopOtoscopy() async {
+    if (_isUVCJoined) {
+      di<ILogger>().info(
+        '[UVC_CHANNEL] Stopping otoscopy - leaving UVC channel',
+      );
+      await leaveUVCChannel();
+    } else {
+      di<ILogger>().info(
+        '[UVC_CHANNEL] Stop otoscopy called but UVC channel not joined',
+      );
     }
   }
 

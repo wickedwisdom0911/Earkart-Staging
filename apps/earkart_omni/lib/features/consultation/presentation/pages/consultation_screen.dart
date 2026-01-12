@@ -694,6 +694,17 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       if (!mounted) return;
       di<ILogger>().debug('Otoscopy started: $data');
       if (revo2Device != null) {
+        // Join UVC channel when otoscopy starts
+        try {
+          final agoraCubit = context.read<AgoraCubit>();
+          agoraCubit.startOtoscopy();
+          di<ILogger>().info('📷 Otoscopy started - joining UVC channel');
+        } catch (e) {
+          di<ILogger>().error(
+            '❌ Error joining UVC channel on otoscopy start: $e',
+          );
+        }
+
         setState(() {
           _showCamera = true;
         });
@@ -708,6 +719,16 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.on("otoscopy-stopped", (data) {
       if (!mounted) return;
       di<ILogger>().debug('Otoscopy stopped: $data');
+
+      // Leave UVC channel when otoscopy stops
+      try {
+        final agoraCubit = context.read<AgoraCubit>();
+        agoraCubit.stopOtoscopy();
+        di<ILogger>().info('📷 Otoscopy stopped - leaving UVC channel');
+      } catch (e) {
+        di<ILogger>().error('❌ Error leaving UVC channel on otoscopy stop: $e');
+      }
+
       setState(() {
         _showCamera = false;
       });
