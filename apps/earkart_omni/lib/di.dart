@@ -237,6 +237,7 @@ Future<void> setupDI() async {
     () => AppointmentsRemoteSourceImpl(
       dio: di.call(),
       appointmentEntityDataSource: di.call(),
+      centreEntityDataSource: di.call(),
     ),
   );
   di.registerLazySingleton<IAppointmentsRepository>(
@@ -390,10 +391,7 @@ Future<void> setupDI() async {
 
   //chat
   di.registerLazySingleton<IChatRemoteSource>(
-    () => ChatRemoteSourceImpl(
-      dio: di.call(),
-      userEntityDataSource: di.call(),
-    ),
+    () => ChatRemoteSourceImpl(dio: di.call(), userEntityDataSource: di.call()),
   );
   di.registerLazySingleton<IChatRepository>(
     () => ChatRepositoryImpl(remoteSource: di.call()),

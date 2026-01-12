@@ -4,6 +4,7 @@ import 'package:earkart_omni/features/consultation/data/source/remote/consultati
 import 'package:earkart_omni/features/consultation/domain/repositories/consultation.repository.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation_pricing.entity.dart';
+import 'package:earkart_omni/models/consultation/consultation.model.dart';
 
 class ConsultationRepositoryImpl extends IConsultationRepository {
   final IConsultationRemoteSource consultationRemoteSource;
@@ -32,9 +33,14 @@ class ConsultationRepositoryImpl extends IConsultationRepository {
   }
 
   @override
-  Future<Either<Failure, List<ConsultationEntity>>>
-  getConsultationsByCentreId() async {
-    return consultationRemoteSource.getConsultationsByCentreId();
+  Future<Either<Failure, ConsultationModel>> getConsultationsByCentreId({
+    int? limit,
+    int? offset,
+  }) async {
+    return consultationRemoteSource.getConsultationsByCentreId(
+      limit: limit,
+      offset: offset,
+    );
   }
 
   @override

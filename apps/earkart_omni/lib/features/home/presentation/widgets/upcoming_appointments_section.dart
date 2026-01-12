@@ -23,7 +23,7 @@ class _UpcomingAppointmentsSectionState
   void initState() {
     super.initState();
     // Load appointments when the widget initializes
-    context.read<AppointmentsCubit>().getAppointments();
+    context.read<AppointmentsCubit>().getAppointments(refresh: true);
   }
 
   @override
@@ -94,7 +94,7 @@ class _UpcomingAppointmentsSectionState
                   initial: () => _buildLoadingState(),
                   loading: () => _buildLoadingState(),
                   success:
-                      (appointments, total) =>
+                      (appointments, total, hasMore, isLoadingMore) =>
                           _buildAppointmentsList(appointments),
                   appointmentByIdSuccess: (appointment) => _buildLoadingState(),
                   createAppointmentSuccess:
@@ -124,7 +124,7 @@ class _UpcomingAppointmentsSectionState
       title: 'Failed to load appointments',
       message: message,
       onRetry: () {
-        context.read<AppointmentsCubit>().getAppointments();
+        context.read<AppointmentsCubit>().getAppointments(refresh: true);
       },
       retryLabel: 'Retry',
     );

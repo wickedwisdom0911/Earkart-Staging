@@ -56,15 +56,16 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
       );
       di<ILogger>().debug('Response data: ${response.data}');
       final result = ConsultationModel.fromJson(response.data);
-      if (result.success) {
+      if (result.success && result.consultations.isNotEmpty) {
+        final consultation = result.consultations.first;
         di<ILogger>().debug(
           'Consultation created successfully, storing in Hive...',
         );
-        await consultationEntityDataSource.addConsultationEntity(result.data!);
+        await consultationEntityDataSource.addConsultationEntity(consultation);
         di<ILogger>().debug(
-          'Consultation stored in Hive with ID: ${result.data!.id}',
+          'Consultation stored in Hive with ID: ${consultation.id}',
         );
-        return right(result.data!);
+        return right(consultation);
       }
       return left(UnKnownFailure(error: result.message));
     } on DioException catch (e) {
@@ -93,9 +94,10 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
         ),
       );
       final result = ConsultationModel.fromJson(response.data);
-      if (result.success) {
-        await consultationEntityDataSource.addConsultationEntity(result.data!);
-        return right(result.data!);
+      if (result.success && result.consultations.isNotEmpty) {
+        final consultation = result.consultations.first;
+        await consultationEntityDataSource.addConsultationEntity(consultation);
+        return right(consultation);
       }
       return left(UnKnownFailure(error: result.message));
     } on DioException catch (e) {
@@ -123,9 +125,10 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
         ),
       );
       final result = ConsultationModel.fromJson(response.data);
-      if (result.success) {
-        await consultationEntityDataSource.addConsultationEntity(result.data!);
-        return right(result.data!);
+      if (result.success && result.consultations.isNotEmpty) {
+        final consultation = result.consultations.first;
+        await consultationEntityDataSource.addConsultationEntity(consultation);
+        return right(consultation);
       }
       return left(UnKnownFailure(error: result.message));
     } on DioException catch (e) {
@@ -137,11 +140,25 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
   }
 
   @override
-  Future<Either<Failure, List<ConsultationEntity>>>
-  getConsultationsByCentreId() async {
+  Future<Either<Failure, ConsultationModel>> getConsultationsByCentreId({
+    int? limit,
+    int? offset,
+  }) async {
     try {
+      final queryParams = <String, dynamic>{};
+      if (limit != null) {
+        queryParams['limit'] = limit;
+      }
+      if (offset != null) {
+        queryParams['offset'] = offset;
+      }
+      final centreId = centreEntityDataSource.getCentreEntity()?.id;
+      if (centreId != null) {
+        queryParams['id'] = centreId;
+      }
       final response = await dio.get(
-        "${Constants.getConsultationsByCentreIdUrl}/${centreEntityDataSource.getCentreEntity()?.id}",
+        Constants.getConsultationsByCentreIdUrl,
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
         options: Options(
           headers: {
             'Content-Type': 'application/json',
@@ -152,7 +169,7 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
       );
       final result = ConsultationModel.fromJson(response.data);
       if (result.success) {
-        return right(result.data!);
+        return right(result);
       }
       return left(UnKnownFailure(error: result.message));
     } on DioException catch (e) {

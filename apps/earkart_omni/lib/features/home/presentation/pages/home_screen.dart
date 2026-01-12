@@ -35,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _onRefresh() async {
     context.read<AuthCubit>().getCentre();
     context.read<AuthCubit>().getCentreData();
-    context.read<ConsultationCubit>().getConsultationsByCentreId();
+    context.read<ConsultationCubit>().getConsultationsByCentreId(refresh: true);
 
     // Force refresh lookup data on pull-to-refresh
     await Future.wait([
@@ -51,7 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (!mounted) return;
 
         if (state is AuthCentreSuccess) {
-          context.read<ConsultationCubit>().getConsultationsByCentreId();
+          context.read<ConsultationCubit>().getConsultationsByCentreId(refresh: true);
         } else if (state is AuthError || state is AuthCentreError) {
           if (state is AuthError) {
           } else if (state is AuthCentreError) {}
