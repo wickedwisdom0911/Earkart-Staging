@@ -20,28 +20,50 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _isInitialLoad = true;
+
   @override
   void initState() {
     super.initState();
+    _loadInitialData();
+  }
 
-    context.read<AuthCubit>().getCentre();
-    context.read<AuthCubit>().getCentreData();
+  void _loadInitialData() {
+    final authCubit = context.read<AuthCubit>();
+    final lookupCubit = context.read<LookupCubit>();
+
+    // Load centre data if not already loaded
+    authCubit.getCentre();
+    authCubit.getCentreData();
 
     // Preload essential lookup data (languages & countries) on screen initialization
     // This uses cache-first strategy: instant from cache, then background refresh
-    unawaited(context.read<LookupCubit>().preloadEssentialData());
+    unawaited(lookupCubit.preloadEssentialData());
   }
 
   Future<void> _onRefresh() async {
-    context.read<AuthCubit>().getCentre();
-    context.read<AuthCubit>().getCentreData();
-    context.read<ConsultationCubit>().getConsultationsByCentreId(refresh: true);
+    final authCubit = context.read<AuthCubit>();
+    final consultationCubit = context.read<ConsultationCubit>();
+    final lookupCubit = di<LookupCubit>();
 
-    // Force refresh lookup data on pull-to-refresh
+    // Refresh all data in parallel
     await Future.wait([
-      di<LookupCubit>().getLanguages(forceRefresh: true),
-      di<LookupCubit>().getCountries(forceRefresh: true),
+      Future(() async {
+        authCubit.getCentre();
+        authCubit.getCentreData();
+      }),
+      Future(() => consultationCubit.getConsultationsByCentreId(refresh: true)),
+      lookupCubit.getLanguages(forceRefresh: true),
+      lookupCubit.getCountries(forceRefresh: true),
     ]);
+  }
+
+  void _handleCentreLoaded() {
+    // Only fetch consultations when centre is successfully loaded
+    if (_isInitialLoad) {
+      _isInitialLoad = false;
+      context.read<ConsultationCubit>().getConsultationsByCentreId(refresh: true);
+    }
   }
 
   @override
@@ -51,10 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (!mounted) return;
 
         if (state is AuthCentreSuccess) {
-          context.read<ConsultationCubit>().getConsultationsByCentreId(refresh: true);
-        } else if (state is AuthError || state is AuthCentreError) {
-          if (state is AuthError) {
-          } else if (state is AuthCentreError) {}
+          _handleCentreLoaded();
         }
       },
       child: Scaffold(
@@ -74,84 +93,106 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const ActionCardsSection(),
                   const SizedBox(height: 20),
-                  BlocBuilder<ChatCubit, ChatState>(
-                    builder: (context, state) {
-                      final chatCubit = context.read<ChatCubit>();
-                      final unreadCount = chatCubit.unreadCount;
-
-                      return Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.pushNamed(
-                                context,
-                                ChatWithAudiologistsScreen.routeName,
-                              );
-                            },
-                            icon: const Icon(Icons.chat_bubble_outline),
-                            label: const Text('Chat with Audiologists'),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(
-                                color: Colors.grey.withAlpha(90),
-                                width: 1,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              foregroundColor: Constants.primaryColor,
-                              minimumSize: const Size(double.infinity, 48),
-                            ),
-                          ),
-                          if (unreadCount > 0)
-                            Positioned(
-                              right: 8,
-                              top: -4,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 20,
-                                  minHeight: 20,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    unreadCount > 99 ? '99+' : '$unreadCount',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
+                  _buildChatButton(),
                   const SizedBox(height: 18),
-
-                  SizedBox(
-                    height: 400,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Expanded(child: RecentConsultationsSection()),
-                        const SizedBox(width: 24),
-                        const Expanded(child: UpcomingAppointmentsSection()),
-                      ],
-                    ),
-                  ),
+                  _buildConsultationsSection(),
                 ],
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildChatButton() {
+    // Use BlocBuilder to rebuild when unreadCount changes
+    // The cubit emits unreadCountLoaded state when count changes
+    return BlocBuilder<ChatCubit, ChatState>(
+      buildWhen: (previous, current) {
+        // Rebuild when unreadCountLoaded state is emitted
+        return current.maybeWhen(
+          unreadCountLoaded: (_) => true,
+          orElse: () => false,
+        );
+      },
+      builder: (context, _) {
+        final unreadCount = context.read<ChatCubit>().unreadCount;
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pushNamed(
+                  context,
+                  ChatWithAudiologistsScreen.routeName,
+                );
+              },
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Chat with Audiologists'),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                  color: Colors.grey.withAlpha(90),
+                  width: 1,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                foregroundColor: Constants.primaryColor,
+                minimumSize: const Size(double.infinity, 48),
+              ),
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                right: 8,
+                top: -4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 20,
+                    minHeight: 20,
+                  ),
+                  child: Center(
+                    child: Text(
+                      unreadCount > 99 ? '99+' : '$unreadCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildConsultationsSection() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Use responsive height based on screen size
+        final height = constraints.maxHeight > 600 ? 400.0 : 350.0;
+        
+        return SizedBox(
+          height: height,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(child: RecentConsultationsSection()),
+              const SizedBox(width: 24),
+              const Expanded(child: UpcomingAppointmentsSection()),
+            ],
+          ),
+        );
+      },
     );
   }
 }
