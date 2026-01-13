@@ -193,8 +193,22 @@ export const ConsultationModelSchema = z.object({
   success: z.boolean(),
   message: z.string(),
   data: z.union([
-    ConsultationModelDataSchema,
+    // Format 1: Paginated response with nested data
+    z.object({
+      data: z.array(ConsultationModelDataSchema).nullable(),
+      total: z.number(),
+      limit: z.number(),
+      offset: z.number(),
+      page: z.number(),
+      totalPages: z.number(),
+      hasNext: z.boolean(),
+      hasPrevious: z.boolean(),
+    }).nullable(),
+    // Format 2: Direct array response (backward compatibility)
     z.array(ConsultationModelDataSchema),
+    // Format 3: Single consultation object
+    ConsultationModelDataSchema,
+    // Format 4: Null
     z.null(),
   ]),
 });

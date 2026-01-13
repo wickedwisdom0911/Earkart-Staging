@@ -1,12 +1,12 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useOtoscopy } from "@/providers/otoscopy-provider";
 import { useDevice } from "@/providers/device-provider";
-import { useRTCClient, useRemoteUsers, useIsConnected } from "agora-rtc-react";
+import { useRTCClient, useRemoteUsers, useIsConnected, RemoteUser } from "agora-rtc-react";
 
 export default function VideoOtoscopyPage() {
   const { consultationId } = useParams();
@@ -22,11 +22,72 @@ export default function VideoOtoscopyPage() {
   const remoteUsers = useRemoteUsers();
   const isConnected = useIsConnected();
   
+  // Ref for otoscopy video container
+  const otoscopyVideoRef = useRef<HTMLDivElement>(null);
+  
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
 
   // Check if camera is open for UI feedback
   const isCameraOpen = deviceState.r15c.isCameraOpen;
+  
+  // Track users before otoscopy to identify which is otoscopy stream
+  const usersBeforeOtoscopyRef = React.useRef<Set<number>>(new Set());
+  
+  // Track users before otoscopy starts
+  React.useEffect(() => {
+    if (!isOtoscopyActive && remoteUsers.length > 0) {
+      const currentUids = new Set(remoteUsers.map(u => Number(u.uid)));
+      usersBeforeOtoscopyRef.current = currentUids;
+      console.log("🔬 [OTOSCOPY PAGE] Tracking users before otoscopy:", Array.from(currentUids));
+    }
+  }, [remoteUsers, isOtoscopyActive]);
+  
+  // Filter to get only otoscopy stream
+  // Strategy: Show users that were NOT present before otoscopy started (new otoscopy stream)
+  // This works even if otoscopy stream doesn't have videoTrack initially
+  const otoscopyUsers = React.useMemo(() => {
+    if (!isOtoscopyActive) {
+      console.log("🔬 [OTOSCOPY PAGE] Otoscopy not active, returning empty");
+      return [];
+    }
+    
+    const beforeOtoscopyUids = usersBeforeOtoscopyRef.current;
+    
+    console.log("🔬 [OTOSCOPY PAGE] ========== OTOSCOPY STREAM FILTERING ==========");
+    console.log("🔬 [OTOSCOPY PAGE] isOtoscopyActive:", isOtoscopyActive);
+    console.log("🔬 [OTOSCOPY PAGE] Total remote users:", remoteUsers.length);
+    console.log("🔬 [OTOSCOPY PAGE] Users before otoscopy UIDs:", Array.from(beforeOtoscopyUids));
+    
+    // Show users that were NOT present before otoscopy started (new otoscopy stream)
+    // This works regardless of videoTrack status
+    const otoscopyStreamUsers = remoteUsers.filter(u => {
+      const uid = Number(u.uid);
+      const wasBeforeOtoscopy = beforeOtoscopyUids.has(uid);
+      const isNewUser = !wasBeforeOtoscopy;
+      
+      console.log(`🔬 [OTOSCOPY PAGE] User ${uid}: wasBeforeOtoscopy=${wasBeforeOtoscopy}, isNewUser=${isNewUser}, videoTrack=${!!u.videoTrack}, hasVideo=${u.hasVideo}`);
+      
+      // Show users that joined AFTER otoscopy started (new otoscopy stream)
+      return isNewUser;
+    });
+    
+    console.log("🔬 [OTOSCOPY PAGE] All remote users:", remoteUsers.map(u => ({ 
+      uid: u.uid, 
+      hasVideo: u.hasVideo, 
+      videoTrack: !!u.videoTrack,
+      wasBeforeOtoscopy: beforeOtoscopyUids.has(Number(u.uid))
+    })));
+    console.log("🔬 [OTOSCOPY PAGE] Otoscopy stream users (RIGHT panel - NEW users only):", otoscopyStreamUsers.map(u => ({ 
+      uid: u.uid, 
+      hasVideo: u.hasVideo, 
+      videoTrack: !!u.videoTrack 
+    })));
+    console.log("🔬 [OTOSCOPY PAGE] Count:", otoscopyStreamUsers.length);
+    console.log("🔬 [OTOSCOPY PAGE] ============================================");
+    
+    return otoscopyStreamUsers;
+  }, [remoteUsers, isOtoscopyActive]);
   
   // Log when page loads
   React.useEffect(() => {
@@ -183,6 +244,58 @@ export default function VideoOtoscopyPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Otoscopy Video Stream - Shows below Start Otoscopy button */}
+      {isOtoscopyActive && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Otoscopy Stream
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div 
+              ref={otoscopyVideoRef}
+              className="w-full bg-gray-900 rounded-lg overflow-hidden aspect-video flex items-center justify-center relative"
+              style={{ minHeight: '400px' }}
+            >
+              {otoscopyUsers.length > 0 ? (
+                otoscopyUsers.map((user) => {
+                  const videoTrackId = user.videoTrack?.getTrackId?.();
+                  return (
+                    <RemoteUser
+                      key={`otoscopy-${user.uid}-${videoTrackId || 'no-video'}`}
+                      user={user}
+                      playVideo={true}
+                      playAudio={false}
+                      style={{ 
+                        width: "100%", 
+                        height: "100%",
+                        transform: "scaleX(-1)"
+                      }}
+                    >
+                      <div className="absolute bottom-3 left-3 text-white text-sm bg-black/50 px-2 py-1 rounded z-10">
+                        🔬 Otoscopy Stream
+                      </div>
+                    </RemoteUser>
+                  );
+                })
+              ) : (
+                <div className="text-white text-center">
+                  <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <p>Waiting for otoscopy stream...</p>
+                  {isCameraOpen ? (
+                    <p className="text-sm text-gray-400 mt-2">Camera is ready, stream should appear shortly</p>
+                  ) : (
+                    <p className="text-sm text-gray-400 mt-2">Please open camera on device</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Status Indicators */}
       {isOtoscopyActive && !isCameraOpen && (

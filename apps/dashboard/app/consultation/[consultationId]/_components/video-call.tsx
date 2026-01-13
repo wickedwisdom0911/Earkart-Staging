@@ -26,6 +26,7 @@ interface VideoCallProps {
   onBeforeLeaveCall?: () => Promise<void>;
   hideLocalUser?: boolean;
   showOtoscopyOnly?: boolean; // New prop to show only otoscopy stream
+  excludeOtoscopyStream?: boolean; // New prop to exclude otoscopy stream (show patient video only)
 }
 
 // Remote user loading skeleton - only shows the remote video area loading
@@ -83,6 +84,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   onBeforeLeaveCall,
   hideLocalUser = false,
   showOtoscopyOnly = false,
+  excludeOtoscopyStream = false,
 }) => {
   const localRef = useRef<HTMLDivElement>(null);
   const remoteRef = useRef<HTMLDivElement>(null);
@@ -216,24 +218,97 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   // Get remote users
   const remoteUsers = useRemoteUsers();
   
-  // Filter remote users for otoscopy mode
-  // When showOtoscopyOnly is true, show ALL remote users (both regular camera and otoscopy stream)
+  // Track users before otoscopy starts to identify patient video
+  const usersBeforeOtoscopyRef = useRef<Set<number>>(new Set());
+  const wasExcludingRef = useRef(false);
+  
+  // Update tracked users when otoscopy is not active (before otoscopy starts)
+  useEffect(() => {
+    // When we transition from excluding to not excluding, reset the tracking
+    if (!excludeOtoscopyStream && wasExcludingRef.current) {
+      usersBeforeOtoscopyRef.current = new Set();
+      wasExcludingRef.current = false;
+      console.log("🔬 [VIDEO-CALL] Reset user tracking - otoscopy stopped");
+    }
+    
+    // Track users when otoscopy is NOT active (before otoscopy starts)
+    // This captures the patient video users before otoscopy stream joins
+    if (!excludeOtoscopyStream && remoteUsers.length > 0) {
+      // Store UIDs of ALL users before otoscopy starts (this includes patient video)
+      const currentUids = new Set(remoteUsers.map(u => Number(u.uid)));
+      usersBeforeOtoscopyRef.current = currentUids;
+      console.log("🔬 [VIDEO-CALL] Tracking users before otoscopy (patient video):", Array.from(currentUids));
+      console.log("🔬 [VIDEO-CALL] Users details:", remoteUsers.map(u => ({
+        uid: u.uid,
+        hasVideo: u.hasVideo,
+        videoTrack: !!u.videoTrack
+      })));
+    }
+    
+    // Mark that we're now excluding
+    if (excludeOtoscopyStream) {
+      wasExcludingRef.current = true;
+    }
+  }, [remoteUsers, excludeOtoscopyStream]);
+  
+  // Filter remote users based on mode
   const filteredRemoteUsers = React.useMemo(() => {
-    if (!showOtoscopyOnly || remoteUsers.length === 0) {
+    // If excluding otoscopy stream, filter to show only patient video
+    // Strategy: Exclude users with videoTrack (otoscopy stream) OR use tracking if available
+    if (excludeOtoscopyStream) {
+      const beforeOtoscopyUids = usersBeforeOtoscopyRef.current;
+      
+      // If we have tracked users, show only those (patient video)
+      if (beforeOtoscopyUids.size > 0) {
+        const patientUsers = remoteUsers.filter(u => {
+          const uid = Number(u.uid);
+          const wasBeforeOtoscopy = beforeOtoscopyUids.has(uid);
+          return wasBeforeOtoscopy; // Show ONLY users that were there before otoscopy
+        });
+        
+        console.log("🔬 [VIDEO-CALL] ========== PATIENT VIDEO FILTERING ==========");
+        console.log("🔬 [VIDEO-CALL] Excluding otoscopy stream - showing patient video only in LEFT panel");
+        console.log("🔬 [VIDEO-CALL] Users before otoscopy UIDs:", Array.from(beforeOtoscopyUids));
+        console.log("🔬 [VIDEO-CALL] All remote users:", remoteUsers.map(u => ({ 
+          uid: u.uid, 
+          hasVideo: u.hasVideo, 
+          videoTrack: !!u.videoTrack,
+          wasBeforeOtoscopy: beforeOtoscopyUids.has(Number(u.uid))
+        })));
+        console.log("🔬 [VIDEO-CALL] Filtered patient users (LEFT panel):", patientUsers.map(u => ({ 
+          uid: u.uid, 
+          hasVideo: u.hasVideo, 
+          videoTrack: !!u.videoTrack 
+        })));
+        console.log("🔬 [VIDEO-CALL] ============================================");
+        
+        // If we found patient users, return them. Otherwise, exclude users with videoTrack
+        if (patientUsers.length > 0) {
+          return patientUsers;
+        }
+      }
+      
+      // Fallback: Show all users (patient video should be visible)
+      // The otoscopy panel will filter by wasBeforeOtoscopy=false
+      console.log("🔬 [VIDEO-CALL] Fallback: Showing all users (tracking not ready yet)");
       return remoteUsers;
     }
     
-    // In otoscopy mode, show ALL remote users (both regular camera and otoscopy/UVC stream)
-    console.log("🔬 [OTOSCOPY] Showing ALL remote users in otoscopy mode:", remoteUsers.length);
-    console.log("🔬 [OTOSCOPY] Remote users details:", remoteUsers.map(u => ({
-      uid: u.uid,
-      hasVideo: u.hasVideo,
-      hasAudio: u.hasAudio,
-      videoTrack: !!u.videoTrack,
-    })));
+    // If showing otoscopy only, show ALL users
+    if (showOtoscopyOnly && remoteUsers.length > 0) {
+      console.log("🔬 [OTOSCOPY] Showing ALL remote users in otoscopy mode:", remoteUsers.length);
+      console.log("🔬 [OTOSCOPY] Remote users details:", remoteUsers.map(u => ({
+        uid: u.uid,
+        hasVideo: u.hasVideo,
+        hasAudio: u.hasAudio,
+        videoTrack: !!u.videoTrack,
+      })));
+      return remoteUsers;
+    }
     
+    // Default: show all users (normal video call)
     return remoteUsers;
-  }, [remoteUsers, showOtoscopyOnly]);
+  }, [remoteUsers, showOtoscopyOnly, excludeOtoscopyStream]);
   
   // Debug otoscopy mode - log when otoscopy mode becomes active
   useEffect(() => {
