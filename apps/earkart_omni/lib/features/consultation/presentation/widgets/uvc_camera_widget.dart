@@ -67,6 +67,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   bool _isCameraOpening = false;
   // Track if camera is currently closing to prevent duplicate closes
   bool _isCameraClosing = false;
+  // Track which operation holds the lock to prevent premature release
+  String? _currentOperationType;
   // Note: Permission checks removed - permissions are granted at app startup
 
   @override
@@ -191,10 +193,15 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   }
 
   /// Acquire camera operation lock - prevents concurrent operations
-  Future<bool> _acquireCameraOperationLock() async {
+  Future<bool> _acquireCameraOperationLock({String? operationType}) async {
+    if (_isDisposed) {
+      di<ILogger>().warning('Cannot acquire lock - widget is disposed');
+      return false;
+    }
+
     if (_cameraOperationInProgress) {
       di<ILogger>().warning(
-        'Camera operation already in progress, waiting for completion...',
+        'Camera operation already in progress ($_currentOperationType), waiting for completion...',
       );
       // Wait for current operation to complete
       if (_cameraOperationCompleter != null) {
@@ -212,22 +219,35 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         }
       }
       // Check again after waiting
-      if (_cameraOperationInProgress) {
+      if (_cameraOperationInProgress || _isDisposed) {
         di<ILogger>().warning(
-          'Camera operation still in progress after wait, skipping...',
+          'Camera operation still in progress after wait or widget disposed, skipping...',
         );
         return false;
       }
     }
 
     _cameraOperationInProgress = true;
+    _currentOperationType = operationType ?? 'unknown';
     _cameraOperationCompleter = Completer<void>();
     return true;
   }
 
   /// Release camera operation lock
-  void _releaseCameraOperationLock() {
+  /// Only releases if the operation type matches to prevent premature release
+  void _releaseCameraOperationLock({String? operationType}) {
+    // Only release if operation type matches or no specific type was set
+    if (operationType != null &&
+        _currentOperationType != null &&
+        _currentOperationType != operationType) {
+      di<ILogger>().warning(
+        'Lock release skipped - operation type mismatch (current: $_currentOperationType, requested: $operationType)',
+      );
+      return;
+    }
+
     _cameraOperationInProgress = false;
+    _currentOperationType = null;
     _cameraOperationCompleter?.complete();
     _cameraOperationCompleter = null;
   }
@@ -240,7 +260,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     }
 
     // Acquire lock for camera operation
-    final lockAcquired = await _acquireCameraOperationLock();
+    final lockAcquired = await _acquireCameraOperationLock(
+      operationType: 'close',
+    );
     if (!lockAcquired) {
       di<ILogger>().warning(
         'Could not acquire lock for camera close, skipping...',
@@ -350,7 +372,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       }
     } finally {
       _isCameraClosing = false;
-      _releaseCameraOperationLock();
+      _releaseCameraOperationLock(operationType: 'close');
     }
   }
 
@@ -369,10 +391,31 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     // This must happen before stopping frame capture to prevent race conditions
     _cachedAgoraCubit = null;
 
-    // CRITICAL: Clear camera callbacks to prevent callbacks after disposal
+    // CRITICAL: Clear camera callbacks FIRST to prevent callbacks after disposal
+    // This must happen before any async operations to prevent race conditions
     try {
-      cameraController?.cameraStateCallback = null;
-      cameraController?.msgCallback = null;
+      // Set a no-op callback that immediately returns to catch any pending callbacks
+      cameraController?.cameraStateCallback = (state) {
+        di<ILogger>().debug(
+          '[UVC_CAMERA] Camera state callback fired after disposal started - ignoring: $state',
+        );
+      };
+      cameraController?.msgCallback = (message) {
+        di<ILogger>().debug(
+          '[UVC_CAMERA] Camera message callback fired after disposal started - ignoring',
+        );
+      };
+      // Then clear them after a brief delay to ensure any in-flight callbacks are handled
+      Future.delayed(const Duration(milliseconds: 50), () {
+        try {
+          cameraController?.cameraStateCallback = null;
+          cameraController?.msgCallback = null;
+        } catch (e) {
+          di<ILogger>().error(
+            '[UVC_CAMERA] Error clearing camera callbacks: $e',
+          );
+        }
+      });
     } catch (e) {
       di<ILogger>().error('[UVC_CAMERA] Error clearing camera callbacks: $e');
     }
@@ -572,10 +615,18 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   }
 
   Future<void> _initializeCameraController() async {
-    // Prevent concurrent initialization attempts
+    // CRITICAL: Prevent concurrent initialization attempts
     if (_isInitializing) {
       di<ILogger>().info(
         'Camera initialization already in progress, skipping...',
+      );
+      return;
+    }
+
+    // CRITICAL: Prevent initialization if camera operation is in progress
+    if (_cameraOperationInProgress || _isCameraOpening || _isCameraClosing) {
+      di<ILogger>().info(
+        'Camera operation in progress, skipping initialization (operation: $_cameraOperationInProgress, opening: $_isCameraOpening, closing: $_isCameraClosing)',
       );
       return;
     }
@@ -597,7 +648,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         _permissionsGranted = true;
       }
 
-      // Don't reinitialize if camera is already working or if operations are in progress
+      // CRITICAL: Don't reinitialize if camera is already working
+      // This prevents multiple initialization attempts that cause USB conflicts
       if (isInitialized && cameraController != null && _isViewReady) {
         di<ILogger>().info(
           'Camera already initialized and working, skipping reinitialization',
@@ -605,12 +657,25 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         return;
       }
 
-      // Don't initialize if camera is currently opening or closing
-      if (_isCameraOpening || _isCameraClosing || _cameraOperationInProgress) {
-        di<ILogger>().info(
-          'Camera operation already in progress (opening: $_isCameraOpening, closing: $_isCameraClosing, operation: $_cameraOperationInProgress), skipping initialization',
+      // CRITICAL: If camera controller exists but camera is not initialized,
+      // ensure we close it first before reinitializing to prevent USB conflicts
+      if (cameraController != null &&
+          !isInitialized &&
+          !_isCameraOpening &&
+          !_isCameraClosing) {
+        di<ILogger>().warning(
+          'Camera controller exists but not initialized - closing before reinitializing to prevent conflicts',
         );
-        return;
+        try {
+          await _closeCamera();
+          // Wait for camera to fully close before reinitializing
+          await Future.delayed(const Duration(milliseconds: 500));
+        } catch (e) {
+          di<ILogger>().error(
+            'Error closing camera before reinitialization: $e',
+          );
+          // Continue anyway - might still work
+        }
       }
 
       _isInitializing = true;
@@ -703,13 +768,25 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       // Set up callbacks
       di<ILogger>().info('Setting up camera callbacks...');
       cameraController?.cameraStateCallback = (state) async {
-        if (_isDisposed || !mounted) return;
+        // CRITICAL: Check disposal FIRST before any operations
+        if (_isDisposed || !mounted) {
+          di<ILogger>().warning(
+            '[UVC_CAMERA] Camera state callback fired after disposal - ignoring state: $state',
+          );
+          return;
+        }
 
         di<ILogger>().info('Camera state: $state');
 
         // Use SchedulerBinding to safely call setState even during widget tree operations
         void safeSetState(VoidCallback fn) {
-          if (_isDisposed || !mounted) return;
+          // Double-check disposal before setState
+          if (_isDisposed || !mounted) {
+            di<ILogger>().warning(
+              '[UVC_CAMERA] safeSetState called after disposal - skipping',
+            );
+            return;
+          }
           try {
             if (SchedulerBinding.instance.schedulerPhase ==
                 SchedulerPhase.idle) {
@@ -728,9 +805,29 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
         switch (state) {
           case UVCCameraState.opened:
+            // CRITICAL: Check disposal again before processing opened state
+            if (_isDisposed || !mounted) {
+              di<ILogger>().warning(
+                '[UVC_CAMERA] Camera opened callback fired after disposal - ignoring',
+              );
+              return;
+            }
+
+            // CRITICAL: Check if camera is already initialized to prevent duplicate processing
+            if (isInitialized && _isViewReady) {
+              di<ILogger>().info(
+                '[UVC_CAMERA] Camera already initialized, ignoring duplicate opened state',
+              );
+              // Still reset flags and release lock
+              _isCameraOpening = false;
+              _releaseCameraOperationLock(operationType: 'open');
+              return;
+            }
+
             // Reset opening flag when camera successfully opens
             _isCameraOpening = false;
-            _releaseCameraOperationLock();
+            // Only release lock if we're the one that opened it
+            _releaseCameraOperationLock(operationType: 'open');
 
             safeSetState(() {
               isInitialized = true;
@@ -758,8 +855,10 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               }
             }
 
-            // Start frame capture for Agora streaming
-            _startFrameCaptureLoop();
+            // Start frame capture for Agora streaming only if not disposed
+            if (!_isDisposed && mounted) {
+              _startFrameCaptureLoop();
+            }
 
             // Notify parent about camera state change using SchedulerBinding
             SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -771,10 +870,19 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           case UVCCameraState.closed:
             print('Camera closed');
 
+            // CRITICAL: Check disposal before processing closed state
+            if (_isDisposed || !mounted) {
+              di<ILogger>().warning(
+                '[UVC_CAMERA] Camera closed callback fired after disposal - ignoring',
+              );
+              return;
+            }
+
             // Reset opening/closing flags
             _isCameraOpening = false;
             _isCameraClosing = false;
-            _releaseCameraOperationLock();
+            // Release lock if we're closing
+            _releaseCameraOperationLock(operationType: 'close');
 
             // Stop frame capture loop FIRST before state changes
             _stopFrameCaptureLoop();
@@ -802,9 +910,18 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           case UVCCameraState.error:
             print('Camera error occurred');
 
+            // CRITICAL: Check disposal before processing error state
+            if (_isDisposed || !mounted) {
+              di<ILogger>().warning(
+                '[UVC_CAMERA] Camera error callback fired after disposal - ignoring',
+              );
+              return;
+            }
+
             // Reset opening/closing flags
             _isCameraOpening = false;
             _isCameraClosing = false;
+            // Release lock on error
             _releaseCameraOperationLock();
 
             // Stop frame capture loop FIRST before state changes
@@ -838,7 +955,13 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       };
 
       cameraController?.msgCallback = (message) {
-        if (_isDisposed || !mounted) return;
+        // CRITICAL: Check disposal FIRST
+        if (_isDisposed || !mounted) {
+          di<ILogger>().debug(
+            '[UVC_CAMERA] Camera message callback fired after disposal - ignoring',
+          );
+          return;
+        }
 
         print('Camera message: $message');
 
@@ -1005,6 +1128,14 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
           if (!_isDisposed && _isAppActive && mounted) {
             try {
+              // CRITICAL: Check if camera is already initialized before attempting to open
+              if (isInitialized && _isViewReady) {
+                di<ILogger>().info(
+                  'Camera is already initialized and ready, skipping open...',
+                );
+                return;
+              }
+
               // Prevent concurrent camera opens
               if (_isCameraOpening) {
                 di<ILogger>().warning(
@@ -1014,7 +1145,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               }
 
               // Acquire lock for camera operation
-              final lockAcquired = await _acquireCameraOperationLock();
+              final lockAcquired = await _acquireCameraOperationLock(
+                operationType: 'open',
+              );
               if (!lockAcquired) {
                 di<ILogger>().warning(
                   'Could not acquire lock for camera open, skipping...',
@@ -1030,6 +1163,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                 // Store initial state to detect if camera actually opens
                 final wasInitialized = isInitialized;
 
+                // CRITICAL: Only call openUVCCamera() ONCE - do not retry in loop
+                // Multiple calls cause USB interface conflicts (err=-99)
                 await cameraController!.openUVCCamera();
                 di<ILogger>().info('Camera openUVCCamera() call completed');
 
@@ -1039,7 +1174,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
                 // Wait for the camera state callback to fire
                 // For device owner apps, onConnectDev might not fire immediately
-                // So we wait longer and potentially retry
+                // So we wait longer, but DO NOT retry openUVCCamera() calls
                 const maxWaitAttempts = 5;
                 const waitInterval = Duration(milliseconds: 2000);
                 bool cameraOpened = false;
@@ -1056,10 +1191,10 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                     break;
                   }
 
-                  // If camera still not opened, update status and potentially retry
+                  // If camera still not opened, update status
                   if (!_isDisposed && mounted && !isInitialized) {
                     di<ILogger>().info(
-                      'Camera not yet opened, attempt ${attempt + 1}/$maxWaitAttempts',
+                      'Camera not yet opened, waiting... (${attempt + 1}/$maxWaitAttempts)',
                     );
 
                     // Update status to show we're waiting
@@ -1084,24 +1219,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                       di<ILogger>().error('Error updating camera status: $e');
                     }
 
-                    // Retry opening camera if it's still not available
-                    // This helps when onConnectDev hasn't fired yet
-                    // BUT: Don't retry if we're already opening (prevent duplicate opens)
-                    if (attempt < maxWaitAttempts - 1 && !_isCameraOpening) {
-                      try {
-                        di<ILogger>().info(
-                          'Retrying camera open (attempt ${attempt + 2}/$maxWaitAttempts)...',
-                        );
-                        // Note: This retry will be handled by the lock mechanism above
-                        // We don't need to acquire lock again here since we're already in the locked section
-                        await cameraController!.openUVCCamera();
-                      } catch (retryError) {
-                        di<ILogger>().warning(
-                          'Camera open retry failed: $retryError',
-                        );
-                        // Continue waiting - camera might still connect
-                      }
-                    }
+                    // CRITICAL: DO NOT retry openUVCCamera() here - it causes USB conflicts
+                    // The native side will handle reconnection via onConnectDev callback
+                    // Multiple openUVCCamera() calls cause err=-99 (device busy)
                   }
                 }
 
@@ -1196,7 +1316,10 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                 }
               } finally {
                 _isCameraOpening = false;
-                _releaseCameraOperationLock();
+                // Only release lock if we're still the owner (not disposed)
+                if (!_isDisposed) {
+                  _releaseCameraOperationLock(operationType: 'open');
+                }
               }
             } catch (initError) {
               di<ILogger>().error('Camera initialization failed: $initError');
@@ -1377,6 +1500,14 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   /// IMPORTANT: Ensures only ONE frame capture loop runs at a time
   /// This prevents multiple video streams and black frames
   void _startFrameCaptureLoop() {
+    // CRITICAL: Check disposal FIRST
+    if (_isDisposed || !mounted) {
+      di<ILogger>().warning(
+        '[UVC_CAMERA] Cannot start frame capture - widget disposed or not mounted',
+      );
+      return;
+    }
+
     // Prevent multiple frame capture loops from running simultaneously
     if (_frameCaptureTimer != null) {
       di<ILogger>().warning(
@@ -1393,16 +1524,23 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       return;
     }
 
-    if (_isDisposed || !mounted) {
-      return;
-    }
-
     _startFrameCaptureLoopInternal();
   }
 
   /// Internal method to start frame capture loop
   void _startFrameCaptureLoopInternal() {
-    if (_frameCaptureTimer != null || _isDisposed || !mounted) {
+    // CRITICAL: Multiple disposal checks
+    if (_isDisposed || !mounted || cameraController == null) {
+      di<ILogger>().warning(
+        '[UVC_CAMERA] Cannot start frame capture loop - disposed: $_isDisposed, mounted: $mounted, controller: ${cameraController != null}',
+      );
+      return;
+    }
+
+    if (_frameCaptureTimer != null) {
+      di<ILogger>().warning(
+        '[UVC_CAMERA] Frame capture timer already exists, skipping duplicate start',
+      );
       return;
     }
 
@@ -1429,11 +1567,23 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           return;
         }
 
+        // CRITICAL: Final disposal check before starting timer
+        if (_isDisposed || !mounted || cameraController == null) {
+          di<ILogger>().warning(
+            '[UVC_CAMERA] Cannot start frame capture timer - disposed or invalid state',
+          );
+          return;
+        }
+
         // Start periodic frame capture and push to Agora
         // Only ONE timer should be active at any time
         // Use microtask scheduling to prevent blocking main thread
         _frameCaptureTimer = Timer.periodic(_frameCaptureInterval, (timer) {
-          if (_isDisposed || !mounted || cameraController == null) {
+          // CRITICAL: Check disposal FIRST in timer callback
+          if (_isDisposed ||
+              !mounted ||
+              cameraController == null ||
+              _frameCaptureStopped) {
             _stopFrameCaptureLoop();
             return;
           }
@@ -1443,15 +1593,18 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           // Use scheduleMicrotask to prevent blocking the timer callback and main thread
           if (isInitialized &&
               cameraController != null &&
-              !_isFrameCaptureInProgress) {
+              !_isFrameCaptureInProgress &&
+              !_frameCaptureStopped) {
             // Schedule frame capture in next microtask to prevent blocking timer
             // This ensures smooth video performance even during camera initialization
             scheduleMicrotask(() {
+              // CRITICAL: Check disposal again in microtask
               if (!_isDisposed &&
                   mounted &&
                   isInitialized &&
                   cameraController != null &&
-                  !_isFrameCaptureInProgress) {
+                  !_isFrameCaptureInProgress &&
+                  !_frameCaptureStopped) {
                 _captureAndPushFrame();
               }
             });
