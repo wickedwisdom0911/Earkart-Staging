@@ -705,10 +705,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
           );
         }
 
+        // Show camera widget - it will notify when camera actually opens
         setState(() {
           _showCamera = true;
         });
-        _updateCameraState(true);
+        // Don't call _updateCameraState(true) here - let the camera widget
+        // notify when it actually opens via onCameraStateChanged callback
+        di<ILogger>().info(
+          '📷 Camera widget will be shown - waiting for camera to open before streaming',
+        );
       } else {
         _showWarningSnackBar(
           'Please connect the video otoscope device to continue.',
@@ -721,10 +726,15 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       di<ILogger>().debug('Otoscopy stopped: $data');
 
       // Leave UVC channel when otoscopy stops
+      // IMPORTANT: Do NOT call switchToBuiltInCamera() - the main camera was never stopped
+      // The main video call connection stays active throughout otoscopy operations
+      // Only the UVC camera connection is leaving, the main connection continues streaming
       try {
         final agoraCubit = context.read<AgoraCubit>();
         agoraCubit.stopOtoscopy();
-        di<ILogger>().info('📷 Otoscopy stopped - leaving UVC channel');
+        di<ILogger>().info(
+          '📷 Otoscopy stopped - leaving UVC channel (main video call continues)',
+        );
       } catch (e) {
         di<ILogger>().error('❌ Error leaving UVC channel on otoscopy stop: $e');
       }
@@ -734,32 +744,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       });
       _updateCameraState(false);
 
-      // Add a safety delay and then switch back to built-in camera
-      // This handles the transition from UVC camera to built-in camera properly
-      Future.delayed(const Duration(milliseconds: 5000), () {
-        if (mounted) {
-          try {
-            // Wrap in a zone to catch any unhandled exceptions
-            runZonedGuarded(
-              () {
-                final agoraCubit = context.read<AgoraCubit>();
-                di<ILogger>().info(
-                  '📷 Switching from UVC to built-in camera after otoscopy stop',
-                );
-                agoraCubit.switchToBuiltInCamera();
-              },
-              (error, stackTrace) {
-                di<ILogger>().error(
-                  '❌ Unhandled exception during camera switch: $error',
-                );
-                di<ILogger>().error('Stack trace: $stackTrace');
-              },
-            );
-          } catch (e) {
-            di<ILogger>().error('❌ Error switching to built-in camera: $e');
-          }
-        }
-      });
+      // No need to switch back to built-in camera - it was never stopped
+      // The main connection's camera track remains published throughout otoscopy
+      di<ILogger>().info(
+        '📷 UVC channel left - main video call connection remains active and streaming',
+      );
     });
 
     socket.on("end:consultation", (data) {

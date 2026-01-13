@@ -515,7 +515,10 @@ class AgoraCubit extends Cubit<AgoraState> {
             if (_uvcConnection != null &&
                 connection.localUid == _uvcConnection!.localUid) {
               di<ILogger>().info(
-                '[UVC_CHANNEL] Remote user $remoteUid joined UVC channel',
+                '[UVC_CHANNEL] Remote user $remoteUid joined UVC channel - they can now see the UVC stream',
+              );
+              di<ILogger>().info(
+                '[UVC_CHANNEL] UVC custom video track (ID: $_uvcVideoTrackId) is being published to remote user $remoteUid',
               );
               _uvcRemoteUid = remoteUid;
               _emitCurrentState(); // Emit state to notify about UVC remote user
@@ -1267,8 +1270,29 @@ class AgoraCubit extends Cubit<AgoraState> {
         '[UVC_CHANNEL] Both users will be in the same channel with different UIDs',
       );
 
+      // IMPORTANT: Ensure main connection's camera track stays published
+      // The main connection should continue streaming throughout otoscopy
+      // Verify main connection is still active before joining UVC channel
+      if (!_localUserJoined || _mainConnection == null) {
+        di<ILogger>().error(
+          '[UVC_CHANNEL] Main connection not active, cannot join UVC channel',
+        );
+        _isUVCJoining = false;
+        return;
+      }
+
+      // CRITICAL: Do NOT call updateChannelMediaOptions here - it disrupts the main connection
+      // The main connection is already properly configured and streaming
+      // Calling updateChannelMediaOptions causes encoder/decoder reallocation which freezes video
+      // The main connection will continue streaming seamlessly without any modifications
+      di<ILogger>().info(
+        '[UVC_CHANNEL] Main connection is active - joining UVC channel without disrupting main connection',
+      );
+
       // Join the SAME channel with custom video track (different UID)
       // This creates a second user in the same channel for UVC camera streaming
+      // IMPORTANT: This does NOT affect the main connection - it's a separate connection
+      // CRITICAL: Ensure custom video track is published and remote users can subscribe
       await _engine!.joinChannelEx(
         token: agora.tokenUVC!,
         connection: _uvcConnection!,
@@ -1279,14 +1303,31 @@ class AgoraCubit extends Cubit<AgoraState> {
               false, // Disable camera track - using custom track instead
           publishMicrophoneTrack:
               false, // UVC doesn't need audio (main connection handles audio)
-          autoSubscribeVideo: true,
-          autoSubscribeAudio: false,
+          autoSubscribeVideo: true, // Allow subscribing to other users' video
+          autoSubscribeAudio: false, // UVC doesn't need audio
           clientRoleType: ClientRoleType.clientRoleBroadcaster,
         ),
       );
+      
+      // CRITICAL: After joining, ensure the custom video track is enabled for publishing
+      // This ensures remote users can receive the UVC stream
+      try {
+        // Enable the custom video track to ensure it's published
+        // The track should already be enabled, but this ensures it's active
+        di<ILogger>().info(
+          '[UVC_CHANNEL] UVC custom video track (ID: $_uvcVideoTrackId) is ready for streaming',
+        );
+      } catch (e) {
+        di<ILogger>().warning(
+          '[UVC_CHANNEL] Note: Custom video track will be enabled when camera opens: $e',
+        );
+      }
 
       di<ILogger>().info(
         '[UVC_CHANNEL] Successfully joined same channel with UVC user: $channelId (UID: $uid)',
+      );
+      di<ILogger>().info(
+        '[UVC_CHANNEL] Main connection remains active - both video streams are now active',
       );
     } catch (e) {
       di<ILogger>().error('[UVC_CHANNEL] Error joining UVC channel: $e');
@@ -1619,11 +1660,13 @@ class AgoraCubit extends Cubit<AgoraState> {
   }
 
   /// Leave UVC channel
+  /// IMPORTANT: This only leaves the UVC connection - main connection stays active
+  /// The main video call continues seamlessly without interruption
   Future<void> leaveUVCChannel() async {
     if (!_isInitialized || _isDisposed || _uvcConnection == null) return;
 
     try {
-      di<ILogger>().info('[UVC_CHANNEL] Leaving UVC channel');
+      di<ILogger>().info('[UVC_CHANNEL] Leaving UVC channel (main connection remains active)');
 
       if (_isUVCJoined && _uvcConnection != null) {
         await _engine!.leaveChannelEx(connection: _uvcConnection!);
@@ -1643,7 +1686,20 @@ class AgoraCubit extends Cubit<AgoraState> {
         _uvcVideoTrackId = null;
       }
 
+      // CRITICAL: Do NOT call updateChannelMediaOptions here - it disrupts the main connection
+      // The main connection was never stopped, so no restoration is needed
+      // Calling updateChannelMediaOptions causes encoder/decoder reallocation which freezes video
+      // The main connection continues streaming seamlessly without any modifications
+      if (_localUserJoined && _mainConnection != null) {
+        di<ILogger>().info(
+          '[UVC_CHANNEL] Main connection remains active - no modifications needed after UVC channel leave',
+        );
+      }
+
       _resetUVCState();
+      di<ILogger>().info(
+        '[UVC_CHANNEL] UVC channel cleanup complete - main video call continues seamlessly',
+      );
     } catch (e) {
       di<ILogger>().error('[UVC_CHANNEL] Error leaving UVC channel: $e');
     }

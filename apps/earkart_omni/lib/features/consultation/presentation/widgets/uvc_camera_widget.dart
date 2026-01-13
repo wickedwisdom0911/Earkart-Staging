@@ -981,7 +981,34 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   }
 
   /// Start frame capture loop for Agora streaming
+  /// IMPORTANT: Ensures only ONE frame capture loop runs at a time
+  /// This prevents multiple video streams and black frames
   void _startFrameCaptureLoop() {
+    // Prevent multiple frame capture loops from running simultaneously
+    if (_frameCaptureTimer != null) {
+      di<ILogger>().warning(
+        '[UVC_CAMERA] Frame capture loop already running, stopping existing loop before starting new one',
+      );
+      _stopFrameCaptureLoop();
+      // Add small delay to ensure cleanup completes
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_isDisposed || !mounted) {
+          return;
+        }
+        _startFrameCaptureLoopInternal();
+      });
+      return;
+    }
+
+    if (_isDisposed || !mounted) {
+      return;
+    }
+
+    _startFrameCaptureLoopInternal();
+  }
+
+  /// Internal method to start frame capture loop
+  void _startFrameCaptureLoopInternal() {
     if (_frameCaptureTimer != null || _isDisposed || !mounted) {
       return;
     }
@@ -998,7 +1025,16 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           return;
         }
 
+        // Double-check timer is still null before starting (prevent race conditions)
+        if (_frameCaptureTimer != null) {
+          di<ILogger>().warning(
+            '[UVC_CAMERA] Frame capture timer already exists, skipping duplicate start',
+          );
+          return;
+        }
+
         // Start periodic frame capture and push to Agora
+        // Only ONE timer should be active at any time
         _frameCaptureTimer = Timer.periodic(_frameCaptureInterval, (timer) {
           if (_isDisposed || !mounted || cameraController == null) {
             _stopFrameCaptureLoop();
@@ -1013,6 +1049,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
         di<ILogger>().info(
           '[UVC_CAMERA] Frame capture loop started at ~${1000 / _frameCaptureInterval.inMilliseconds}fps',
+        );
+        di<ILogger>().info(
+          '[UVC_CAMERA] Single frame capture loop active - no duplicate streams',
         );
       });
     } catch (e) {
