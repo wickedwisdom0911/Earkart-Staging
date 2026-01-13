@@ -60,6 +60,13 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   bool _frameCaptureStopped = false;
   // Completer to wait for frame capture to fully stop
   Completer<void>? _frameCaptureStopCompleter;
+  // Mutex/lock for camera operations to prevent concurrent opens/closes
+  bool _cameraOperationInProgress = false;
+  Completer<void>? _cameraOperationCompleter;
+  // Track if camera is currently opening to prevent duplicate opens
+  bool _isCameraOpening = false;
+  // Track if camera is currently closing to prevent duplicate closes
+  bool _isCameraClosing = false;
   // Note: Permission checks removed - permissions are granted at app startup
 
   @override
@@ -183,103 +190,167 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     });
   }
 
-  Future<void> _closeCamera() async {
-    di<ILogger>().info('Closing camera...');
+  /// Acquire camera operation lock - prevents concurrent operations
+  Future<bool> _acquireCameraOperationLock() async {
+    if (_cameraOperationInProgress) {
+      di<ILogger>().warning(
+        'Camera operation already in progress, waiting for completion...',
+      );
+      // Wait for current operation to complete
+      if (_cameraOperationCompleter != null) {
+        try {
+          await _cameraOperationCompleter!.future.timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              di<ILogger>().error(
+                'Timeout waiting for camera operation to complete',
+              );
+            },
+          );
+        } catch (e) {
+          di<ILogger>().error('Error waiting for camera operation: $e');
+        }
+      }
+      // Check again after waiting
+      if (_cameraOperationInProgress) {
+        di<ILogger>().warning(
+          'Camera operation still in progress after wait, skipping...',
+        );
+        return false;
+      }
+    }
 
-    // Don't close camera if it's already working properly
-    if (isInitialized && _isViewReady && !_isDisposed) {
-      di<ILogger>().info('Camera is working properly, not closing');
+    _cameraOperationInProgress = true;
+    _cameraOperationCompleter = Completer<void>();
+    return true;
+  }
+
+  /// Release camera operation lock
+  void _releaseCameraOperationLock() {
+    _cameraOperationInProgress = false;
+    _cameraOperationCompleter?.complete();
+    _cameraOperationCompleter = null;
+  }
+
+  Future<void> _closeCamera() async {
+    // Prevent concurrent close operations
+    if (_isCameraClosing) {
+      di<ILogger>().info('Camera close already in progress, skipping...');
       return;
     }
 
-    // CRITICAL: Stop frame capture FIRST to prevent frames from being pushed during close
-    _frameCaptureStopped = true;
-    _stopFrameCaptureLoop();
-    _cachedAgoraCubit = null; // Clear AgoraCubit reference
+    // Acquire lock for camera operation
+    final lockAcquired = await _acquireCameraOperationLock();
+    if (!lockAcquired) {
+      di<ILogger>().warning(
+        'Could not acquire lock for camera close, skipping...',
+      );
+      return;
+    }
 
-    // Cancel any pending timers
-    _initializationTimer?.cancel();
-    _platformViewTimer?.cancel();
+    _isCameraClosing = true;
 
-    if (cameraController != null) {
-      try {
-        // Add initial delay to allow any pending operations to complete
-        await Future.delayed(const Duration(milliseconds: 100));
+    try {
+      di<ILogger>().info('Closing camera...');
 
-        // Step 1: Stop capture stream
+      // Don't close camera if it's already working properly
+      if (isInitialized && _isViewReady && !_isDisposed) {
+        di<ILogger>().info('Camera is working properly, not closing');
+        return;
+      }
+
+      // CRITICAL: Stop frame capture FIRST to prevent frames from being pushed during close
+      _frameCaptureStopped = true;
+      _stopFrameCaptureLoop();
+      _cachedAgoraCubit = null; // Clear AgoraCubit reference
+
+      // Cancel any pending timers
+      _initializationTimer?.cancel();
+      _platformViewTimer?.cancel();
+
+      if (cameraController != null) {
         try {
-          di<ILogger>().info('Stopping capture stream...');
-          cameraController?.captureStreamStop();
-          await Future.delayed(const Duration(milliseconds: 150));
-          di<ILogger>().info('Capture stream stopped');
-        } catch (e) {
-          di<ILogger>().error('Error stopping capture stream: $e');
-          // Continue with cleanup even if this fails
+          // Add initial delay to allow any pending operations to complete
           await Future.delayed(const Duration(milliseconds: 100));
-        }
 
-        // Step 2: Close camera
-        try {
-          di<ILogger>().info('Closing camera...');
-          cameraController?.closeCamera();
-          await Future.delayed(const Duration(milliseconds: 150));
-          di<ILogger>().info('Camera closed');
-        } catch (e) {
-          di<ILogger>().error('Error closing camera: $e');
-          // Continue with cleanup even if this fails
-          await Future.delayed(const Duration(milliseconds: 100));
-        }
-
-        // Step 3: Dispose controller
-        try {
-          di<ILogger>().info('Disposing camera controller...');
-          final controller = cameraController;
-          if (controller != null) {
-            cameraController = null; // Clear reference first
+          // Step 1: Stop capture stream
+          try {
+            di<ILogger>().info('Stopping capture stream...');
+            cameraController?.captureStreamStop();
+            await Future.delayed(const Duration(milliseconds: 150));
+            di<ILogger>().info('Capture stream stopped');
+          } catch (e) {
+            di<ILogger>().error('Error stopping capture stream: $e');
+            // Continue with cleanup even if this fails
             await Future.delayed(const Duration(milliseconds: 100));
-            controller.dispose();
-            di<ILogger>().info('Camera controller disposed');
           }
-        } catch (e) {
-          di<ILogger>().error('Error disposing camera controller: $e');
-          cameraController = null; // Ensure reference is cleared
-        }
 
-        // Final delay for cleanup
-        await Future.delayed(const Duration(milliseconds: 100));
-      } catch (e) {
-        di<ILogger>().error('Error during camera cleanup: $e');
-        cameraController = null; // Ensure reference is cleared on error
-      } finally {
-        // Ensure controller is null
-        cameraController = null;
-
-        // Only call setState if the widget is still mounted and not disposed
-        if (mounted && !_isDisposed) {
-          setState(() {
-            isInitialized = false;
-            _isViewReady = false;
-            _initializationTriggered = false;
-            _status = 'Camera closed';
-          });
-        }
-
-        // Notify parent only if the camera had opened at least once, to avoid premature hide
-        try {
-          if (_hasEverOpened) {
-            widget.onCameraStateChanged?.call(false);
-            di<ILogger>().info('📷 Notified parent that camera is closed');
-          } else {
-            di<ILogger>().info(
-              '📷 Skipping parent notification since camera never opened',
-            );
+          // Step 2: Close camera
+          try {
+            di<ILogger>().info('Closing camera...');
+            cameraController?.closeCamera();
+            await Future.delayed(const Duration(milliseconds: 150));
+            di<ILogger>().info('Camera closed');
+          } catch (e) {
+            di<ILogger>().error('Error closing camera: $e');
+            // Continue with cleanup even if this fails
+            await Future.delayed(const Duration(milliseconds: 100));
           }
+
+          // Step 3: Dispose controller
+          try {
+            di<ILogger>().info('Disposing camera controller...');
+            final controller = cameraController;
+            if (controller != null) {
+              cameraController = null; // Clear reference first
+              await Future.delayed(const Duration(milliseconds: 100));
+              controller.dispose();
+              di<ILogger>().info('Camera controller disposed');
+            }
+          } catch (e) {
+            di<ILogger>().error('Error disposing camera controller: $e');
+            cameraController = null; // Ensure reference is cleared
+          }
+
+          // Final delay for cleanup
+          await Future.delayed(const Duration(milliseconds: 100));
         } catch (e) {
-          di<ILogger>().error(
-            'Error notifying parent about camera state change: $e',
-          );
+          di<ILogger>().error('Error during camera cleanup: $e');
+          cameraController = null; // Ensure reference is cleared on error
         }
       }
+
+      // Ensure controller is null
+      cameraController = null;
+
+      // Only call setState if the widget is still mounted and not disposed
+      if (mounted && !_isDisposed) {
+        setState(() {
+          isInitialized = false;
+          _isViewReady = false;
+          _initializationTriggered = false;
+          _status = 'Camera closed';
+        });
+      }
+
+      // Notify parent only if the camera had opened at least once, to avoid premature hide
+      try {
+        if (_hasEverOpened) {
+          widget.onCameraStateChanged?.call(false);
+          di<ILogger>().info('📷 Notified parent that camera is closed');
+        } else {
+          di<ILogger>().info(
+            '📷 Skipping parent notification since camera never opened',
+          );
+        }
+      } catch (e) {
+        di<ILogger>().error(
+          'Error notifying parent about camera state change: $e',
+        );
+      }
+    } finally {
+      _isCameraClosing = false;
+      _releaseCameraOperationLock();
     }
   }
 
@@ -526,10 +597,18 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         _permissionsGranted = true;
       }
 
-      // Don't reinitialize if camera is already working
-      if (isInitialized && cameraController != null) {
+      // Don't reinitialize if camera is already working or if operations are in progress
+      if (isInitialized && cameraController != null && _isViewReady) {
         di<ILogger>().info(
           'Camera already initialized and working, skipping reinitialization',
+        );
+        return;
+      }
+
+      // Don't initialize if camera is currently opening or closing
+      if (_isCameraOpening || _isCameraClosing || _cameraOperationInProgress) {
+        di<ILogger>().info(
+          'Camera operation already in progress (opening: $_isCameraOpening, closing: $_isCameraClosing, operation: $_cameraOperationInProgress), skipping initialization',
         );
         return;
       }
@@ -649,6 +728,10 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
         switch (state) {
           case UVCCameraState.opened:
+            // Reset opening flag when camera successfully opens
+            _isCameraOpening = false;
+            _releaseCameraOperationLock();
+
             safeSetState(() {
               isInitialized = true;
               _isViewReady = true;
@@ -688,6 +771,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           case UVCCameraState.closed:
             print('Camera closed');
 
+            // Reset opening/closing flags
+            _isCameraOpening = false;
+            _isCameraClosing = false;
+            _releaseCameraOperationLock();
+
             // Stop frame capture loop FIRST before state changes
             _stopFrameCaptureLoop();
 
@@ -713,6 +801,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             break;
           case UVCCameraState.error:
             print('Camera error occurred');
+
+            // Reset opening/closing flags
+            _isCameraOpening = false;
+            _isCameraClosing = false;
+            _releaseCameraOperationLock();
 
             // Stop frame capture loop FIRST before state changes
             _stopFrameCaptureLoop();
@@ -912,183 +1005,219 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
           if (!_isDisposed && _isAppActive && mounted) {
             try {
-              di<ILogger>().info('Opening UVC camera...');
+              // Prevent concurrent camera opens
+              if (_isCameraOpening) {
+                di<ILogger>().warning(
+                  'Camera open already in progress, skipping duplicate call...',
+                );
+                return;
+              }
 
-              // Store initial state to detect if camera actually opens
-              final wasInitialized = isInitialized;
+              // Acquire lock for camera operation
+              final lockAcquired = await _acquireCameraOperationLock();
+              if (!lockAcquired) {
+                di<ILogger>().warning(
+                  'Could not acquire lock for camera open, skipping...',
+                );
+                return;
+              }
 
-              await cameraController!.openUVCCamera();
-              di<ILogger>().info('Camera openUVCCamera() call completed');
+              _isCameraOpening = true;
 
-              // DO NOT set _isViewReady here - wait for camera state callback
-              // The camera state callback will set isInitialized and _isViewReady
-              // when UVCCameraState.opened is received
+              try {
+                di<ILogger>().info('Opening UVC camera...');
 
-              // Wait for the camera state callback to fire
-              // For device owner apps, onConnectDev might not fire immediately
-              // So we wait longer and potentially retry
-              const maxWaitAttempts = 5;
-              const waitInterval = Duration(milliseconds: 2000);
-              bool cameraOpened = false;
+                // Store initial state to detect if camera actually opens
+                final wasInitialized = isInitialized;
 
-              for (int attempt = 0; attempt < maxWaitAttempts; attempt++) {
-                await Future.delayed(waitInterval);
+                await cameraController!.openUVCCamera();
+                di<ILogger>().info('Camera openUVCCamera() call completed');
 
-                // Check if camera actually opened (state callback should have set isInitialized)
-                if (!_isDisposed && mounted && isInitialized) {
-                  cameraOpened = true;
-                  di<ILogger>().info(
-                    'Camera opened successfully after ${attempt + 1} wait attempts',
-                  );
-                  break;
-                }
+                // DO NOT set _isViewReady here - wait for camera state callback
+                // The camera state callback will set isInitialized and _isViewReady
+                // when UVCCameraState.opened is received
 
-                // If camera still not opened, update status and potentially retry
-                if (!_isDisposed && mounted && !isInitialized) {
-                  di<ILogger>().info(
-                    'Camera not yet opened, attempt ${attempt + 1}/$maxWaitAttempts',
-                  );
+                // Wait for the camera state callback to fire
+                // For device owner apps, onConnectDev might not fire immediately
+                // So we wait longer and potentially retry
+                const maxWaitAttempts = 5;
+                const waitInterval = Duration(milliseconds: 2000);
+                bool cameraOpened = false;
 
-                  // Update status to show we're waiting
-                  try {
-                    if (SchedulerBinding.instance.schedulerPhase ==
-                        SchedulerPhase.idle) {
-                      setState(() {
-                        _status =
-                            'Waiting for camera connection... (${attempt + 1}/$maxWaitAttempts)';
-                      });
-                    } else {
-                      SchedulerBinding.instance.addPostFrameCallback((_) {
-                        if (mounted && !_isDisposed) {
-                          setState(() {
-                            _status =
-                                'Waiting for camera connection... (${attempt + 1}/$maxWaitAttempts)';
-                          });
-                        }
-                      });
-                    }
-                  } catch (e) {
-                    di<ILogger>().error('Error updating camera status: $e');
+                for (int attempt = 0; attempt < maxWaitAttempts; attempt++) {
+                  await Future.delayed(waitInterval);
+
+                  // Check if camera actually opened (state callback should have set isInitialized)
+                  if (!_isDisposed && mounted && isInitialized) {
+                    cameraOpened = true;
+                    di<ILogger>().info(
+                      'Camera opened successfully after ${attempt + 1} wait attempts',
+                    );
+                    break;
                   }
 
-                  // Retry opening camera if it's still not available
-                  // This helps when onConnectDev hasn't fired yet
-                  if (attempt < maxWaitAttempts - 1) {
+                  // If camera still not opened, update status and potentially retry
+                  if (!_isDisposed && mounted && !isInitialized) {
+                    di<ILogger>().info(
+                      'Camera not yet opened, attempt ${attempt + 1}/$maxWaitAttempts',
+                    );
+
+                    // Update status to show we're waiting
                     try {
-                      di<ILogger>().info(
-                        'Retrying camera open (attempt ${attempt + 2}/$maxWaitAttempts)...',
-                      );
-                      await cameraController!.openUVCCamera();
-                    } catch (retryError) {
-                      di<ILogger>().warning(
-                        'Camera open retry failed: $retryError',
-                      );
-                      // Continue waiting - camera might still connect
+                      if (SchedulerBinding.instance.schedulerPhase ==
+                          SchedulerPhase.idle) {
+                        setState(() {
+                          _status =
+                              'Waiting for camera connection... (${attempt + 1}/$maxWaitAttempts)';
+                        });
+                      } else {
+                        SchedulerBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && !_isDisposed) {
+                            setState(() {
+                              _status =
+                                  'Waiting for camera connection... (${attempt + 1}/$maxWaitAttempts)';
+                            });
+                          }
+                        });
+                      }
+                    } catch (e) {
+                      di<ILogger>().error('Error updating camera status: $e');
+                    }
+
+                    // Retry opening camera if it's still not available
+                    // This helps when onConnectDev hasn't fired yet
+                    // BUT: Don't retry if we're already opening (prevent duplicate opens)
+                    if (attempt < maxWaitAttempts - 1 && !_isCameraOpening) {
+                      try {
+                        di<ILogger>().info(
+                          'Retrying camera open (attempt ${attempt + 2}/$maxWaitAttempts)...',
+                        );
+                        // Note: This retry will be handled by the lock mechanism above
+                        // We don't need to acquire lock again here since we're already in the locked section
+                        await cameraController!.openUVCCamera();
+                      } catch (retryError) {
+                        di<ILogger>().warning(
+                          'Camera open retry failed: $retryError',
+                        );
+                        // Continue waiting - camera might still connect
+                      }
                     }
                   }
                 }
-              }
 
-              // Final check - if camera still not opened, log warning but don't treat as error
-              // The camera state callback will fire when onConnectDev eventually fires
-              if (!_isDisposed &&
-                  mounted &&
-                  !isInitialized &&
-                  !cameraOpened &&
-                  !wasInitialized) {
-                di<ILogger>().warning(
-                  'Camera openUVCCamera() completed but camera state callback did not fire opened state after $maxWaitAttempts attempts',
-                );
-                // Update status to indicate camera is waiting for USB device connection
-                if (mounted && !_isDisposed) {
-                  try {
-                    if (SchedulerBinding.instance.schedulerPhase ==
-                        SchedulerPhase.idle) {
-                      setState(() {
-                        _status = 'Waiting for camera to connect...';
-                      });
-                    } else {
-                      SchedulerBinding.instance.addPostFrameCallback((_) {
-                        if (mounted && !_isDisposed) {
-                          setState(() {
-                            _status = 'Waiting for camera to connect...';
-                          });
-                        }
-                      });
+                // Final check - if camera still not opened, log warning but don't treat as error
+                // The camera state callback will fire when onConnectDev eventually fires
+                if (!_isDisposed &&
+                    mounted &&
+                    !isInitialized &&
+                    !cameraOpened &&
+                    !wasInitialized) {
+                  di<ILogger>().warning(
+                    'Camera openUVCCamera() completed but camera state callback did not fire opened state after $maxWaitAttempts attempts',
+                  );
+                  // Update status to indicate camera is waiting for USB device connection
+                  if (mounted && !_isDisposed) {
+                    try {
+                      if (SchedulerBinding.instance.schedulerPhase ==
+                          SchedulerPhase.idle) {
+                        setState(() {
+                          _status = 'Waiting for camera to connect...';
+                        });
+                      } else {
+                        SchedulerBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && !_isDisposed) {
+                            setState(() {
+                              _status = 'Waiting for camera to connect...';
+                            });
+                          }
+                        });
+                      }
+                    } catch (e) {
+                      di<ILogger>().error('Error updating camera status: $e');
                     }
-                  } catch (e) {
-                    di<ILogger>().error('Error updating camera status: $e');
                   }
+                  // Don't treat as error - camera might still connect via onConnectDev callback
                 }
-                // Don't treat as error - camera might still connect via onConnectDev callback
-              }
-            } catch (openError) {
-              di<ILogger>().error('Error opening camera: $openError');
+              } catch (openError) {
+                di<ILogger>().error('Error opening camera: $openError');
 
-              final errorString = openError.toString().toLowerCase();
+                final errorString = openError.toString().toLowerCase();
 
-              // Handle USBMonitor initialization errors - these are recoverable
-              if (errorString.contains('usbmonitor') ||
-                  errorString.contains('usbcontrolblock') ||
-                  errorString.contains('musbmanager') ||
-                  errorString.contains('usbmonitor not initialized')) {
-                di<ILogger>().warning(
-                  'USBMonitor not initialized yet, waiting longer before retry...',
-                );
-                // Don't increment error count for USBMonitor initialization errors
+                // Handle USBMonitor initialization errors - these are recoverable
+                if (errorString.contains('usbmonitor') ||
+                    errorString.contains('usbcontrolblock') ||
+                    errorString.contains('musbmanager') ||
+                    errorString.contains('usbmonitor not initialized')) {
+                  di<ILogger>().warning(
+                    'USBMonitor not initialized yet, waiting longer before retry...',
+                  );
+                  // Don't increment error count for USBMonitor initialization errors
+                  if (mounted && !_isDisposed) {
+                    setState(() {
+                      _status = 'USBMonitor initializing - retrying...';
+                    });
+                  }
+                  // Schedule a retry with longer delay to allow USBMonitor to initialize
+                  Future.delayed(const Duration(seconds: 3), () {
+                    if (!_isDisposed && _isAppActive && mounted) {
+                      // Retry opening the camera
+                      _proceedWithCameraInitialization();
+                    }
+                  });
+                  return;
+                }
+
+                // Handle native library errors specifically
+                if (errorString.contains('native_library_error')) {
+                  di<ILogger>().warning(
+                    'Native library error detected, attempting recovery...',
+                  );
+                  // Don't increment error count for native library errors, try to recover
+                  if (mounted && !_isDisposed) {
+                    setState(() {
+                      _status = 'Native library issue - retrying...';
+                    });
+                  }
+                  // Schedule a retry with longer delay
+                  Future.delayed(const Duration(seconds: 5), () {
+                    if (!_isDisposed && _isAppActive && mounted) {
+                      _handleCameraError();
+                    }
+                  });
+                  return;
+                }
+
                 if (mounted && !_isDisposed) {
                   setState(() {
-                    _status = 'USBMonitor initializing - retrying...';
+                    _errorCount++;
+                    _status = 'Failed to open camera';
                   });
+                  _handleCameraError();
                 }
-                // Schedule a retry with longer delay to allow USBMonitor to initialize
-                Future.delayed(const Duration(seconds: 3), () {
-                  if (!_isDisposed && _isAppActive && mounted) {
-                    // Retry opening the camera
-                    _proceedWithCameraInitialization();
-                  }
-                });
-                return;
+              } finally {
+                _isCameraOpening = false;
+                _releaseCameraOperationLock();
               }
+            } catch (initError) {
+              di<ILogger>().error('Camera initialization failed: $initError');
 
-              // Handle native library errors specifically
-              if (errorString.contains('native_library_error')) {
-                di<ILogger>().warning(
-                  'Native library error detected, attempting recovery...',
-                );
-                // Don't increment error count for native library errors, try to recover
-                if (mounted && !_isDisposed) {
-                  setState(() {
-                    _status = 'Native library issue - retrying...';
-                  });
-                }
-                // Schedule a retry with longer delay
-                Future.delayed(const Duration(seconds: 5), () {
-                  if (!_isDisposed && _isAppActive && mounted) {
-                    _handleCameraError();
-                  }
-                });
-                return;
-              }
-
+              // Update error state
               if (mounted && !_isDisposed) {
                 setState(() {
                   _errorCount++;
-                  _status = 'Failed to open camera';
+                  _status =
+                      'Initialization failed: ${initError.toString().split(':').first}';
                 });
                 _handleCameraError();
               }
             }
           }
-        } catch (initError) {
-          di<ILogger>().error('Camera initialization failed: $initError');
-
-          // Update error state
+        } catch (e) {
+          di<ILogger>().error('Error in camera initialization: $e');
           if (mounted && !_isDisposed) {
             setState(() {
               _errorCount++;
-              _status =
-                  'Initialization failed: ${initError.toString().split(':').first}';
+              _status = 'Initialization error: $e';
             });
             _handleCameraError();
           }
