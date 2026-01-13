@@ -186,6 +186,7 @@ class AgoraCubit extends Cubit<AgoraState> {
   RtcEngineEx? get engine => _engine;
   String? get joinedChannelName => _joinedChannelName;
   bool get isUVCJoined => _isUVCJoined;
+  RtcConnection? get mainConnection => _mainConnection;
   String? get uvcChannelName => _uvcChannelName;
   int? get uvcVideoTrackId => _uvcVideoTrackId;
 
@@ -595,10 +596,41 @@ class AgoraCubit extends Cubit<AgoraState> {
               di<ILogger>().info(
                 '[VIDEO_CALL] Remote user $remoteUid left video call channel (reason: $reason)',
               );
-              // Only clear main remote UID if it matches
+              
+              // CRITICAL: Only clear remoteUid if it's a real offline event
+              // During otoscopy operations, there might be temporary connection state changes
+              // that trigger offline events, but the remote user is still connected
+              // We should only clear remoteUid if:
+              // 1. It matches the current remoteUid
+              // 2. The reason is userOfflineQuit (user actually left) or userOfflineDropped (connection dropped)
+              // 3. We're NOT in the middle of UVC operations (which might cause false offline events)
               if (_remoteUid == remoteUid) {
-                _remoteUid = null;
-                di<ILogger>().info('[VIDEO_CALL] Cleared main remote UID');
+                // Check if we're in the middle of UVC operations
+                // During otoscopy start/stop, there might be temporary state changes
+                // that cause false offline events - preserve remoteUid in these cases
+                final isDuringUVCOperations = _isUVCJoining || _isUVCJoined;
+                
+                if (isDuringUVCOperations) {
+                  di<ILogger>().info(
+                    '[VIDEO_CALL] Preserving remote UID during UVC operations (reason: $reason) - user is still connected',
+                  );
+                  // Don't clear remoteUid during UVC operations - these are likely false offline events
+                  return;
+                }
+                
+                // Only clear if it's a real offline reason
+                // UserOfflineReasonType.userOfflineQuit = 0 (user left)
+                // UserOfflineReasonType.userOfflineDropped = 1 (dropped)
+                // UserOfflineReasonType.userOfflineBecomeAudience = 2 (became audience)
+                if (reason == UserOfflineReasonType.userOfflineQuit ||
+                    reason == UserOfflineReasonType.userOfflineDropped) {
+                  _remoteUid = null;
+                  di<ILogger>().info('[VIDEO_CALL] Cleared main remote UID - user actually left (reason: $reason)');
+                } else {
+                  di<ILogger>().info(
+                    '[VIDEO_CALL] Preserving remote UID - reason is not a real offline: $reason',
+                  );
+                }
               } else {
                 di<ILogger>().info(
                   '[VIDEO_CALL] Main remote UID mismatch - current: $_remoteUid, event: $remoteUid',

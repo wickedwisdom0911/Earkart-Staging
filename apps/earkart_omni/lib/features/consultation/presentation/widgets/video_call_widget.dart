@@ -227,15 +227,19 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                 di<ILogger>().info(
                   '[VIDEO_CALL] Mic on: $isMicOn, Camera on: $isCameraOn',
                 );
-                
+
                 // Increment video setup version when:
-                // 1. Remote UID changes
+                // 1. Remote UID changes (new user joins or different user)
                 // 2. Local user rejoins (was not joined, now joined) with remote user present
-                // This forces remote video view to rebuild properly on rejoin/refresh
+                // IMPORTANT: Do NOT increment during otoscopy operations to prevent video disconnection
+                // The video view should remain stable during otoscopy start/stop
                 if (localUserJoined && remoteUid != null) {
                   final remoteUidChanged = _lastRemoteUid != remoteUid;
-                  final localUserRejoined = !_wasLocalUserJoined && localUserJoined;
-                  
+                  final localUserRejoined =
+                      !_wasLocalUserJoined && localUserJoined;
+
+                  // Only update if remoteUid actually changed or local user rejoined
+                  // Don't update if remoteUid is the same (prevents unnecessary rebuilds during otoscopy)
                   if (remoteUidChanged || localUserRejoined) {
                     di<ILogger>().info(
                       '[VIDEO_CALL] Video setup trigger - remoteUidChanged: $remoteUidChanged, localUserRejoined: $localUserRejoined',
@@ -247,11 +251,12 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                       setState(() {});
                     }
                   }
+                  // If remoteUid hasn't changed, don't increment version - keep video stable
                 } else if (!localUserJoined && _lastRemoteUid != null) {
                   // Reset when local user leaves to ensure fresh setup on rejoin
                   _lastRemoteUid = null;
                 }
-                
+
                 // Track local user join state
                 _wasLocalUserJoined = localUserJoined;
               },
@@ -280,9 +285,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
             body: Stack(
               children: [
                 // Remote video - full screen background
-                Positioned.fill(
-                  child: _remoteVideo(agoraCubit),
-                ),
+                _remoteVideo(agoraCubit),
                 // Local video - small overlay in top-left corner
                 Align(
                   alignment: Alignment.topLeft,
@@ -307,27 +310,59 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        RawMaterialButton(
+                        TextButton.icon(
                           onPressed: () {
                             di<ILogger>().info(
                               '[VIDEO_CALL] Toggling microphone',
                             );
                             agoraCubit.toggleMicrophone();
                           },
-                          shape: const CircleBorder(),
-                          padding: const EdgeInsets.all(12.0),
-                          fillColor:
-                              agoraCubit.isMicOn ? Colors.white : Colors.red,
-                          child: Icon(
+                          icon: Icon(
                             agoraCubit.isMicOn ? Icons.mic : Icons.mic_off,
+                            size: 20.0,
                             color:
                                 agoraCubit.isMicOn
-                                    ? Colors.black
+                                    ? Colors.black87
                                     : Colors.white,
-                            size: 20.0,
+                          ),
+                          label: Text(
+                            agoraCubit.isMicOn ? 'Mute' : 'Unmute',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color:
+                                  agoraCubit.isMicOn
+                                      ? Colors.black87
+                                      : Colors.white,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            backgroundColor:
+                                agoraCubit.isMicOn
+                                    ? Colors.white.withAlpha(250)
+                                    : Colors.red.withAlpha(250),
+                            foregroundColor:
+                                agoraCubit.isMicOn
+                                    ? Colors.black87
+                                    : Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(
+                                color:
+                                    agoraCubit.isMicOn
+                                        ? Colors.white.withAlpha(128)
+                                        : Colors.red.withAlpha(128),
+                                width: 1,
+                              ),
+                            ),
                           ),
                         ),
-                        RawMaterialButton(
+                        const SizedBox(width: 16),
+                        TextButton.icon(
                           onPressed: () async {
                             di<ILogger>().info(
                               '[VIDEO_CALL] End consultation button pressed',
@@ -365,7 +400,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                                           ),
                                         ),
                                         const SizedBox(height: 20),
-                                        
+
                                         // Title
                                         const Text(
                                           'End Consultation',
@@ -376,7 +411,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                                           ),
                                         ),
                                         const SizedBox(height: 12),
-                                        
+
                                         // Message
                                         Text(
                                           'Are you sure you want to end this consultation?',
@@ -388,18 +423,26 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                                           textAlign: TextAlign.center,
                                         ),
                                         const SizedBox(height: 24),
-                                        
+
                                         // Buttons
                                         Row(
                                           children: [
                                             Expanded(
                                               child: TextButton(
-                                                onPressed: () =>
-                                                    Navigator.of(context2).pop(false),
+                                                onPressed:
+                                                    () => Navigator.of(
+                                                      context2,
+                                                    ).pop(false),
                                                 style: TextButton.styleFrom(
-                                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 12,
+                                                      ),
                                                   shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(10),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
                                                   ),
                                                 ),
                                                 child: const Text(
@@ -414,14 +457,23 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                                             const SizedBox(width: 12),
                                             Expanded(
                                               child: ElevatedButton(
-                                                onPressed: () =>
-                                                    Navigator.of(context2).pop(true),
+                                                onPressed:
+                                                    () => Navigator.of(
+                                                      context2,
+                                                    ).pop(true),
                                                 style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.red.shade600,
+                                                  backgroundColor:
+                                                      Colors.red.shade600,
                                                   foregroundColor: Colors.white,
-                                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 12,
+                                                      ),
                                                   shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(10),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
                                                   ),
                                                   elevation: 0,
                                                 ),
@@ -501,13 +553,35 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                               }
                             }
                           },
-                          shape: const CircleBorder(),
-                          padding: const EdgeInsets.all(15.0),
-                          fillColor: Colors.red,
-                          child: const Icon(
+                          icon: const Icon(
                             Icons.call_end,
+                            size: 20.0,
                             color: Colors.white,
-                            size: 35.0,
+                          ),
+                          label: Text(
+                            'End Call',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            backgroundColor: Colors.red.shade600.withOpacity(
+                              0.9,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(
+                                color: Colors.red.shade700.withOpacity(0.8),
+                                width: 1,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -578,23 +652,32 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       );
       final channelForRender =
           agoraCubit.joinedChannelName ?? widget.channelName;
-      
-      // Use main connection explicitly to ensure we're rendering from the correct connection
+
+      // CRITICAL: Use main connection explicitly to ensure we're rendering from the correct connection
       // This prevents issues when UVC connection is also active in the same channel
-      // Create connection with the channel name - this ensures proper routing
-      final connectionForRender = RtcConnection(channelId: channelForRender);
-      
+      // The main connection must be used to ensure remote user video stays connected during otoscopy
+      final connectionForRender =
+          agoraCubit.mainConnection ??
+          RtcConnection(channelId: channelForRender);
+
+      di<ILogger>().debug(
+        '[VIDEO_CALL] Using connection for remote video: channelId=${connectionForRender.channelId}, localUid=${connectionForRender.localUid}',
+      );
+
       // Use a unique key that includes video setup version to force rebuild on rejoin/refresh
       // This ensures the video view is properly recreated when rejoining without constant rebuilds
-      final uniqueKey = 'remote-$channelForRender-${agoraCubit.remoteUid}-v$_videoSetupVersion';
-      
+      final uniqueKey =
+          'remote-$channelForRender-${agoraCubit.remoteUid}-v$_videoSetupVersion';
+
       return AgoraVideoView(
         key: ValueKey(uniqueKey),
         controller: VideoViewController.remote(
           rtcEngine: agoraCubit.engine!,
           canvas: VideoCanvas(
             uid: agoraCubit.remoteUid,
-            renderMode: RenderModeType.renderModeFit, // Fit to screen with proper aspect ratio
+            renderMode:
+                RenderModeType
+                    .renderModeHidden, // Fill screen completely maintaining aspect ratio
           ),
           connection: connectionForRender,
         ),
