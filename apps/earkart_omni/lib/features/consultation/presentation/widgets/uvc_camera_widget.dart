@@ -69,6 +69,8 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   bool _isCameraClosing = false;
   // Track which operation holds the lock to prevent premature release
   String? _currentOperationType;
+  // Track if we're reusing an existing controller to adjust delays
+  bool _isReusingController = false;
   // Note: Permission checks removed - permissions are granted at app startup
 
   @override
@@ -668,8 +670,9 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         );
         try {
           await _closeCamera();
-          // Wait for camera to fully close before reinitializing
-          await Future.delayed(const Duration(milliseconds: 500));
+          // Wait longer for camera to fully close and USB resources to be released
+          // This prevents USB interface conflicts (err=-99) when reopening
+          await Future.delayed(const Duration(milliseconds: 1500));
         } catch (e) {
           di<ILogger>().error(
             'Error closing camera before reinitialization: $e',
@@ -678,81 +681,98 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         }
       }
 
-      _isInitializing = true;
-      di<ILogger>().info('Initializing camera controller...');
-      if (mounted && !_isDisposed) {
-        setState(() => _status = 'Initializing camera...');
-      }
+      // CRITICAL: Don't create a new controller if one already exists and is still valid
+      // Creating a new controller creates a new platform view, which triggers another onConnectDev
+      // This causes multiple concurrent open attempts and USB interface conflicts
+      _isReusingController = cameraController != null;
 
-      // Create new controller with proper error handling
-      di<ILogger>().info('Creating UVCCameraController...');
-      try {
-        // Create controller first
-        cameraController = UVCCameraController();
+      if (_isReusingController) {
         di<ILogger>().info(
-          'UVCCameraController created: ${cameraController != null}',
+          'Camera controller already exists, reusing existing controller to prevent multiple platform views',
         );
-
-        if (cameraController == null) {
-          throw Exception('Failed to create UVCCameraController');
+        _isInitializing = true;
+        di<ILogger>().info('Reinitializing with existing camera controller...');
+        if (mounted && !_isDisposed) {
+          setState(() => _status = 'Reinitializing camera...');
+        }
+      } else {
+        _isInitializing = true;
+        di<ILogger>().info('Initializing camera controller...');
+        if (mounted && !_isDisposed) {
+          setState(() => _status = 'Initializing camera...');
         }
 
-        // Check native library availability in release mode
-        if (ReleaseConfig.isReleaseMode) {
-          di<ILogger>().info('Checking native library availability...');
-          final nativeStatus = await cameraController!.getNativeLibraryStatus();
-          di<ILogger>().info('Native library status: $nativeStatus');
-
-          // Test native library functionality
-          final functionalityTest =
-              await cameraController!.testNativeLibraryFunctionality();
-          di<ILogger>().info(
-            'Native library functionality test: $functionalityTest',
-          );
-
-          final isNativeAvailable =
-              nativeStatus['overall_available'] as bool? ?? false;
-          if (!isNativeAvailable) {
-            di<ILogger>().warning(
-              'Native libraries not available, but continuing with camera initialization...',
-            );
-            // Don't throw exception, just log a warning and continue
-            // The camera might still work if the libraries are loaded by the dependency
-          } else {
-            di<ILogger>().info('Native libraries are available');
-          }
-        }
-
-        // In release mode, we need to ensure the platform view is fully ready
-        if (ReleaseConfig.isReleaseMode) {
-          di<ILogger>().info(
-            'Release mode detected, ensuring platform view is ready...',
-          );
-
-          // Wait for the platform view to be fully initialized
-          // This is crucial in release mode where timing is more strict
-          await Future.delayed(ReleaseConfig.platformViewInitDelay);
-
-          // Additional safety check - wait for the next frame to ensure platform view is ready
-          await Future.delayed(const Duration(milliseconds: 1000));
-        }
-
-        // Now try to update resolution with proper error handling
+        // Create new controller with proper error handling
+        di<ILogger>().info('Creating UVCCameraController...');
         try {
-          cameraController!.updateResolution(
-            PreviewSize(width: 1280, height: 720),
+          // Create controller first
+          cameraController = UVCCameraController();
+          di<ILogger>().info(
+            'UVCCameraController created: ${cameraController != null}',
           );
-          di<ILogger>().info('Resolution updated successfully');
-        } catch (resolutionError) {
-          di<ILogger>().warning(
-            'Resolution update failed, continuing without resolution update: $resolutionError',
-          );
-          // Don't throw, just continue without resolution update
-          // This is common in release mode and doesn't prevent camera from working
+
+          if (cameraController == null) {
+            throw Exception('Failed to create UVCCameraController');
+          }
+
+          // Check native library availability in release mode
+          if (ReleaseConfig.isReleaseMode) {
+            di<ILogger>().info('Checking native library availability...');
+            final nativeStatus =
+                await cameraController!.getNativeLibraryStatus();
+            di<ILogger>().info('Native library status: $nativeStatus');
+
+            // Test native library functionality
+            final functionalityTest =
+                await cameraController!.testNativeLibraryFunctionality();
+            di<ILogger>().info(
+              'Native library functionality test: $functionalityTest',
+            );
+
+            final isNativeAvailable =
+                nativeStatus['overall_available'] as bool? ?? false;
+            if (!isNativeAvailable) {
+              di<ILogger>().warning(
+                'Native libraries not available, but continuing with camera initialization...',
+              );
+              // Don't throw exception, just log a warning and continue
+              // The camera might still work if the libraries are loaded by the dependency
+            } else {
+              di<ILogger>().info('Native libraries are available');
+            }
+          }
+
+          // In release mode, we need to ensure the platform view is fully ready
+          if (ReleaseConfig.isReleaseMode) {
+            di<ILogger>().info(
+              'Release mode detected, ensuring platform view is ready...',
+            );
+
+            // Wait for the platform view to be fully initialized
+            // This is crucial in release mode where timing is more strict
+            await Future.delayed(ReleaseConfig.platformViewInitDelay);
+
+            // Additional safety check - wait for the next frame to ensure platform view is ready
+            await Future.delayed(const Duration(milliseconds: 1000));
+          }
+
+          // Now try to update resolution with proper error handling
+          try {
+            cameraController!.updateResolution(
+              PreviewSize(width: 1280, height: 720),
+            );
+            di<ILogger>().info('Resolution updated successfully');
+          } catch (resolutionError) {
+            di<ILogger>().warning(
+              'Resolution update failed, continuing without resolution update: $resolutionError',
+            );
+            // Don't throw, just continue without resolution update
+            // This is common in release mode and doesn't prevent camera from working
+          }
+        } catch (e) {
+          di<ILogger>().error('Error creating UVCCameraController: $e');
+          throw Exception('Camera controller creation failed: $e');
         }
-      } catch (e) {
-        di<ILogger>().error('Error creating UVCCameraController: $e');
-        throw Exception('Camera controller creation failed: $e');
       }
 
       // CRITICAL: Trigger a rebuild to ensure UVCCameraView widget is created
@@ -1022,6 +1042,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       if (!_isDisposed) {
         _isInitializing = false;
         _initializationTriggered = false;
+        _isReusingController = false; // Reset reuse flag
       }
     }
   }
@@ -1120,7 +1141,14 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           // Add delay before opening camera to ensure initialization is complete
           // Increased delay to allow USBMonitor to fully initialize and process device connection
           // For device owner apps, USBMonitor needs time to trigger onConnectDev callback
-          if (ReleaseConfig.isReleaseMode) {
+          // If reusing existing controller, wait longer to ensure any previous operations completed
+          if (_isReusingController) {
+            di<ILogger>().info(
+              'Reusing existing controller - waiting longer to ensure previous operations completed',
+            );
+            // Wait longer when reusing to ensure USB resources are fully released
+            await Future.delayed(const Duration(seconds: 4));
+          } else if (ReleaseConfig.isReleaseMode) {
             await Future.delayed(const Duration(seconds: 3));
           } else {
             await Future.delayed(const Duration(seconds: 2));
