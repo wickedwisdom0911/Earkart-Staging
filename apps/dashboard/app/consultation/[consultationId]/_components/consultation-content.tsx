@@ -92,11 +92,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
       </div>
       
       {/* Otoscopy indicator when active */}
-      {isOtoscopyActive && (
-        <div className="absolute top-2 left-2 z-20 bg-green-600 text-white px-3 py-1 rounded-lg text-sm">
-          🔬 Otoscopy Active
-        </div>
-      )}
+   
       
       {/* Patient video - always show, exclude otoscopy stream to keep it unchanged */}
       <VideoCall

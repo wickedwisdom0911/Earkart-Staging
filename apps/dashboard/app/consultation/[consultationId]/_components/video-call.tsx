@@ -724,7 +724,21 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                       transform: "scaleX(-1)"
                     }}
                   >
-                    <div className="absolute bottom-3 left-3 text-white text-sm bg-black/50 px-2 py-1 rounded">
+                    {/* Left indicator - Blue */}
+                    <div className="absolute top-1 left-3 text-white text-sm font-bold bg-red-600 px-1 py-1 rounded shadow-lg z-10"   style={{ transform: "scaleX(-1)" }}>
+                      R
+                    </div>
+                    
+                    {/* Right indicator - Red */}
+                    <div className="absolute top-1 right-3 text-white text-sm font-bold bg-blue-600 px-1 py-1 rounded shadow-lg z-10"   style={{ transform: "scaleX(-1)" }}>
+                      L
+                    </div>
+                    
+                    {/* Patient name - Unflipped (counter the parent's scaleX(-1)) */}
+                    <div 
+                      className="absolute bottom-3 left-3 text-white text-sm bg-black/50 px-2 py-1 rounded z-10"
+                      style={{ transform: "scaleX(-1)" }}
+                    >
                       {showOtoscopyOnly ? "🔬 Otoscopy" : patientName}
                     </div>
                   </RemoteUser>
