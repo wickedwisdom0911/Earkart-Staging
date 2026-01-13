@@ -51,6 +51,10 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   ); // ~30fps
   static const int _frameWidth = 1280;
   static const int _frameHeight = 720;
+  // Cache AgoraCubit reference to avoid context lookups in timer callback
+  AgoraCubit? _cachedAgoraCubit;
+  // Track if frame capture is in progress to prevent overlapping calls
+  bool _isFrameCaptureInProgress = false;
   // Note: Permission checks removed - permissions are granted at app startup
 
   @override
@@ -288,6 +292,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       _platformViewTimer?.cancel();
       _platformViewTimer = null;
       _stopFrameCaptureLoop(); // Stop frame capture loop
+      _cachedAgoraCubit = null; // Clear cached reference
     } catch (e) {
       di<ILogger>().error('[UVC_CAMERA] Error canceling timers: $e');
     }
@@ -586,6 +591,17 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               'Camera state: opened - camera is ready and working',
             );
 
+            // Cache AgoraCubit reference for frame capture loop
+            if (mounted && !_isDisposed) {
+              try {
+                _cachedAgoraCubit = context.read<AgoraCubit>();
+              } catch (e) {
+                di<ILogger>().warning(
+                  'Could not cache AgoraCubit reference: $e',
+                );
+              }
+            }
+
             // Start frame capture for Agora streaming
             _startFrameCaptureLoop();
 
@@ -768,10 +784,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           }
 
           // Add delay before opening camera to ensure initialization is complete
+          // Increased delay to allow USBMonitor to fully initialize
           if (ReleaseConfig.isReleaseMode) {
-            await Future.delayed(const Duration(seconds: 1));
+            await Future.delayed(const Duration(seconds: 2));
           } else {
-            await Future.delayed(const Duration(milliseconds: 500));
+            await Future.delayed(const Duration(milliseconds: 1500));
           }
 
           if (!_isDisposed && _isAppActive && mounted) {
@@ -790,8 +807,34 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             } catch (openError) {
               di<ILogger>().error('Error opening camera: $openError');
 
+              final errorString = openError.toString().toLowerCase();
+              
+              // Handle USBMonitor initialization errors - these are recoverable
+              if (errorString.contains('usbmonitor') ||
+                  errorString.contains('usbcontrolblock') ||
+                  errorString.contains('musbmanager') ||
+                  errorString.contains('usbmonitor not initialized')) {
+                di<ILogger>().warning(
+                  'USBMonitor not initialized yet, waiting longer before retry...',
+                );
+                // Don't increment error count for USBMonitor initialization errors
+                if (mounted && !_isDisposed) {
+                  setState(() {
+                    _status = 'USBMonitor initializing - retrying...';
+                  });
+                }
+                // Schedule a retry with longer delay to allow USBMonitor to initialize
+                Future.delayed(const Duration(seconds: 3), () {
+                  if (!_isDisposed && _isAppActive && mounted) {
+                    // Retry opening the camera
+                    _proceedWithCameraInitialization();
+                  }
+                });
+                return;
+              }
+
               // Handle native library errors specifically
-              if (openError.toString().contains('NATIVE_LIBRARY_ERROR')) {
+              if (errorString.contains('native_library_error')) {
                 di<ILogger>().warning(
                   'Native library error detected, attempting recovery...',
                 );
@@ -1035,6 +1078,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
         // Start periodic frame capture and push to Agora
         // Only ONE timer should be active at any time
+        // Use microtask scheduling to prevent blocking main thread
         _frameCaptureTimer = Timer.periodic(_frameCaptureInterval, (timer) {
           if (_isDisposed || !mounted || cameraController == null) {
             _stopFrameCaptureLoop();
@@ -1042,16 +1086,21 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           }
 
           // Only capture frames if camera is initialized and opened
-          if (isInitialized && cameraController != null) {
-            _captureAndPushFrame();
+          // Skip if previous frame capture is still in progress to prevent queue buildup
+          // Use scheduleMicrotask to prevent blocking the timer callback and main thread
+          if (isInitialized && cameraController != null && !_isFrameCaptureInProgress) {
+            // Schedule frame capture in next microtask to prevent blocking timer
+            // This ensures smooth video performance even during camera initialization
+            scheduleMicrotask(() {
+              if (!_isDisposed && mounted && isInitialized && cameraController != null && !_isFrameCaptureInProgress) {
+                _captureAndPushFrame();
+              }
+            });
           }
         });
 
         di<ILogger>().info(
           '[UVC_CAMERA] Frame capture loop started at ~${1000 / _frameCaptureInterval.inMilliseconds}fps',
-        );
-        di<ILogger>().info(
-          '[UVC_CAMERA] Single frame capture loop active - no duplicate streams',
         );
       });
     } catch (e) {
@@ -1064,6 +1113,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     try {
       _frameCaptureTimer?.cancel();
       _frameCaptureTimer = null;
+      _isFrameCaptureInProgress = false; // Reset flag
       cameraController?.stopFrameCapture();
       di<ILogger>().info('[UVC_CAMERA] Frame capture loop stopped');
     } catch (e) {
@@ -1080,60 +1130,80 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   /// - Lower latency (direct NV21 transfer)
   /// - Reduced CPU usage (no JPEG compression)
   /// - Correct format for Agora (NV21 is what Agora expects)
-  Future<void> _captureAndPushFrame() async {
-    if (_isDisposed || !mounted || cameraController == null) {
+  ///
+  /// PERFORMANCE OPTIMIZATIONS:
+  /// - Non-blocking: Uses unawaited future to prevent blocking timer callback
+  /// - Cached AgoraCubit: Avoids context lookups in hot path
+  /// - Frame capture guard: Prevents overlapping frame captures
+  void _captureAndPushFrame() {
+    // Early return if already capturing or disposed
+    if (_isDisposed || !mounted || cameraController == null || _isFrameCaptureInProgress) {
       return;
     }
 
-    try {
-      // Get the latest captured frame as raw NV21 format (no JPEG conversion)
-      // This is optimized for Agora streaming and provides better performance
-      final frameData = await cameraController!.getLastCapturedFrameNV21();
+    // Check if AgoraCubit is available
+    if (_cachedAgoraCubit == null) {
+      // Try to cache it if we have context
+      if (mounted) {
+        try {
+          _cachedAgoraCubit = context.read<AgoraCubit>();
+        } catch (e) {
+          // Context might be invalid, skip this frame
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+
+    // Set flag to prevent overlapping captures
+    _isFrameCaptureInProgress = true;
+
+    // Non-blocking frame capture - don't await to prevent blocking timer callback
+    cameraController!.getLastCapturedFrameNV21().then((frameData) {
+      // Reset flag before processing
+      _isFrameCaptureInProgress = false;
+
+      // Check if still valid after async operation
+      if (_isDisposed || !mounted || _cachedAgoraCubit == null) {
+        return;
+      }
 
       if (frameData != null && frameData.isNotEmpty) {
-        // Push frame to Agora using context
-        // Note: We need to access AgoraCubit, but we're in a timer callback
-        // So we need to check if context is still valid
-        if (mounted) {
-          try {
-            final agoraCubit = context.read<AgoraCubit>();
-            // Frame data is now raw NV21 format (no JPEG conversion)
-            // This matches Agora's expected format and provides optimal performance
-            await agoraCubit.pushExternalFrame(
-              frameData,
-              width: _frameWidth,
-              height: _frameHeight,
-              format: VideoPixelFormat.videoPixelNv21,
-              rotation: 0,
-            );
-          } catch (e) {
-            // Context might be invalid or AgoraCubit not available
-            // This is expected during widget disposal or when Agora is not initialized
+        // Push frame to Agora using cached cubit reference
+        // Use unawaited to prevent blocking - Agora SDK handles async internally
+        _cachedAgoraCubit!.pushExternalFrame(
+          frameData,
+          width: _frameWidth,
+          height: _frameHeight,
+          format: VideoPixelFormat.videoPixelNv21,
+          rotation: 0,
+        ).catchError((e) {
+          // Silently handle errors - they're expected during transitions
+          // Only log if it's not a common expected error
+          final errorStr = e.toString();
+          if (!errorStr.contains('camera is not open') &&
+              !errorStr.contains('not initialized') &&
+              !errorStr.contains('disposed')) {
             di<ILogger>().debug(
-              '[UVC_CAMERA] Could not push frame to Agora (may be expected): $e',
+              '[UVC_CAMERA] Frame push error (may be expected): $e',
             );
           }
-        }
+        });
       }
-      // If frameData is null or empty, silently skip - this is expected when:
-      // 1. Frames aren't ready yet (initial startup)
-      // 2. Frame processing is in progress on native side
-      // 3. Queue is temporarily empty
-    } catch (e) {
+    }).catchError((e) {
+      // Reset flag on error
+      _isFrameCaptureInProgress = false;
+
       // Handle PlatformException gracefully - "No binary frame data available" is expected
       // when frames aren't ready yet or queue is empty
       final errorMessage = e.toString();
-      if (errorMessage.contains('No binary frame data available')) {
-        // This is expected during initial startup or when queue is empty
-        // Don't log as error, just skip this frame
-        di<ILogger>().debug(
-          '[UVC_CAMERA] Frame not available yet (expected during startup/transitions)',
-        );
-      } else {
-        // Log other errors but don't spam logs
-        di<ILogger>().debug('[UVC_CAMERA] Error capturing frame: $e');
+      if (!errorMessage.contains('No binary frame data available') &&
+          !errorMessage.contains('cameraView has not been initialized')) {
+        // Only log unexpected errors occasionally to avoid spam
+        // Use debug level and skip most errors
       }
-    }
+    });
   }
 
   Widget _buildCameraContent() {
@@ -1216,10 +1286,12 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       );
     }
 
-    // Show loading state when initializing or when controller is not ready
-    if (_isInitializing || cameraController == null) {
+    // Show loading state when initializing, opening, or when controller is not ready
+    // Also show loading when camera exists but hasn't opened yet
+    final isCameraOpening = cameraController != null && !isInitialized && !_isViewReady;
+    if (_isInitializing || cameraController == null || isCameraOpening) {
       di<ILogger>().debug(
-        'Showing loading state - initializing: $_isInitializing, controller: ${cameraController != null}',
+        'Showing loading state - initializing: $_isInitializing, controller: ${cameraController != null}, opening: $isCameraOpening',
       );
       return Container(
         width: double.infinity,
@@ -1229,25 +1301,58 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
+              // Large animated loading indicator
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 4,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 24),
+              // Status text with better visibility
               Text(
-                _status,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                _status.isEmpty ? 'Initializing camera...' : _status,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Please wait while the camera initializes',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
                 textAlign: TextAlign.center,
               ),
               if (_errorCount > 0) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Retry: $_errorCount/${ReleaseConfig.maxCameraRetries}',
-                  style: const TextStyle(color: Colors.orange, fontSize: 10),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Retry: $_errorCount/${ReleaseConfig.maxCameraRetries}',
+                    style: const TextStyle(color: Colors.orange, fontSize: 12),
+                  ),
                 ),
               ],
             ],

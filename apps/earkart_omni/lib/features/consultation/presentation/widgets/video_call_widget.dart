@@ -61,6 +61,8 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   int _videoSetupVersion = 0; // Increment on rejoin to force video view rebuild
   int? _lastRemoteUid; // Track remote UID changes
   bool _wasLocalUserJoined = false; // Track local user join state changes
+  bool _isOtoscopyActive =
+      false; // Track otoscopy state to prevent unnecessary rebuilds
 
   @override
   void initState() {
@@ -238,8 +240,18 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                   final localUserRejoined =
                       !_wasLocalUserJoined && localUserJoined;
 
+                  // Track otoscopy state from AgoraCubit to prevent rebuilds during UVC operations
+                  _isOtoscopyActive = _agoraCubit.isUVCJoined;
+
+                  // CRITICAL: Never update video views during otoscopy to prevent freezing and jank
+                  // The video views must remain completely stable when UVC camera is initializing
+                  // This prevents the "Skipped 30 frames" issue during camera opening
+                  if (_isOtoscopyActive) {
+                    // Skip all video view updates during otoscopy - keep everything stable
+                    return;
+                  }
+
                   // Only update if remoteUid actually changed or local user rejoined
-                  // Don't update if remoteUid is the same (prevents unnecessary rebuilds during otoscopy)
                   if (remoteUidChanged || localUserRejoined) {
                     di<ILogger>().info(
                       '[VIDEO_CALL] Video setup trigger - remoteUidChanged: $remoteUidChanged, localUserRejoined: $localUserRejoined',
@@ -247,11 +259,16 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                     _videoSetupVersion++;
                     _lastRemoteUid = remoteUid;
                     // Force rebuild to update video view with new key
+                    // Use post-frame callback to avoid blocking current frame
                     if (mounted && !_isDisposed) {
-                      setState(() {});
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && !_isDisposed && !_isOtoscopyActive) {
+                          setState(() {});
+                        }
+                      });
                     }
                   }
-                  // If remoteUid hasn't changed, don't increment version - keep video stable
+                  // If remoteUid hasn't changed or otoscopy is active, don't increment version - keep video stable
                 } else if (!localUserJoined && _lastRemoteUid != null) {
                   // Reset when local user leaves to ensure fresh setup on rejoin
                   _lastRemoteUid = null;
@@ -277,29 +294,89 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
       ],
       child: BlocBuilder<AgoraCubit, AgoraState>(
+        buildWhen: (previous, current) {
+          // Update otoscopy state from current state
+          final isOtoscopyActiveNow = _agoraCubit.isUVCJoined;
+
+          // CRITICAL: Never rebuild during otoscopy initialization/opening to prevent video freezing
+          // This prevents jank when camera is initializing
+          // Only rebuild if otoscopy just completed (was active, now inactive)
+          if (_isOtoscopyActive && !isOtoscopyActiveNow) {
+            // Otoscopy just stopped - allow rebuild to restore normal state
+            _isOtoscopyActive = false;
+            return true;
+          }
+
+          // If otoscopy is active or becoming active, prevent ALL rebuilds
+          // This keeps video stable during camera initialization which can take several seconds
+          if (isOtoscopyActiveNow) {
+            _isOtoscopyActive = true;
+            return false; // Prevent rebuild to keep video stable and prevent jank
+          }
+
+          // For non-otoscopy states, check if important video state changed
+          // Only rebuild if remote UID or local join state actually changed
+          // This minimizes rebuilds and improves performance
+          final prevRemoteUid = previous.maybeWhen(
+            success: (_, __, remoteUid, ___, ____, _____) => remoteUid,
+            orElse: () => null,
+          );
+          final currRemoteUid = current.maybeWhen(
+            success: (_, __, remoteUid, ___, ____, _____) => remoteUid,
+            orElse: () => null,
+          );
+
+          final prevLocalJoined = previous.maybeWhen(
+            success: (_, localJoined, __, ___, ____, _____) => localJoined,
+            orElse: () => false,
+          );
+          final currLocalJoined = current.maybeWhen(
+            success: (_, localJoined, __, ___, ____, _____) => localJoined,
+            orElse: () => false,
+          );
+
+          // Only rebuild if remote UID or local join state changed
+          // Ignore other state changes (mic, camera toggle, etc.) to reduce rebuilds
+          return prevRemoteUid != currRemoteUid ||
+              prevLocalJoined != currLocalJoined;
+        },
         builder: (context, state) {
           final agoraCubit = _agoraCubit;
-          di<ILogger>().debug('[VIDEO_CALL] Agora state changed: $state');
+          // Update otoscopy state
+          _isOtoscopyActive = agoraCubit.isUVCJoined;
+          // Reduce logging frequency - only log important state changes
+          // di<ILogger>().debug('[VIDEO_CALL] Agora state changed: $state');
 
           return Scaffold(
             body: Stack(
               children: [
                 // Remote video - full screen background
-                _remoteVideo(agoraCubit),
+                // Wrap in RepaintBoundary to isolate video rendering from other UI updates
+                // Use IgnorePointer during otoscopy to prevent interaction interference
+                IgnorePointer(
+                  ignoring: _isOtoscopyActive,
+                  child: RepaintBoundary(child: _remoteVideo(agoraCubit)),
+                ),
                 // Local video - small overlay in top-left corner
-                Align(
-                  alignment: Alignment.topLeft,
-                  child: Container(
-                    width: 150,
-                    height: 150,
-                    margin: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(100),
-                      child: _localVideo(agoraCubit),
+                // Wrap in RepaintBoundary to isolate video rendering
+                IgnorePointer(
+                  ignoring: _isOtoscopyActive,
+                  child: RepaintBoundary(
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        margin: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(100),
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(100),
+                          child: _localVideo(agoraCubit),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -597,16 +674,20 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   }
 
   Widget _localVideo(AgoraCubit agoraCubit) {
-    di<ILogger>().debug(
-      '[VIDEO_CALL] Local video - joined: ${agoraCubit.localUserJoined}, engine: ${agoraCubit.engine != null}',
-    );
+    // Reduced logging - only log when state actually changes
+    // di<ILogger>().debug(
+    //   '[VIDEO_CALL] Local video - joined: ${agoraCubit.localUserJoined}, engine: ${agoraCubit.engine != null}',
+    // );
 
     if (agoraCubit.localUserJoined && agoraCubit.engine != null) {
-      di<ILogger>().debug('[VIDEO_CALL] Rendering local video view');
+      // di<ILogger>().debug('[VIDEO_CALL] Rendering local video view');
       final channelForRender =
           agoraCubit.joinedChannelName ?? widget.channelName;
+      // Use stable key that doesn't change during otoscopy to prevent rebuilds
+      // Only include version if otoscopy is not active
+      final keySuffix = _isOtoscopyActive ? 'stable' : 'v$_videoSetupVersion';
       return AgoraVideoView(
-        key: ValueKey('local-$channelForRender'),
+        key: ValueKey('local-$channelForRender-$keySuffix'),
         controller: VideoViewController(
           rtcEngine: agoraCubit.engine!,
           canvas: const VideoCanvas(
@@ -616,9 +697,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
       );
     } else {
-      di<ILogger>().debug(
-        '[VIDEO_CALL] Local video not ready, showing placeholder',
-      );
+      // di<ILogger>().debug(
+      //   '[VIDEO_CALL] Local video not ready, showing placeholder',
+      // );
       return Container(
         color: Colors.black54,
         child: Center(
@@ -636,9 +717,10 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
   }
 
   Widget _remoteVideo(AgoraCubit agoraCubit) {
-    di<ILogger>().debug(
-      '[VIDEO_CALL] Remote video - remoteUid: ${agoraCubit.remoteUid}, engine: ${agoraCubit.engine != null}, localJoined: ${agoraCubit.localUserJoined}',
-    );
+    // Reduced logging - only log when state actually changes
+    // di<ILogger>().debug(
+    //   '[VIDEO_CALL] Remote video - remoteUid: ${agoraCubit.remoteUid}, engine: ${agoraCubit.engine != null}, localJoined: ${agoraCubit.localUserJoined}',
+    // );
 
     // Ensure both engine is initialized AND local user has joined before rendering remote video
     // This prevents white screen when remote user joins before local user
@@ -647,9 +729,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     if (agoraCubit.remoteUid != null &&
         agoraCubit.engine != null &&
         agoraCubit.localUserJoined) {
-      di<ILogger>().debug(
-        '[VIDEO_CALL] Rendering remote video view for UID: ${agoraCubit.remoteUid}',
-      );
+      // di<ILogger>().debug(
+      //   '[VIDEO_CALL] Rendering remote video view for UID: ${agoraCubit.remoteUid}',
+      // );
       final channelForRender =
           agoraCubit.joinedChannelName ?? widget.channelName;
 
@@ -660,14 +742,16 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
           agoraCubit.mainConnection ??
           RtcConnection(channelId: channelForRender);
 
-      di<ILogger>().debug(
-        '[VIDEO_CALL] Using connection for remote video: channelId=${connectionForRender.channelId}, localUid=${connectionForRender.localUid}',
-      );
+      // di<ILogger>().debug(
+      //   '[VIDEO_CALL] Using connection for remote video: channelId=${connectionForRender.channelId}, localUid=${connectionForRender.localUid}',
+      // );
 
       // Use a unique key that includes video setup version to force rebuild on rejoin/refresh
-      // This ensures the video view is properly recreated when rejoining without constant rebuilds
+      // CRITICAL: Key only changes when version changes, preventing unnecessary rebuilds during otoscopy
+      // Use stable key during otoscopy to prevent video freezing
+      final keySuffix = _isOtoscopyActive ? 'stable' : 'v$_videoSetupVersion';
       final uniqueKey =
-          'remote-$channelForRender-${agoraCubit.remoteUid}-v$_videoSetupVersion';
+          'remote-$channelForRender-${agoraCubit.remoteUid}-$keySuffix';
 
       return AgoraVideoView(
         key: ValueKey(uniqueKey),
@@ -683,9 +767,9 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
         ),
       );
     } else {
-      di<ILogger>().debug(
-        '[VIDEO_CALL] Remote video not ready - remoteUid: ${agoraCubit.remoteUid}, engine: ${agoraCubit.engine != null}, localJoined: ${agoraCubit.localUserJoined}',
-      );
+      // di<ILogger>().debug(
+      //   '[VIDEO_CALL] Remote video not ready - remoteUid: ${agoraCubit.remoteUid}, engine: ${agoraCubit.engine != null}, localJoined: ${agoraCubit.localUserJoined}',
+      // );
       return Container(
         width: double.infinity,
         height: double.infinity,
