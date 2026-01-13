@@ -1193,6 +1193,31 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
                 // CRITICAL: Only call openUVCCamera() ONCE - do not retry in loop
                 // Multiple calls cause USB interface conflicts (err=-99)
+
+                // Set initial status before opening to provide immediate feedback
+                if (mounted && !_isDisposed) {
+                  try {
+                    if (SchedulerBinding.instance.schedulerPhase ==
+                        SchedulerPhase.idle) {
+                      setState(() {
+                        _status = 'Opening camera...';
+                      });
+                    } else {
+                      SchedulerBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && !_isDisposed) {
+                          setState(() {
+                            _status = 'Opening camera...';
+                          });
+                        }
+                      });
+                    }
+                  } catch (e) {
+                    di<ILogger>().error(
+                      'Error setting initial camera status: $e',
+                    );
+                  }
+                }
+
                 await cameraController!.openUVCCamera();
                 di<ILogger>().info('Camera openUVCCamera() call completed');
 
@@ -1776,12 +1801,19 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     );
 
     // Camera is opening if controller exists but camera hasn't opened yet
+    // This includes the period when getCurrentCamera() returns null
     final isCameraOpening = cameraController != null && !isInitialized;
+    // Camera view is not ready if camera is initialized but view isn't ready yet
+    final isCameraViewNotReady = isInitialized && !_isViewReady;
     final showPermissionsState = !_permissionsGranted;
     final showErrorState = _errorCount >= ReleaseConfig.maxCameraRetries;
-    // Show loading when initializing, when controller doesn't exist, or when camera is opening
+    // Show loading when initializing, when controller doesn't exist, when camera is opening, or when view is not ready
+    // CRITICAL: Always show loading when camera is opening to prevent stuck UI
     final showLoadingState =
-        _isInitializing || cameraController == null || isCameraOpening;
+        _isInitializing ||
+        cameraController == null ||
+        isCameraOpening ||
+        isCameraViewNotReady;
     final showNotInitializedState =
         cameraController == null && !showLoadingState;
     final showDisabledState =
@@ -1911,7 +1943,15 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                   const SizedBox(height: 24),
                   // Status text with better visibility
                   Text(
-                    _status.isEmpty ? 'Initializing camera...' : _status,
+                    isCameraViewNotReady
+                        ? 'Preparing camera view...'
+                        : isCameraOpening && _status.isEmpty
+                        ? 'Connecting to camera...'
+                        : isCameraOpening && !_status.contains('Waiting')
+                        ? 'Opening camera...'
+                        : (_status.isEmpty
+                            ? 'Initializing camera...'
+                            : _status),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -1921,7 +1961,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Please wait while the camera initializes',
+                    isCameraViewNotReady
+                        ? 'Camera is opening, please wait...'
+                        : isCameraOpening
+                        ? 'Please wait while the camera connects and opens'
+                        : 'Please wait while the camera initializes',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.7),
                       fontSize: 14,
