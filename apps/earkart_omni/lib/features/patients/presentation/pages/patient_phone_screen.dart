@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/config/utils/dimensions.dart';
 import 'package:earkart_omni/config/widgets/glassmorphism_app_bar.dart';
@@ -24,6 +25,8 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
   final FocusNode _phoneFocusNode = FocusNode();
   String _searchQuery = '';
   String _selectedCountryCode = '+91'; // Default to India country code
+  Timer? _debounceTimer;
+  static const Duration _debounceDelay = Duration(milliseconds: 500);
 
   @override
   void initState() {
@@ -33,6 +36,7 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _phoneController.removeListener(_onPhoneChanged);
     _phoneController.dispose();
     _phoneFocusNode.dispose();
@@ -44,12 +48,20 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
       _searchQuery = _phoneController.text.trim();
     });
 
-    // Search for patients when phone number is entered
-    if (_searchQuery.isNotEmpty && _searchQuery.length >= 7) {
-      // Combine country code with phone number for search
-      final fullPhoneNumber = "$_selectedCountryCode$_searchQuery";
-      context.read<PatientCubit>().getPatientsByValue(fullPhoneNumber);
-    }
+    // Cancel the previous timer if it exists
+    _debounceTimer?.cancel();
+
+    // Start a new timer for debouncing
+    _debounceTimer = Timer(_debounceDelay, () {
+      // Search for patients when phone number is entered
+      if (_searchQuery.isNotEmpty && _searchQuery.length >= 7) {
+        // Combine country code with phone number for search
+        final fullPhoneNumber = "$_selectedCountryCode$_searchQuery";
+        if (mounted) {
+          context.read<PatientCubit>().getPatientsByValue(fullPhoneNumber);
+        }
+      }
+    });
   }
 
   @override
@@ -161,6 +173,14 @@ class _PatientPhoneScreenState extends State<PatientPhoneScreen> {
                             setState(() {
                               _selectedCountryCode = countryCode;
                             });
+                            // Trigger search if there's already a search query
+                            if (_searchQuery.isNotEmpty && _searchQuery.length >= 7) {
+                              _debounceTimer?.cancel();
+                              final fullPhoneNumber = "$countryCode$_searchQuery";
+                              if (mounted) {
+                                context.read<PatientCubit>().getPatientsByValue(fullPhoneNumber);
+                              }
+                            }
                           },
                           onPhoneNumberChanged: (String phoneNumber) {
                             _phoneController.text = phoneNumber;
