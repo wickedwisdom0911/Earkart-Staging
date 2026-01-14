@@ -9,12 +9,14 @@ class ConsultationActionButtonsWidget extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onStartConsultation;
   final bool isSubmitting;
+  final bool isServiceSelected;
 
   const ConsultationActionButtonsWidget({
     super.key,
     required this.onCancel,
     required this.onStartConsultation,
     required this.isSubmitting,
+    required this.isServiceSelected,
   });
 
   @override
@@ -97,14 +99,15 @@ class ConsultationActionButtonsWidget extends StatelessWidget {
           loading: () => true,
         );
 
-        final isButtonDisabled = isLoading || isSubmitting;
+        final isButtonDisabled =
+            isLoading || isSubmitting || !isServiceSelected;
 
         return SizedBox(
           width: 200,
           child: GradientButton(
             onPressed: isButtonDisabled ? null : onStartConsultation,
             child:
-                isButtonDisabled
+                isLoading || isSubmitting
                     ? const SizedBox(
                       width: 20,
                       height: 20,
@@ -113,8 +116,10 @@ class ConsultationActionButtonsWidget extends StatelessWidget {
                         strokeWidth: 2,
                       ),
                     )
-                    : const Text(
-                      'Start Consultation',
+                    : Text(
+                      isServiceSelected
+                          ? 'Start Consultation'
+                          : 'Select Service First',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,

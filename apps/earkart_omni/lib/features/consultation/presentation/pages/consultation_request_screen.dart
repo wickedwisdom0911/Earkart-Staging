@@ -54,6 +54,18 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
       return;
     }
 
+    // Validate that at least one service is selected
+    if (selectedPricingIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one service to continue'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     // Cancel any existing debounce timer
     _debounceTimer?.cancel();
 
@@ -219,6 +231,7 @@ class _ConsultationRequestScreenState extends State<ConsultationRequestScreen> {
                       onCancel: cancelConsultation,
                       onStartConsultation: startConsultation,
                       isSubmitting: _isSubmitting,
+                      isServiceSelected: selectedPricingIds.isNotEmpty,
                     ),
                   ],
                 ),
