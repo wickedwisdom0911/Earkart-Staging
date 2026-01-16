@@ -259,6 +259,8 @@ class _SystemUIObserver extends WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         // App resumed, ensure full screen mode
         _enableFullScreenMode();
+        // Ensure wakelock is active when app is active
+        WakelockManager.ensureActive();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:

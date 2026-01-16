@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:earkart_omni/features/network/presentation/widgets/network_status_widget.dart';
-import 'package:earkart_omni/features/network/presentation/widgets/wakelock_status_widget.dart';
 import 'package:earkart_omni/config/widgets/device_status_widget.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
 
@@ -107,11 +106,6 @@ class GlassmorphismAppBar extends StatelessWidget
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    WakelockStatusWidget(
-                      showTooltip: true,
-                      borderRadius: borderRadius,
-                    ),
-                    const SizedBox(width: 8),
                     NetworkStatusWidget(
                       showDetails: false,
                       showTooltips: true,

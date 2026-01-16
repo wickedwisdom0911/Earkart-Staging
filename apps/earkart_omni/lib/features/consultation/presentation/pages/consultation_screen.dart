@@ -922,8 +922,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       appBar: GlassmorphismAppBar(
         title: Text(
           consultation?.audiologist?.user?.name != null
-              ? "Consultation by ${consultation!.audiologist!.user!.name}"
-              : "Consultation by Earkart (Waiting for Audiologist)",
+              ? "Earkart Limited Audiologist"
+              : "Earkart Limited (Waiting for Audiologist)",
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         actions: [

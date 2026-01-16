@@ -58,6 +58,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     with WidgetsBindingObserver {
   bool _isDisposed = false;
   late final AgoraCubit _agoraCubit;
+  late final ValueNotifier<bool> _isMicOnNotifier;
   int _videoSetupVersion = 0; // Increment on rejoin to force video view rebuild
   int? _lastRemoteUid; // Track remote UID changes
   bool _wasLocalUserJoined = false; // Track local user join state changes
@@ -72,6 +73,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
     widget.controller?._attach(this);
     // Cache cubit reference to avoid context lookups during dispose
     _agoraCubit = context.read<AgoraCubit>();
+    _isMicOnNotifier = ValueNotifier<bool>(_agoraCubit.isMicOn);
     di<ILogger>().info(
       '[VIDEO_CALL] Initializing video call widget for consultation: ${widget.consultationId}',
     );
@@ -147,6 +149,7 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
       // a new widget initialization for the next consultation.
       // Channel teardown is handled explicitly on end-call/completion flows.
       _agoraCubit.stopTokenRenewalMonitoring();
+      _isMicOnNotifier.dispose();
     } catch (e) {
       di<ILogger>().error('[VIDEO_CALL] Error during dispose cleanup: $e');
     }
@@ -229,6 +232,10 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                 di<ILogger>().info(
                   '[VIDEO_CALL] Mic on: $isMicOn, Camera on: $isCameraOn',
                 );
+
+                if (!_isDisposed && _isMicOnNotifier.value != isMicOn) {
+                  _isMicOnNotifier.value = isMicOn;
+                }
 
                 // Increment video setup version when:
                 // 1. Remote UID changes (new user joins or different user)
@@ -387,56 +394,54 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        TextButton.icon(
-                          onPressed: () {
-                            di<ILogger>().info(
-                              '[VIDEO_CALL] Toggling microphone',
-                            );
-                            agoraCubit.toggleMicrophone();
-                          },
-                          icon: Icon(
-                            agoraCubit.isMicOn ? Icons.mic : Icons.mic_off,
-                            size: 20.0,
-                            color:
-                                agoraCubit.isMicOn
-                                    ? Colors.black87
-                                    : Colors.white,
-                          ),
-                          label: Text(
-                            agoraCubit.isMicOn ? 'Mute' : 'Unmute',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color:
-                                  agoraCubit.isMicOn
-                                      ? Colors.black87
-                                      : Colors.white,
-                            ),
-                          ),
-                          style: TextButton.styleFrom(
-                            backgroundColor:
-                                agoraCubit.isMicOn
-                                    ? Colors.white.withAlpha(250)
-                                    : Colors.red.withAlpha(250),
-                            foregroundColor:
-                                agoraCubit.isMicOn
-                                    ? Colors.black87
-                                    : Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              side: BorderSide(
-                                color:
-                                    agoraCubit.isMicOn
-                                        ? Colors.white.withAlpha(128)
-                                        : Colors.red.withAlpha(128),
-                                width: 1,
+                        ValueListenableBuilder<bool>(
+                          valueListenable: _isMicOnNotifier,
+                          builder: (context, isMicOn, _) {
+                            return TextButton.icon(
+                              onPressed: () {
+                                di<ILogger>().info(
+                                  '[VIDEO_CALL] Toggling microphone',
+                                );
+                                agoraCubit.toggleMicrophone();
+                              },
+                              icon: Icon(
+                                isMicOn ? Icons.mic : Icons.mic_off,
+                                size: 20.0,
+                                color: isMicOn ? Colors.black87 : Colors.white,
                               ),
-                            ),
-                          ),
+                              label: Text(
+                                isMicOn ? 'Mute' : 'Unmute',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color:
+                                      isMicOn ? Colors.black87 : Colors.white,
+                                ),
+                              ),
+                              style: TextButton.styleFrom(
+                                backgroundColor:
+                                    isMicOn
+                                        ? Colors.white.withAlpha(250)
+                                        : Colors.red.withAlpha(250),
+                                foregroundColor:
+                                    isMicOn ? Colors.black87 : Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: BorderSide(
+                                    color:
+                                        isMicOn
+                                            ? Colors.white.withAlpha(128)
+                                            : Colors.red.withAlpha(128),
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(width: 16),
                         TextButton.icon(
