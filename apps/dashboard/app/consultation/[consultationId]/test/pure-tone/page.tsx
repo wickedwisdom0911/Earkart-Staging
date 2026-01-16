@@ -94,6 +94,9 @@ export default function PureTonePage() {
     null
   );
   const [showHelpDialog, setShowHelpDialog] = useState(false);
+  // NACK dialog state
+  const [showNackDialog, setShowNackDialog] = useState(false);
+  const [nackMessage, setNackMessage] = useState("");
 
   // Dummy transducer data for testing
   const dummyTransducerData: TransducerData = {
@@ -187,10 +190,20 @@ export default function PureTonePage() {
   const [justCleared, setJustCleared] = useState(false);
   const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
 
-  // Load test results from localStorage on mount (before backend data)
+  // Load test results - prioritize backend if test is completed, otherwise use localStorage
   useEffect(() => {
-    if (!consultationId || hasLoadedFromStorage) return;
+    if (!consultationId || hasLoadedFromStorage || !consultationData) return;
     
+    const isTestCompleted = consultationData?.audiometry?.status === TestStatus.COMPLETED;
+    
+    // If test is completed, skip localStorage and load from backend (handled in next useEffect)
+    if (isTestCompleted) {
+      console.log('✅ Test is completed - will load from backend API');
+      setHasLoadedFromStorage(true);
+      return;
+    }
+    
+    // If test is NOT completed, load from localStorage for work in progress
     try {
       const storageKey = `pure-tone-audiometry-${consultationId}`;
       const storedData = localStorage.getItem(storageKey);
@@ -198,16 +211,13 @@ export default function PureTonePage() {
       if (storedData) {
         const parsed = JSON.parse(storedData);
         if (parsed.acTestResults && parsed.bcTestResults) {
-          // Only load if test is not completed
-          if (consultationData?.audiometry?.status !== TestStatus.COMPLETED) {
-            setAcTestResults(parsed.acTestResults);
-            setBcTestResults(parsed.bcTestResults);
-            setTestResults([...parsed.acTestResults, ...parsed.bcTestResults]);
-            console.log('📦 Loaded test results from localStorage:', {
-              ac: parsed.acTestResults.length,
-              bc: parsed.bcTestResults.length
-            });
-          }
+          setAcTestResults(parsed.acTestResults);
+          setBcTestResults(parsed.bcTestResults);
+          setTestResults([...parsed.acTestResults, ...parsed.bcTestResults]);
+          console.log('📦 Loaded test results from localStorage (test not completed):', {
+            ac: parsed.acTestResults.length,
+            bc: parsed.bcTestResults.length
+          });
         }
       }
       setHasLoadedFromStorage(true);
@@ -215,23 +225,20 @@ export default function PureTonePage() {
       console.error('Failed to load from localStorage:', error);
       setHasLoadedFromStorage(true);
     }
-  }, [consultationId, consultationData?.audiometry?.status, hasLoadedFromStorage]);
+  }, [consultationId, consultationData, hasLoadedFromStorage]);
 
-  // Save test results to localStorage whenever they change (before submission)
+  // Save test results to localStorage whenever they change (preserve even after submission)
   useEffect(() => {
     if (!consultationId || !hasLoadedFromStorage) return;
     
-    // Don't save if test is completed
-    if (consultationData?.audiometry?.status === TestStatus.COMPLETED) {
-      return;
-    }
-
+    // Always save to preserve PTA data, even after test completion
     try {
       const storageKey = `pure-tone-audiometry-${consultationId}`;
       const dataToStore = {
         acTestResults,
         bcTestResults,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        submitted: consultationData?.audiometry?.status === TestStatus.COMPLETED
       };
       localStorage.setItem(storageKey, JSON.stringify(dataToStore));
     } catch (error) {
@@ -239,96 +246,175 @@ export default function PureTonePage() {
     }
   }, [consultationId, acTestResults, bcTestResults, consultationData?.audiometry?.status, hasLoadedFromStorage]);
 
-  // Populate test results from existing audiometry data
+  // Socket event listeners for patient response and nack
   useEffect(() => {
     if (!socket) return;
+    
     const onPatientResponse = (data: any) => {
       setIsPatientResponse(!!data?.patientResponse);
     };
+    
+    // Dedicated handler for nack-received (test cannot be performed)
+    const handleNackReceived = (data: { message?: string; testId?: string }) => {
+      console.warn("⚠️ [PURE-TONE] [NACK Received] Test not ready or error:", data);
+      
+      // Stop any playing signals by emitting stop signal directly
+      if (isPlaying) {
+        socket.emit("audiometry-signal", {
+          connectionId: consultationId,
+          frequency: selectedFrequency,
+          level: selectedLevel,
+          signal: false,
+          pulsed: isPulsed,
+          earSide: selectedEar,
+          signalType: selectedSignalType,
+          conductionType: selectedMode,
+          maskingSignal: isMasking,
+          maskingLevel: maskingLevel,
+        });
+        setIsPlaying(false);
+      }
+      
+      // Stop masking if active by emitting stop masking signal directly
+      if (isMaskingActive) {
+        socket.emit("masking-signal", {
+          consultationId: consultationId,
+          frequency: selectedFrequency,
+          level: maskingLevel,
+          signal: false,
+          earSide: selectedEar,
+        });
+        setIsMaskingActive(false);
+        setIsMasking(false);
+      }
+      
+      // Extract message
+      const errorMessage = data.message || "Test device not ready or test cannot be performed at this time";
+      
+      // Show big dialog instead of toast - requires audiologist confirmation
+      setNackMessage(errorMessage);
+      setShowNackDialog(true);
+      
+      // Log for debugging
+      console.error("❌ [PURE-TONE] [NACK] Test cannot proceed:", {
+        message: errorMessage,
+        testId: data.testId,
+        selectedEar,
+        selectedFrequency,
+        selectedLevel,
+        consultationId: consultationId,
+      });
+    };
+    
     socket.on("patient-response", onPatientResponse);
+    socket.on("nack-received", handleNackReceived);
+    
     return () => {
       socket.off("patient-response", onPatientResponse);
+      socket.off("nack-received", handleNackReceived);
     };
+  }, [socket, isPlaying, isMaskingActive, selectedEar, selectedFrequency, selectedLevel, selectedMode, selectedSignalType, isPulsed, maskingLevel, isMasking, consultationId]);
 
-    if (!consultationData)
-      return;
+  // Populate test results from backend API - prioritize if test is completed
+  useEffect(() => {
+    if (!consultationData || !hasLoadedFromStorage) return;
 
-    // Only load data if we haven't loaded it initially, or if there are more results in backend than local state
-    // This prevents overriding local changes while still allowing for external updates
     const cd = consultationData as ConsultationModelData;
+    const isTestCompleted = cd.audiometry?.status === TestStatus.COMPLETED;
+    
+    // If test is NOT completed and we already have local data, don't override
+    if (!isTestCompleted && (acTestResults.length > 0 || bcTestResults.length > 0)) {
+      return; // Keep localStorage data for work in progress
+    }
+    
+    // If test is completed OR we don't have local data, load from backend
     const backendAcCount = cd.audiometry?.acTests?.length || 0;
     const backendBcCount = cd.audiometry?.bcTests?.length || 0;
-    const localTotalCount = acTestResults.length + bcTestResults.length;
-    const backendTotalCount = backendAcCount + backendBcCount;
     
     // Don't reload from backend if we just cleared the results
     if (justCleared) {
       return;
     }
     
-    // Don't load from backend if we have localStorage data (unless backend has more data)
-    // Wait for localStorage to load first
-    if (!hasLoadedFromStorage) {
-      return;
-    }
-    
-    if (hasInitiallyLoaded && backendTotalCount <= localTotalCount) {
-      return; // Don't override local state if backend doesn't have more data
+    // If test is completed, always load from backend (like report page)
+    // If test is not completed but backend has data and we don't, load from backend
+    if (!isTestCompleted && backendAcCount === 0 && backendBcCount === 0) {
+      return; // No backend data and test not completed, keep local state
     }
 
     let existingAcResults: TestResult[] = [];
     let existingBcResults: TestResult[] = [];
 
-    // Handle AC tests
-    if (cd.audiometry?.acTests) {
-      existingAcResults = (cd.audiometry?.acTests ?? [])
+    // Handle AC tests - load from backend API
+    if (cd.audiometry?.acTests && cd.audiometry.acTests.length > 0) {
+      existingAcResults = cd.audiometry.acTests
         .filter(test => test.thresholdDb !== null)
         .map((test) => {
-          // More robust logic: explicitly check for true response, everything else is no-response
           const patientResponded = test.response === true;
           return {
-          ear: test.ear === Ear.LEFT ? "L" : "R",
-          x: test.frequencyHz,
+            ear: test.ear === Ear.LEFT ? "L" : "R",
+            x: test.frequencyHz,
             y: test.thresholdDb!,
-          mode: "AC",
-          masking: test.maskingUsed
-            ? test.maskingEar === Ear.LEFT
-              ? 1
-              : 2
-            : 0,
-            noResponse: patientResponded ? 0 : 1, // 0 = response (no arrow), 1 = no response (show arrow)
-          signalType: SignalType.Steady,
-          pulsed: false,
+            mode: "AC",
+            masking: test.maskingUsed
+              ? test.maskingEar === Ear.LEFT
+                ? 1
+                : 2
+              : 0,
+            noResponse: patientResponded ? 0 : 1,
+            signalType: SignalType.Steady,
+            pulsed: false,
           };
         });
     }
 
-    // Handle BC tests
-    if (cd.audiometry?.bcTests) {
-      existingBcResults = (cd.audiometry?.bcTests ?? [])
+    // Handle BC tests - load from backend API
+    if (cd.audiometry?.bcTests && cd.audiometry.bcTests.length > 0) {
+      existingBcResults = cd.audiometry.bcTests
         .filter(test => test.thresholdDb !== null)
         .map((test) => {
-          // More robust logic: explicitly check for true response, everything else is no-response
           const patientResponded = test.response === true;
           return {
-          ear: test.ear === Ear.LEFT ? "L" : "R",
-          x: test.frequencyHz,
+            ear: test.ear === Ear.LEFT ? "L" : "R",
+            x: test.frequencyHz,
             y: test.thresholdDb!,
-          mode: "BC",
-          masking: test.maskingUsed ? 1 : 0,
-            noResponse: patientResponded ? 0 : 1, // 0 = response (no arrow), 1 = no response (show arrow)
-          signalType: SignalType.Steady,
-          pulsed: false,
+            mode: "BC",
+            masking: test.maskingUsed ? 1 : 0,
+            noResponse: patientResponded ? 0 : 1,
+            signalType: SignalType.Steady,
+            pulsed: false,
           };
         });
     }
 
-    // Update state only once with the results
-    setAcTestResults(existingAcResults);
+    // Update state with backend data
+    if (existingAcResults.length > 0 || existingBcResults.length > 0) {
+      setAcTestResults(existingAcResults);
       setBcTestResults(existingBcResults);
-    setTestResults([...existingAcResults, ...existingBcResults]);
+      setTestResults([...existingAcResults, ...existingBcResults]);
+      console.log('📥 Loaded test results from backend API:', {
+        ac: existingAcResults.length,
+        bc: existingBcResults.length,
+        isCompleted: isTestCompleted
+      });
+      
+      // Also save to localStorage for future reference
+      try {
+        const storageKey = `pure-tone-audiometry-${consultationId}`;
+        const dataToStore = {
+          acTestResults: existingAcResults,
+          bcTestResults: existingBcResults,
+          timestamp: new Date().toISOString(),
+          submitted: isTestCompleted
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+      } catch (error) {
+        console.error('Failed to save backend data to localStorage:', error);
+      }
+    }
+    
     setHasInitiallyLoaded(true);
-  }, [consultationData, socket, hasInitiallyLoaded, acTestResults.length, bcTestResults.length, justCleared, hasLoadedFromStorage]);
+  }, [consultationData, consultationId, hasLoadedFromStorage, justCleared, acTestResults.length, bcTestResults.length]);
 
   // Auto-hide patient response indicator after 3 seconds
   useEffect(() => {
@@ -364,8 +450,51 @@ export default function PureTonePage() {
   // Update transducer data only when valid data is received, fallback to dummy data
   useEffect(() => {
     if (deviceState?.transducerResponse?.Transducers) {
+      console.log("🎧 [PURE-TONE] ========== TRANSDUCER RESPONSE RECEIVED ==========");
+      console.log("🎧 [PURE-TONE] Full Transducer Response:", JSON.stringify(deviceState.transducerResponse, null, 2));
+      console.log("🎧 [PURE-TONE] Number of Transducers:", deviceState.transducerResponse.Transducers.length);
+      deviceState.transducerResponse.Transducers.forEach((transducer: any, index: number) => {
+        console.log(`🎧 [PURE-TONE] Transducer ${index + 1}:`, {
+          ID: transducer.ID,
+          Name: transducer.Name,
+          ConductionType: transducer.ConductionType === 0 ? "AC (Air Conduction)" : "BC (Bone Conduction)",
+          HF: transducer.HF,
+          CalibrationDate: transducer.CalibrationDate,
+          EarSides: transducer.EarSides,
+          SignalTypes: transducer.SignalTypes,
+          Rates: transducer.Rates,
+          CalibrationsCount: transducer.Calibrations?.length || 0,
+        });
+        transducer.Calibrations?.forEach((cal: any, calIndex: number) => {
+          console.log(`🎧 [PURE-TONE]   Calibration ${calIndex + 1} (SignalType: ${cal.SignalType}):`, {
+            SignalType: cal.SignalType,
+            FrequenciesCount: cal.CalibrationFrequencies?.length || 0,
+            Frequencies: cal.CalibrationFrequencies?.map((f: any) => ({
+              Frequency: f.Frequency,
+              MaxLevelHL: f.MaxLevelHL,
+              MinLevelHL: f.MinLevelHL,
+              Calibration: f.Calibration,
+            })) || [],
+          });
+          
+          // Show dB range table for each frequency
+          console.log(`🎧 [PURE-TONE]   📊 dB Range Table for SignalType ${cal.SignalType}:`);
+          console.table(
+            cal.CalibrationFrequencies?.map((f: any) => ({
+              Frequency: `${f.Frequency} Hz`,
+              'Min dB HL': f.MinLevelHL,
+              'Max dB HL': f.MaxLevelHL,
+              'Range': `${f.MinLevelHL} to ${f.MaxLevelHL} dB`,
+              'Available Levels': Array.from({ length: Math.floor((f.MaxLevelHL - f.MinLevelHL) / 5) + 1 }, (_, i) => f.MinLevelHL + i * 5).join(', '),
+              'Calibration': f.Calibration,
+            })) || []
+          );
+        });
+      });
+      console.log("🎧 [PURE-TONE] ============================================");
       setTransducerData(deviceState.transducerResponse);
     } else {
+      console.log("🎧 [PURE-TONE] No transducer response from device, using dummy data");
       // Use dummy data for testing when no device is connected
       setTransducerData(dummyTransducerData);
     }
@@ -373,9 +502,21 @@ export default function PureTonePage() {
 
   const currentTransducer = useMemo(() => {
     if (!transducerData?.Transducers) return null;
-    return transducerData.Transducers.find(
+    const transducer = transducerData.Transducers.find(
       (t) => t.ConductionType === (selectedMode === "AC" ? 0 : 1)
     );
+    if (transducer) {
+      console.log("🎧 [PURE-TONE] Current Transducer Selected:", {
+        mode: selectedMode,
+        transducerName: transducer.Name,
+        transducerID: transducer.ID,
+        conductionType: transducer.ConductionType === 0 ? "AC" : "BC",
+        availableSignalTypes: transducer.SignalTypes,
+        availableEarSides: transducer.EarSides,
+        calibrationsCount: transducer.Calibrations?.length || 0,
+      });
+    }
+    return transducer;
   }, [transducerData, selectedMode]);
 
   // AC transducer - always used for masking (masking always uses AC headphones)
@@ -415,12 +556,52 @@ export default function PureTonePage() {
 
   const availableFrequencies = useMemo(() => {
     if (!currentCalibration) return [];
-    return currentCalibration.CalibrationFrequencies.filter(
+    const frequencies = currentCalibration.CalibrationFrequencies.filter(
       (freq) => freq.Frequency
     )
       .map((freq) => freq.Frequency)
       .sort((a, b) => a - b);
-  }, [currentCalibration]);
+    
+    // Create detailed frequency-dB mapping
+    const frequencyDbMap = currentCalibration.CalibrationFrequencies
+      .filter((freq) => freq.Frequency > 0) // Exclude -1 (White/SpeechNoise)
+      .map((freq) => {
+        const levels = [];
+        for (let level = freq.MinLevelHL; level <= freq.MaxLevelHL; level += 5) {
+          levels.push(level);
+        }
+        return {
+          Frequency: freq.Frequency,
+          MinLevelHL: freq.MinLevelHL,
+          MaxLevelHL: freq.MaxLevelHL,
+          AvailableLevels: levels,
+          LevelCount: levels.length,
+        };
+      })
+      .sort((a, b) => a.Frequency - b.Frequency);
+    
+    console.log("🎵 [PURE-TONE] ========== AVAILABLE FREQUENCIES & dB RANGES ==========");
+    console.log("🎵 [PURE-TONE] Mode:", selectedMode);
+    console.log("🎵 [PURE-TONE] Signal Type:", selectedSignalType);
+    console.log("🎵 [PURE-TONE] Total Frequencies:", frequencies.length);
+    console.log("🎵 [PURE-TONE] Frequency List:", frequencies);
+    console.log("🎵 [PURE-TONE] 📊 Frequency → dB Range Mapping (MATCHES DROPDOWN OPTIONS):");
+    console.table(
+      frequencyDbMap.map((f) => ({
+        'Frequency (Hz)': f.Frequency,
+        'Min dB HL': f.MinLevelHL,
+        'Max dB HL': f.MaxLevelHL,
+        'dB Range': `${f.MinLevelHL} to ${f.MaxLevelHL} dB`,
+        'Available Levels': f.AvailableLevels.join(', '),
+        'Total Levels': f.LevelCount,
+        'Dropdown Options': `✓ ${f.LevelCount} levels in dropdown`,
+      }))
+    );
+    console.log("🎵 [PURE-TONE] ✅ These values match exactly with the Frequency and Level dropdowns");
+    console.log("🎵 [PURE-TONE] ============================================");
+    
+    return frequencies;
+  }, [currentCalibration, selectedMode, selectedSignalType]);
 
   const availableLevels = useMemo(() => {
     if (!currentCalibration) return [];
@@ -444,6 +625,28 @@ export default function PureTonePage() {
     ) {
       levels.push(level);
     }
+    
+    console.log("🎵 [PURE-TONE] Available dB Levels for Frequency:", {
+      frequency: selectedFrequency,
+      signalType: selectedSignalType,
+      minLevelHL: freqData.MinLevelHL,
+      maxLevelHL: freqData.MaxLevelHL,
+      availableLevels: levels,
+      levelCount: levels.length,
+      range: `${freqData.MinLevelHL} to ${freqData.MaxLevelHL} dB`,
+    });
+    
+    // Show dropdown options table for verification
+    console.log("🎵 [PURE-TONE] 📋 Dropdown Options for Level Select:");
+    console.table(
+      levels.map((level, idx) => ({
+        Index: idx,
+        'dB Value': level,
+        'In Dropdown': '✓',
+      }))
+    );
+    console.log("🎵 [PURE-TONE] ✅ These values match the dropdown options");
+    
     return levels;
   }, [currentCalibration, selectedFrequency, selectedSignalType]);
 
@@ -533,7 +736,7 @@ export default function PureTonePage() {
   // This applies to both AC and BC tests - masking uses AC headphones regardless of test type
   const _sendAudiometrySignal = useCallback(() => {
     if (socket) {
-      socket.emit("audiometry-signal", {
+      const signalData = {
         connectionId: consultationId,
         frequency: selectedFrequency,
         level: selectedLevel,
@@ -544,7 +747,13 @@ export default function PureTonePage() {
         conductionType: selectedMode, // AC or BC for the main signal
         maskingSignal: isMaskingActive, // Masking always uses AC (handled by backend)
         maskingLevel: maskingLevel,
-      });
+      };
+      console.log("🎵 [PURE-TONE] ========== SENDING AUDIOMETRY SIGNAL ==========");
+      console.log("🎵 [PURE-TONE] Frequency:", selectedFrequency, "Hz");
+      console.log("🎵 [PURE-TONE] Level:", selectedLevel, "dB HL");
+      console.log("🎵 [PURE-TONE] Full Signal Data:", JSON.stringify(signalData, null, 2));
+      console.log("🎵 [PURE-TONE] ============================================");
+      socket.emit("audiometry-signal", signalData);
       setIsPlaying(true);
     }
   }, [
@@ -564,7 +773,7 @@ export default function PureTonePage() {
   // Note: Masking always uses AC headphones for both AC and BC tests
   const _endAudiometrySignal = useCallback(() => {
     if (socket) {
-      socket.emit("audiometry-signal", {
+      const signalData = {
         connectionId: consultationId,
         frequency: selectedFrequency,
         level: selectedLevel,
@@ -575,7 +784,12 @@ export default function PureTonePage() {
         conductionType: selectedMode, // AC or BC for the main signal
         maskingSignal: isMasking, // Masking always uses AC (handled by backend)
         maskingLevel: maskingLevel,
-      });
+      };
+      console.log("🎵 [PURE-TONE] ========== STOPPING AUDIOMETRY SIGNAL ==========");
+      console.log("🎵 [PURE-TONE] Frequency:", selectedFrequency, "Hz");
+      console.log("🎵 [PURE-TONE] Level:", selectedLevel, "dB HL");
+      console.log("🎵 [PURE-TONE] ============================================");
+      socket.emit("audiometry-signal", signalData);
       setIsPlaying(false);
     }
   }, [
@@ -680,6 +894,47 @@ export default function PureTonePage() {
 
   // Handle frequency change
   const handleFrequencyChange = (freq: number) => {
+    // Get the dB range for the new frequency to show in console
+    // Access calibration through currentTransducer
+    const calibration = currentTransducer?.Calibrations.find(
+      (cal) =>
+        cal.SignalType ===
+        Number(
+          Object.entries(SIGNAL_TYPE_MAP).find(
+            ([, value]) => value === selectedSignalType
+          )?.[0]
+        )
+    );
+    const freqData = calibration?.CalibrationFrequencies.find((f) => f.Frequency === freq);
+    const levelsForFreq = freqData 
+      ? Array.from({ length: Math.floor((freqData.MaxLevelHL - freqData.MinLevelHL) / 5) + 1 }, 
+          (_, i) => freqData.MinLevelHL + i * 5)
+      : [];
+    
+    console.log("🎵 [PURE-TONE] ========== FREQUENCY CHANGED ==========");
+    console.log("🎵 [PURE-TONE] Old Frequency:", selectedFrequency, "Hz");
+    console.log("🎵 [PURE-TONE] New Frequency:", freq, "Hz");
+    console.log("🎵 [PURE-TONE] Mode:", selectedMode);
+    console.log("🎵 [PURE-TONE] Ear:", selectedEar);
+    if (freqData) {
+      console.log("🎵 [PURE-TONE] dB Range for", freq, "Hz:", {
+        Min: freqData.MinLevelHL,
+        Max: freqData.MaxLevelHL,
+        Range: `${freqData.MinLevelHL} to ${freqData.MaxLevelHL} dB`,
+        'Available Levels': levelsForFreq.join(', '),
+        'Total Levels': levelsForFreq.length,
+      });
+      console.log("🎵 [PURE-TONE] 📋 Level Dropdown will show", levelsForFreq.length, "options:", levelsForFreq);
+      console.table(
+        levelsForFreq.map((level, idx) => ({
+          Index: idx,
+          'dB Value': level,
+          'In Dropdown': '✓',
+        }))
+      );
+    }
+    console.log("🎵 [PURE-TONE] ============================================");
+    
     setSelectedFrequency(freq);
 
     // Find the index of the selected frequency in the FREQUENCIES array (used by audiogram)
@@ -1018,13 +1273,20 @@ export default function PureTonePage() {
       {
         onSuccess: (data) => {
           if (data.success) {
-            // Clear localStorage when test is submitted
+            // Preserve localStorage data after test submission
+            // Save the final submitted data to localStorage for future reference
             try {
               const storageKey = `pure-tone-audiometry-${consultationId}`;
-              localStorage.removeItem(storageKey);
-              console.log('🗑️ Cleared localStorage after test submission');
+              const dataToStore = {
+                acTestResults,
+                bcTestResults,
+                timestamp: new Date().toISOString(),
+                submitted: true
+              };
+              localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+              console.log('💾 Preserved PTA data in localStorage after test submission');
             } catch (error) {
-              console.error('Failed to clear localStorage:', error);
+              console.error('Failed to save to localStorage:', error);
             }
             
             toast.success("Test completed successfully");
@@ -1605,7 +1867,10 @@ export default function PureTonePage() {
 
               {/* Frequency */}
               <div>
-                <label className="block text-xs font-medium mb-1">Freq (Hz)</label>
+                <label className="block text-xs font-medium mb-1">
+                  Freq (Hz)
+                  <span className="text-gray-500 text-xs ml-1">({availableFrequencies.length} available)</span>
+                </label>
                 <select
                   className="w-full p-1.5 border rounded text-xs"
                   value={selectedFrequency}
@@ -1619,7 +1884,14 @@ export default function PureTonePage() {
 
               {/* Level */}
               <div>
-                <label className="block text-xs font-medium mb-1">Level (dB)</label>
+                <label className="block text-xs font-medium mb-1">
+                  Level (dB)
+                  {availableLevels.length > 0 && (
+                    <span className="text-gray-500 text-xs ml-1">
+                      ({availableLevels[0]} to {availableLevels[availableLevels.length - 1]}, {availableLevels.length} levels)
+                    </span>
+                  )}
+                </label>
                 <select
                   className="w-full p-1.5 border rounded text-xs"
                   value={selectedLevel}
@@ -1629,6 +1901,11 @@ export default function PureTonePage() {
                     <option key={level} value={level}>{level}</option>
                   ))}
                 </select>
+                {availableLevels.length > 0 && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    Range: {availableLevels[0]} to {availableLevels[availableLevels.length - 1]} dB
+                  </div>
+                )}
               </div>
 
               {/* Signal Type */}
@@ -1845,6 +2122,70 @@ export default function PureTonePage() {
           </button>
         </DialogTrigger>
       </Dialog>
+
+      {/* NACK Dialog - Big warning like patient response */}
+      {showNackDialog && (
+        <>
+          <style jsx>{`
+            @keyframes shake {
+              0%, 100% { transform: translateX(0); }
+              10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+              20%, 40%, 60%, 80% { transform: translateX(10px); }
+            }
+          `}</style>
+          {/* Full-screen overlay */}
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            {/* Pulsing red background */}
+            <div className="absolute inset-0 bg-red-500/10 animate-pulse" />
+            
+            {/* Dialog box */}
+            <div 
+              className="relative bg-white border-4 border-red-500 rounded-2xl shadow-2xl p-8 max-w-lg mx-4"
+              style={{ animation: 'shake 0.5s ease-in-out' }}
+            >
+              {/* Warning icon with animation */}
+              <div className="mx-auto mb-6 relative flex h-20 w-20 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-16 w-16 bg-red-600 items-center justify-center">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </span>
+              </div>
+              
+              {/* Title */}
+              <h2 className="text-2xl font-bold text-red-700 text-center mb-4">
+                Test Cannot Be Performed
+              </h2>
+              
+              {/* Message */}
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+                <p className="text-red-800 text-lg font-medium text-center">
+                  {nackMessage}
+                </p>
+              </div>
+              
+              {/* Instructions */}
+              <p className="text-gray-700 text-center mb-6">
+                Please ensure the device is properly connected and ready before continuing.
+              </p>
+              
+              {/* Close button */}
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    setShowNackDialog(false);
+                    setNackMessage("");
+                  }}
+                  className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-lg transition-colors"
+                >
+                  Understood
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

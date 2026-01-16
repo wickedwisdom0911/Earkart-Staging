@@ -93,9 +93,9 @@ export const CouponDataSchema = z.object({
   minOrderAmount: z.number().nullish(),
   startAt: z.string(),
   endAt: z.string(),
-  usageLimitPerUser: z.number().optional(),
-  usageLimitTotal: z.number().optional(),
-  usedCount: z.number().optional(),
+  usageLimitPerUser: z.number().nullish(),
+  usageLimitTotal: z.number().nullish(),
+  usedCount: z.number().nullish(),
   applicableCentreId: z.string().nullish(),
   applicablePricingId: z.string().nullish(),
   status: z.nativeEnum(CouponStatusEnum).optional(),
@@ -109,26 +109,36 @@ export const CouponDataSchema = z.object({
 export const CouponListResponseSchema = z.object({
     success: z.boolean(),
     message: z.string(),
-    data: z.object({
-      data: z.array(CouponDataSchema).nullable().default([]),
-      total: z.number().nullable().default(0),
-      limit: z.number().nullable().default(0),
-      offset: z.number().nullable().default(0),
-      page: z.number().nullable().default(0),
-      totalPages: z.number().nullable().default(0),
-      hasNext: z.boolean().optional().default(false),
-      hasPrevious: z.boolean().optional().default(false),
-    }).nullable().optional(),
+    data: z.union([
+      // Case 1: Data is directly an array
+      z.array(CouponDataSchema),
+      // Case 2: Data is an object with nested data array
+      z.object({
+        data: z.array(CouponDataSchema).nullable().default([]),
+        total: z.number().nullable().default(0),
+        limit: z.number().nullable().default(0),
+        offset: z.number().nullable().default(0),
+        page: z.number().nullable().default(0),
+        totalPages: z.number().nullable().default(0),
+        hasNext: z.boolean().optional().default(false),
+        hasPrevious: z.boolean().optional().default(false),
+      }),
+      // Case 3: Data is null
+      z.null(),
+    ]),
   });
 
 // Flexible schema to accept backends that wrap arrays inside an object (e.g., { data: { items: [...] } })
 export const CouponListFlexibleSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
   data: z.union([
     z.array(CouponDataSchema),
     z
       .object({
         items: z.array(CouponDataSchema).optional(),
         results: z.array(CouponDataSchema).optional(),
+        data: z.array(CouponDataSchema).optional(),
         total: z.number().optional(),
         limit: z.number().optional(),
         offset: z.number().optional(),
@@ -138,6 +148,7 @@ export const CouponListFlexibleSchema = z.object({
         hasPrevious: z.boolean().optional(),
       })
       .passthrough(),
+    z.null(),
   ]),
   total: z.number().optional(),
   limit: z.number().optional(),
