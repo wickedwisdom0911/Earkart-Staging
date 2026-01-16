@@ -81,4 +81,9 @@ class Constants {
       "${baseUrl}chat/message/$messageId/read-receipts";
   static String markAllAsReadUrl(String roomId) =>
       "${baseUrl}chat/room/$roomId/mark-all-read";
+
+  // Payment endpoints
+  static final initiatePaymentUrl = "${baseUrl}payment/initiate";
+  static final completePaymentUrl = "${baseUrl}payment/complete";
+  static final getPaymentByIdUrl = "${baseUrl}payment/get-by-id";
 }

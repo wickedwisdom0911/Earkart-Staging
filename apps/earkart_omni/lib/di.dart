@@ -92,6 +92,14 @@ import 'package:earkart_omni/features/chat/domain/usecases/get_room_unread_count
 import 'package:earkart_omni/features/chat/domain/usecases/mark_message_read.usecase.dart';
 import 'package:earkart_omni/features/chat/domain/usecases/mark_all_as_read.usecase.dart';
 import 'package:earkart_omni/features/chat/domain/usecases/get_message_read_receipts.usecase.dart';
+import 'package:earkart_omni/features/payment/data/source/remote/payment.remote.source.dart';
+import 'package:earkart_omni/features/payment/data/source/remote/payment.remote.source.impl.dart';
+import 'package:earkart_omni/features/payment/data/repositories/payment.repository.impl.dart';
+import 'package:earkart_omni/features/payment/domain/repositories/payment.repository.dart';
+import 'package:earkart_omni/features/payment/domain/usecases/initiate_payment.usecase.dart';
+import 'package:earkart_omni/features/payment/domain/usecases/complete_payment.usecase.dart';
+import 'package:earkart_omni/features/payment/domain/usecases/get_payment_by_id.usecase.dart';
+import 'package:earkart_omni/features/payment/presentation/cubit/payment.cubit.dart';
 import 'package:earkart_omni/config/services/battery_service.dart';
 import 'package:earkart_omni/config/services/auto_update_service.dart';
 
@@ -415,6 +423,33 @@ Future<void> setupDI() async {
     () => GetMessageReadReceiptsUsecase(chatRepository: di.call()),
   );
   di.registerLazySingleton<ChatCubit>(() => ChatCubit());
+
+  //payment
+  di.registerLazySingleton<IPaymentRemoteSource>(
+    () => PaymentRemoteSourceImpl(
+      dio: di.call(),
+      userEntityDataSource: di.call(),
+    ),
+  );
+  di.registerLazySingleton<IPaymentRepository>(
+    () => PaymentRepositoryImpl(paymentRemoteSource: di.call()),
+  );
+  di.registerLazySingleton<InitiatePaymentUsecase>(
+    () => InitiatePaymentUsecase(paymentRepository: di.call()),
+  );
+  di.registerLazySingleton<CompletePaymentUsecase>(
+    () => CompletePaymentUsecase(paymentRepository: di.call()),
+  );
+  di.registerLazySingleton<GetPaymentByIdUsecase>(
+    () => GetPaymentByIdUsecase(paymentRepository: di.call()),
+  );
+  di.registerLazySingleton<PaymentCubit>(
+    () => PaymentCubit(
+      initiatePaymentUsecase: di.call(),
+      completePaymentUsecase: di.call(),
+      getPaymentByIdUsecase: di.call(),
+    ),
+  );
 
   //battery
   di.registerLazySingleton<BatteryService>(() => BatteryService());

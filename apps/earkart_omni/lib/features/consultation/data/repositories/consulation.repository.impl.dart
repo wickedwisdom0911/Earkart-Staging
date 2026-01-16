@@ -12,9 +12,11 @@ class ConsultationRepositoryImpl extends IConsultationRepository {
   @override
   Future<Either<Failure, ConsultationEntity>> createConsultation({
     List<ConsultationPricingEntity>? selectedServices,
+    String? paymentId,
   }) async {
     return consultationRemoteSource.createConsultation(
       selectedServices: selectedServices,
+      paymentId: paymentId,
     );
   }
 

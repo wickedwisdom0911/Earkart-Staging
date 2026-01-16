@@ -7,6 +7,7 @@ import 'package:earkart_omni/models/consultation/consultation.model.dart';
 abstract class IConsultationRemoteSource {
   Future<Either<Failure, ConsultationEntity>> createConsultation({
     List<ConsultationPricingEntity>? selectedServices,
+    String? paymentId,
   });
   Future<Either<Failure, ConsultationEntity>> getConsultationById(String? id);
   Future<Either<Failure, ConsultationEntity>> updateConsultation(

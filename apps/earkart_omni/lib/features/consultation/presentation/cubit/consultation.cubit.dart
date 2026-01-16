@@ -41,10 +41,12 @@ class ConsultationCubit extends Cubit<ConsultationState> {
 
   Future<void> createConsultation({
     List<ConsultationPricingEntity>? selectedServices,
+    String? paymentId,
   }) async {
     emit(ConsultationLoading());
     final result = await createConsultationUsecase(
       selectedServices: selectedServices,
+      paymentId: paymentId,
     );
     result.fold(
       (l) {

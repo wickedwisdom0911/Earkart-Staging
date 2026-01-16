@@ -11,9 +11,11 @@ class CreateConsultationUsecase {
 
   Future<Either<Failure, ConsultationEntity>> call({
     List<ConsultationPricingEntity>? selectedServices,
+    String? paymentId,
   }) async {
     return consultationRepository.createConsultation(
       selectedServices: selectedServices,
+      paymentId: paymentId,
     );
   }
 }

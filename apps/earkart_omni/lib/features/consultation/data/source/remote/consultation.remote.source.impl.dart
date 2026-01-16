@@ -31,6 +31,7 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
   @override
   Future<Either<Failure, ConsultationEntity>> createConsultation({
     List<ConsultationPricingEntity>? selectedServices,
+    String? paymentId,
   }) async {
     try {
       final newConsultation = ConsultationEntity(
@@ -40,6 +41,7 @@ class ConsultationRemoteSourceImpl extends IConsultationRemoteSource {
         audiologistStatus: AudiologistConsultationStatus.pending,
         status: SessionStatus.pending,
         consultationPricing: selectedServices,
+        paymentId: paymentId,
       );
       final requestData = newConsultation.toJson();
       di<ILogger>().debug('Request data: $requestData');
