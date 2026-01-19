@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { format, isSameDay, subDays, startOfDay, endOfDay } from "date-fns";
@@ -33,6 +33,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -68,6 +75,10 @@ export default function CentreAnalyticsPage() {
   const [toDate, setToDate] = useState<Date | null>(null);
   const today = new Date();
   const yesterday = subDays(today, 1);
+  
+  // Pagination states
+  const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(10); // Default 10 per page for table view
 
 
   // Filter consultations by date range (from/to dates)
@@ -129,7 +140,7 @@ export default function CentreAnalyticsPage() {
   }, [consultations]);
 
   // Get comprehensive centre stats with test counts
-  const centreTableData = useMemo(() => {
+  const allCentreTableData = useMemo(() => {
     if (!centres?.data?.data || !Array.isArray(centres.data.data)) return [];
 
     return centres.data.data.map((centre: any) => {
@@ -220,17 +231,33 @@ export default function CentreAnalyticsPage() {
       };
     });
   }, [centres, filteredConsultations, consultationsByCentre]);
+  
+  // Pagination calculations for centre table data
+  const totalCentres = allCentreTableData.length;
+  const totalPages = Math.ceil(totalCentres / limit);
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+  const centreTableData = allCentreTableData.slice(startIndex, endIndex);
+  
+  // Reset to page 1 when date filters change
+  useEffect(() => {
+    setPage(1);
+  }, [fromDate, toDate]);
+  
+  // Pagination helpers
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
 
-  // Calculate summary stats (using filtered data for date range)
+  // Calculate summary stats (using ALL filtered data, not just paginated data)
   const summaryStats = useMemo(() => {
-    const totalCentres = centreTableData.length;
-    const activeCentres = centreTableData.filter((d) => d.filteredConsultations > 0).length;
-    const totalConsultations = centreTableData.reduce((sum, d) => sum + d.filteredConsultations, 0);
-    const totalCompleted = centreTableData.reduce((sum, d) => sum + d.completed, 0);
-    const totalPTA = centreTableData.reduce((sum, d) => sum + d.ptaCount, 0);
-    const totalTympanometry = centreTableData.reduce((sum, d) => sum + d.tympanometryCount, 0);
-    const totalOAE = centreTableData.reduce((sum, d) => sum + d.oaeCount, 0);
-    const totalETF = centreTableData.reduce((sum, d) => sum + d.etfCount, 0);
+    const totalCentres = allCentreTableData.length;
+    const activeCentres = allCentreTableData.filter((d) => d.filteredConsultations > 0).length;
+    const totalConsultations = allCentreTableData.reduce((sum, d) => sum + d.filteredConsultations, 0);
+    const totalCompleted = allCentreTableData.reduce((sum, d) => sum + d.completed, 0);
+    const totalPTA = allCentreTableData.reduce((sum, d) => sum + d.ptaCount, 0);
+    const totalTympanometry = allCentreTableData.reduce((sum, d) => sum + d.tympanometryCount, 0);
+    const totalOAE = allCentreTableData.reduce((sum, d) => sum + d.oaeCount, 0);
+    const totalETF = allCentreTableData.reduce((sum, d) => sum + d.etfCount, 0);
 
     return {
       totalCentres,
@@ -242,7 +269,7 @@ export default function CentreAnalyticsPage() {
       totalOAE,
       totalETF,
     };
-  }, [centreTableData]);
+  }, [allCentreTableData]);
 
   // Handle navigation to centre details
   const handleViewCentre = (centreId: string) => {
@@ -710,6 +737,63 @@ export default function CentreAnalyticsPage() {
             </div>
           </CardContent>
         </Card>
+        
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t">
+            <div className="text-sm text-gray-600">
+              {totalCentres > 0 ? (
+                <span>
+                  Showing {startIndex + 1}–
+                  {Math.min(endIndex, totalCentres)} of {totalCentres} centres
+                </span>
+              ) : (
+                <span>Showing 0 of 0 centres</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Select 
+                value={String(limit)} 
+                onValueChange={(v) => {
+                  const next = parseInt(v, 10);
+                  const clamped = Number.isNaN(next) ? 10 : Math.min(50, Math.max(5, next));
+                  setLimit(clamped);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[110px]">
+                  <SelectValue placeholder="Rows" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[5, 10, 20, 30, 50].map((n) => (
+                    <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={!canPrev} 
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Prev
+                </Button>
+                <span className="text-sm text-gray-700 min-w-[80px] text-center">
+                  Page {page} / {totalPages}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={!canNext} 
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Export Button */}
         <div className="mt-4 flex justify-end">
@@ -725,8 +809,8 @@ export default function CentreAnalyticsPage() {
                   "In Progress", "Pending", "Failed", "Cancelled", "PTA", "Tympanometry", 
                   "OAE", "ETF", "Tone Decay", "Reflexometry", "Otoscopy"
                 ].join(","),
-                // Data rows
-                ...centreTableData.map(data => [
+                // Data rows (export all data, not just paginated)
+                ...allCentreTableData.map(data => [
                   `"${data.name}"`, `"${data.code}"`, `"${data.location}"`, 
                   `"${data.contactNumber}"`, `"${data.entName}"`, `"${data.assistantName}"`,
                   `"${data.isOurAssistant}"`, `"${data.deviceCode}"`,

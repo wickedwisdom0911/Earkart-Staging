@@ -864,7 +864,7 @@ export default function ConsultationLayout({
             className="border-none "
             button={
               <div className="flex items-center justify-center gap-6 mr-2">
-                {/* R15C Device Status */}
+                {/* Audiometer Device Status */}
                 <div className="flex items-center gap-2">
                   <div
                     className={`w-3 h-3 rounded-full ${
@@ -872,19 +872,19 @@ export default function ConsultationLayout({
                     }`}
                   />
                   <span className="text-sm font-medium">
-                    R15C:{" "}
+                    Audiometer:{" "}
                     {r15c.connectionStatus.charAt(0).toUpperCase() +
                       r15c.connectionStatus.slice(1)}
                     {typeof r15c.batteryLevel === 'number' && (
-                      <span className="ml-2 text-xs text-gray-600">R15C 🔋 {r15c.batteryLevel}%</span>
+                      <span className="ml-2 text-xs text-gray-600">🔋 {r15c.batteryLevel}%</span>
                     )}
                     {typeof r15c.isCharging === 'boolean' && (
-                      <span className="ml-1 text-xs text-gray-600">{r15c.isCharging ? "(R15C Charging)" : "(R15C On Battery)"}</span>
+                      <span className="ml-1 text-xs text-gray-600">{r15c.isCharging ? "(Charging)" : "(On Battery)"}</span>
                     )}
                   </span>
                 </div>
 
-                {/* Revo2 Device Status */}
+                {/* Otoscope Device Status */}
                 <div className="flex items-center gap-2">
                   <div
                     className={`w-3 h-3 rounded-full ${
@@ -892,7 +892,7 @@ export default function ConsultationLayout({
                     }`}
                   />
                   <span className="text-sm font-medium">
-                    Revo2:{" "}
+                    Otoscope:{" "}
                     {revo2.connectionStatus.charAt(0).toUpperCase() +
                       revo2.connectionStatus.slice(1)}
                   </span>

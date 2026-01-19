@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import getAllConsultations from "@/actions/consultations/get_all_consultations";
 
-export const useGetAllConsultations = () => {
+export const useGetAllConsultations = (options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ["consultations"],
+    enabled: options?.enabled !== false, // Default to true, but can be disabled
     queryFn: async () => {
       console.log("🔵 [useGetAllConsultations] Query function called");
       try {

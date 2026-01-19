@@ -155,6 +155,7 @@ export default function TympanometryPage() {
   const [nackMessage, setNackMessage] = useState("");
   // Cache for readings saved during this session to avoid losing the first ear before refetch
   const [localReadings, setLocalReadings] = useState<TympanometryReadingModelData[]>([]);
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
 
   // Add state for all tympanometry values
   const [peakPressure, setPeakPressure] = useState<number | null>(null);
@@ -264,6 +265,21 @@ export default function TympanometryPage() {
     try {
       await updateConsultationMutation.mutateAsync(updatedConsultation);
       console.log("Tympanometry results saved successfully");
+
+      // Preserve localStorage data after test submission
+      try {
+        const storageKey = `tympanometry-${params.consultationId}`;
+        const dataToStore = {
+          localReadings: updatedReadings,
+          completedEars: Array.from(completedEars),
+          timestamp: new Date().toISOString(),
+          submitted: true
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+        console.log('💾 Preserved tympanometry data in localStorage after test submission');
+      } catch (error) {
+        console.error('Failed to save to localStorage:', error);
+      }
 
       // Add current ear to completed set
       const newCompletedEars = new Set(completedEars);
@@ -546,6 +562,92 @@ export default function TympanometryPage() {
     params.consultationId,
   ]);
 
+  // Load test results - prioritize backend if test is completed, otherwise use localStorage
+  useEffect(() => {
+    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+    if (!params.consultationId || hasLoadedFromStorage || !consultationData) return;
+    
+    const isTestCompleted = consultationData?.tympanometry?.status === TestStatus.COMPLETED;
+    
+    // If test is completed, skip localStorage and load from backend (handled in next useEffect)
+    if (isTestCompleted) {
+      console.log('✅ Tympanometry test is completed - will load from backend API');
+      setHasLoadedFromStorage(true);
+      return;
+    }
+    
+    // If test is NOT completed, load from localStorage for work in progress
+    try {
+      const storageKey = `tympanometry-${params.consultationId}`;
+      const storedData = localStorage.getItem(storageKey);
+      
+      if (storedData) {
+        const parsed = JSON.parse(storedData);
+        if (parsed.localReadings && Array.isArray(parsed.localReadings)) {
+          setLocalReadings(parsed.localReadings);
+          
+          // Restore completed ears
+          if (parsed.completedEars && Array.isArray(parsed.completedEars)) {
+            setCompletedEars(new Set(parsed.completedEars));
+          }
+          
+          console.log('📦 Loaded tympanometry results from localStorage (test not completed):', {
+            count: parsed.localReadings.length
+          });
+        }
+      }
+      setHasLoadedFromStorage(true);
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      setHasLoadedFromStorage(true);
+    }
+  }, [params.consultationId, consultation, hasLoadedFromStorage]);
+
+  // Populate test results from backend API - prioritize if test is completed
+  useEffect(() => {
+    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+    if (!consultationData || !hasLoadedFromStorage) return;
+
+    const isTestCompleted = consultationData?.tympanometry?.status === TestStatus.COMPLETED;
+    
+    // If test is NOT completed and we already have local data, don't override
+    if (!isTestCompleted && localReadings.length > 0) {
+      return; // Keep localStorage data for work in progress
+    }
+    
+    // If test is completed OR we don't have local data, load from backend
+    if (consultationData?.tympanometry?.readings && consultationData.tympanometry.readings.length > 0) {
+      setLocalReadings(consultationData.tympanometry.readings);
+      
+      // Restore completed ears from backend
+      const backendCompletedEars = new Set<"L" | "R">();
+      consultationData.tympanometry.readings.forEach((reading) => {
+        if (reading.ear === Ear.LEFT) backendCompletedEars.add("L");
+        if (reading.ear === Ear.RIGHT) backendCompletedEars.add("R");
+      });
+      setCompletedEars(backendCompletedEars);
+      
+      console.log('📥 Loaded tympanometry results from backend API:', {
+        count: consultationData.tympanometry.readings.length,
+        isCompleted: isTestCompleted
+      });
+      
+      // Also save to localStorage for future reference
+      try {
+        const storageKey = `tympanometry-${params.consultationId}`;
+        const dataToStore = {
+          localReadings: consultationData.tympanometry.readings,
+          completedEars: Array.from(backendCompletedEars),
+          timestamp: new Date().toISOString(),
+          submitted: isTestCompleted
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+      } catch (error) {
+        console.error('Failed to save backend data to localStorage:', error);
+      }
+    }
+  }, [consultation, params.consultationId, hasLoadedFromStorage, localReadings.length]);
+
   // Load saved reading data when switching to an ear that was already tested
   React.useEffect(() => {
     const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
@@ -587,6 +689,33 @@ export default function TympanometryPage() {
       }
     }
   }, [selectedEar, consultation, localReadings, isRunning, isTestCompleted]);
+
+  // Save test results to localStorage whenever they change (preserve even after submission)
+  useEffect(() => {
+    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+    if (!params.consultationId || !hasLoadedFromStorage) return;
+    
+    const isTestCompleted = consultationData?.tympanometry?.status === TestStatus.COMPLETED;
+    
+    // Don't save if test is completed (backend is source of truth)
+    if (isTestCompleted) {
+      return;
+    }
+    
+    // Always save to preserve data for work in progress
+    try {
+      const storageKey = `tympanometry-${params.consultationId}`;
+      const dataToStore = {
+        localReadings,
+        completedEars: Array.from(completedEars),
+        timestamp: new Date().toISOString(),
+        submitted: false
+      };
+      localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }, [params.consultationId, localReadings, completedEars, consultation, hasLoadedFromStorage]);
 
 
 

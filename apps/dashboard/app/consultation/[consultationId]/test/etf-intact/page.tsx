@@ -120,6 +120,7 @@ export default function EtfIntactPage() {
   // Consultation hooks
   const { data: consultation } = useGetConsultation(consultationId);
   const updateConsultationMutation = useUpdateConsultation();
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
 
   const activeCurveRef = useRef(activeCurve);
   const sessionStateRef = useRef<SessionState>(sessionState);
@@ -680,6 +681,23 @@ export default function EtfIntactPage() {
     try {
       const result = await updateConsultationMutation.mutateAsync(updatedConsultation);
       console.log("ETF results saved successfully:", result);
+
+      // Preserve localStorage data after test submission
+      try {
+        const storageKey = `etf-intact-${consultationId}`;
+        const dataToStore = {
+          curves: allCurves,
+          completedEars: Array.from(completedEars),
+          earCanalVolume: ecvValue,
+          selectedEar: selectedEar,
+          timestamp: new Date().toISOString(),
+          submitted: true
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+        console.log('💾 Preserved ETF Intact data in localStorage after test submission');
+      } catch (error) {
+        console.error('Failed to save to localStorage:', error);
+      }
 
       // Mark this ear as completed
       setCompletedEars((prev) => {

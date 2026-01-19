@@ -109,13 +109,15 @@ function LoginPageInner() {
       const result = await resp.json();
       
       if (result.success) {
-        router.push("/dashboard");
+        // Use window.location.href for full page reload
+        // Ensures cookies are set before middleware check
+        window.location.href = "/dashboard";
       } else {
         toast.error(result.message || "Login failed");
+        setIsPending(false);
       }
     } catch (error) {
       toast.error("An unexpected error occurred");
-    } finally {
       setIsPending(false);
     }
   }

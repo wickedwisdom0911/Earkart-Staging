@@ -320,6 +320,7 @@ export default function OtoacousticPage() {
     left?: any;
     right?: any;
   }>({});
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
 
   // Standard frequency presets
   const FREQUENCY_PRESETS = [
@@ -327,6 +328,142 @@ export default function OtoacousticPage() {
     { label: "Extended", frequencies: [500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000] },
     { label: "High Freq", frequencies: [2000, 3000, 4000, 6000, 8000] },
   ];
+
+  // Load test results - prioritize backend if test is completed, otherwise use localStorage
+  useEffect(() => {
+    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+    if (!params.consultationId || hasLoadedFromStorage || !consultationData) return;
+    
+    const isTestCompleted = consultationData?.oae?.status === TestStatus.COMPLETED;
+    
+    // If test is completed, skip localStorage and load from backend (handled in next useEffect)
+    if (isTestCompleted) {
+      console.log('✅ OAE test is completed - will load from backend API');
+      setHasLoadedFromStorage(true);
+      return;
+    }
+    
+    // If test is NOT completed, load from localStorage for work in progress
+    try {
+      const storageKey = `otoacoustic-${params.consultationId}`;
+      const storedData = localStorage.getItem(storageKey);
+      
+      if (storedData) {
+        const parsed = JSON.parse(storedData);
+        if (parsed.frequencyResponses && Array.isArray(parsed.frequencyResponses)) {
+          setFrequencyResponses(parsed.frequencyResponses);
+          
+          // Restore completed ears
+          if (parsed.completedEars && Array.isArray(parsed.completedEars)) {
+            setCompletedEars(new Set(parsed.completedEars));
+          }
+          
+          // Restore test results
+          if (parsed.testResults) {
+            setTestResults(parsed.testResults);
+          }
+          
+          console.log('📦 Loaded OAE results from localStorage (test not completed):', {
+            count: parsed.frequencyResponses.length
+          });
+        }
+      }
+      setHasLoadedFromStorage(true);
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      setHasLoadedFromStorage(true);
+    }
+  }, [params.consultationId, consultation, hasLoadedFromStorage]);
+
+  // Populate test results from backend API - prioritize if test is completed
+  useEffect(() => {
+    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+    if (!consultationData || !hasLoadedFromStorage) return;
+
+    const isTestCompleted = consultationData?.oae?.status === TestStatus.COMPLETED;
+    
+    // If test is NOT completed and we already have local data, don't override
+    if (!isTestCompleted && frequencyResponses.length > 0) {
+      return; // Keep localStorage data for work in progress
+    }
+    
+    // If test is completed OR we don't have local data, load from backend
+    if (consultationData?.oae?.earTests && consultationData.oae.earTests.length > 0) {
+      // Load frequency responses from backend
+      const loadedResponses: FrequencyResponseData[] = [];
+      const loadedCompletedEars = new Set<"L" | "R">();
+      
+      consultationData.oae.earTests.forEach((earTest: any) => {
+        const ear = earTest.ear === "LEFT" ? "L" : "R";
+        loadedCompletedEars.add(ear);
+        
+        // Convert frequency responses from backend format
+        if (earTest.frequencyResponses && Array.isArray(earTest.frequencyResponses)) {
+          earTest.frequencyResponses.forEach((fr: any) => {
+            loadedResponses.push({
+              frequency: fr.frequencyHz,
+              responseDb: fr.signal,
+              noiseLevel: fr.noise,
+              snr: fr.signal && fr.noise ? fr.signal - fr.noise : null,
+              pass: fr.pass || false,
+              ear: ear,
+            });
+          });
+        }
+      });
+      
+      setFrequencyResponses(loadedResponses);
+      setCompletedEars(loadedCompletedEars);
+      
+      console.log('📥 Loaded OAE results from backend API:', {
+        count: loadedResponses.length,
+        isCompleted: isTestCompleted
+      });
+      
+      // Also save to localStorage for future reference
+      try {
+        const storageKey = `otoacoustic-${params.consultationId}`;
+        const dataToStore = {
+          frequencyResponses: loadedResponses,
+          completedEars: Array.from(loadedCompletedEars),
+          testResults: testResults,
+          timestamp: new Date().toISOString(),
+          submitted: isTestCompleted
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+      } catch (error) {
+        console.error('Failed to save backend data to localStorage:', error);
+      }
+    }
+  }, [consultation, params.consultationId, hasLoadedFromStorage, frequencyResponses.length, testResults]);
+
+  // Save test results to localStorage whenever they change (preserve even after submission)
+  useEffect(() => {
+    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+    if (!params.consultationId || !hasLoadedFromStorage) return;
+    
+    const isTestCompleted = consultationData?.oae?.status === TestStatus.COMPLETED;
+    
+    // Don't save if test is completed (backend is source of truth)
+    if (isTestCompleted) {
+      return;
+    }
+    
+    // Always save to preserve data for work in progress
+    try {
+      const storageKey = `otoacoustic-${params.consultationId}`;
+      const dataToStore = {
+        frequencyResponses,
+        completedEars: Array.from(completedEars),
+        testResults,
+        timestamp: new Date().toISOString(),
+        submitted: false
+      };
+      localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }, [params.consultationId, frequencyResponses, completedEars, testResults, consultation, hasLoadedFromStorage]);
 
   // Function to save OAE results to consultation
   const saveOaeResults = useCallback(async () => {
@@ -419,6 +556,22 @@ export default function OtoacousticPage() {
     try {
       await updateConsultationMutation.mutateAsync(updatedConsultation);
       console.log("✅ OAE results saved successfully");
+
+      // Preserve localStorage data after test submission
+      try {
+        const storageKey = `otoacoustic-${params.consultationId}`;
+        const dataToStore = {
+          frequencyResponses,
+          completedEars: Array.from(completedEars),
+          testResults,
+          timestamp: new Date().toISOString(),
+          submitted: true
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+        console.log('💾 Preserved OAE data in localStorage after test submission');
+      } catch (error) {
+        console.error('Failed to save to localStorage:', error);
+      }
 
       // Add current ear to completed set
       const newCompletedEars = new Set(completedEars);

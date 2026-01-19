@@ -24,11 +24,22 @@ export async function POST(req: NextRequest) {
       UserApiResponseSchema
     );
 
+    // Create NextResponse first
+    const res = NextResponse.json(response);
+
+    // Attach cookie explicitly to guarantee Set-Cookie header is sent
+    // This is the KEY FIX for EC2 - cookies().set() alone doesn't always work behind Nginx
     if (response.success && response.data) {
-      await createSession(response.data);
+      const cookie = await createSession(response.data);
+      if (cookie) {
+        res.cookies.set(cookie.name, cookie.value, cookie.options);
+        console.log("🔵 Cookie attached to response:", cookie.name);
+      } else {
+        console.error("🔴 Failed to create session cookie");
+      }
     }
 
-    return NextResponse.json(response);
+    return res;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ success: false, message }, { status: 500 });

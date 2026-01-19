@@ -38,7 +38,7 @@ const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-lg">Connecting to otoscope stream...</p>
-          <p className="text-sm text-gray-400 mt-2">Please wait while the R15C camera initializes</p>
+          <p className="text-sm text-gray-400 mt-2">Please wait while the audiometer camera initializes</p>
         </div>
       </div>
     );

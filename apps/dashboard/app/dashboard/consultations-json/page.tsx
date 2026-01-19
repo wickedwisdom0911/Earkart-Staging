@@ -19,13 +19,13 @@ import {
   Building2,
   Users,
   Stethoscope,
-  Calendar,
+  Calendar as CalendarIcon,
   TrendingUp,
   Filter,
   PhoneOff,
   Phone,
 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isSameDay, subDays, startOfDay, endOfDay } from "date-fns";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { SessionStatus, TestStatus } from "@/models/enums";
 import {
@@ -35,6 +35,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
 export default function ConsultationsJsonPage() {
   const { data: consultations, isLoading, isError } = useGetAllConsultations();
@@ -46,6 +52,12 @@ export default function ConsultationsJsonPage() {
   // Centre filter state
   const [selectedCentre1, setSelectedCentre1] = useState<string>("");
   const [selectedCentre2, setSelectedCentre2] = useState<string>("");
+
+  // Date range filter state
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
+  const today = new Date();
+  const yesterday = subDays(today, 1);
 
   // Handle JSON file upload
   const handleJsonUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,17 +107,21 @@ export default function ConsultationsJsonPage() {
     event.target.value = "";
   };
 
-  // Download current consultations as JSON
+  // Download current consultations as JSON (respects date filters)
   const handleDownloadJson = () => {
-    if (!consultations?.data || !Array.isArray(consultations.data)) {
+    if (activeData.length === 0) {
       alert("No consultations data available to download");
       return;
     }
 
     const jsonData = {
       exportDate: new Date().toISOString(),
-      totalConsultations: consultations.data.length,
-      data: consultations.data,
+      totalConsultations: activeData.length,
+      dateRange: (fromDate || toDate) ? {
+        from: fromDate ? format(fromDate, "yyyy-MM-dd") : null,
+        to: toDate ? format(toDate, "yyyy-MM-dd") : null,
+      } : null,
+      data: activeData,
     };
 
     const jsonString = JSON.stringify(jsonData, null, 2);
@@ -113,7 +129,10 @@ export default function ConsultationsJsonPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `consultations-export-${format(new Date(), "yyyy-MM-dd-HHmmss")}.json`;
+    const dateRangeSuffix = (fromDate || toDate) 
+      ? `-${getDateDisplayText().replace(/\s+/g, "-")}`
+      : "";
+    a.download = `consultations-export-${format(new Date(), "yyyy-MM-dd-HHmmss")}${dateRangeSuffix}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -129,7 +148,60 @@ export default function ConsultationsJsonPage() {
     : 0;
 
   // Use uploaded data if available, otherwise use API data
-  const activeData = uploadedData || (consultations?.data && Array.isArray(consultations.data) ? consultations.data : []);
+  const rawData = uploadedData || (consultations?.data && Array.isArray(consultations.data) ? consultations.data : []);
+
+  // Filter data by date range
+  const activeData = useMemo(() => {
+    if (!rawData || rawData.length === 0) return [];
+
+    return rawData.filter((c) => {
+      if (!c.createdAt) return false;
+      
+      const consultationDate = new Date(c.createdAt);
+      
+      // If no date filters are set, show all consultations
+      if (!fromDate && !toDate) {
+        return true;
+      }
+      
+      // If only fromDate is set, filter from that date onwards
+      if (fromDate && !toDate) {
+        return consultationDate >= startOfDay(fromDate);
+      }
+      
+      // If only toDate is set, filter up to that date
+      if (!fromDate && toDate) {
+        return consultationDate <= endOfDay(toDate);
+      }
+      
+      // If both dates are set, filter within the range
+      if (fromDate && toDate) {
+        return consultationDate >= startOfDay(fromDate) && consultationDate <= endOfDay(toDate);
+      }
+      
+      return true;
+    });
+  }, [rawData, fromDate, toDate]);
+
+  // Format the date range for display
+  const getDateDisplayText = () => {
+    if (!fromDate && !toDate) return "All Time";
+    if (fromDate && !toDate) return `From ${format(fromDate, "dd MMM yyyy")}`;
+    if (!fromDate && toDate) return `Until ${format(toDate, "dd MMM yyyy")}`;
+    if (fromDate && toDate) {
+      if (isSameDay(fromDate, toDate)) {
+        return format(fromDate, "dd MMM yyyy");
+      }
+      return `${format(fromDate, "dd MMM yyyy")} - ${format(toDate, "dd MMM yyyy")}`;
+    }
+    return "All Time";
+  };
+
+  // Clear date filters
+  const clearDateFilters = () => {
+    setFromDate(null);
+    setToDate(null);
+  };
 
   // Get unique centres from data
   const availableCentres = useMemo(() => {
@@ -595,6 +667,172 @@ export default function ConsultationsJsonPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Date Range Filter */}
+        {activeData.length > 0 && (
+          <Card className="mt-6 border-2 border-primary-200 shadow-md">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <CalendarIcon className="w-5 h-5 text-primary-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Select Date Range</h2>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Quick Date Buttons */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-gray-700 mr-2">Quick Select:</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFromDate(today);
+                      setToDate(today);
+                    }}
+                    className={`${
+                      fromDate && toDate && isSameDay(fromDate, today) && isSameDay(toDate, today)
+                        ? "bg-primary-600 text-white border-primary-600"
+                        : ""
+                    }`}
+                  >
+                    Today
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFromDate(yesterday);
+                      setToDate(yesterday);
+                    }}
+                    className={`${
+                      fromDate && toDate && isSameDay(fromDate, yesterday) && isSameDay(toDate, yesterday)
+                        ? "bg-primary-600 text-white border-primary-600"
+                        : ""
+                    }`}
+                  >
+                    Yesterday
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const weekAgo = subDays(today, 7);
+                      setFromDate(weekAgo);
+                      setToDate(today);
+                    }}
+                  >
+                    Last 7 Days
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const monthAgo = subDays(today, 30);
+                      setFromDate(monthAgo);
+                      setToDate(today);
+                    }}
+                  >
+                    Last 30 Days
+                  </Button>
+                  {(fromDate || toDate) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearDateFilters}
+                      className="text-red-600 border-red-300 hover:bg-red-50"
+                    >
+                      <XCircle className="w-4 h-4 mr-1" />
+                      Clear
+                    </Button>
+                  )}
+                </div>
+                
+                {/* Date Range Pickers */}
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      From Date
+                    </label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="w-4 h-4 mr-2" />
+                          {fromDate ? format(fromDate, "dd MMM yyyy") : "Select start date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={fromDate || undefined}
+                          onSelect={(date) => {
+                            setFromDate(date || null);
+                            // If toDate is before the new fromDate, adjust toDate
+                            if (date && toDate && date > toDate) {
+                              setToDate(date);
+                            }
+                          }}
+                          initialFocus
+                          disabled={(date) => toDate ? date > toDate : false}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  <div className="pt-6">
+                    <span className="text-gray-500 font-medium">to</span>
+                  </div>
+                  
+                  <div className="flex-1">
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      To Date
+                    </label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="w-4 h-4 mr-2" />
+                          {toDate ? format(toDate, "dd MMM yyyy") : "Select end date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={toDate || undefined}
+                          onSelect={(date) => {
+                            setToDate(date || null);
+                            // If fromDate is after the new toDate, adjust fromDate
+                            if (date && fromDate && date < fromDate) {
+                              setFromDate(date);
+                            }
+                          }}
+                          initialFocus
+                          disabled={(date) => fromDate ? date < fromDate : false}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                {/* Selected Range Display */}
+                {(fromDate || toDate) && (
+                  <div className="mt-4 p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                    <p className="text-sm text-primary-900">
+                      <span className="font-semibold">Showing data for:</span>{" "}
+                      {getDateDisplayText()}
+                    </p>
+                    <p className="text-xs text-primary-700 mt-1">
+                      {activeData.length} consultations match the selected date range
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Centre Comparison Filter */}
         {activeData.length > 0 && (
@@ -1107,7 +1345,7 @@ export default function ConsultationsJsonPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Calendar className="w-5 h-5 text-blue-600" />
+                      <CalendarIcon className="w-5 h-5 text-blue-600" />
                       <div>
                         <p className="text-sm font-semibold text-blue-900">Date Range</p>
                         <p className="text-xs text-blue-700">

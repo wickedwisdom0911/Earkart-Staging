@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import HandleCentreDialog from "./_components/handle-centre-dialog";
 import { Button } from "@/components/ui/button";
@@ -27,11 +27,15 @@ export default function CentresPage() {
   const [assistantFilter, setAssistantFilter] = useState<string>("all");
   const [deviceFilter, setDeviceFilter] = useState<string>("all");
   
+  // Pagination states
+  const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(12); // Default 12 per page for grid view
+  
   // Safely get centres array
   const allCentres = data?.data?.data?.filter((c): c is CentreModelData => c !== null) || [];
   
   // Apply filters
-  const centres = useMemo(() => {
+  const filteredCentres = useMemo(() => {
     return allCentres.filter((centre) => {
       // Search by centre name, ENT name, or code
       const query = searchQuery.toLowerCase().trim();
@@ -57,6 +61,22 @@ export default function CentresPage() {
       return matchesSearch && matchesAssistant && matchesDevice;
     });
   }, [allCentres, searchQuery, assistantFilter, deviceFilter]);
+  
+  // Pagination calculations
+  const totalCentres = filteredCentres.length;
+  const totalPages = Math.ceil(totalCentres / limit);
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+  const centres = filteredCentres.slice(startIndex, endIndex);
+  
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, assistantFilter, deviceFilter]);
+  
+  // Pagination helpers
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
   
   // Stats
   const stats = useMemo(() => {
@@ -209,7 +229,10 @@ export default function CentresPage() {
             )}
           </div>
           <div className="text-sm text-gray-500">
-            <span className="font-semibold text-primary-600">{centres.length}</span> of {allCentres.length} centres
+            <span className="font-semibold text-primary-600">{totalCentres}</span> of {allCentres.length} centres
+            {totalCentres !== allCentres.length && (
+              <span className="ml-2 text-xs">(filtered)</span>
+            )}
           </div>
         </div>
       </div>
@@ -245,8 +268,9 @@ export default function CentresPage() {
       )}
       
       {centres.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {centres.map((centre: CentreModelData) => (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {centres.map((centre: CentreModelData) => (
             <div
               key={centre.id}
               className={`relative rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border ${
@@ -384,7 +408,65 @@ export default function CentresPage() {
               </div>
             </div>
           ))}
-        </div>
+          </div>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 mt-6 border-t">
+              <div className="text-sm text-gray-600">
+                {totalCentres > 0 ? (
+                  <span>
+                    Showing {startIndex + 1}–
+                    {Math.min(endIndex, totalCentres)} of {totalCentres}
+                  </span>
+                ) : (
+                  <span>Showing 0 of 0</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Select 
+                  value={String(limit)} 
+                  onValueChange={(v) => {
+                    const next = parseInt(v, 10);
+                    const clamped = Number.isNaN(next) ? 12 : Math.min(50, Math.max(6, next));
+                    setLimit(clamped);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[110px]">
+                    <SelectValue placeholder="Rows" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[6, 12, 24, 36, 50].map((n) => (
+                      <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={!canPrev} 
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Prev
+                  </Button>
+                  <span className="text-sm text-gray-700 min-w-[80px] text-center">
+                    Page {page} / {totalPages}
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={!canNext} 
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </DashboardBodyWrapper>
   );
