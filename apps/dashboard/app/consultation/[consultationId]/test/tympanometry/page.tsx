@@ -3,7 +3,7 @@ import { ImpedanceData } from "@/models/device/impedance-data.model";
 import { ImpedanceStatus } from "@/models/device/impredance-status.model";
 import { useSocket } from "@/providers/socket-provider";
 import { useParams, useRouter } from "next/navigation";
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   LineChart,
   Line,
