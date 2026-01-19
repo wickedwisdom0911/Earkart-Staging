@@ -7,6 +7,7 @@ import { format, isSameDay, subDays } from "date-fns";
 import { SessionStatus } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
+import { extractConsultations } from "@/models/consultation.model";
 import {
   PhoneOff,
   Calendar as CalendarIcon,
@@ -44,10 +45,10 @@ export default function MissedCallsPage() {
 
   // Filter consultations that are NOT assigned to any audiologist
   const missedCalls = useMemo(() => {
-    if (!consultations?.data || !Array.isArray(consultations.data))
-      return [];
+    if (!consultations?.data) return [];
 
-    return consultations.data.filter((c) => {
+    const consultationsArray = extractConsultations(consultations.data);
+    return consultationsArray.filter((c) => {
       // Only show consultations WITHOUT audiologist assigned
       // Use EXACT same logic as All Consultations page card display:
       // consultation.audiologist?.user?.name || "No Audiologist Assigned"
@@ -93,9 +94,9 @@ export default function MissedCallsPage() {
 
   // Debug: Count all consultations without audiologist (ignoring status filter)
   const debugStats = useMemo(() => {
-    if (!consultations?.data || !Array.isArray(consultations.data)) return { total: 0, withoutAudiologist: 0 };
+    if (!consultations?.data) return { total: 0, withoutAudiologist: 0 };
     
-    const allConsultations = consultations.data;
+    const allConsultations = extractConsultations(consultations.data);
     const withoutAudiologist = allConsultations.filter(c => !c.audiologist?.user?.name);
     
     console.log("[MissedCalls Debug]", {

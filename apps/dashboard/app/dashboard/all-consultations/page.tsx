@@ -1,6 +1,6 @@
 "use client";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { format } from "date-fns";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
-import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
+import { useGetAllConsultationsInfiniteFlat } from "@/hooks/consultation/use_get_all_consultations_infinite";
 import {
   User,
   Building2,
@@ -21,6 +21,7 @@ import {
   FileText,
   Filter,
   X,
+  Loader2,
 } from "lucide-react";
 import { ROUTES } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
@@ -32,10 +33,18 @@ import { ConsultationEmptyState } from "@/components/ui/consultation-empty-state
 export default function AllConsultationsPage() {
   const router = useRouter();
   const { data: user } = useGetUser();
-  const [filteredConsultations, setFilteredConsultations] = useState<
-    ConsultationModelData[]
-  >([]);
-  const { data: consultations, isLoading, isError, error } = useGetAllConsultations();
+  const observerTarget = useRef<HTMLDivElement>(null);
+  
+  const {
+    consultations: allConsultations,
+    isLoading,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage: hasMorePages,
+    isFetchingNextPage,
+    total,
+  } = useGetAllConsultationsInfiniteFlat({ limit: 20 });
   
   // Check if user is an audiologist
   const isAudiologist =
@@ -44,6 +53,32 @@ export default function AllConsultationsPage() {
   // Filter states
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!hasMorePages || isFetchingNextPage) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMorePages && !isFetchingNextPage) {
+          console.log("🔵 [AllConsultationsPage] Loading more consultations...");
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMorePages, isFetchingNextPage, fetchNextPage]);
 
   // Add logging for errors
   useEffect(() => {
@@ -56,55 +91,47 @@ export default function AllConsultationsPage() {
     }
   }, [isError, error]);
 
-  // Log when data changes
-  useEffect(() => {
-    console.log("🔵 [AllConsultationsPage] Consultations data changed:", {
-      hasData: !!consultations,
-      success: consultations?.success,
-      hasDataArray: !!consultations?.data,
-      isArray: Array.isArray(consultations?.data),
-      length: Array.isArray(consultations?.data) ? consultations.data.length : 'N/A'
-    });
-  }, [consultations]);
-
-  useEffect(() => {
-    if (consultations?.data && Array.isArray(consultations.data)) {
-      let filtered = [...consultations.data];
-
-      // For audiologists (non-admin), automatically filter to show only their consultations
-      if (isAudiologist && user?.id) {
-        filtered = filtered.filter(
-          (c) => c.audiologist?.userId === user.id
-        );
-      }
-
-      // Filter by date range
-      if (startDate) {
-        filtered = filtered.filter((c) => {
-          const consultationDate = new Date(c.createdAt);
-          const start = new Date(startDate);
-          return consultationDate >= start;
-        });
-      }
-
-      if (endDate) {
-        filtered = filtered.filter((c) => {
-          const consultationDate = new Date(c.createdAt);
-          const end = new Date(endDate);
-          end.setHours(23, 59, 59, 999); // Include the entire end date
-          return consultationDate <= end;
-        });
-      }
-
-      // Sort by date (newest first)
-      filtered.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-
-      setFilteredConsultations(filtered);
+  // Filter consultations using useMemo to prevent infinite loops
+  const filteredConsultations = useMemo(() => {
+    if (!allConsultations || allConsultations.length === 0) {
+      return [];
     }
-  }, [consultations, startDate, endDate, isAudiologist, user?.id]);
+
+    let filtered = [...allConsultations];
+
+    // For audiologists (non-admin), automatically filter to show only their consultations
+    if (isAudiologist && user?.id) {
+      filtered = filtered.filter(
+        (c) => c.audiologist?.userId === user.id
+      );
+    }
+
+    // Filter by date range
+    if (startDate) {
+      filtered = filtered.filter((c) => {
+        const consultationDate = new Date(c.createdAt || "");
+        const start = new Date(startDate);
+        return consultationDate >= start;
+      });
+    }
+
+    if (endDate) {
+      filtered = filtered.filter((c) => {
+        const consultationDate = new Date(c.createdAt || "");
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999); // Include the entire end date
+        return consultationDate <= end;
+      });
+    }
+
+    // Sort by date (newest first)
+    filtered.sort(
+      (a, b) =>
+        new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime()
+    );
+
+    return filtered;
+  }, [allConsultations, startDate, endDate, isAudiologist, user?.id]);
 
   const clearFilters = () => {
     setStartDate("");
@@ -362,11 +389,29 @@ export default function AllConsultationsPage() {
                 onClearFilters={clearFilters}
               />
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {filteredConsultations.map((consultation) =>
-                  renderConsultationCard(consultation)
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {filteredConsultations.map((consultation) =>
+                    renderConsultationCard(consultation)
+                  )}
+                </div>
+                
+                {/* Infinite scroll trigger and loading indicator */}
+                <div ref={observerTarget} className="h-10 flex items-center justify-center">
+                  {isFetchingNextPage && (
+                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-sm">Loading more consultations...</span>
+                    </div>
+                  )}
+                </div>
+                
+                {!hasMorePages && filteredConsultations.length > 0 && (
+                  <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+                    All consultations loaded ({total} total)
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </>
         )}

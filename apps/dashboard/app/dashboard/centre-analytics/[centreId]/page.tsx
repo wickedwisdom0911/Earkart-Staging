@@ -8,6 +8,7 @@ import { SessionStatus, Role } from "@/models/enums";
 import { useParams, useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
+import { extractConsultations } from "@/models/consultation.model";
 import useGetCentre from "@/hooks/centre/use-get-centre";
 import {
   ArrowLeft,
@@ -70,9 +71,10 @@ export default function CentreDetailPage() {
 
   // Filter consultations for this centre
   const centreConsultations = useMemo(() => {
-    if (!consultations?.data || !Array.isArray(consultations.data)) return [];
+    if (!consultations?.data) return [];
 
-    return consultations.data.filter(
+    const consultationsArray = extractConsultations(consultations.data);
+    return consultationsArray.filter(
       (c) => c.centre?.id === centreId
     );
   }, [consultations, centreId]);

@@ -8,12 +8,37 @@ import {
   ConsultationModelSchema,
 } from "@/models/consultation.model";
 
-export default async function getAllConsultations(): Promise<ConsultationModel> {
+export interface GetAllConsultationsParams {
+  page?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export default async function getAllConsultations(
+  params?: GetAllConsultationsParams
+): Promise<ConsultationModel> {
   try {
-    console.log("🔵 [getAllConsultations] Starting...");
+    console.log("🔵 [getAllConsultations] Starting...", { params });
     
     const baseUrl = await getBaseUrl();
-    const url = `${baseUrl}consultation/get-all`;
+    let url = `${baseUrl}consultation/get-all`;
+    
+    // Add pagination query parameters if provided
+    const queryParams = new URLSearchParams();
+    if (params?.limit !== undefined) {
+      queryParams.append("limit", params.limit.toString());
+    }
+    if (params?.offset !== undefined) {
+      queryParams.append("offset", params.offset.toString());
+    }
+    if (params?.page !== undefined) {
+      queryParams.append("page", params.page.toString());
+    }
+    
+    if (queryParams.toString()) {
+      url += `?${queryParams.toString()}`;
+    }
+    
     console.log("🔵 [getAllConsultations] URL:", url);
     
     const user = await verifySession();

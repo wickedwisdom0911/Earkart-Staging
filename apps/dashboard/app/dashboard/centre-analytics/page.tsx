@@ -8,6 +8,7 @@ import { SessionStatus, Role } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
+import { extractConsultations } from "@/models/consultation.model";
 import useGetAllCentres from "@/hooks/centre/use-get-all-centres";
 import {
   CheckCircle2,
@@ -58,12 +59,12 @@ export default function CentreAnalyticsPage() {
   // Filter consultations by selected date (today by default, or selected date)
   // Only show consultations that have a centre assigned
   const filteredConsultations = useMemo(() => {
-    if (!consultations?.data || !Array.isArray(consultations.data))
-      return [];
+    if (!consultations?.data) return [];
 
+    const consultationsArray = extractConsultations(consultations.data);
     const targetDate = selectedDate || today;
 
-    return consultations.data.filter((c) => {
+    return consultationsArray.filter((c) => {
       // Only show consultations with centre assigned
       if (!c.centre || !c.centre.id) return false;
       if (!c.createdAt) return false;
@@ -75,11 +76,12 @@ export default function CentreAnalyticsPage() {
   // Group all consultations by centre for the details modal
   // Only include consultations that have a centre assigned
   const consultationsByCentre = useMemo(() => {
-    if (!consultations?.data || !Array.isArray(consultations.data)) return new Map();
+    if (!consultations?.data) return new Map();
     
+    const consultationsArray = extractConsultations(consultations.data);
     const map = new Map<string, ConsultationModelData[]>();
     
-    consultations.data.forEach((c) => {
+    consultationsArray.forEach((c) => {
       // Only include consultations with centre assigned
       const centreId = c.centre?.id;
       if (centreId) {
