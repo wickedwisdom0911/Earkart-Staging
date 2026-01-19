@@ -3,7 +3,7 @@ description: "Earkart OMNI 2.0 with OAE module."
 
 publish_to: "none"
 
-version: 1.0.5+1
+version: 1.0.6+1
 
 environment:
   sdk: ^3.7.0
