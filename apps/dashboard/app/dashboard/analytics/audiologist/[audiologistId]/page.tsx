@@ -122,10 +122,10 @@ export default function AudiologistDetailsPage() {
 
   const statusConfig = {
     [SessionStatus.COMPLETED]: {
-      color: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      icon: <CheckCircle2 className="w-4 h-4" />,
-      label: "Completed",
-      gradient: "from-emerald-500 to-teal-500",
+      color: "bg-red-50 text-red-700 border-red-200",
+      icon: <AlertCircle className="w-4 h-4" />,
+      label: "Missed",
+      gradient: "from-red-500 to-rose-500",
     },
     [SessionStatus.PENDING]: {
       color: "bg-amber-50 text-amber-700 border-amber-200",
@@ -449,32 +449,7 @@ export default function AudiologistDetailsPage() {
             </div>
           </div>
 
-          {/* Statistics Cards */}
-          
- 
-           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-              <p className="text-primary-100 text-xs font-medium mb-1">Today</p>
-              <p className="text-3xl font-bold">{filteredConsultations?.length}</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-              <p className="text-primary-100 text-xs font-medium mb-1">Total</p>
-              <p className="text-3xl font-bold">{stats.total}</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-              <p className="text-emerald-100 text-xs font-medium mb-1">Completed</p>
-              <p className="text-3xl font-bold">{stats.completed}</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-              <p className="text-amber-100 text-xs font-medium mb-1">Pending</p>
-              <p className="text-3xl font-bold">{stats.pending}</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-              <p className="text-blue-100 text-xs font-medium mb-1">In Progress</p>
-              <p className="text-3xl font-bold">{stats.inProgress}</p>
-            </div>
-          </div>
+          {/* Statistics cards were removed per request – focus on monitoring + list only */}
         </div>
 
         {/* Date Filter Card */}
@@ -491,26 +466,16 @@ export default function AudiologistDetailsPage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-10 border-2 border-gray-200 hover:border-primary-300 focus:border-primary-500 rounded-lg shadow-sm"
-                    >
-                      <Calendar className="w-4 h-4 mr-2" />
-                      {selectedDate ? format(selectedDate, "dd/MM/yy") : "Select date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate || undefined}
-                      onSelect={(date) => setSelectedDate(date || null)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                {/* Simple native date input for filter */}
+                <input
+                  type="date"
+                  value={selectedDate ? format(selectedDate, "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSelectedDate(v ? new Date(v) : null);
+                  }}
+                  className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
                 <Button
                   variant="outline"
                   size="sm"

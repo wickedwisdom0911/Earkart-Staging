@@ -416,74 +416,40 @@ export default function CentreAnalyticsPage() {
                 )}
               </div>
               
-              {/* Date Range Pickers */}
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    From Date
-                  </label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarIcon className="w-4 h-4 mr-2" />
-                        {fromDate ? format(fromDate, "dd MMM yyyy") : "Select start date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={fromDate || undefined}
-                        onSelect={(date) => {
-                          setFromDate(date || null);
-                          // If toDate is before the new fromDate, adjust toDate
-                          if (date && toDate && date > toDate) {
-                            setToDate(date);
-                          }
-                        }}
-                        initialFocus
-                        disabled={(date) => toDate ? date > toDate : false}
-                      />
-                    </PopoverContent>
-                  </Popover>
+              {/* Date Range Pickers - Simple Input Alternative */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">From Date</label>
+                  <input
+                    type="date"
+                    value={fromDate ? format(fromDate, "yyyy-MM-dd") : ""}
+                    onChange={(e) => {
+                      const date = e.target.value ? new Date(e.target.value) : null;
+                      setFromDate(date);
+                      if (date && toDate && date > toDate) {
+                        setToDate(date);
+                      }
+                    }}
+                    max={toDate ? format(toDate, "yyyy-MM-dd") : undefined}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
                 </div>
-                
-                <div className="pt-6">
-                  <span className="text-gray-500 font-medium">to</span>
-                </div>
-                
-                <div className="flex-1">
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    To Date
-                  </label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarIcon className="w-4 h-4 mr-2" />
-                        {toDate ? format(toDate, "dd MMM yyyy") : "Select end date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={toDate || undefined}
-                        onSelect={(date) => {
-                          setToDate(date || null);
-                          // If fromDate is after the new toDate, adjust fromDate
-                          if (date && fromDate && date < fromDate) {
-                            setFromDate(date);
-                          }
-                        }}
-                        initialFocus
-                        disabled={(date) => fromDate ? date < fromDate : false}
-                      />
-                    </PopoverContent>
-                  </Popover>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">To Date</label>
+                  <input
+                    type="date"
+                    value={toDate ? format(toDate, "yyyy-MM-dd") : ""}
+                    onChange={(e) => {
+                      const date = e.target.value ? new Date(e.target.value) : null;
+                      setToDate(date);
+                      if (date && fromDate && date < fromDate) {
+                        setFromDate(date);
+                      }
+                    }}
+                    min={fromDate ? format(fromDate, "yyyy-MM-dd") : undefined}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
                 </div>
               </div>
 
@@ -602,32 +568,33 @@ export default function CentreAnalyticsPage() {
         {/* Centres Table */}
         <Card className="shadow-lg">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
+            {/* Make table scrollable and a bit more compact so more fits on screen */}
+            <div className="overflow-x-auto max-h-[70vh]">
+              <Table className="text-xs sm:text-sm">
                 <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="font-bold">Centre Name</TableHead>
-                    <TableHead className="font-bold">Code</TableHead>
-                    <TableHead className="font-bold">Location</TableHead>
-                    <TableHead className="font-bold">Contact</TableHead>
-                    <TableHead className="font-bold">ENT Name</TableHead>
-                    <TableHead className="font-bold">Assistant</TableHead>
-                    <TableHead className="font-bold">Our Assistant</TableHead>
-                    <TableHead className="font-bold">Device Code</TableHead>
-                    <TableHead className="font-bold text-center">Total</TableHead>
-                    <TableHead className="font-bold text-center">Completed</TableHead>
-                    <TableHead className="font-bold text-center">In Progress</TableHead>
-                    <TableHead className="font-bold text-center">Pending</TableHead>
-                    <TableHead className="font-bold text-center">Failed</TableHead>
-                    <TableHead className="font-bold text-center">Cancelled</TableHead>
-                    <TableHead className="font-bold text-center bg-orange-50">PTA</TableHead>
-                    <TableHead className="font-bold text-center bg-cyan-50">Tympano</TableHead>
-                    <TableHead className="font-bold text-center bg-pink-50">OAE</TableHead>
-                    <TableHead className="font-bold text-center bg-indigo-50">ETF</TableHead>
-                    <TableHead className="font-bold text-center bg-purple-50">Tone Decay</TableHead>
-                    <TableHead className="font-bold text-center bg-emerald-50">Reflex</TableHead>
-                    <TableHead className="font-bold text-center bg-amber-50">Otoscopy</TableHead>
-                    <TableHead className="font-bold">Actions</TableHead>
+                  <TableRow className="bg-gray-50 text-[11px] sm:text-xs">
+                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Centre Name</TableHead>
+                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Code</TableHead>
+                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Location</TableHead>
+                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Contact</TableHead>
+                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">ENT Name</TableHead>
+                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Assistant</TableHead>
+                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Our Assistant</TableHead>
+                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Device Code</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Total</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Completed</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">In Progress</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Pending</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Failed</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Cancelled</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 bg-orange-50 whitespace-nowrap">PTA</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 bg-cyan-50 whitespace-nowrap">Tympano</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 bg-pink-50 whitespace-nowrap">OAE</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 bg-indigo-50 whitespace-nowrap">ETF</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 bg-purple-50 whitespace-nowrap">Tone Decay</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 bg-emerald-50 whitespace-nowrap">Reflex</TableHead>
+                    <TableHead className="font-bold text-center px-2 py-2 bg-amber-50 whitespace-nowrap">Otoscopy</TableHead>
+                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -642,32 +609,32 @@ export default function CentreAnalyticsPage() {
                     centreTableData.map((data) => (
                       <TableRow 
                         key={data.centreId}
-                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        className="hover:bg-gray-50 cursor-pointer transition-colors text-[11px] sm:text-xs"
                         onClick={(e) => {
                           e.preventDefault();
                           handleViewCentre(data.centreId);
                         }}
                       >
-                        <TableCell className="font-semibold text-primary-700">
+                        <TableCell className="font-semibold text-primary-700 px-2 py-2 max-w-[160px] truncate">
                           {data.name}
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600">
+                        <TableCell className="text-gray-600 px-2 py-2 whitespace-nowrap">
                           {data.code}
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600">
+                        <TableCell className="text-gray-600 px-2 py-2 max-w-[140px] truncate">
                           {data.location}
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600">
+                        <TableCell className="text-gray-600 px-2 py-2 whitespace-nowrap">
                           {data.contactNumber}
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600">
+                        <TableCell className="text-gray-600 px-2 py-2 max-w-[160px] truncate">
                           {data.entName}
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600">
+                        <TableCell className="text-gray-600 px-2 py-2 max-w-[160px] truncate">
                           {data.assistantName}
                         </TableCell>
-                        <TableCell className="text-sm">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        <TableCell className="px-2 py-2">
+                          <span className={`px-2 py-1 rounded text-[10px] font-medium ${
                             data.isOurAssistant === "Yes" 
                               ? "bg-green-100 text-green-700" 
                               : "bg-gray-100 text-gray-700"
@@ -675,49 +642,49 @@ export default function CentreAnalyticsPage() {
                             {data.isOurAssistant}
                           </span>
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600">
+                        <TableCell className="text-gray-600 px-2 py-2 whitespace-nowrap">
                           {data.deviceCode}
                         </TableCell>
-                        <TableCell className="text-center font-semibold text-blue-700">
+                        <TableCell className="text-center font-semibold text-blue-700 px-2 py-2">
                           {data.filteredConsultations}
                         </TableCell>
-                        <TableCell className="text-center font-semibold text-green-700">
+                        <TableCell className="text-center font-semibold text-green-700 px-2 py-2">
                           {data.completed}
                         </TableCell>
-                        <TableCell className="text-center font-semibold text-amber-700">
+                        <TableCell className="text-center font-semibold text-amber-700 px-2 py-2">
                           {data.inProgress}
                         </TableCell>
-                        <TableCell className="text-center font-semibold text-orange-700">
+                        <TableCell className="text-center font-semibold text-orange-700 px-2 py-2">
                           {data.pending}
                         </TableCell>
-                        <TableCell className="text-center font-semibold text-red-700">
+                        <TableCell className="text-center font-semibold text-red-700 px-2 py-2">
                           {data.failed}
                         </TableCell>
-                        <TableCell className="text-center font-semibold text-gray-700">
+                        <TableCell className="text-center font-semibold text-gray-700 px-2 py-2">
                           {data.cancelled}
                         </TableCell>
-                        <TableCell className="text-center font-bold text-orange-700 bg-orange-50">
+                        <TableCell className="text-center font-bold text-orange-700 bg-orange-50 px-2 py-2">
                           {data.ptaCount}
                         </TableCell>
-                        <TableCell className="text-center font-bold text-cyan-700 bg-cyan-50">
+                        <TableCell className="text-center font-bold text-cyan-700 bg-cyan-50 px-2 py-2">
                           {data.tympanometryCount}
                         </TableCell>
-                        <TableCell className="text-center font-bold text-pink-700 bg-pink-50">
+                        <TableCell className="text-center font-bold text-pink-700 bg-pink-50 px-2 py-2">
                           {data.oaeCount}
                         </TableCell>
-                        <TableCell className="text-center font-bold text-indigo-700 bg-indigo-50">
+                        <TableCell className="text-center font-bold text-indigo-700 bg-indigo-50 px-2 py-2">
                           {data.etfCount}
                         </TableCell>
-                        <TableCell className="text-center font-bold text-purple-700 bg-purple-50">
+                        <TableCell className="text-center font-bold text-purple-700 bg-purple-50 px-2 py-2">
                           {data.toneDecayCount}
                         </TableCell>
-                        <TableCell className="text-center font-bold text-emerald-700 bg-emerald-50">
+                        <TableCell className="text-center font-bold text-emerald-700 bg-emerald-50 px-2 py-2">
                           {data.reflexometryCount}
                         </TableCell>
-                        <TableCell className="text-center font-bold text-amber-700 bg-amber-50">
+                        <TableCell className="text-center font-bold text-amber-700 bg-amber-50 px-2 py-2">
                           {data.otoscopyCount}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="px-2 py-2">
                           <Button
                             variant="outline"
                             size="sm"

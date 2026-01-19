@@ -297,65 +297,39 @@ export default function AnalyticsPage() {
                   Last 30 Days
                 </Button>
                 
-                {/* From Date Picker */}
-                <Popover open={fromDateOpen} onOpenChange={setFromDateOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
-                    >
-                      <CalendarIcon className="w-3 h-3 mr-2" />
-                      {fromDate ? format(fromDate, "dd/MM/yy") : "From"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={fromDate || undefined}
-                      onSelect={(date) => {
-                        setFromDate(date || null);
-                        if (date && toDate && date > toDate) {
-                          setToDate(date);
-                        }
-                        setFromDateOpen(false);
-                      }}
-                      initialFocus
-                      disabled={(date) => toDate ? date > toDate : false}
-                    />
-                  </PopoverContent>
-                </Popover>
+                {/* From Date - native input for stability */}
+                <input
+                  type="date"
+                  value={fromDate ? format(fromDate, "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const date = v ? new Date(v) : null;
+                    setFromDate(date);
+                    if (date && toDate && date > toDate) {
+                      setToDate(date);
+                    }
+                  }}
+                  max={toDate ? format(toDate, "yyyy-MM-dd") : undefined}
+                  className="h-9 rounded-md border border-white/40 bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0"
+                />
                 
                 <span className="text-white text-sm font-medium">to</span>
                 
-                {/* To Date Picker */}
-                <Popover open={toDateOpen} onOpenChange={setToDateOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
-                    >
-                      <CalendarIcon className="w-3 h-3 mr-2" />
-                      {toDate ? format(toDate, "dd/MM/yy") : "To"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={toDate || undefined}
-                      onSelect={(date) => {
-                        setToDate(date || null);
-                        if (date && fromDate && date < fromDate) {
-                          setFromDate(date);
-                        }
-                        setToDateOpen(false);
-                      }}
-                      initialFocus
-                      disabled={(date) => fromDate ? date < fromDate : false}
-                    />
-                  </PopoverContent>
-                </Popover>
+                {/* To Date - native input for stability */}
+                <input
+                  type="date"
+                  value={toDate ? format(toDate, "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const date = v ? new Date(v) : null;
+                    setToDate(date);
+                    if (date && fromDate && date < fromDate) {
+                      setFromDate(date);
+                    }
+                  }}
+                  min={fromDate ? format(fromDate, "yyyy-MM-dd") : undefined}
+                  className="h-9 rounded-md border border-white/40 bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0"
+                />
                 
                 {(fromDate || toDate) && (
                   <Button
