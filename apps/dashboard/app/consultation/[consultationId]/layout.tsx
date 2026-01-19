@@ -1128,7 +1128,7 @@ export default function ConsultationLayout({
                 )}
                 {recordingState.isUploading && (
                   <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
-                    Finalizing previous recording… You can start a new one as soon as it completes.
+                    Finalizing previous recording… Upload is still running in the background, but you can safely start a new one.
                   </div>
                 )}
                 {hasAttemptedAutoStart && (
@@ -1149,7 +1149,9 @@ export default function ConsultationLayout({
                       timesliceMs: 5000,
                     })
                   }
-                  disabled={recordingState.isInitializing || recordingState.isRecovering || recordingState.isUploading}
+                  // Allow starting a new recording even if a previous upload is still finalizing.
+                  // Only block when we are initializing or recovering a session.
+                  disabled={recordingState.isInitializing || recordingState.isRecovering}
                 >
                   {recordingState.isRecovering 
                     ? "Recovering session..." 
