@@ -565,142 +565,285 @@ export default function CentreAnalyticsPage() {
           </Card>
         </div>
 
-        {/* Centres Table */}
-        <Card className="shadow-lg">
+        {/* Centres Table - responsive mobile + desktop with proper overflow */}
+        <Card className="shadow-lg overflow-hidden">
           <CardContent className="p-0">
-            {/* Make table scrollable and a bit more compact so more fits on screen */}
-            <div className="overflow-x-auto max-h-[70vh]">
-              <Table className="text-xs sm:text-sm">
-                <TableHeader>
-                  <TableRow className="bg-gray-50 text-[11px] sm:text-xs">
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Centre Name</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Code</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Location</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Contact</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">ENT Name</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Assistant</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Our Assistant</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Device Code</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Total</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Completed</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">In Progress</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Pending</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Failed</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Cancelled</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-orange-50 whitespace-nowrap">PTA</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-cyan-50 whitespace-nowrap">Tympano</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-pink-50 whitespace-nowrap">OAE</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-indigo-50 whitespace-nowrap">ETF</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-purple-50 whitespace-nowrap">Tone Decay</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-emerald-50 whitespace-nowrap">Reflex</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-amber-50 whitespace-nowrap">Otoscopy</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {centreTableData.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={22} className="text-center py-12">
-                        <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-600 text-lg">No centres found</p>
-                      </TableCell>
+            {/* Mobile Card View */}
+            <div className="block lg:hidden">
+              {centreTableData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No centres found</p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {centreTableData.map((data) => (
+                    <div
+                      key={data.centreId}
+                      className="p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleViewCentre(data.centreId);
+                      }}
+                    >
+                      {/* Centre Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-base truncate">
+                            {data.name}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {data.code} • {data.location}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewCentre(data.centreId);
+                          }}
+                          className="ml-2 shrink-0"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {/* Key Stats */}
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="bg-background rounded-lg p-2 border">
+                          <p className="text-xs text-muted-foreground">Total</p>
+                          <p className="text-lg font-semibold">{data.filteredConsultations}</p>
+                        </div>
+                        <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-2 border border-green-200 dark:border-green-800">
+                          <p className="text-xs text-muted-foreground">Completed</p>
+                          <p className="text-lg font-semibold text-green-700 dark:text-green-400">
+                            {data.completed}
+                          </p>
+                        </div>
+                        <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-2 border border-blue-200 dark:border-blue-800">
+                          <p className="text-xs text-muted-foreground">In Progress</p>
+                          <p className="text-lg font-semibold text-blue-700 dark:text-blue-400">
+                            {data.inProgress}
+                          </p>
+                        </div>
+                        <div className="bg-yellow-50 dark:bg-yellow-950/20 rounded-lg p-2 border border-yellow-200 dark:border-yellow-800">
+                          <p className="text-xs text-muted-foreground">Pending</p>
+                          <p className="text-lg font-semibold text-yellow-700 dark:text-yellow-400">
+                            {data.pending}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Test Counts */}
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <div className="flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
+                          <Activity className="h-3 w-3" />
+                          <span>PTA: {data.ptaCount}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
+                          <Stethoscope className="h-3 w-3" />
+                          <span>Tympano: {data.tympanometryCount}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
+                          <FileText className="h-3 w-3" />
+                          <span>OAE: {data.oaeCount}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
+                          <FileText className="h-3 w-3" />
+                          <span>ETF: {data.etfCount}</span>
+                        </div>
+                      </div>
+
+                      {/* Contact Info - Collapsible */}
+                      <details className="text-xs text-muted-foreground">
+                        <summary className="cursor-pointer hover:text-foreground">
+                          More details...
+                        </summary>
+                        <div className="mt-2 space-y-1 pl-2 border-l-2">
+                          <p><strong>Contact:</strong> {data.contactNumber}</p>
+                          <p><strong>ENT:</strong> {data.entName}</p>
+                          <p><strong>Assistant:</strong> {data.assistantName}</p>
+                          <p><strong>Our Assistant:</strong> {data.isOurAssistant}</p>
+                          <p><strong>Device:</strong> {data.deviceCode}</p>
+                          <p><strong>Failed:</strong> {data.failed} | <strong>Cancelled:</strong> {data.cancelled}</p>
+                          <p>
+                            <strong>Tone Decay:</strong> {data.toneDecayCount} |{" "}
+                            <strong>Reflex:</strong> {data.reflexometryCount} |{" "}
+                            <strong>Otoscopy:</strong> {data.otoscopyCount}
+                          </p>
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden lg:block">
+              <div className="overflow-auto max-h-[calc(100vh-400px)]">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-20">
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="font-semibold sticky left-0 bg-muted/50 z-30 min-w-[200px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                        Centre Name
+                      </TableHead>
+                      <TableHead className="font-semibold min-w-[100px]">Code</TableHead>
+                      <TableHead className="font-semibold min-w-[120px]">Location</TableHead>
+                      <TableHead className="font-semibold min-w-[130px]">Contact</TableHead>
+                      <TableHead className="font-semibold min-w-[150px]">ENT Name</TableHead>
+                      <TableHead className="font-semibold min-w-[130px]">Assistant</TableHead>
+                      <TableHead className="font-semibold min-w-[110px] text-center">Our Assistant</TableHead>
+                      <TableHead className="font-semibold min-w-[120px]">Device Code</TableHead>
+                      <TableHead className="font-semibold min-w-[80px] text-center">Total</TableHead>
+                      <TableHead className="font-semibold min-w-[100px] text-center">Completed</TableHead>
+                      <TableHead className="font-semibold min-w-[110px] text-center">In Progress</TableHead>
+                      <TableHead className="font-semibold min-w-[90px] text-center">Pending</TableHead>
+                      <TableHead className="font-semibold min-w-[80px] text-center">Failed</TableHead>
+                      <TableHead className="font-semibold min-w-[90px] text-center">Cancelled</TableHead>
+                      <TableHead className="font-semibold min-w-[70px] text-center bg-blue-50 dark:bg-blue-950/20">
+                        PTA
+                      </TableHead>
+                      <TableHead className="font-semibold min-w-[90px] text-center bg-blue-50 dark:bg-blue-950/20">
+                        Tympano
+                      </TableHead>
+                      <TableHead className="font-semibold min-w-[70px] text-center bg-blue-50 dark:bg-blue-950/20">
+                        OAE
+                      </TableHead>
+                      <TableHead className="font-semibold min-w-[70px] text-center bg-blue-50 dark:bg-blue-950/20">
+                        ETF
+                      </TableHead>
+                      <TableHead className="font-semibold min-w-[100px] text-center bg-purple-50 dark:bg-purple-950/20">
+                        Tone Decay
+                      </TableHead>
+                      <TableHead className="font-semibold min-w-[80px] text-center bg-purple-50 dark:bg-purple-950/20">
+                        Reflex
+                      </TableHead>
+                      <TableHead className="font-semibold min-w-[90px] text-center bg-purple-50 dark:bg-purple-950/20">
+                        Otoscopy
+                      </TableHead>
+                      <TableHead className="font-semibold sticky right-0 bg-muted/50 z-30 min-w-[100px] text-center shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                        Actions
+                      </TableHead>
                     </TableRow>
-                  ) : (
-                    centreTableData.map((data) => (
-                      <TableRow 
-                        key={data.centreId}
-                        className="hover:bg-gray-50 cursor-pointer transition-colors text-[11px] sm:text-xs"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleViewCentre(data.centreId);
-                        }}
-                      >
-                        <TableCell className="font-semibold text-primary-700 px-2 py-2 max-w-[160px] truncate">
-                          {data.name}
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 whitespace-nowrap">
-                          {data.code}
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 max-w-[140px] truncate">
-                          {data.location}
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 whitespace-nowrap">
-                          {data.contactNumber}
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 max-w-[160px] truncate">
-                          {data.entName}
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 max-w-[160px] truncate">
-                          {data.assistantName}
-                        </TableCell>
-                        <TableCell className="px-2 py-2">
-                          <span className={`px-2 py-1 rounded text-[10px] font-medium ${
-                            data.isOurAssistant === "Yes" 
-                              ? "bg-green-100 text-green-700" 
-                              : "bg-gray-100 text-gray-700"
-                          }`}>
-                            {data.isOurAssistant}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 whitespace-nowrap">
-                          {data.deviceCode}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-blue-700 px-2 py-2">
-                          {data.filteredConsultations}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-green-700 px-2 py-2">
-                          {data.completed}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-amber-700 px-2 py-2">
-                          {data.inProgress}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-orange-700 px-2 py-2">
-                          {data.pending}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-red-700 px-2 py-2">
-                          {data.failed}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-gray-700 px-2 py-2">
-                          {data.cancelled}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-orange-700 bg-orange-50 px-2 py-2">
-                          {data.ptaCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-cyan-700 bg-cyan-50 px-2 py-2">
-                          {data.tympanometryCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-pink-700 bg-pink-50 px-2 py-2">
-                          {data.oaeCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-indigo-700 bg-indigo-50 px-2 py-2">
-                          {data.etfCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-purple-700 bg-purple-50 px-2 py-2">
-                          {data.toneDecayCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-emerald-700 bg-emerald-50 px-2 py-2">
-                          {data.reflexometryCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-amber-700 bg-amber-50 px-2 py-2">
-                          {data.otoscopyCount}
-                        </TableCell>
-                        <TableCell className="px-2 py-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewCentre(data.centreId);
-                            }}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
+                  </TableHeader>
+                  <TableBody>
+                    {centreTableData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={22} className="h-32 text-center">
+                          <div className="flex flex-col items-center justify-center">
+                            <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+                            <p className="text-muted-foreground">No centres found</p>
+                          </div>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      centreTableData.map((data) => (
+                        <TableRow
+                          key={data.centreId}
+                          className="hover:bg-muted/50 cursor-pointer"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleViewCentre(data.centreId);
+                          }}
+                        >
+                          <TableCell className="font-medium sticky left-0 bg-background z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                            <div className="max-w-[180px] truncate" title={data.name}>
+                              {data.name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">{data.code}</TableCell>
+                          <TableCell className="text-sm">{data.location}</TableCell>
+                          <TableCell className="text-sm">{data.contactNumber}</TableCell>
+                          <TableCell className="text-sm">
+                            <div className="max-w-[140px] truncate" title={data.entName}>
+                              {data.entName}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            <div className="max-w-[120px] truncate" title={data.assistantName}>
+                              {data.assistantName}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-center">
+                            {data.isOurAssistant}
+                          </TableCell>
+                          <TableCell className="text-sm">{data.deviceCode}</TableCell>
+                          <TableCell className="text-center font-semibold">
+                            {data.filteredConsultations}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              {data.completed}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="inline-flex items-center gap-1 text-blue-700 dark:text-blue-400">
+                              <PlayCircle className="h-3.5 w-3.5" />
+                              {data.inProgress}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="inline-flex items-center gap-1 text-yellow-700 dark:text-yellow-400">
+                              <Clock className="h-3.5 w-3.5" />
+                              {data.pending}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="inline-flex items-center gap-1 text-red-700 dark:text-red-400">
+                              <XCircle className="h-3.5 w-3.5" />
+                              {data.failed}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center text-muted-foreground">
+                            {data.cancelled}
+                          </TableCell>
+                          <TableCell className="text-center bg-blue-50/50 dark:bg-blue-950/10 font-medium">
+                            {data.ptaCount}
+                          </TableCell>
+                          <TableCell className="text-center bg-blue-50/50 dark:bg-blue-950/10 font-medium">
+                            {data.tympanometryCount}
+                          </TableCell>
+                          <TableCell className="text-center bg-blue-50/50 dark:bg-blue-950/10 font-medium">
+                            {data.oaeCount}
+                          </TableCell>
+                          <TableCell className="text-center bg-blue-50/50 dark:bg-blue-950/10 font-medium">
+                            {data.etfCount}
+                          </TableCell>
+                          <TableCell className="text-center bg-purple-50/50 dark:bg-purple-950/10 font-medium">
+                            {data.toneDecayCount}
+                          </TableCell>
+                          <TableCell className="text-center bg-purple-50/50 dark:bg-purple-950/10 font-medium">
+                            {data.reflexometryCount}
+                          </TableCell>
+                          <TableCell className="text-center bg-purple-50/50 dark:bg-purple-950/10 font-medium">
+                            {data.otoscopyCount}
+                          </TableCell>
+                          <TableCell className="text-center sticky right-0 bg-background z-10 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewCentre(data.centreId);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Scroll hint */}
+              <div className="text-xs text-center text-muted-foreground py-2 border-t bg-muted/20">
+                ← Scroll horizontally to view all columns →
+              </div>
             </div>
           </CardContent>
         </Card>
