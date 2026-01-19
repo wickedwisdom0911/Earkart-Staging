@@ -444,12 +444,7 @@ export default function OtoacousticPage() {
     
     const isTestCompleted = consultationData?.oae?.status === TestStatus.COMPLETED;
     
-    // Don't save if test is completed (backend is source of truth)
-    if (isTestCompleted) {
-      return;
-    }
-    
-    // Always save to preserve data for work in progress
+    // Always save to preserve OAE data, even after test completion
     try {
       const storageKey = `otoacoustic-${params.consultationId}`;
       const dataToStore = {
@@ -457,13 +452,13 @@ export default function OtoacousticPage() {
         completedEars: Array.from(completedEars),
         testResults,
         timestamp: new Date().toISOString(),
-        submitted: false
+        submitted: isTestCompleted
       };
       localStorage.setItem(storageKey, JSON.stringify(dataToStore));
     } catch (error) {
       console.error('Failed to save to localStorage:', error);
     }
-  }, [params.consultationId, frequencyResponses, completedEars, testResults, consultation, hasLoadedFromStorage]);
+  }, [params.consultationId, frequencyResponses, completedEars, testResults, consultation?.oae?.status, hasLoadedFromStorage]);
 
   // Function to save OAE results to consultation
   const saveOaeResults = useCallback(async () => {

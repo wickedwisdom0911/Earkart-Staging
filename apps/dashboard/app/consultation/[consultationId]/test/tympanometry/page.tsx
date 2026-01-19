@@ -648,7 +648,7 @@ export default function TympanometryPage() {
     }
   }, [consultation, params.consultationId, hasLoadedFromStorage, localReadings.length]);
 
-  // Load saved reading data when switching to an ear that was already tested
+  // Load saved reading data whenever the selected ear changes
   React.useEffect(() => {
     const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
     const savedReading = localReadings.find(r => 
@@ -657,7 +657,7 @@ export default function TympanometryPage() {
       r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
     );
 
-    if (savedReading && !isRunning && !isTestCompleted) {
+    if (savedReading && !isRunning) {
       // Load saved values for display
       setPeakPressure(savedReading.peakPressure);
       setPeakCompliance(savedReading.peakCompliance ?? null);
@@ -681,6 +681,7 @@ export default function TympanometryPage() {
           }
         );
         setFinalData(savedPoints);
+        // Mark test as completed for this ear only in UI
         setIsTestCompleted(true);
       } else {
         // No graph data available - show empty
@@ -688,7 +689,7 @@ export default function TympanometryPage() {
         setIsTestCompleted(false);
       }
     }
-  }, [selectedEar, consultation, localReadings, isRunning, isTestCompleted]);
+  }, [selectedEar, consultation, localReadings, isRunning]);
 
   // Save test results to localStorage whenever they change (preserve even after submission)
   useEffect(() => {
@@ -697,25 +698,20 @@ export default function TympanometryPage() {
     
     const isTestCompleted = consultationData?.tympanometry?.status === TestStatus.COMPLETED;
     
-    // Don't save if test is completed (backend is source of truth)
-    if (isTestCompleted) {
-      return;
-    }
-    
-    // Always save to preserve data for work in progress
+    // Always save to preserve tympanometry data, even after test completion
     try {
       const storageKey = `tympanometry-${params.consultationId}`;
       const dataToStore = {
         localReadings,
         completedEars: Array.from(completedEars),
         timestamp: new Date().toISOString(),
-        submitted: false
+        submitted: isTestCompleted
       };
       localStorage.setItem(storageKey, JSON.stringify(dataToStore));
     } catch (error) {
       console.error('Failed to save to localStorage:', error);
     }
-  }, [params.consultationId, localReadings, completedEars, consultation, hasLoadedFromStorage]);
+  }, [params.consultationId, localReadings, completedEars, consultation?.tympanometry?.status, hasLoadedFromStorage]);
 
 
 

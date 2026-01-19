@@ -333,19 +333,14 @@ export default function ReflexometryPage() {
     const reflexometryData = (consultation as any)?.reflexometry;
     const isTestCompleted = reflexometryData?.status === TestStatus.COMPLETED;
     
-    // Don't save if test is completed (backend is source of truth)
-    if (isTestCompleted) {
-      return;
-    }
-    
-    // Always save to preserve data for work in progress
+    // Always save to preserve reflexometry data, even after test completion
     try {
       const storageKey = `reflexometry-${consultationId}`;
       const dataToStore = {
         readings: Array.from(readings.entries()),
         completedEars: Array.from(completedEars),
         timestamp: new Date().toISOString(),
-        submitted: false
+        submitted: isTestCompleted
       };
       localStorage.setItem(storageKey, JSON.stringify(dataToStore));
     } catch (error) {

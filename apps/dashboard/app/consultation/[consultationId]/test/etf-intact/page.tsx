@@ -26,6 +26,7 @@ import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
+import { TestStatus } from "@/models/enums";
 
 type SessionState = "idle" | "initializing" | "running" | "waiting" | "completed";
 type CurveStatus = "pending" | "running" | "waiting" | "completed";
@@ -140,6 +141,31 @@ export default function EtfIntactPage() {
       hasAutoSavedRef.current = false;
     }
   }, [sessionState]);
+
+  // Save test results to localStorage whenever they change (preserve even after submission)
+  useEffect(() => {
+    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+    if (!consultationId || !hasLoadedFromStorage || !consultationData) return;
+    
+    const etfIntactData = (consultationData as any)?.etfIntact;
+    const isTestCompleted = etfIntactData?.status === TestStatus.COMPLETED;
+    
+    // Always save to preserve ETF Intact data, even after test completion
+    try {
+      const storageKey = `etf-intact-${consultationId}`;
+      const dataToStore = {
+        curves,
+        completedEars: Array.from(completedEars),
+        earCanalVolume,
+        selectedEar,
+        timestamp: new Date().toISOString(),
+        submitted: isTestCompleted
+      };
+      localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }, [consultationId, curves, completedEars, earCanalVolume, selectedEar, consultation, hasLoadedFromStorage]);
 
   // Build overlay data from curve samples (like tympanometry: data = isTestCompleted ? finalData : realTimeData)
   // For ETF: merge all curve samples into overlay points grouped by pressure

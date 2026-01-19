@@ -200,19 +200,16 @@ export default function ToneDecayPage() {
   useEffect(() => {
     if (!consultationId || !hasLoadedFromStorage) return;
     
-    // Don't save if test is completed (backend is source of truth)
-    if (consultation?.toneDecay?.status === TestStatus.COMPLETED) {
-      return;
-    }
+    const isTestCompleted = consultation?.toneDecay?.status === TestStatus.COMPLETED;
     
-    // Always save to preserve data for work in progress
+    // Always save to preserve tone decay data, even after test completion
     try {
       const storageKey = `tone-decay-${consultationId}`;
       const dataToStore = {
         testResults,
         completedEars: Array.from(completedEars),
         timestamp: new Date().toISOString(),
-        submitted: false
+        submitted: isTestCompleted
       };
       localStorage.setItem(storageKey, JSON.stringify(dataToStore));
     } catch (error) {
