@@ -1,9 +1,9 @@
 name: earkart_omni
-description: "A new Flutter project."
+description: "Earkart OMNI 2.0 with OAE module."
 
 publish_to: "none"
 
-version: 1.0.4+1
+version: 1.0.5+1
 
 environment:
   sdk: ^3.7.0

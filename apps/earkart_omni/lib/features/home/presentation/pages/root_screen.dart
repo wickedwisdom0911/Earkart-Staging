@@ -330,7 +330,10 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
             } else if (state is ConsultationError ||
                 state is ConsultationInitial) {
               if (state is ConsultationError) {
-                ErrorHandler.handleConsultationError(context, state.message);
+                // Only handle errors that are not suppressed (expected empty states)
+                if (!ErrorHandler.shouldSuppress(state.message)) {
+                  ErrorHandler.handleConsultationError(context, state.message);
+                }
               }
               setState(() {
                 checkedConsultation = true;

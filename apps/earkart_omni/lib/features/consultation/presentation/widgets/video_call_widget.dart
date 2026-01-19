@@ -298,34 +298,113 @@ class _VideoCallWidgetState extends State<VideoCallWidget>
                             di<ILogger>().info(
                               '[VIDEO_CALL] End consultation button pressed',
                             );
-                            // Show confirmation dialog
+                            // Show beautiful minimal confirmation dialog
                             final shouldEndCall = await showDialog<bool>(
                               context: context,
-                              barrierDismissible: false,
+                              barrierDismissible: true,
+                              barrierColor: Colors.black54,
                               builder: (BuildContext context2) {
-                                return AlertDialog(
-                                  title: const Text('End Consultation'),
-                                  content: const Text(
-                                    'Are you sure you want to end this consultation? This action cannot be undone.',
+                                return Dialog(
+                                  backgroundColor: Colors.transparent,
+                                  elevation: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        // Icon
+                                        Container(
+                                          width: 64,
+                                          height: 64,
+                                          decoration: BoxDecoration(
+                                            color: Colors.red.shade50,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.phone_disabled_rounded,
+                                            size: 32,
+                                            color: Colors.red.shade600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        
+                                        // Title
+                                        const Text(
+                                          'End Consultation',
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        
+                                        // Message
+                                        Text(
+                                          'Are you sure you want to end this consultation?',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey.shade700,
+                                            height: 1.5,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 24),
+                                        
+                                        // Buttons
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: TextButton(
+                                                onPressed: () =>
+                                                    Navigator.of(context2).pop(false),
+                                                style: TextButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(10),
+                                                  ),
+                                                ),
+                                                child: const Text(
+                                                  'Cancel',
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: ElevatedButton(
+                                                onPressed: () =>
+                                                    Navigator.of(context2).pop(true),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.red.shade600,
+                                                  foregroundColor: Colors.white,
+                                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(10),
+                                                  ),
+                                                  elevation: 0,
+                                                ),
+                                                child: const Text(
+                                                  'End Call',
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed:
-                                          () =>
-                                              Navigator.of(context2).pop(false),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed:
-                                          () =>
-                                              Navigator.of(context2).pop(true),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.red,
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      child: const Text('End Call'),
-                                    ),
-                                  ],
                                 );
                               },
                             );

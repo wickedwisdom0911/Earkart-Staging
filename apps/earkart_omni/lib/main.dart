@@ -18,6 +18,7 @@ import 'package:earkart_omni/features/device/presentation/cubit/device_registrat
 import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
+import 'package:earkart_omni/features/chat/presentation/cubit/chat.cubit.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/appointments/data/source/local/appointments.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
@@ -482,6 +483,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ),
         BlocProvider<NetworkCubit>(
           create: (context) => di.call<NetworkCubit>(),
+        ),
+        BlocProvider<ChatCubit>(
+          create: (context) => di.call<ChatCubit>(),
         ),
       ],
       child: AnimatedSwitcher(
