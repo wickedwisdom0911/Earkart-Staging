@@ -18,6 +18,9 @@ class ConsultationCubit extends Cubit<ConsultationState> {
   final GetConsultationsByCentreIdUsecase getConsultationsByCentreIdUsecase;
   final GetCurrentConsultationUsecase getCurrentConsultationUsecase;
 
+  static const int _pageSize = 10;
+  int _currentOffset = 0;
+
   ConsultationCubit({
     required this.getConsultationByIdUsecase,
     required this.createConsultationUsecase,
@@ -38,10 +41,12 @@ class ConsultationCubit extends Cubit<ConsultationState> {
 
   Future<void> createConsultation({
     List<ConsultationPricingEntity>? selectedServices,
+    String? paymentId,
   }) async {
     emit(ConsultationLoading());
     final result = await createConsultationUsecase(
       selectedServices: selectedServices,
+      paymentId: paymentId,
     );
     result.fold(
       (l) {
@@ -71,13 +76,64 @@ class ConsultationCubit extends Cubit<ConsultationState> {
     );
   }
 
-  Future<void> getConsultationsByCentreId() async {
-    emit(ConsultationLoading());
-    final result = await getConsultationsByCentreIdUsecase();
-    result.fold(
-      (l) => emit(AllConsultationsError(message: l.message)),
-      (r) => emit(AllConsultationsSuccess(consultations: r)),
+  Future<void> getConsultationsByCentreId({bool refresh = false}) async {
+    if (refresh) {
+      _currentOffset = 0;
+      emit(ConsultationLoading());
+    } else {
+      final currentState = state;
+      if (currentState is AllConsultationsSuccess) {
+        // Prevent duplicate calls if already loading more
+        if (currentState.isLoadingMore) return;
+        emit(currentState.copyWith(isLoadingMore: true));
+      } else {
+        emit(ConsultationLoading());
+      }
+    }
+
+    final result = await getConsultationsByCentreIdUsecase(
+      limit: _pageSize,
+      offset: _currentOffset,
     );
+
+    result.fold((l) => emit(AllConsultationsError(message: l.message)), (r) {
+      final consultations = r.consultations;
+      final currentState = state;
+      if (currentState is AllConsultationsSuccess && !refresh) {
+        // Append new consultations to existing list
+        final updatedConsultations = [
+          ...currentState.consultations,
+          ...consultations,
+        ];
+        _currentOffset += consultations.length;
+        emit(
+          AllConsultationsSuccess(
+            consultations: updatedConsultations,
+            hasMore: r.hasNext,
+            isLoadingMore: false,
+          ),
+        );
+      } else {
+        // First load or refresh
+        _currentOffset = consultations.length;
+        emit(
+          AllConsultationsSuccess(
+            consultations: consultations,
+            hasMore: r.hasNext,
+            isLoadingMore: false,
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> loadMoreConsultations() async {
+    final currentState = state;
+    if (currentState is AllConsultationsSuccess) {
+      if (!currentState.isLoadingMore && currentState.hasMore) {
+        await getConsultationsByCentreId(refresh: false);
+      }
+    }
   }
 
   Future<void> getCurrentConsultation() async {

@@ -40,11 +40,15 @@ class RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
-  bool checkedCentre = false;
-  bool checkedPatient = false;
-  bool checkedConsultation = false;
-  bool checkedUser = false;
-  bool checkedDevice = false;
+  // Consolidated loading state
+  final Map<String, bool> _checkedFlags = {
+    'device': false,
+    'user': false,
+    'centre': false,
+    'patient': false,
+    'consultation': false,
+  };
+
   UserEntity? user;
   CentreEntity? centre;
   PatientEntity? patient;
@@ -52,6 +56,20 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
   DeviceEntity? device;
 
   Timer? _loadingTimeoutTimer;
+
+  // Helper getters for cleaner code
+  bool get _isDeviceChecked => _checkedFlags['device']!;
+  bool get _isUserChecked => _checkedFlags['user']!;
+  bool get _isCentreChecked => _checkedFlags['centre']!;
+  bool get _isPatientChecked => _checkedFlags['patient']!;
+  bool get _isConsultationChecked => _checkedFlags['consultation']!;
+
+  bool get _allChecksComplete =>
+      _isDeviceChecked &&
+      _isUserChecked &&
+      _isCentreChecked &&
+      _isPatientChecked &&
+      _isConsultationChecked;
 
   @override
   void initState() {
@@ -70,14 +88,34 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
 
   void _setupLoadingTimeout() {
     _loadingTimeoutTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted && !checkedDevice) {
-        setState(() {
-          // Force complete device check only
-          checkedDevice = true;
-          device = null;
-        });
+      if (mounted && !_isDeviceChecked) {
+        _updateCheckStatus('device', device: null);
       }
     });
+  }
+
+  void _updateCheckStatus(
+    String key, {
+    UserEntity? user,
+    CentreEntity? centre,
+    PatientEntity? patient,
+    ConsultationEntity? consultation,
+    DeviceEntity? device,
+  }) {
+    if (!mounted) return;
+    setState(() {
+      _checkedFlags[key] = true;
+      if (user != null) this.user = user;
+      if (centre != null) this.centre = centre;
+      if (patient != null) this.patient = patient;
+      if (consultation != null) this.consultation = consultation;
+      if (device != null) this.device = device;
+    });
+  }
+
+  void _resetAuthState() {
+    _updateCheckStatus('user', user: null);
+    _updateCheckStatus('centre', centre: null);
   }
 
   Future<void> _grantPermissionsImmediately() async {
@@ -130,24 +168,19 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
         return;
       }
 
-      // Get the DeviceCubit and CommunicationCubit from the global context
       final deviceCubit = di<DeviceCubit>();
       final communicationCubit = di<CommunicationCubit>();
+      final networkCubit = di<NetworkCubit>();
 
       // Set up communication between DeviceCubit and CommunicationCubit
       deviceCubit.setCommunicationCubit(communicationCubit);
 
-      // Start device monitoring
+      // Start device monitoring and checks
       deviceCubit.startDeviceMonitoring();
-
-      // Force initial device check
       deviceCubit.forceDeviceCheck();
-
-      // Force initial network check
-      final networkCubit = di<NetworkCubit>();
       networkCubit.forceNetworkCheck();
     } catch (e) {
-      // Log error but don't crash the app
+      di<ILogger>().error('Error starting device monitoring: $e');
     }
   }
 
@@ -215,6 +248,79 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
     );
   }
 
+  // Auth state handlers
+  void _handleAuthSuccess(BuildContext context, UserEntity? user) {
+    _updateCheckStatus('user', user: user);
+    if (user != null) {
+      context.read<AuthCubit>().getCentre();
+    } else {
+      _resetAuthState();
+      context.read<AuthCubit>().logout();
+    }
+  }
+
+  void _handleCentreSuccess(BuildContext context, CentreEntity? centre) {
+    _updateCheckStatus('centre', centre: centre);
+    if (centre != null) {
+      context.read<ConsultationCubit>().getCurrentConsultation();
+    }
+  }
+
+  void _handleAuthError(BuildContext context, String message) {
+    ErrorHandler.handleAuthError(context, message);
+    _resetAuthState();
+    context.read<ConsultationCubit>().getCurrentConsultation();
+  }
+
+  void _handleCentreError(BuildContext context, String message) {
+    ErrorHandler.handleCentreError(context, message);
+    _updateCheckStatus('centre', centre: null);
+    context.read<ConsultationCubit>().getCurrentConsultation();
+  }
+
+  void _handleLoggedOut(BuildContext context) {
+    _resetAuthState();
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/login',
+      (route) => false,
+    );
+  }
+
+  void _handleAuthInitial(BuildContext context) {
+    _updateCheckStatus('centre', centre: null);
+    context.read<ConsultationCubit>().getCurrentConsultation();
+  }
+
+  // Device state handler
+  void _handleDeviceState(BuildContext context, DeviceEntity? device) {
+    _updateCheckStatus('device', device: device);
+    if (device != null) {
+      context.read<AuthCubit>().getCurrentUser();
+      context.read<PatientCubit>().getCurrentPatient();
+    }
+  }
+
+  // Navigation screen builder
+  Widget _buildNavigationScreen() {
+    // Priority 1: If consultation exists, go to consultation screen
+    if (consultation != null) {
+      return const ConsultationScreen();
+    }
+
+    // Priority 2: If patient exists but no consultation, go to consultation request
+    if (patient != null) {
+      return const ConsultationRequestScreen();
+    }
+
+    // Priority 3: If user is centre role and no patient/consultation, go to home
+    if (user != null && user!.role == Role.centre) {
+      return const HomeScreen();
+    }
+
+    return const LoginScreen();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MultiBlocListener(
@@ -222,165 +328,51 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
         BlocListener<AuthCubit, AuthState>(
           listener: (context, state) {
             if (state is AuthSuccess) {
-              setState(() {
-                checkedUser = true;
-                user = state.user;
-              });
-              // Only call getCentre after we have user data
-              if (state.user != null) {
-                context.read<AuthCubit>().getCentre();
-              } else {
-                // If no user but there's other data, force a logout to clear everything
-                setState(() {
-                  checkedUser = true;
-                  checkedCentre = true;
-                  user = null;
-                  centre = null;
-                });
-
-                // Force logout to clear all data
-                context.read<AuthCubit>().logout();
-              }
-            }
-            if (state is AuthCentreSuccess) {
-              setState(() {
-                checkedCentre = true;
-                centre = state.centre;
-              });
-              // Now that we have centre data, we can safely call getCurrentConsultation
-              if (state.centre != null) {
-                context.read<ConsultationCubit>().getCurrentConsultation();
-              }
-            } else if (state is AuthError ||
-                state is AuthInitial ||
-                state is AuthCentreError ||
-                state is AuthLoggedOut) {
-              if (state is AuthError) {
-                ErrorHandler.handleAuthError(context, state.message);
-                // If user auth fails, mark all as checked with null
-                setState(() {
-                  checkedUser = true;
-                  checkedCentre = true;
-                  user = null;
-                  centre = null;
-                });
-                // Also call getCurrentConsultation to complete the loading cycle
-                context.read<ConsultationCubit>().getCurrentConsultation();
-              } else if (state is AuthCentreError) {
-                ErrorHandler.handleCentreError(context, state.message);
-                setState(() {
-                  checkedCentre = true;
-                  centre = null;
-                });
-                // Also call getCurrentConsultation to complete the loading cycle
-                context.read<ConsultationCubit>().getCurrentConsultation();
-              } else if (state is AuthLoggedOut) {
-                setState(() {
-                  checkedUser = true;
-                  checkedCentre = true;
-                  user = null;
-                  centre = null;
-                });
-                // Navigate to login screen when user is logged out
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                );
-              } else if (state is AuthInitial) {
-                setState(() {
-                  checkedCentre = true;
-                  centre = null;
-                });
-                // Also call getCurrentConsultation to complete the loading cycle
-                context.read<ConsultationCubit>().getCurrentConsultation();
-              } else {
-                setState(() {
-                  checkedCentre = true;
-                  centre = null;
-                });
-                // Also call getCurrentConsultation to complete the loading cycle
-                context.read<ConsultationCubit>().getCurrentConsultation();
-              }
+              _handleAuthSuccess(context, state.user);
+            } else if (state is AuthCentreSuccess) {
+              _handleCentreSuccess(context, state.centre);
+            } else if (state is AuthError) {
+              _handleAuthError(context, state.message);
+            } else if (state is AuthCentreError) {
+              _handleCentreError(context, state.message);
+            } else if (state is AuthLoggedOut) {
+              _handleLoggedOut(context);
+            } else if (state is AuthInitial) {
+              _handleAuthInitial(context);
             }
           },
         ),
         BlocListener<PatientCubit, PatientState>(
           listener: (context, state) {
-            if (state is CurrentPatientSuccess) {
-              setState(() {
-                checkedPatient = true;
-                patient = state.patient;
-              });
-            } else if (state is PatientError || state is PatientInitial) {
-              setState(() {
-                checkedPatient = true;
-                patient = null;
-              });
-            }
+            state.maybeWhen(
+              currentPatientSuccess: (patient) =>
+                  _updateCheckStatus('patient', patient: patient),
+              orElse: () => _updateCheckStatus('patient', patient: null),
+            );
           },
         ),
         BlocListener<ConsultationCubit, ConsultationState>(
           listener: (context, state) {
-            if (state is CurrentConsultationSuccess) {
-              setState(() {
-                checkedConsultation = true;
-                consultation = state.consultation;
-              });
-            } else if (state is ConsultationError ||
-                state is ConsultationInitial) {
-              if (state is ConsultationError) {
-                // Only handle errors that are not suppressed (expected empty states)
-                if (!ErrorHandler.shouldSuppress(state.message)) {
-                  ErrorHandler.handleConsultationError(context, state.message);
+            state.maybeWhen(
+              currentConsultationSuccess: (consultation) =>
+                  _updateCheckStatus('consultation', consultation: consultation),
+              error: (message) {
+                if (!ErrorHandler.shouldSuppress(message)) {
+                  ErrorHandler.handleConsultationError(context, message);
                 }
-              }
-              setState(() {
-                checkedConsultation = true;
-                consultation = null;
-              });
-            }
+                _updateCheckStatus('consultation', consultation: null);
+              },
+              orElse: () => _updateCheckStatus('consultation', consultation: null),
+            );
           },
         ),
         BlocListener<DeviceRegistrationCubit, DeviceRegistrationState>(
           listener: (context, state) {
             state.maybeWhen(
-              success: (device) {
-                setState(() {
-                  checkedDevice = true;
-                  this.device = device;
-                });
-
-                // Only after device is registered, start other API calls
-                if (device != null) {
-                  context.read<AuthCubit>().getCurrentUser();
-                  context.read<PatientCubit>().getCurrentPatient();
-                }
-              },
-              localDeviceFetched: (device) {
-                setState(() {
-                  checkedDevice = true;
-                  this.device = device;
-                });
-
-                // Only after device is registered, start other API calls
-                if (device != null) {
-                  context.read<AuthCubit>().getCurrentUser();
-                  context.read<PatientCubit>().getCurrentPatient();
-                }
-              },
-              error: (message) {
-                setState(() {
-                  checkedDevice = true;
-                  device = null;
-                });
-              },
-              orElse: () {
-                setState(() {
-                  checkedDevice = true;
-                  device = null;
-                });
-              },
+              success: (device) => _handleDeviceState(context, device),
+              localDeviceFetched: (device) => _handleDeviceState(context, device),
+              error: (_) => _updateCheckStatus('device', device: null),
+              orElse: () => _updateCheckStatus('device', device: null),
             );
           },
         ),
@@ -388,7 +380,7 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
       child: Builder(
         builder: (context) {
           // First priority: Check device registration
-          if (!checkedDevice) {
+          if (!_isDeviceChecked) {
             return const AppLoadingScreen();
           }
 
@@ -398,10 +390,7 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
           }
 
           // Device is registered, now check other operations
-          if (!checkedCentre ||
-              !checkedPatient ||
-              !checkedConsultation ||
-              !checkedUser) {
+          if (!_allChecksComplete) {
             return const AppLoadingScreen();
           }
 
@@ -409,23 +398,8 @@ class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
           _loadingTimeoutTimer?.cancel();
           _loadingTimeoutTimer = null;
 
-          // Navigation logic
-          // Priority 1: If consultation exists, go to consultation screen
-          if (consultation != null) {
-            return const ConsultationScreen();
-          }
-
-          // Priority 2: If patient exists but no consultation, go to consultation request
-          if (patient != null && consultation == null) {
-            return const ConsultationRequestScreen();
-          }
-
-          // Priority 3: If user is centre role and no patient/consultation, go to home
-          if (user != null && user!.role == Role.centre) {
-            return const HomeScreen();
-          }
-
-          return const LoginScreen();
+          // Navigation logic based on priority
+          return _buildNavigationScreen();
         },
       ),
     );

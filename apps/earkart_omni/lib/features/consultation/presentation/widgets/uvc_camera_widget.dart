@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
 import 'dart:async';
 
 import 'package:earkart_omni/di.dart';
 import 'package:earkart_omni/config/utils/custom_logger.dart';
 import 'package:earkart_omni/config/release_config.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:earkart_omni/features/consultation/presentation/cubit/agora.cubit.dart';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 
 class UVCCameraWidget extends StatefulWidget {
   final Function(bool)? onCameraStateChanged;
@@ -41,6 +45,32 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   bool _hasEverOpened = false;
   Timer? _initializationTimer;
   Timer? _platformViewTimer;
+  // Frame capture loop for Agora streaming
+  Timer? _frameCaptureTimer;
+  static const Duration _frameCaptureInterval = Duration(
+    milliseconds: 33,
+  ); // ~30fps
+  static const int _frameWidth = 1280;
+  static const int _frameHeight = 720;
+  // Cache AgoraCubit reference to avoid context lookups in timer callback
+  AgoraCubit? _cachedAgoraCubit;
+  // Track if frame capture is in progress to prevent overlapping calls
+  bool _isFrameCaptureInProgress = false;
+  // Flag to prevent frame pushing after disposal starts
+  bool _frameCaptureStopped = false;
+  // Completer to wait for frame capture to fully stop
+  Completer<void>? _frameCaptureStopCompleter;
+  // Mutex/lock for camera operations to prevent concurrent opens/closes
+  bool _cameraOperationInProgress = false;
+  Completer<void>? _cameraOperationCompleter;
+  // Track if camera is currently opening to prevent duplicate opens
+  bool _isCameraOpening = false;
+  // Track if camera is currently closing to prevent duplicate closes
+  bool _isCameraClosing = false;
+  // Track which operation holds the lock to prevent premature release
+  String? _currentOperationType;
+  // Track if we're reusing an existing controller to adjust delays
+  bool _isReusingController = false;
   // Note: Permission checks removed - permissions are granted at app startup
 
   @override
@@ -164,98 +194,187 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     });
   }
 
-  Future<void> _closeCamera() async {
-    di<ILogger>().info('Closing camera...');
+  /// Acquire camera operation lock - prevents concurrent operations
+  Future<bool> _acquireCameraOperationLock({String? operationType}) async {
+    if (_isDisposed) {
+      di<ILogger>().warning('Cannot acquire lock - widget is disposed');
+      return false;
+    }
 
-    // Don't close camera if it's already working properly
-    if (isInitialized && _isViewReady && !_isDisposed) {
-      di<ILogger>().info('Camera is working properly, not closing');
+    if (_cameraOperationInProgress) {
+      di<ILogger>().warning(
+        'Camera operation already in progress ($_currentOperationType), waiting for completion...',
+      );
+      // Wait for current operation to complete
+      if (_cameraOperationCompleter != null) {
+        try {
+          await _cameraOperationCompleter!.future.timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              di<ILogger>().error(
+                'Timeout waiting for camera operation to complete',
+              );
+            },
+          );
+        } catch (e) {
+          di<ILogger>().error('Error waiting for camera operation: $e');
+        }
+      }
+      // Check again after waiting
+      if (_cameraOperationInProgress || _isDisposed) {
+        di<ILogger>().warning(
+          'Camera operation still in progress after wait or widget disposed, skipping...',
+        );
+        return false;
+      }
+    }
+
+    _cameraOperationInProgress = true;
+    _currentOperationType = operationType ?? 'unknown';
+    _cameraOperationCompleter = Completer<void>();
+    return true;
+  }
+
+  /// Release camera operation lock
+  /// Only releases if the operation type matches to prevent premature release
+  void _releaseCameraOperationLock({String? operationType}) {
+    // Only release if operation type matches or no specific type was set
+    if (operationType != null &&
+        _currentOperationType != null &&
+        _currentOperationType != operationType) {
+      di<ILogger>().warning(
+        'Lock release skipped - operation type mismatch (current: $_currentOperationType, requested: $operationType)',
+      );
       return;
     }
 
-    // Cancel any pending timers
-    _initializationTimer?.cancel();
-    _platformViewTimer?.cancel();
+    _cameraOperationInProgress = false;
+    _currentOperationType = null;
+    _cameraOperationCompleter?.complete();
+    _cameraOperationCompleter = null;
+  }
 
-    if (cameraController != null) {
-      try {
-        // Add initial delay to allow any pending operations to complete
-        await Future.delayed(const Duration(milliseconds: 100));
+  Future<void> _closeCamera() async {
+    // Prevent concurrent close operations
+    if (_isCameraClosing) {
+      di<ILogger>().info('Camera close already in progress, skipping...');
+      return;
+    }
 
-        // Step 1: Stop capture stream
+    // Acquire lock for camera operation
+    final lockAcquired = await _acquireCameraOperationLock(
+      operationType: 'close',
+    );
+    if (!lockAcquired) {
+      di<ILogger>().warning(
+        'Could not acquire lock for camera close, skipping...',
+      );
+      return;
+    }
+
+    _isCameraClosing = true;
+
+    try {
+      di<ILogger>().info('Closing camera...');
+
+      // Don't close camera if it's already working properly
+      if (isInitialized && _isViewReady && !_isDisposed) {
+        di<ILogger>().info('Camera is working properly, not closing');
+        return;
+      }
+
+      // CRITICAL: Stop frame capture FIRST to prevent frames from being pushed during close
+      _frameCaptureStopped = true;
+      _stopFrameCaptureLoop();
+      _cachedAgoraCubit = null; // Clear AgoraCubit reference
+
+      // Cancel any pending timers
+      _initializationTimer?.cancel();
+      _platformViewTimer?.cancel();
+
+      if (cameraController != null) {
         try {
-          di<ILogger>().info('Stopping capture stream...');
-          cameraController?.captureStreamStop();
-          await Future.delayed(const Duration(milliseconds: 150));
-          di<ILogger>().info('Capture stream stopped');
-        } catch (e) {
-          di<ILogger>().error('Error stopping capture stream: $e');
-          // Continue with cleanup even if this fails
+          // Add initial delay to allow any pending operations to complete
           await Future.delayed(const Duration(milliseconds: 100));
-        }
 
-        // Step 2: Close camera
-        try {
-          di<ILogger>().info('Closing camera...');
-          cameraController?.closeCamera();
-          await Future.delayed(const Duration(milliseconds: 150));
-          di<ILogger>().info('Camera closed');
-        } catch (e) {
-          di<ILogger>().error('Error closing camera: $e');
-          // Continue with cleanup even if this fails
-          await Future.delayed(const Duration(milliseconds: 100));
-        }
-
-        // Step 3: Dispose controller
-        try {
-          di<ILogger>().info('Disposing camera controller...');
-          final controller = cameraController;
-          if (controller != null) {
-            cameraController = null; // Clear reference first
+          // Step 1: Stop capture stream
+          try {
+            di<ILogger>().info('Stopping capture stream...');
+            cameraController?.captureStreamStop();
+            await Future.delayed(const Duration(milliseconds: 150));
+            di<ILogger>().info('Capture stream stopped');
+          } catch (e) {
+            di<ILogger>().error('Error stopping capture stream: $e');
+            // Continue with cleanup even if this fails
             await Future.delayed(const Duration(milliseconds: 100));
-            controller.dispose();
-            di<ILogger>().info('Camera controller disposed');
           }
-        } catch (e) {
-          di<ILogger>().error('Error disposing camera controller: $e');
-          cameraController = null; // Ensure reference is cleared
-        }
 
-        // Final delay for cleanup
-        await Future.delayed(const Duration(milliseconds: 100));
-      } catch (e) {
-        di<ILogger>().error('Error during camera cleanup: $e');
-        cameraController = null; // Ensure reference is cleared on error
-      } finally {
-        // Ensure controller is null
-        cameraController = null;
-
-        // Only call setState if the widget is still mounted and not disposed
-        if (mounted && !_isDisposed) {
-          setState(() {
-            isInitialized = false;
-            _isViewReady = false;
-            _initializationTriggered = false;
-            _status = 'Camera closed';
-          });
-        }
-
-        // Notify parent only if the camera had opened at least once, to avoid premature hide
-        try {
-          if (_hasEverOpened) {
-            widget.onCameraStateChanged?.call(false);
-            di<ILogger>().info('📷 Notified parent that camera is closed');
-          } else {
-            di<ILogger>().info(
-              '📷 Skipping parent notification since camera never opened',
-            );
+          // Step 2: Close camera
+          try {
+            di<ILogger>().info('Closing camera...');
+            cameraController?.closeCamera();
+            await Future.delayed(const Duration(milliseconds: 150));
+            di<ILogger>().info('Camera closed');
+          } catch (e) {
+            di<ILogger>().error('Error closing camera: $e');
+            // Continue with cleanup even if this fails
+            await Future.delayed(const Duration(milliseconds: 100));
           }
+
+          // Step 3: Dispose controller
+          try {
+            di<ILogger>().info('Disposing camera controller...');
+            final controller = cameraController;
+            if (controller != null) {
+              cameraController = null; // Clear reference first
+              await Future.delayed(const Duration(milliseconds: 100));
+              controller.dispose();
+              di<ILogger>().info('Camera controller disposed');
+            }
+          } catch (e) {
+            di<ILogger>().error('Error disposing camera controller: $e');
+            cameraController = null; // Ensure reference is cleared
+          }
+
+          // Final delay for cleanup
+          await Future.delayed(const Duration(milliseconds: 100));
         } catch (e) {
-          di<ILogger>().error(
-            'Error notifying parent about camera state change: $e',
-          );
+          di<ILogger>().error('Error during camera cleanup: $e');
+          cameraController = null; // Ensure reference is cleared on error
         }
       }
+
+      // Ensure controller is null
+      cameraController = null;
+
+      // Only call setState if the widget is still mounted and not disposed
+      if (mounted && !_isDisposed) {
+        setState(() {
+          isInitialized = false;
+          _isViewReady = false;
+          _initializationTriggered = false;
+          _status = 'Camera closed';
+        });
+      }
+
+      // Notify parent only if the camera had opened at least once, to avoid premature hide
+      try {
+        if (_hasEverOpened) {
+          widget.onCameraStateChanged?.call(false);
+          di<ILogger>().info('📷 Notified parent that camera is closed');
+        } else {
+          di<ILogger>().info(
+            '📷 Skipping parent notification since camera never opened',
+          );
+        }
+      } catch (e) {
+        di<ILogger>().error(
+          'Error notifying parent about camera state change: $e',
+        );
+      }
+    } finally {
+      _isCameraClosing = false;
+      _releaseCameraOperationLock(operationType: 'close');
     }
   }
 
@@ -268,6 +387,40 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     // Set disposed flag immediately to stop all operations
     _isDisposed = true;
     _isAppActive = false;
+    _frameCaptureStopped = true; // Prevent any new frame pushes
+
+    // CRITICAL: Clear AgoraCubit reference FIRST to prevent frame pushes
+    // This must happen before stopping frame capture to prevent race conditions
+    _cachedAgoraCubit = null;
+
+    // CRITICAL: Clear camera callbacks FIRST to prevent callbacks after disposal
+    // This must happen before any async operations to prevent race conditions
+    try {
+      // Set a no-op callback that immediately returns to catch any pending callbacks
+      cameraController?.cameraStateCallback = (state) {
+        di<ILogger>().debug(
+          '[UVC_CAMERA] Camera state callback fired after disposal started - ignoring: $state',
+        );
+      };
+      cameraController?.msgCallback = (message) {
+        di<ILogger>().debug(
+          '[UVC_CAMERA] Camera message callback fired after disposal started - ignoring',
+        );
+      };
+      // Then clear them after a brief delay to ensure any in-flight callbacks are handled
+      Future.delayed(const Duration(milliseconds: 50), () {
+        try {
+          cameraController?.cameraStateCallback = null;
+          cameraController?.msgCallback = null;
+        } catch (e) {
+          di<ILogger>().error(
+            '[UVC_CAMERA] Error clearing camera callbacks: $e',
+          );
+        }
+      });
+    } catch (e) {
+      di<ILogger>().error('[UVC_CAMERA] Error clearing camera callbacks: $e');
+    }
 
     // Cancel all timers first to stop any ongoing operations
     try {
@@ -277,16 +430,16 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       _initializationTimer = null;
       _platformViewTimer?.cancel();
       _platformViewTimer = null;
+      // CRITICAL: Cancel frame capture timer to prevent frame pushes after disposal
+      _frameCaptureTimer?.cancel();
+      _frameCaptureTimer = null;
     } catch (e) {
       di<ILogger>().error('[UVC_CAMERA] Error canceling timers: $e');
     }
 
-    // Notify parent about camera state change
-    try {
-      widget.onCameraStateChanged?.call(false);
-    } catch (e) {
-      di<ILogger>().error('[UVC_CAMERA] Error notifying parent: $e');
-    }
+    // Stop frame capture loop and wait for it to fully stop
+    // This prevents frames from being pushed to Agora SDK during disposal
+    _stopFrameCaptureLoopSync();
 
     // Remove lifecycle observer early to prevent callbacks during disposal
     try {
@@ -295,9 +448,27 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       di<ILogger>().error('[UVC_CAMERA] Error removing observer: $e');
     }
 
-    // Close camera with longer delay and better error isolation
-    // Run in a separate isolate to prevent crashes from affecting the main thread
-    Future.delayed(const Duration(milliseconds: 500), () async {
+    // Notify parent about camera state change using SchedulerBinding
+    // to avoid setState during widget tree lock
+    try {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        try {
+          widget.onCameraStateChanged?.call(false);
+        } catch (e) {
+          di<ILogger>().error(
+            '[UVC_CAMERA] Error notifying parent in post-frame: $e',
+          );
+        }
+      });
+    } catch (e) {
+      di<ILogger>().error(
+        '[UVC_CAMERA] Error scheduling parent notification: $e',
+      );
+    }
+
+    // Close camera with delay to ensure frame capture has fully stopped
+    // Add a small delay to let any pending frame operations complete
+    Future.delayed(const Duration(milliseconds: 100), () async {
       try {
         // Wrap the entire disposal in a zone to catch any unhandled exceptions
         await runZonedGuarded(
@@ -331,6 +502,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   // Safe camera close method that doesn't call setState
   Future<void> _closeCameraSafely() async {
     di<ILogger>().info('Safely closing camera...');
+
+    // CRITICAL: Stop frame capture FIRST to prevent frames from being pushed during close
+    _frameCaptureStopped = true;
+    _stopFrameCaptureLoop();
+    _cachedAgoraCubit = null; // Clear AgoraCubit reference
 
     // Cancel any pending timers
     _initializationTimer?.cancel();
@@ -441,10 +617,18 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
   }
 
   Future<void> _initializeCameraController() async {
-    // Prevent concurrent initialization attempts
+    // CRITICAL: Prevent concurrent initialization attempts
     if (_isInitializing) {
       di<ILogger>().info(
         'Camera initialization already in progress, skipping...',
+      );
+      return;
+    }
+
+    // CRITICAL: Prevent initialization if camera operation is in progress
+    if (_cameraOperationInProgress || _isCameraOpening || _isCameraClosing) {
+      di<ILogger>().info(
+        'Camera operation in progress, skipping initialization (operation: $_cameraOperationInProgress, opening: $_isCameraOpening, closing: $_isCameraClosing)',
       );
       return;
     }
@@ -466,101 +650,206 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
         _permissionsGranted = true;
       }
 
-      // Don't reinitialize if camera is already working
-      if (isInitialized && cameraController != null) {
+      // CRITICAL: Don't reinitialize if camera is already working
+      // This prevents multiple initialization attempts that cause USB conflicts
+      if (isInitialized && cameraController != null && _isViewReady) {
         di<ILogger>().info(
           'Camera already initialized and working, skipping reinitialization',
         );
         return;
       }
 
-      _isInitializing = true;
-      di<ILogger>().info('Initializing camera controller...');
-      if (mounted && !_isDisposed) {
-        setState(() => _status = 'Initializing camera...');
+      // CRITICAL: If camera controller exists but camera is not initialized,
+      // ensure we close it first before reinitializing to prevent USB conflicts
+      if (cameraController != null &&
+          !isInitialized &&
+          !_isCameraOpening &&
+          !_isCameraClosing) {
+        di<ILogger>().warning(
+          'Camera controller exists but not initialized - closing before reinitializing to prevent conflicts',
+        );
+        try {
+          await _closeCamera();
+          // Wait longer for camera to fully close and USB resources to be released
+          // This prevents USB interface conflicts (err=-99) when reopening
+          await Future.delayed(const Duration(milliseconds: 1500));
+        } catch (e) {
+          di<ILogger>().error(
+            'Error closing camera before reinitialization: $e',
+          );
+          // Continue anyway - might still work
+        }
       }
 
-      // Create new controller with proper error handling
-      di<ILogger>().info('Creating UVCCameraController...');
-      try {
-        // Create controller first
-        cameraController = UVCCameraController();
+      // CRITICAL: Don't create a new controller if one already exists and is still valid
+      // Creating a new controller creates a new platform view, which triggers another onConnectDev
+      // This causes multiple concurrent open attempts and USB interface conflicts
+      _isReusingController = cameraController != null;
+
+      if (_isReusingController) {
         di<ILogger>().info(
-          'UVCCameraController created: ${cameraController != null}',
+          'Camera controller already exists, reusing existing controller to prevent multiple platform views',
         );
-
-        if (cameraController == null) {
-          throw Exception('Failed to create UVCCameraController');
+        _isInitializing = true;
+        di<ILogger>().info('Reinitializing with existing camera controller...');
+        if (mounted && !_isDisposed) {
+          setState(() => _status = 'Reinitializing camera...');
+        }
+      } else {
+        _isInitializing = true;
+        di<ILogger>().info('Initializing camera controller...');
+        if (mounted && !_isDisposed) {
+          setState(() => _status = 'Initializing camera...');
         }
 
-        // Check native library availability in release mode
-        if (ReleaseConfig.isReleaseMode) {
-          di<ILogger>().info('Checking native library availability...');
-          final nativeStatus = await cameraController!.getNativeLibraryStatus();
-          di<ILogger>().info('Native library status: $nativeStatus');
-
-          // Test native library functionality
-          final functionalityTest =
-              await cameraController!.testNativeLibraryFunctionality();
-          di<ILogger>().info(
-            'Native library functionality test: $functionalityTest',
-          );
-
-          final isNativeAvailable =
-              nativeStatus['overall_available'] as bool? ?? false;
-          if (!isNativeAvailable) {
-            di<ILogger>().warning(
-              'Native libraries not available, but continuing with camera initialization...',
-            );
-            // Don't throw exception, just log a warning and continue
-            // The camera might still work if the libraries are loaded by the dependency
-          } else {
-            di<ILogger>().info('Native libraries are available');
-          }
-        }
-
-        // In release mode, we need to ensure the platform view is fully ready
-        if (ReleaseConfig.isReleaseMode) {
-          di<ILogger>().info(
-            'Release mode detected, ensuring platform view is ready...',
-          );
-
-          // Wait for the platform view to be fully initialized
-          // This is crucial in release mode where timing is more strict
-          await Future.delayed(ReleaseConfig.platformViewInitDelay);
-
-          // Additional safety check - wait for the next frame to ensure platform view is ready
-          await Future.delayed(const Duration(milliseconds: 1000));
-        }
-
-        // Now try to update resolution with proper error handling
+        // Create new controller with proper error handling
+        di<ILogger>().info('Creating UVCCameraController...');
         try {
-          cameraController!.updateResolution(
-            PreviewSize(width: 1280, height: 720),
+          // Create controller first
+          cameraController = UVCCameraController();
+          di<ILogger>().info(
+            'UVCCameraController created: ${cameraController != null}',
           );
-          di<ILogger>().info('Resolution updated successfully');
-        } catch (resolutionError) {
-          di<ILogger>().warning(
-            'Resolution update failed, continuing without resolution update: $resolutionError',
-          );
-          // Don't throw, just continue without resolution update
-          // This is common in release mode and doesn't prevent camera from working
+
+          if (cameraController == null) {
+            throw Exception('Failed to create UVCCameraController');
+          }
+
+          // Check native library availability in release mode
+          if (ReleaseConfig.isReleaseMode) {
+            di<ILogger>().info('Checking native library availability...');
+            final nativeStatus =
+                await cameraController!.getNativeLibraryStatus();
+            di<ILogger>().info('Native library status: $nativeStatus');
+
+            // Test native library functionality
+            final functionalityTest =
+                await cameraController!.testNativeLibraryFunctionality();
+            di<ILogger>().info(
+              'Native library functionality test: $functionalityTest',
+            );
+
+            final isNativeAvailable =
+                nativeStatus['overall_available'] as bool? ?? false;
+            if (!isNativeAvailable) {
+              di<ILogger>().warning(
+                'Native libraries not available, but continuing with camera initialization...',
+              );
+              // Don't throw exception, just log a warning and continue
+              // The camera might still work if the libraries are loaded by the dependency
+            } else {
+              di<ILogger>().info('Native libraries are available');
+            }
+          }
+
+          // In release mode, we need to ensure the platform view is fully ready
+          if (ReleaseConfig.isReleaseMode) {
+            di<ILogger>().info(
+              'Release mode detected, ensuring platform view is ready...',
+            );
+
+            // Wait for the platform view to be fully initialized
+            // This is crucial in release mode where timing is more strict
+            await Future.delayed(ReleaseConfig.platformViewInitDelay);
+
+            // Additional safety check - wait for the next frame to ensure platform view is ready
+            await Future.delayed(const Duration(milliseconds: 1000));
+          }
+
+          // Now try to update resolution with proper error handling
+          try {
+            cameraController!.updateResolution(
+              PreviewSize(width: 1280, height: 720),
+            );
+            di<ILogger>().info('Resolution updated successfully');
+          } catch (resolutionError) {
+            di<ILogger>().warning(
+              'Resolution update failed, continuing without resolution update: $resolutionError',
+            );
+            // Don't throw, just continue without resolution update
+            // This is common in release mode and doesn't prevent camera from working
+          }
+        } catch (e) {
+          di<ILogger>().error('Error creating UVCCameraController: $e');
+          throw Exception('Camera controller creation failed: $e');
         }
-      } catch (e) {
-        di<ILogger>().error('Error creating UVCCameraController: $e');
-        throw Exception('Camera controller creation failed: $e');
+      }
+
+      // CRITICAL: Trigger a rebuild to ensure UVCCameraView widget is created
+      // This creates the platform view which is required for initCamera() and openUVCCamera()
+      if (mounted && !_isDisposed) {
+        setState(() {
+          // Just trigger rebuild - widget will be created in build method
+        });
+        // Wait a frame to ensure widget is built
+        await Future.delayed(const Duration(milliseconds: 100));
       }
 
       // Set up callbacks
       di<ILogger>().info('Setting up camera callbacks...');
       cameraController?.cameraStateCallback = (state) async {
-        if (_isDisposed || !mounted) return;
+        // CRITICAL: Check disposal FIRST before any operations
+        if (_isDisposed || !mounted) {
+          di<ILogger>().warning(
+            '[UVC_CAMERA] Camera state callback fired after disposal - ignoring state: $state',
+          );
+          return;
+        }
 
         di<ILogger>().info('Camera state: $state');
 
+        // Use SchedulerBinding to safely call setState even during widget tree operations
+        void safeSetState(VoidCallback fn) {
+          // Double-check disposal before setState
+          if (_isDisposed || !mounted) {
+            di<ILogger>().warning(
+              '[UVC_CAMERA] safeSetState called after disposal - skipping',
+            );
+            return;
+          }
+          try {
+            if (SchedulerBinding.instance.schedulerPhase ==
+                SchedulerPhase.idle) {
+              setState(fn);
+            } else {
+              SchedulerBinding.instance.addPostFrameCallback((_) {
+                if (mounted && !_isDisposed) {
+                  setState(fn);
+                }
+              });
+            }
+          } catch (e) {
+            di<ILogger>().error('[UVC_CAMERA] Error in safeSetState: $e');
+          }
+        }
+
         switch (state) {
           case UVCCameraState.opened:
-            setState(() {
+            // CRITICAL: Check disposal again before processing opened state
+            if (_isDisposed || !mounted) {
+              di<ILogger>().warning(
+                '[UVC_CAMERA] Camera opened callback fired after disposal - ignoring',
+              );
+              return;
+            }
+
+            // CRITICAL: Check if camera is already initialized to prevent duplicate processing
+            if (isInitialized && _isViewReady) {
+              di<ILogger>().info(
+                '[UVC_CAMERA] Camera already initialized, ignoring duplicate opened state',
+              );
+              // Still reset flags and release lock
+              _isCameraOpening = false;
+              _releaseCameraOperationLock(operationType: 'open');
+              return;
+            }
+
+            // Reset opening flag when camera successfully opens
+            _isCameraOpening = false;
+            // Only release lock if we're the one that opened it
+            _releaseCameraOperationLock(operationType: 'open');
+
+            safeSetState(() {
               isInitialized = true;
               _isViewReady = true;
               _status = 'Camera ready - streaming';
@@ -575,12 +864,50 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
               'Camera state: opened - camera is ready and working',
             );
 
-            // Notify parent about camera state change
-            widget.onCameraStateChanged?.call(true);
+            // Cache AgoraCubit reference for frame capture loop
+            if (mounted && !_isDisposed) {
+              try {
+                _cachedAgoraCubit = context.read<AgoraCubit>();
+              } catch (e) {
+                di<ILogger>().warning(
+                  'Could not cache AgoraCubit reference: $e',
+                );
+              }
+            }
+
+            // Start frame capture for Agora streaming only if not disposed
+            if (!_isDisposed && mounted) {
+              _startFrameCaptureLoop();
+            }
+
+            // Notify parent about camera state change using SchedulerBinding
+            SchedulerBinding.instance.addPostFrameCallback((_) {
+              if (mounted && !_isDisposed) {
+                widget.onCameraStateChanged?.call(true);
+              }
+            });
             break;
           case UVCCameraState.closed:
             print('Camera closed');
-            setState(() {
+
+            // CRITICAL: Check disposal before processing closed state
+            if (_isDisposed || !mounted) {
+              di<ILogger>().warning(
+                '[UVC_CAMERA] Camera closed callback fired after disposal - ignoring',
+              );
+              return;
+            }
+
+            // Reset opening/closing flags
+            _isCameraOpening = false;
+            _isCameraClosing = false;
+            // Release lock if we're closing
+            _releaseCameraOperationLock(operationType: 'close');
+
+            // Stop frame capture loop FIRST before state changes
+            _stopFrameCaptureLoop();
+
+            safeSetState(() {
               _status = 'Camera closed';
               isInitialized = false;
               _isViewReady = false;
@@ -588,7 +915,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
             // Notify parent only if camera was opened before to avoid flicker during init
             if (_hasEverOpened) {
-              widget.onCameraStateChanged?.call(false);
+              SchedulerBinding.instance.addPostFrameCallback((_) {
+                if (mounted && !_isDisposed) {
+                  widget.onCameraStateChanged?.call(false);
+                }
+              });
               di<ILogger>().info('📷 Camera state closed - notified parent');
             } else {
               di<ILogger>().info(
@@ -598,7 +929,25 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             break;
           case UVCCameraState.error:
             print('Camera error occurred');
-            setState(() {
+
+            // CRITICAL: Check disposal before processing error state
+            if (_isDisposed || !mounted) {
+              di<ILogger>().warning(
+                '[UVC_CAMERA] Camera error callback fired after disposal - ignoring',
+              );
+              return;
+            }
+
+            // Reset opening/closing flags
+            _isCameraOpening = false;
+            _isCameraClosing = false;
+            // Release lock on error
+            _releaseCameraOperationLock();
+
+            // Stop frame capture loop FIRST before state changes
+            _stopFrameCaptureLoop();
+
+            safeSetState(() {
               _status = 'Camera error';
               isInitialized = false;
               _isViewReady = false;
@@ -606,7 +955,11 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
 
             // Notify parent about camera state change on error only if opened once
             if (_hasEverOpened) {
-              widget.onCameraStateChanged?.call(false);
+              SchedulerBinding.instance.addPostFrameCallback((_) {
+                if (mounted && !_isDisposed) {
+                  widget.onCameraStateChanged?.call(false);
+                }
+              });
               di<ILogger>().info(
                 '📷 Camera error occurred - notified parent to revert to full screen',
               );
@@ -622,11 +975,48 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       };
 
       cameraController?.msgCallback = (message) {
-        if (_isDisposed || !mounted) return;
+        // CRITICAL: Check disposal FIRST
+        if (_isDisposed || !mounted) {
+          di<ILogger>().debug(
+            '[UVC_CAMERA] Camera message callback fired after disposal - ignoring',
+          );
+          return;
+        }
 
         print('Camera message: $message');
+
+        // Handle error messages
         if (message.contains('ERROR') || message.contains('error')) {
           _handleCameraError();
+          return;
+        }
+
+        // Handle camera waiting for connection messages
+        if (message.contains('not yet available') ||
+            message.contains('will open when USB device connects') ||
+            message.contains('waiting')) {
+          di<ILogger>().info('Camera is waiting for USB device connection');
+          if (mounted && !_isDisposed && !isInitialized) {
+            try {
+              if (SchedulerBinding.instance.schedulerPhase ==
+                  SchedulerPhase.idle) {
+                setState(() {
+                  _status = 'Waiting for camera to connect...';
+                });
+              } else {
+                SchedulerBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && !_isDisposed && !isInitialized) {
+                    setState(() {
+                      _status = 'Waiting for camera to connect...';
+                    });
+                  }
+                });
+              }
+            } catch (e) {
+              di<ILogger>().error('Error updating camera waiting status: $e');
+            }
+          }
+          return;
         }
       };
 
@@ -652,6 +1042,7 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
       if (!_isDisposed) {
         _isInitializing = false;
         _initializationTriggered = false;
+        _isReusingController = false; // Reset reuse flag
       }
     }
   }
@@ -748,66 +1139,261 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
           }
 
           // Add delay before opening camera to ensure initialization is complete
-          if (ReleaseConfig.isReleaseMode) {
-            await Future.delayed(const Duration(seconds: 1));
+          // Increased delay to allow USBMonitor to fully initialize and process device connection
+          // For device owner apps, USBMonitor needs time to trigger onConnectDev callback
+          // If reusing existing controller, wait longer to ensure any previous operations completed
+          if (_isReusingController) {
+            di<ILogger>().info(
+              'Reusing existing controller - waiting longer to ensure previous operations completed',
+            );
+            // Wait longer when reusing to ensure USB resources are fully released
+            await Future.delayed(const Duration(seconds: 4));
+          } else if (ReleaseConfig.isReleaseMode) {
+            await Future.delayed(const Duration(seconds: 3));
           } else {
-            await Future.delayed(const Duration(milliseconds: 500));
+            await Future.delayed(const Duration(seconds: 2));
           }
 
           if (!_isDisposed && _isAppActive && mounted) {
             try {
-              di<ILogger>().info('Opening UVC camera...');
-              await cameraController!.openUVCCamera();
-              di<ILogger>().info('Camera opened successfully');
-
-              // Set view ready flag since camera is now operational
-              if (mounted && !_isDisposed) {
-                setState(() {
-                  _isViewReady = true;
-                  _status = 'Camera streaming';
-                });
-              }
-            } catch (openError) {
-              di<ILogger>().error('Error opening camera: $openError');
-
-              // Handle native library errors specifically
-              if (openError.toString().contains('NATIVE_LIBRARY_ERROR')) {
-                di<ILogger>().warning(
-                  'Native library error detected, attempting recovery...',
+              // CRITICAL: Check if camera is already initialized before attempting to open
+              if (isInitialized && _isViewReady) {
+                di<ILogger>().info(
+                  'Camera is already initialized and ready, skipping open...',
                 );
-                // Don't increment error count for native library errors, try to recover
-                if (mounted && !_isDisposed) {
-                  setState(() {
-                    _status = 'Native library issue - retrying...';
-                  });
-                }
-                // Schedule a retry with longer delay
-                Future.delayed(const Duration(seconds: 5), () {
-                  if (!_isDisposed && _isAppActive && mounted) {
-                    _handleCameraError();
-                  }
-                });
                 return;
               }
 
+              // Prevent concurrent camera opens
+              if (_isCameraOpening) {
+                di<ILogger>().warning(
+                  'Camera open already in progress, skipping duplicate call...',
+                );
+                return;
+              }
+
+              // Acquire lock for camera operation
+              final lockAcquired = await _acquireCameraOperationLock(
+                operationType: 'open',
+              );
+              if (!lockAcquired) {
+                di<ILogger>().warning(
+                  'Could not acquire lock for camera open, skipping...',
+                );
+                return;
+              }
+
+              _isCameraOpening = true;
+
+              try {
+                di<ILogger>().info('Opening UVC camera...');
+
+                // Store initial state to detect if camera actually opens
+                final wasInitialized = isInitialized;
+
+                // CRITICAL: Only call openUVCCamera() ONCE - do not retry in loop
+                // Multiple calls cause USB interface conflicts (err=-99)
+
+                // Set initial status before opening to provide immediate feedback
+                if (mounted && !_isDisposed) {
+                  try {
+                    if (SchedulerBinding.instance.schedulerPhase ==
+                        SchedulerPhase.idle) {
+                      setState(() {
+                        _status = 'Opening camera...';
+                      });
+                    } else {
+                      SchedulerBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && !_isDisposed) {
+                          setState(() {
+                            _status = 'Opening camera...';
+                          });
+                        }
+                      });
+                    }
+                  } catch (e) {
+                    di<ILogger>().error(
+                      'Error setting initial camera status: $e',
+                    );
+                  }
+                }
+
+                await cameraController!.openUVCCamera();
+                di<ILogger>().info('Camera openUVCCamera() call completed');
+
+                // DO NOT set _isViewReady here - wait for camera state callback
+                // The camera state callback will set isInitialized and _isViewReady
+                // when UVCCameraState.opened is received
+
+                // Wait for the camera state callback to fire
+                // For device owner apps, onConnectDev might not fire immediately
+                // So we wait longer, but DO NOT retry openUVCCamera() calls
+                const maxWaitAttempts = 5;
+                const waitInterval = Duration(milliseconds: 2000);
+                bool cameraOpened = false;
+
+                for (int attempt = 0; attempt < maxWaitAttempts; attempt++) {
+                  await Future.delayed(waitInterval);
+
+                  // Check if camera actually opened (state callback should have set isInitialized)
+                  if (!_isDisposed && mounted && isInitialized) {
+                    cameraOpened = true;
+                    di<ILogger>().info(
+                      'Camera opened successfully after ${attempt + 1} wait attempts',
+                    );
+                    break;
+                  }
+
+                  // If camera still not opened, update status
+                  if (!_isDisposed && mounted && !isInitialized) {
+                    di<ILogger>().info(
+                      'Camera not yet opened, waiting... (${attempt + 1}/$maxWaitAttempts)',
+                    );
+
+                    // Update status to show we're waiting
+                    try {
+                      if (SchedulerBinding.instance.schedulerPhase ==
+                          SchedulerPhase.idle) {
+                        setState(() {
+                          _status =
+                              'Waiting for camera connection... (${attempt + 1}/$maxWaitAttempts)';
+                        });
+                      } else {
+                        SchedulerBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && !_isDisposed) {
+                            setState(() {
+                              _status =
+                                  'Waiting for camera connection... (${attempt + 1}/$maxWaitAttempts)';
+                            });
+                          }
+                        });
+                      }
+                    } catch (e) {
+                      di<ILogger>().error('Error updating camera status: $e');
+                    }
+
+                    // CRITICAL: DO NOT retry openUVCCamera() here - it causes USB conflicts
+                    // The native side will handle reconnection via onConnectDev callback
+                    // Multiple openUVCCamera() calls cause err=-99 (device busy)
+                  }
+                }
+
+                // Final check - if camera still not opened, log warning but don't treat as error
+                // The camera state callback will fire when onConnectDev eventually fires
+                if (!_isDisposed &&
+                    mounted &&
+                    !isInitialized &&
+                    !cameraOpened &&
+                    !wasInitialized) {
+                  di<ILogger>().warning(
+                    'Camera openUVCCamera() completed but camera state callback did not fire opened state after $maxWaitAttempts attempts',
+                  );
+                  // Update status to indicate camera is waiting for USB device connection
+                  if (mounted && !_isDisposed) {
+                    try {
+                      if (SchedulerBinding.instance.schedulerPhase ==
+                          SchedulerPhase.idle) {
+                        setState(() {
+                          _status = 'Waiting for camera to connect...';
+                        });
+                      } else {
+                        SchedulerBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && !_isDisposed) {
+                            setState(() {
+                              _status = 'Waiting for camera to connect...';
+                            });
+                          }
+                        });
+                      }
+                    } catch (e) {
+                      di<ILogger>().error('Error updating camera status: $e');
+                    }
+                  }
+                  // Don't treat as error - camera might still connect via onConnectDev callback
+                }
+              } catch (openError) {
+                di<ILogger>().error('Error opening camera: $openError');
+
+                final errorString = openError.toString().toLowerCase();
+
+                // Handle USBMonitor initialization errors - these are recoverable
+                if (errorString.contains('usbmonitor') ||
+                    errorString.contains('usbcontrolblock') ||
+                    errorString.contains('musbmanager') ||
+                    errorString.contains('usbmonitor not initialized')) {
+                  di<ILogger>().warning(
+                    'USBMonitor not initialized yet, waiting longer before retry...',
+                  );
+                  // Don't increment error count for USBMonitor initialization errors
+                  if (mounted && !_isDisposed) {
+                    setState(() {
+                      _status = 'USBMonitor initializing - retrying...';
+                    });
+                  }
+                  // Schedule a retry with longer delay to allow USBMonitor to initialize
+                  Future.delayed(const Duration(seconds: 3), () {
+                    if (!_isDisposed && _isAppActive && mounted) {
+                      // Retry opening the camera
+                      _proceedWithCameraInitialization();
+                    }
+                  });
+                  return;
+                }
+
+                // Handle native library errors specifically
+                if (errorString.contains('native_library_error')) {
+                  di<ILogger>().warning(
+                    'Native library error detected, attempting recovery...',
+                  );
+                  // Don't increment error count for native library errors, try to recover
+                  if (mounted && !_isDisposed) {
+                    setState(() {
+                      _status = 'Native library issue - retrying...';
+                    });
+                  }
+                  // Schedule a retry with longer delay
+                  Future.delayed(const Duration(seconds: 5), () {
+                    if (!_isDisposed && _isAppActive && mounted) {
+                      _handleCameraError();
+                    }
+                  });
+                  return;
+                }
+
+                if (mounted && !_isDisposed) {
+                  setState(() {
+                    _errorCount++;
+                    _status = 'Failed to open camera';
+                  });
+                  _handleCameraError();
+                }
+              } finally {
+                _isCameraOpening = false;
+                // Only release lock if we're still the owner (not disposed)
+                if (!_isDisposed) {
+                  _releaseCameraOperationLock(operationType: 'open');
+                }
+              }
+            } catch (initError) {
+              di<ILogger>().error('Camera initialization failed: $initError');
+
+              // Update error state
               if (mounted && !_isDisposed) {
                 setState(() {
                   _errorCount++;
-                  _status = 'Failed to open camera';
+                  _status =
+                      'Initialization failed: ${initError.toString().split(':').first}';
                 });
                 _handleCameraError();
               }
             }
           }
-        } catch (initError) {
-          di<ILogger>().error('Camera initialization failed: $initError');
-
-          // Update error state
+        } catch (e) {
+          di<ILogger>().error('Error in camera initialization: $e');
           if (mounted && !_isDisposed) {
             setState(() {
               _errorCount++;
-              _status =
-                  'Initialization failed: ${initError.toString().split(':').first}';
+              _status = 'Initialization error: $e';
             });
             _handleCameraError();
           }
@@ -924,15 +1510,18 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
             // Main camera view
             _buildCameraContent(),
 
-            // Minimal status indicator overlay
-            if (!_permissionsGranted ||
-                _errorCount >= ReleaseConfig.maxCameraRetries ||
-                _isInitializing)
-              Positioned(
-                top: 12,
-                right: 12,
+            // Minimal status indicator overlay - use Offstage instead of conditional rendering
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Offstage(
+                offstage:
+                    _permissionsGranted &&
+                    _errorCount < ReleaseConfig.maxCameraRetries &&
+                    !_isInitializing,
                 child: _buildMinimalStatusIndicator(),
               ),
+            ),
           ],
         ),
       );
@@ -960,209 +1549,537 @@ class _UVCCameraWidgetState extends State<UVCCameraWidget>
     }
   }
 
+  /// Start frame capture loop for Agora streaming
+  /// IMPORTANT: Ensures only ONE frame capture loop runs at a time
+  /// This prevents multiple video streams and black frames
+  void _startFrameCaptureLoop() {
+    // CRITICAL: Check disposal FIRST
+    if (_isDisposed || !mounted) {
+      di<ILogger>().warning(
+        '[UVC_CAMERA] Cannot start frame capture - widget disposed or not mounted',
+      );
+      return;
+    }
+
+    // Prevent multiple frame capture loops from running simultaneously
+    if (_frameCaptureTimer != null) {
+      di<ILogger>().warning(
+        '[UVC_CAMERA] Frame capture loop already running, stopping existing loop before starting new one',
+      );
+      _stopFrameCaptureLoop();
+      // Add small delay to ensure cleanup completes
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_isDisposed || !mounted) {
+          return;
+        }
+        _startFrameCaptureLoopInternal();
+      });
+      return;
+    }
+
+    _startFrameCaptureLoopInternal();
+  }
+
+  /// Internal method to start frame capture loop
+  void _startFrameCaptureLoopInternal() {
+    // CRITICAL: Multiple disposal checks
+    if (_isDisposed || !mounted || cameraController == null) {
+      di<ILogger>().warning(
+        '[UVC_CAMERA] Cannot start frame capture loop - disposed: $_isDisposed, mounted: $mounted, controller: ${cameraController != null}',
+      );
+      return;
+    }
+
+    if (_frameCaptureTimer != null) {
+      di<ILogger>().warning(
+        '[UVC_CAMERA] Frame capture timer already exists, skipping duplicate start',
+      );
+      return;
+    }
+
+    try {
+      // Reset frame capture stopped flag when starting
+      _frameCaptureStopped = false;
+
+      // Start native frame capture
+      cameraController?.startFrameCapture();
+      di<ILogger>().info('[UVC_CAMERA] Started native frame capture');
+
+      // Wait longer for frames to start coming in and populate the queue
+      // The native side needs time to process frames and build up the queue
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (_isDisposed || !mounted || cameraController == null) {
+          return;
+        }
+
+        // Double-check timer is still null before starting (prevent race conditions)
+        if (_frameCaptureTimer != null) {
+          di<ILogger>().warning(
+            '[UVC_CAMERA] Frame capture timer already exists, skipping duplicate start',
+          );
+          return;
+        }
+
+        // CRITICAL: Final disposal check before starting timer
+        if (_isDisposed || !mounted || cameraController == null) {
+          di<ILogger>().warning(
+            '[UVC_CAMERA] Cannot start frame capture timer - disposed or invalid state',
+          );
+          return;
+        }
+
+        // Start periodic frame capture and push to Agora
+        // Only ONE timer should be active at any time
+        // Use microtask scheduling to prevent blocking main thread
+        _frameCaptureTimer = Timer.periodic(_frameCaptureInterval, (timer) {
+          // CRITICAL: Check disposal FIRST in timer callback
+          if (_isDisposed ||
+              !mounted ||
+              cameraController == null ||
+              _frameCaptureStopped) {
+            _stopFrameCaptureLoop();
+            return;
+          }
+
+          // Only capture frames if camera is initialized and opened
+          // Skip if previous frame capture is still in progress to prevent queue buildup
+          // Use scheduleMicrotask to prevent blocking the timer callback and main thread
+          if (isInitialized &&
+              cameraController != null &&
+              !_isFrameCaptureInProgress &&
+              !_frameCaptureStopped) {
+            // Schedule frame capture in next microtask to prevent blocking timer
+            // This ensures smooth video performance even during camera initialization
+            scheduleMicrotask(() {
+              // CRITICAL: Check disposal again in microtask
+              if (!_isDisposed &&
+                  mounted &&
+                  isInitialized &&
+                  cameraController != null &&
+                  !_isFrameCaptureInProgress &&
+                  !_frameCaptureStopped) {
+                _captureAndPushFrame();
+              }
+            });
+          }
+        });
+
+        di<ILogger>().info(
+          '[UVC_CAMERA] Frame capture loop started at ~${1000 / _frameCaptureInterval.inMilliseconds}fps',
+        );
+      });
+    } catch (e) {
+      di<ILogger>().error('[UVC_CAMERA] Error starting frame capture loop: $e');
+    }
+  }
+
+  /// Stop frame capture loop synchronously (for disposal)
+  void _stopFrameCaptureLoopSync() {
+    try {
+      _frameCaptureStopped = true;
+      _frameCaptureTimer?.cancel();
+      _frameCaptureTimer = null;
+      _isFrameCaptureInProgress = false; // Reset flag
+
+      // Stop native frame capture
+      try {
+        cameraController?.stopFrameCapture();
+      } catch (e) {
+        di<ILogger>().error(
+          '[UVC_CAMERA] Error stopping native frame capture: $e',
+        );
+      }
+
+      // Complete the completer if it exists
+      _frameCaptureStopCompleter?.complete();
+      _frameCaptureStopCompleter = null;
+
+      di<ILogger>().info(
+        '[UVC_CAMERA] Frame capture loop stopped synchronously',
+      );
+    } catch (e) {
+      di<ILogger>().error('[UVC_CAMERA] Error stopping frame capture loop: $e');
+      // Complete completer even on error to prevent hanging
+      _frameCaptureStopCompleter?.complete();
+      _frameCaptureStopCompleter = null;
+    }
+  }
+
+  /// Stop frame capture loop
+  void _stopFrameCaptureLoop() {
+    _stopFrameCaptureLoopSync();
+  }
+
+  /// Capture a frame and push it to Agora
+  ///
+  /// OPTIMIZED: Now uses getLastCapturedFrameNV21() which returns raw NV21 format
+  /// directly from the camera queue, avoiding JPEG compression/decompression overhead.
+  /// This provides:
+  /// - Better performance (no format conversion)
+  /// - Lower latency (direct NV21 transfer)
+  /// - Reduced CPU usage (no JPEG compression)
+  /// - Correct format for Agora (NV21 is what Agora expects)
+  ///
+  /// PERFORMANCE OPTIMIZATIONS:
+  /// - Non-blocking: Uses unawaited future to prevent blocking timer callback
+  /// - Cached AgoraCubit: Avoids context lookups in hot path
+  /// - Frame capture guard: Prevents overlapping frame captures
+  void _captureAndPushFrame() {
+    // CRITICAL: Early return if frame capture is stopped or disposed
+    // This prevents pushing frames to Agora SDK during/after disposal
+    if (_frameCaptureStopped ||
+        _isDisposed ||
+        !mounted ||
+        cameraController == null ||
+        _isFrameCaptureInProgress ||
+        _cachedAgoraCubit == null) {
+      return;
+    }
+
+    // Set flag to prevent overlapping captures
+    _isFrameCaptureInProgress = true;
+
+    // Non-blocking frame capture - don't await to prevent blocking timer callback
+    cameraController!
+        .getLastCapturedFrameNV21()
+        .then((frameData) {
+          // Reset flag before processing
+          _isFrameCaptureInProgress = false;
+
+          // CRITICAL: Check if frame capture is stopped or disposed after async operation
+          // This prevents pushing frames to Agora SDK during/after disposal
+          if (_frameCaptureStopped ||
+              _isDisposed ||
+              !mounted ||
+              _cachedAgoraCubit == null) {
+            return;
+          }
+
+          if (frameData != null && frameData.isNotEmpty) {
+            // Push frame to Agora using cached cubit reference
+            // Use unawaited to prevent blocking - Agora SDK handles async internally
+            _cachedAgoraCubit!
+                .pushExternalFrame(
+                  frameData,
+                  width: _frameWidth,
+                  height: _frameHeight,
+                  format: VideoPixelFormat.videoPixelNv21,
+                  rotation: 0,
+                )
+                .catchError((e) {
+                  // Silently handle errors - they're expected during transitions
+                  // Only log if it's not a common expected error
+                  final errorStr = e.toString();
+                  if (!errorStr.contains('camera is not open') &&
+                      !errorStr.contains('not initialized') &&
+                      !errorStr.contains('disposed')) {
+                    di<ILogger>().debug(
+                      '[UVC_CAMERA] Frame push error (may be expected): $e',
+                    );
+                  }
+                });
+          }
+        })
+        .catchError((e) {
+          // Reset flag on error
+          _isFrameCaptureInProgress = false;
+
+          // Handle PlatformException gracefully - "No binary frame data available" is expected
+          // when frames aren't ready yet or queue is empty
+          final errorMessage = e.toString();
+          if (!errorMessage.contains('No binary frame data available') &&
+              !errorMessage.contains('cameraView has not been initialized')) {
+            // Only log unexpected errors occasionally to avoid spam
+            // Use debug level and skip most errors
+          }
+        });
+  }
+
   Widget _buildCameraContent() {
     di<ILogger>().debug(
       'Building camera content - permissions: $_permissionsGranted, error count: $_errorCount, initializing: $_isInitializing, initialized: $isInitialized, controller: ${cameraController != null}, view ready: $_isViewReady',
     );
 
-    if (!_permissionsGranted) {
-      di<ILogger>().debug('Showing permissions required state');
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(color: Colors.black87),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.camera_alt, color: Colors.white54, size: 32),
-              SizedBox(height: 12),
-              Text(
-                'Camera permissions required',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    // Camera is opening if controller exists but camera hasn't opened yet
+    // This includes the period when getCurrentCamera() returns null
+    final isCameraOpening = cameraController != null && !isInitialized;
+    // Camera view is not ready if camera is initialized but view isn't ready yet
+    final isCameraViewNotReady = isInitialized && !_isViewReady;
+    final showPermissionsState = !_permissionsGranted;
+    final showErrorState = _errorCount >= ReleaseConfig.maxCameraRetries;
+    // Show loading when initializing, when controller doesn't exist, when camera is opening, or when view is not ready
+    // CRITICAL: Always show loading when camera is opening to prevent stuck UI
+    final showLoadingState =
+        _isInitializing ||
+        cameraController == null ||
+        isCameraOpening ||
+        isCameraViewNotReady;
+    final showNotInitializedState =
+        cameraController == null && !showLoadingState;
+    final showDisabledState =
+        ReleaseConfig.isReleaseMode && !ReleaseConfig.enableUVCCamera;
+    // Only show camera view when camera is actually initialized and opened
+    final showCameraView =
+        cameraController != null &&
+        isInitialized &&
+        _isViewReady &&
+        !showPermissionsState &&
+        !showErrorState &&
+        !showLoadingState &&
+        !showNotInitializedState &&
+        !showDisabledState;
 
-    // Show error state if too many failures
-    if (_errorCount >= ReleaseConfig.maxCameraRetries) {
-      di<ILogger>().debug('Showing error state');
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(color: Colors.black87),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.error_outline,
-                color: Colors.redAccent,
-                size: 32,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _status.contains('USB permission')
-                    ? 'USB permission required'
-                    : 'Camera failed',
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  if (mounted && !_isDisposed) {
-                    setState(() {
-                      _errorCount = 0;
-                      _status = 'Retrying...';
-                    });
-                    _initializeCameraController();
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[600],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
+    return Stack(
+      children: [
+        // Permissions required state
+        Offstage(
+          offstage: !showPermissionsState,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(color: Colors.black87),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.camera_alt, color: Colors.white54, size: 32),
+                  SizedBox(height: 12),
+                  Text(
+                    'Camera permissions required',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Error state
+        Offstage(
+          offstage: !showErrorState,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(color: Colors.black87),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.redAccent,
+                    size: 32,
                   ),
-                ),
-                child: const Text('Retry', style: TextStyle(fontSize: 12)),
+                  const SizedBox(height: 12),
+                  Text(
+                    _status.contains('USB permission')
+                        ? 'USB permission required'
+                        : 'Camera failed',
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (mounted && !_isDisposed) {
+                        setState(() {
+                          _errorCount = 0;
+                          _status = 'Retrying...';
+                        });
+                        _initializeCameraController();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[600],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: const Text('Retry', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
-      );
-    }
 
-    // Show loading state when initializing or when controller is not ready
-    if (_isInitializing || cameraController == null) {
-      di<ILogger>().debug(
-        'Showing loading state - initializing: $_isInitializing, controller: ${cameraController != null}',
-      );
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(color: Colors.black87),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
+        // Loading state
+        Offstage(
+          offstage: !showLoadingState,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(color: Colors.black87),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Large animated loading indicator
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 4,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Status text with better visibility
+                  Text(
+                    isCameraViewNotReady
+                        ? 'Preparing camera view...'
+                        : isCameraOpening && _status.isEmpty
+                        ? 'Connecting to camera...'
+                        : isCameraOpening && !_status.contains('Waiting')
+                        ? 'Opening camera...'
+                        : (_status.isEmpty
+                            ? 'Initializing camera...'
+                            : _status),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isCameraViewNotReady
+                        ? 'Camera is opening, please wait...'
+                        : isCameraOpening
+                        ? 'Please wait while the camera connects and opens'
+                        : 'Please wait while the camera initializes',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  Offstage(
+                    offstage: _errorCount == 0,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Retry: $_errorCount/${ReleaseConfig.maxCameraRetries}',
+                            style: const TextStyle(
+                              color: Colors.orange,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                _status,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-              if (_errorCount > 0) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Retry: $_errorCount/${ReleaseConfig.maxCameraRetries}',
-                  style: const TextStyle(color: Colors.orange, fontSize: 10),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
-      );
-    }
 
-    // Only render UVCCameraView when everything is ready
-    if (cameraController == null) {
-      di<ILogger>().debug(
-        'Camera controller is null, showing not initialized state',
-      );
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(color: Colors.black87),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.videocam_off, color: Colors.white54, size: 32),
-              SizedBox(height: 12),
-              Text(
-                'Camera not initialized',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+        // Not initialized state
+        Offstage(
+          offstage: !showNotInitializedState,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(color: Colors.black87),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.videocam_off, color: Colors.white54, size: 32),
+                  SizedBox(height: 12),
+                  Text(
+                    'Camera not initialized',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
-      );
-    }
 
-    di<ILogger>().info(
-      'Rendering UVCCameraView - controller: ${cameraController != null}',
+        // Disabled state
+        Offstage(
+          offstage: !showDisabledState,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(color: Colors.black87),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.videocam_off, color: Colors.orange, size: 32),
+                  SizedBox(height: 12),
+                  Text(
+                    'Camera disabled in release mode',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // CRITICAL: Always create the platform view widget (even if offstage) so it gets initialized
+        // This ensures the native platform view is created, which is required for initializeCamera() and openUVCCamera()
+        // The platform view must exist before we can call native methods
+        Builder(
+          builder: (context) {
+            // Only create UVCCameraView if controller exists
+            if (cameraController == null) {
+              return const SizedBox.shrink();
+            }
+
+            try {
+              // Always create the widget to ensure platform view is initialized
+              // Use Offstage to hide it until camera is ready
+              return Offstage(
+                offstage: !showCameraView,
+                child: UVCCameraView(
+                  key: _cameraKey,
+                  cameraController: cameraController!,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
+              );
+            } catch (e) {
+              di<ILogger>().error('Error creating UVCCameraView widget: $e');
+              // Return empty widget on error - don't block the UI
+              return const SizedBox.shrink();
+            }
+          },
+        ),
+      ],
     );
-
-    // Add extra safety check for release mode
-    if (ReleaseConfig.isReleaseMode && !ReleaseConfig.enableUVCCamera) {
-      di<ILogger>().info(
-        'UVC camera disabled in release mode, showing placeholder',
-      );
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(color: Colors.black87),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.videocam_off, color: Colors.orange, size: 32),
-              SizedBox(height: 12),
-              Text(
-                'Camera disabled in release mode',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    try {
-      di<ILogger>().info('Creating UVCCameraView widget');
-      return UVCCameraView(
-        key: _cameraKey,
-        cameraController: cameraController!,
-        width: double.infinity,
-        height: double.infinity,
-      );
-    } catch (e) {
-      di<ILogger>().error('Error rendering UVCCameraView: $e');
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(color: Colors.black87),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.videocam_off, color: Colors.redAccent, size: 32),
-              SizedBox(height: 12),
-              Text(
-                'Camera view error',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
   }
 
   Widget _buildMinimalStatusIndicator() {

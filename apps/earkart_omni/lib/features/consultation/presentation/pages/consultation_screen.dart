@@ -694,10 +694,26 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       if (!mounted) return;
       di<ILogger>().debug('Otoscopy started: $data');
       if (revo2Device != null) {
+        // Join UVC channel when otoscopy starts
+        try {
+          final agoraCubit = context.read<AgoraCubit>();
+          agoraCubit.startOtoscopy();
+          di<ILogger>().info('📷 Otoscopy started - joining UVC channel');
+        } catch (e) {
+          di<ILogger>().error(
+            '❌ Error joining UVC channel on otoscopy start: $e',
+          );
+        }
+
+        // Show camera widget - it will notify when camera actually opens
         setState(() {
           _showCamera = true;
         });
-        _updateCameraState(true);
+        // Don't call _updateCameraState(true) here - let the camera widget
+        // notify when it actually opens via onCameraStateChanged callback
+        di<ILogger>().info(
+          '📷 Camera widget will be shown - waiting for camera to open before streaming',
+        );
       } else {
         _showWarningSnackBar(
           'Please connect the video otoscope device to continue.',
@@ -708,37 +724,31 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     socket.on("otoscopy-stopped", (data) {
       if (!mounted) return;
       di<ILogger>().debug('Otoscopy stopped: $data');
+
+      // Leave UVC channel when otoscopy stops
+      // IMPORTANT: Do NOT call switchToBuiltInCamera() - the main camera was never stopped
+      // The main video call connection stays active throughout otoscopy operations
+      // Only the UVC camera connection is leaving, the main connection continues streaming
+      try {
+        final agoraCubit = context.read<AgoraCubit>();
+        agoraCubit.stopOtoscopy();
+        di<ILogger>().info(
+          '📷 Otoscopy stopped - leaving UVC channel (main video call continues)',
+        );
+      } catch (e) {
+        di<ILogger>().error('❌ Error leaving UVC channel on otoscopy stop: $e');
+      }
+
       setState(() {
         _showCamera = false;
       });
       _updateCameraState(false);
 
-      // Add a safety delay and then switch back to built-in camera
-      // This handles the transition from UVC camera to built-in camera properly
-      Future.delayed(const Duration(milliseconds: 5000), () {
-        if (mounted) {
-          try {
-            // Wrap in a zone to catch any unhandled exceptions
-            runZonedGuarded(
-              () {
-                final agoraCubit = context.read<AgoraCubit>();
-                di<ILogger>().info(
-                  '📷 Switching from UVC to built-in camera after otoscopy stop',
-                );
-                agoraCubit.switchToBuiltInCamera();
-              },
-              (error, stackTrace) {
-                di<ILogger>().error(
-                  '❌ Unhandled exception during camera switch: $error',
-                );
-                di<ILogger>().error('Stack trace: $stackTrace');
-              },
-            );
-          } catch (e) {
-            di<ILogger>().error('❌ Error switching to built-in camera: $e');
-          }
-        }
-      });
+      // No need to switch back to built-in camera - it was never stopped
+      // The main connection's camera track remains published throughout otoscopy
+      di<ILogger>().info(
+        '📷 UVC channel left - main video call connection remains active and streaming',
+      );
     });
 
     socket.on("end:consultation", (data) {
@@ -912,8 +922,8 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       appBar: GlassmorphismAppBar(
         title: Text(
           consultation?.audiologist?.user?.name != null
-              ? "Consultation by ${consultation!.audiologist!.user!.name}"
-              : "Consultation by Earkart (Waiting for Audiologist)",
+              ? "Earkart Limited Audiologist"
+              : "Earkart Limited (Waiting for Audiologist)",
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         actions: [
@@ -1135,6 +1145,12 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                           : '📷 Revo2 device detached - hiding camera',
                     );
 
+                    // Notify AgoraCubit about Revo2 connection status
+                    // This will trigger UVC channel join/leave as needed
+                    context.read<AgoraCubit>().setRevo2ConnectionStatus(
+                      isNowRevo2Connected,
+                    );
+
                     // Auto-show camera when Revo2 is connected with delay
                     if (isNowRevo2Connected && _showCamera) {
                       // Add delay before showing camera to ensure device is stable
@@ -1321,40 +1337,21 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         }
       });
 
-      // Handle automatic screen sharing based on camera state
-      _handleAutomaticScreenSharing(isOpen);
+      // Notify AgoraCubit about UVC camera state for streaming control
+      try {
+        final agoraCubit = context.read<AgoraCubit>();
+        agoraCubit.setUVCCameraOpenState(isOpen);
+        di<ILogger>().info(
+          '📷🔴 Notified AgoraCubit: UVC camera is ${isOpen ? "OPEN" : "CLOSED"}',
+        );
+      } catch (e) {
+        di<ILogger>().error(
+          '❌ Error notifying AgoraCubit about camera state: $e',
+        );
+      }
 
       // Trigger device event emission with camera state change
       _deviceEventEmitter?.scheduleDeviceEventEmission();
-    }
-  }
-
-  // Handle automatic screen sharing based on UVC camera state
-  void _handleAutomaticScreenSharing(bool cameraIsOpen) {
-    if (!mounted) return;
-
-    try {
-      final agoraCubit = context.read<AgoraCubit>();
-
-      if (cameraIsOpen) {
-        // Start screen sharing when UVC camera opens
-        if (!agoraCubit.isScreenSharing) {
-          di<ILogger>().info(
-            '📷🖥️ UVC camera opened - starting automatic screen sharing',
-          );
-          agoraCubit.toggleScreenSharing();
-        }
-      } else {
-        // Stop screen sharing when UVC camera closes
-        if (agoraCubit.isScreenSharing) {
-          di<ILogger>().info(
-            '📷🖥️ UVC camera closed - stopping automatic screen sharing',
-          );
-          agoraCubit.toggleScreenSharing();
-        }
-      }
-    } catch (e) {
-      di<ILogger>().error('❌ Error handling automatic screen sharing: $e');
     }
   }
 

@@ -5,6 +5,8 @@ import 'package:earkart_omni/models/appointments/appointments.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/features/home/presentation/widgets/error_state_widget.dart';
+import 'package:earkart_omni/features/auth/presentation/cubit/auth.cubit.dart';
+import 'package:earkart_omni/features/auth/presentation/cubit/auth.state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -19,94 +21,114 @@ class UpcomingAppointmentsSection extends StatefulWidget {
 
 class _UpcomingAppointmentsSectionState
     extends State<UpcomingAppointmentsSection> {
+  bool _hasLoadedAppointments = false;
+
   @override
   void initState() {
     super.initState();
-    // Load appointments when the widget initializes
-    context.read<AppointmentsCubit>().getAppointments();
+    // Check if centre is already loaded, if so load appointments immediately
+    final authState = context.read<AuthCubit>().state;
+    if (authState is AuthCentreSuccess) {
+      _loadAppointments();
+    }
+  }
+
+  void _loadAppointments() {
+    if (!_hasLoadedAppointments) {
+      _hasLoadedAppointments = true;
+      context.read<AppointmentsCubit>().getAppointments(refresh: true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.withAlpha(90), width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                "Upcoming Appointments",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-              ),
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, AppointmentsScreen.routeName);
-                },
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
+    return BlocListener<AuthCubit, AuthState>(
+      listener: (context, state) {
+        // Load appointments when centre is successfully loaded
+        if (state is AuthCentreSuccess) {
+          _loadAppointments();
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.withAlpha(90), width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Upcoming Appointments",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
                   ),
-                  side: BorderSide(color: Colors.grey.shade300, width: 1),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  backgroundColor: Colors.transparent,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'View All',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey.shade700,
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, AppointmentsScreen.routeName);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    side: BorderSide(color: Colors.grey.shade300, width: 1),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    backgroundColor: Colors.transparent,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'View All',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: BlocBuilder<AppointmentsCubit, AppointmentsState>(
-              builder: (context, state) {
-                return state.when(
-                  initial: () => _buildLoadingState(),
-                  loading: () => _buildLoadingState(),
-                  success:
-                      (appointments, total) =>
-                          _buildAppointmentsList(appointments),
-                  appointmentByIdSuccess: (appointment) => _buildLoadingState(),
-                  createAppointmentSuccess:
-                      (appointment) => _buildLoadingState(),
-                  updateAppointmentSuccess:
-                      (appointment) => _buildLoadingState(),
-                  error: (message) => _buildErrorState(message),
-                );
-              },
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Expanded(
+              child: BlocBuilder<AppointmentsCubit, AppointmentsState>(
+                builder: (context, state) {
+                  return state.when(
+                    initial: () => _buildLoadingState(),
+                    loading: () => _buildLoadingState(),
+                    success:
+                        (appointments, total, hasMore, isLoadingMore) =>
+                            _buildAppointmentsList(appointments),
+                    appointmentByIdSuccess: (appointment) => _buildLoadingState(),
+                    createAppointmentSuccess:
+                        (appointment) => _buildLoadingState(),
+                    updateAppointmentSuccess:
+                        (appointment) => _buildLoadingState(),
+                    error: (message) => _buildErrorState(message),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -124,7 +146,7 @@ class _UpcomingAppointmentsSectionState
       title: 'Failed to load appointments',
       message: message,
       onRetry: () {
-        context.read<AppointmentsCubit>().getAppointments();
+        context.read<AppointmentsCubit>().getAppointments(refresh: true);
       },
       retryLabel: 'Retry',
     );

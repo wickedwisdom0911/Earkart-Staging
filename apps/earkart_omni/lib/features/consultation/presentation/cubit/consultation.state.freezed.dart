@@ -23,7 +23,8 @@ mixin _$ConsultationState {
     required TResult Function(ConsultationEntity consultation) success,
     required TResult Function(ConsultationEntity consultation)
         createConsultationSuccess,
-    required TResult Function(List<ConsultationEntity> consultations)
+    required TResult Function(List<ConsultationEntity> consultations,
+            bool hasMore, bool isLoadingMore)
         allConsultationsSuccess,
     required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
@@ -39,7 +40,8 @@ mixin _$ConsultationState {
     TResult? Function(ConsultationEntity consultation)? success,
     TResult? Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult? Function(List<ConsultationEntity> consultations)?
+    TResult? Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
@@ -55,7 +57,8 @@ mixin _$ConsultationState {
     TResult Function(ConsultationEntity consultation)? success,
     TResult Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult Function(List<ConsultationEntity> consultations)?
+    TResult Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
@@ -180,7 +183,8 @@ class _$ConsultationInitialImpl implements ConsultationInitial {
     required TResult Function(ConsultationEntity consultation) success,
     required TResult Function(ConsultationEntity consultation)
         createConsultationSuccess,
-    required TResult Function(List<ConsultationEntity> consultations)
+    required TResult Function(List<ConsultationEntity> consultations,
+            bool hasMore, bool isLoadingMore)
         allConsultationsSuccess,
     required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
@@ -199,7 +203,8 @@ class _$ConsultationInitialImpl implements ConsultationInitial {
     TResult? Function(ConsultationEntity consultation)? success,
     TResult? Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult? Function(List<ConsultationEntity> consultations)?
+    TResult? Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
@@ -218,7 +223,8 @@ class _$ConsultationInitialImpl implements ConsultationInitial {
     TResult Function(ConsultationEntity consultation)? success,
     TResult Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult Function(List<ConsultationEntity> consultations)?
+    TResult Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
@@ -345,7 +351,8 @@ class _$ConsultationLoadingImpl implements ConsultationLoading {
     required TResult Function(ConsultationEntity consultation) success,
     required TResult Function(ConsultationEntity consultation)
         createConsultationSuccess,
-    required TResult Function(List<ConsultationEntity> consultations)
+    required TResult Function(List<ConsultationEntity> consultations,
+            bool hasMore, bool isLoadingMore)
         allConsultationsSuccess,
     required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
@@ -364,7 +371,8 @@ class _$ConsultationLoadingImpl implements ConsultationLoading {
     TResult? Function(ConsultationEntity consultation)? success,
     TResult? Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult? Function(List<ConsultationEntity> consultations)?
+    TResult? Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
@@ -383,7 +391,8 @@ class _$ConsultationLoadingImpl implements ConsultationLoading {
     TResult Function(ConsultationEntity consultation)? success,
     TResult Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult Function(List<ConsultationEntity> consultations)?
+    TResult Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
@@ -537,7 +546,8 @@ class _$ConsultationSuccessImpl implements ConsultationSuccess {
     required TResult Function(ConsultationEntity consultation) success,
     required TResult Function(ConsultationEntity consultation)
         createConsultationSuccess,
-    required TResult Function(List<ConsultationEntity> consultations)
+    required TResult Function(List<ConsultationEntity> consultations,
+            bool hasMore, bool isLoadingMore)
         allConsultationsSuccess,
     required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
@@ -556,7 +566,8 @@ class _$ConsultationSuccessImpl implements ConsultationSuccess {
     TResult? Function(ConsultationEntity consultation)? success,
     TResult? Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult? Function(List<ConsultationEntity> consultations)?
+    TResult? Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
@@ -575,7 +586,8 @@ class _$ConsultationSuccessImpl implements ConsultationSuccess {
     TResult Function(ConsultationEntity consultation)? success,
     TResult Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult Function(List<ConsultationEntity> consultations)?
+    TResult Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
@@ -739,7 +751,8 @@ class _$CreateConsultationSuccessImpl implements CreateConsultationSuccess {
     required TResult Function(ConsultationEntity consultation) success,
     required TResult Function(ConsultationEntity consultation)
         createConsultationSuccess,
-    required TResult Function(List<ConsultationEntity> consultations)
+    required TResult Function(List<ConsultationEntity> consultations,
+            bool hasMore, bool isLoadingMore)
         allConsultationsSuccess,
     required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
@@ -758,7 +771,8 @@ class _$CreateConsultationSuccessImpl implements CreateConsultationSuccess {
     TResult? Function(ConsultationEntity consultation)? success,
     TResult? Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult? Function(List<ConsultationEntity> consultations)?
+    TResult? Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
@@ -777,7 +791,8 @@ class _$CreateConsultationSuccessImpl implements CreateConsultationSuccess {
     TResult Function(ConsultationEntity consultation)? success,
     TResult Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult Function(List<ConsultationEntity> consultations)?
+    TResult Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
@@ -874,7 +889,10 @@ abstract class _$$AllConsultationsSuccessImplCopyWith<$Res> {
           $Res Function(_$AllConsultationsSuccessImpl) then) =
       __$$AllConsultationsSuccessImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({List<ConsultationEntity> consultations});
+  $Res call(
+      {List<ConsultationEntity> consultations,
+      bool hasMore,
+      bool isLoadingMore});
 }
 
 /// @nodoc
@@ -890,12 +908,22 @@ class __$$AllConsultationsSuccessImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? consultations = null,
+    Object? hasMore = null,
+    Object? isLoadingMore = null,
   }) {
     return _then(_$AllConsultationsSuccessImpl(
       consultations: null == consultations
           ? _value._consultations
           : consultations // ignore: cast_nullable_to_non_nullable
               as List<ConsultationEntity>,
+      hasMore: null == hasMore
+          ? _value.hasMore
+          : hasMore // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isLoadingMore: null == isLoadingMore
+          ? _value.isLoadingMore
+          : isLoadingMore // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -904,7 +932,9 @@ class __$$AllConsultationsSuccessImplCopyWithImpl<$Res>
 
 class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
   const _$AllConsultationsSuccessImpl(
-      {required final List<ConsultationEntity> consultations})
+      {required final List<ConsultationEntity> consultations,
+      this.hasMore = false,
+      this.isLoadingMore = false})
       : _consultations = consultations;
 
   final List<ConsultationEntity> _consultations;
@@ -916,8 +946,15 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
   }
 
   @override
+  @JsonKey()
+  final bool hasMore;
+  @override
+  @JsonKey()
+  final bool isLoadingMore;
+
+  @override
   String toString() {
-    return 'ConsultationState.allConsultationsSuccess(consultations: $consultations)';
+    return 'ConsultationState.allConsultationsSuccess(consultations: $consultations, hasMore: $hasMore, isLoadingMore: $isLoadingMore)';
   }
 
   @override
@@ -926,12 +963,18 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
         (other.runtimeType == runtimeType &&
             other is _$AllConsultationsSuccessImpl &&
             const DeepCollectionEquality()
-                .equals(other._consultations, _consultations));
+                .equals(other._consultations, _consultations) &&
+            (identical(other.hasMore, hasMore) || other.hasMore == hasMore) &&
+            (identical(other.isLoadingMore, isLoadingMore) ||
+                other.isLoadingMore == isLoadingMore));
   }
 
   @override
   int get hashCode => Object.hash(
-      runtimeType, const DeepCollectionEquality().hash(_consultations));
+      runtimeType,
+      const DeepCollectionEquality().hash(_consultations),
+      hasMore,
+      isLoadingMore);
 
   @JsonKey(ignore: true)
   @override
@@ -948,7 +991,8 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
     required TResult Function(ConsultationEntity consultation) success,
     required TResult Function(ConsultationEntity consultation)
         createConsultationSuccess,
-    required TResult Function(List<ConsultationEntity> consultations)
+    required TResult Function(List<ConsultationEntity> consultations,
+            bool hasMore, bool isLoadingMore)
         allConsultationsSuccess,
     required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
@@ -956,7 +1000,7 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
     required TResult Function() deleteConsultationSessionSuccess,
     required TResult Function(String message) error,
   }) {
-    return allConsultationsSuccess(consultations);
+    return allConsultationsSuccess(consultations, hasMore, isLoadingMore);
   }
 
   @override
@@ -967,7 +1011,8 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
     TResult? Function(ConsultationEntity consultation)? success,
     TResult? Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult? Function(List<ConsultationEntity> consultations)?
+    TResult? Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
@@ -975,7 +1020,7 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
     TResult? Function()? deleteConsultationSessionSuccess,
     TResult? Function(String message)? error,
   }) {
-    return allConsultationsSuccess?.call(consultations);
+    return allConsultationsSuccess?.call(consultations, hasMore, isLoadingMore);
   }
 
   @override
@@ -986,7 +1031,8 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
     TResult Function(ConsultationEntity consultation)? success,
     TResult Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult Function(List<ConsultationEntity> consultations)?
+    TResult Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
@@ -996,7 +1042,7 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
     required TResult orElse(),
   }) {
     if (allConsultationsSuccess != null) {
-      return allConsultationsSuccess(consultations);
+      return allConsultationsSuccess(consultations, hasMore, isLoadingMore);
     }
     return orElse();
   }
@@ -1067,10 +1113,13 @@ class _$AllConsultationsSuccessImpl implements AllConsultationsSuccess {
 
 abstract class AllConsultationsSuccess implements ConsultationState {
   const factory AllConsultationsSuccess(
-          {required final List<ConsultationEntity> consultations}) =
-      _$AllConsultationsSuccessImpl;
+      {required final List<ConsultationEntity> consultations,
+      final bool hasMore,
+      final bool isLoadingMore}) = _$AllConsultationsSuccessImpl;
 
   List<ConsultationEntity> get consultations;
+  bool get hasMore;
+  bool get isLoadingMore;
   @JsonKey(ignore: true)
   _$$AllConsultationsSuccessImplCopyWith<_$AllConsultationsSuccessImpl>
       get copyWith => throw _privateConstructorUsedError;
@@ -1147,7 +1196,8 @@ class _$AllConsultationsErrorImpl implements AllConsultationsError {
     required TResult Function(ConsultationEntity consultation) success,
     required TResult Function(ConsultationEntity consultation)
         createConsultationSuccess,
-    required TResult Function(List<ConsultationEntity> consultations)
+    required TResult Function(List<ConsultationEntity> consultations,
+            bool hasMore, bool isLoadingMore)
         allConsultationsSuccess,
     required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
@@ -1166,7 +1216,8 @@ class _$AllConsultationsErrorImpl implements AllConsultationsError {
     TResult? Function(ConsultationEntity consultation)? success,
     TResult? Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult? Function(List<ConsultationEntity> consultations)?
+    TResult? Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
@@ -1185,7 +1236,8 @@ class _$AllConsultationsErrorImpl implements AllConsultationsError {
     TResult Function(ConsultationEntity consultation)? success,
     TResult Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult Function(List<ConsultationEntity> consultations)?
+    TResult Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
@@ -1348,7 +1400,8 @@ class _$CurrentConsultationSuccessImpl implements CurrentConsultationSuccess {
     required TResult Function(ConsultationEntity consultation) success,
     required TResult Function(ConsultationEntity consultation)
         createConsultationSuccess,
-    required TResult Function(List<ConsultationEntity> consultations)
+    required TResult Function(List<ConsultationEntity> consultations,
+            bool hasMore, bool isLoadingMore)
         allConsultationsSuccess,
     required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
@@ -1367,7 +1420,8 @@ class _$CurrentConsultationSuccessImpl implements CurrentConsultationSuccess {
     TResult? Function(ConsultationEntity consultation)? success,
     TResult? Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult? Function(List<ConsultationEntity> consultations)?
+    TResult? Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
@@ -1386,7 +1440,8 @@ class _$CurrentConsultationSuccessImpl implements CurrentConsultationSuccess {
     TResult Function(ConsultationEntity consultation)? success,
     TResult Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult Function(List<ConsultationEntity> consultations)?
+    TResult Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
@@ -1524,7 +1579,8 @@ class _$DeleteConsultationSessionSuccessImpl
     required TResult Function(ConsultationEntity consultation) success,
     required TResult Function(ConsultationEntity consultation)
         createConsultationSuccess,
-    required TResult Function(List<ConsultationEntity> consultations)
+    required TResult Function(List<ConsultationEntity> consultations,
+            bool hasMore, bool isLoadingMore)
         allConsultationsSuccess,
     required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
@@ -1543,7 +1599,8 @@ class _$DeleteConsultationSessionSuccessImpl
     TResult? Function(ConsultationEntity consultation)? success,
     TResult? Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult? Function(List<ConsultationEntity> consultations)?
+    TResult? Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
@@ -1562,7 +1619,8 @@ class _$DeleteConsultationSessionSuccessImpl
     TResult Function(ConsultationEntity consultation)? success,
     TResult Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult Function(List<ConsultationEntity> consultations)?
+    TResult Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?
@@ -1716,7 +1774,8 @@ class _$ConsultationErrorImpl implements ConsultationError {
     required TResult Function(ConsultationEntity consultation) success,
     required TResult Function(ConsultationEntity consultation)
         createConsultationSuccess,
-    required TResult Function(List<ConsultationEntity> consultations)
+    required TResult Function(List<ConsultationEntity> consultations,
+            bool hasMore, bool isLoadingMore)
         allConsultationsSuccess,
     required TResult Function(String message) allConsultationsError,
     required TResult Function(ConsultationEntity consultation)
@@ -1735,7 +1794,8 @@ class _$ConsultationErrorImpl implements ConsultationError {
     TResult? Function(ConsultationEntity consultation)? success,
     TResult? Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult? Function(List<ConsultationEntity> consultations)?
+    TResult? Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult? Function(String message)? allConsultationsError,
     TResult? Function(ConsultationEntity consultation)?
@@ -1754,7 +1814,8 @@ class _$ConsultationErrorImpl implements ConsultationError {
     TResult Function(ConsultationEntity consultation)? success,
     TResult Function(ConsultationEntity consultation)?
         createConsultationSuccess,
-    TResult Function(List<ConsultationEntity> consultations)?
+    TResult Function(List<ConsultationEntity> consultations, bool hasMore,
+            bool isLoadingMore)?
         allConsultationsSuccess,
     TResult Function(String message)? allConsultationsError,
     TResult Function(ConsultationEntity consultation)?

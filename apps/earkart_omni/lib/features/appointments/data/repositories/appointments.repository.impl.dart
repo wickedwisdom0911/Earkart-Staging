@@ -3,13 +3,20 @@ import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/features/appointments/data/source/remote/appointments.remote.source.dart';
 import 'package:earkart_omni/features/appointments/domain/repositories/appointments.repository.dart';
 import 'package:earkart_omni/models/appointments/appointments.entity.dart';
+import 'package:earkart_omni/models/appointments/appointments.model.dart';
 
 class AppointmentsRepositoryImpl implements IAppointmentsRepository {
   final IAppointmentsRemoteSource remoteSource;
   AppointmentsRepositoryImpl({required this.remoteSource});
   @override
-  Future<Either<Failure, List<AppointmentEntity>>> getAppointments() async {
-    return await remoteSource.getAppointments();
+  Future<Either<Failure, AppointmentModel>> getAppointments({
+    int? limit,
+    int? offset,
+  }) async {
+    return await remoteSource.getAppointments(
+      limit: limit,
+      offset: offset,
+    );
   }
 
   @override

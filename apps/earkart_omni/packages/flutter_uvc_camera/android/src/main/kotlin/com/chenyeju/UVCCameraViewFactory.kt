@@ -19,26 +19,60 @@ class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private va
 
 
     fun initCamera(){
+        // Wait for camera view to be created if it's not ready yet
+        var waitTime = 0L
+        val maxWaitTime = 5000L // Wait up to 5 seconds
+        val checkInterval = 200L
+        
+        while (cameraView == null && waitTime < maxWaitTime) {
+            Log.d("UVCCameraViewFactory", "Waiting for camera view to be created... (${waitTime}ms)")
+            try {
+                Thread.sleep(checkInterval)
+            } catch (e: InterruptedException) {
+                Log.e("UVCCameraViewFactory", "Interrupted while waiting for camera view", e)
+                break
+            }
+            waitTime += checkInterval
+        }
+        
         if (cameraView != null) {
             try {
                 cameraView!!.initCamera();
+                Log.d("UVCCameraViewFactory", "Camera initialized successfully")
             } catch (e: Exception) {
                 Log.e("UVCCameraViewFactory", "Error initializing camera: ${e.message}", e)
             }
         } else {
-            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+            Log.w("UVCCameraViewFactory", "Camera view not initialized after ${maxWaitTime}ms timeout")
         }
     }
 
     fun openUVCCamera(){
+        // Wait for camera view to be created if it's not ready yet
+        var waitTime = 0L
+        val maxWaitTime = 5000L // Wait up to 5 seconds
+        val checkInterval = 200L
+        
+        while (cameraView == null && waitTime < maxWaitTime) {
+            Log.d("UVCCameraViewFactory", "Waiting for camera view before opening... (${waitTime}ms)")
+            try {
+                Thread.sleep(checkInterval)
+            } catch (e: InterruptedException) {
+                Log.e("UVCCameraViewFactory", "Interrupted while waiting for camera view", e)
+                break
+            }
+            waitTime += checkInterval
+        }
+        
         if (cameraView != null) {
             try {
                 cameraView!!.openUVCCamera()
+                Log.d("UVCCameraViewFactory", "Camera open request sent successfully")
             } catch (e: Exception) {
                 Log.e("UVCCameraViewFactory", "Error opening UVC camera: ${e.message}", e)
             }
         } else {
-            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+            Log.w("UVCCameraViewFactory", "Camera view not initialized after ${maxWaitTime}ms timeout, cannot open camera")
         }
     }
 
@@ -127,6 +161,24 @@ class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private va
     fun getLastCapturedFrameBinary(callback: UVCBinaryCallback) {
         if (cameraView != null) {
             cameraView!!.getLastCapturedFrameBinary(callback)
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+            callback.onError("Camera view not initialized")
+        }
+    }
+
+    fun captureFrameAsNV21(callback: UVCBinaryCallback) {
+        if (cameraView != null) {
+            cameraView!!.captureFrameAsNV21(callback)
+        } else {
+            Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
+            callback.onError("Camera view not initialized")
+        }
+    }
+
+    fun getLastCapturedFrameNV21(callback: UVCBinaryCallback) {
+        if (cameraView != null) {
+            cameraView!!.getLastCapturedFrameNV21(callback)
         } else {
             Log.w("UVCCameraViewFactory", "Camera view not initialized yet")
             callback.onError("Camera view not initialized")

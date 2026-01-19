@@ -13,6 +13,9 @@ class AppointmentsCubit extends Cubit<AppointmentsState> {
   final CreateAppointmentUsecase createAppointmentUsecase;
   final UpdateAppointmentUsecase updateAppointmentUsecase;
 
+  static const int _pageSize = 10;
+  int _currentOffset = 0;
+
   AppointmentsCubit({
     required this.getAppointmentsUsecase,
     required this.getAppointmentByIdUsecase,
@@ -20,23 +23,77 @@ class AppointmentsCubit extends Cubit<AppointmentsState> {
     required this.updateAppointmentUsecase,
   }) : super(const AppointmentsState.initial());
 
-  Future<void> getAppointments() async {
-    emit(const AppointmentsState.loading());
-    final result = await getAppointmentsUsecase();
+  Future<void> getAppointments({bool refresh = false}) async {
+    if (refresh) {
+      _currentOffset = 0;
+      emit(const AppointmentsState.loading());
+    } else {
+      final currentState = state;
+      if (currentState is AppointmentsSuccess) {
+        // Prevent loading more if already loading or no more data
+        if (currentState.isLoadingMore || !currentState.hasMore) {
+          return;
+        }
+        emit(currentState.copyWith(isLoadingMore: true));
+      } else {
+        emit(const AppointmentsState.loading());
+      }
+    }
+
+    final result = await getAppointmentsUsecase(
+      limit: _pageSize,
+      offset: _currentOffset,
+    );
+
     result.fold(
       (failure) {
         Fluttertoast.showToast(msg: failure.message);
         emit(AppointmentsState.error(message: failure.message));
       },
-      (appointments) {
-        emit(
-          AppointmentsState.success(
-            appointments: appointments,
-            total: appointments.length,
-          ),
-        );
+      (appointmentModel) {
+        final appointments = appointmentModel.appointments;
+        final hasNext = appointmentModel.hasNext;
+        final total = appointmentModel.total;
+
+        final currentState = state;
+        if (currentState is AppointmentsSuccess && !refresh) {
+          // Append new appointments to existing list
+          final updatedAppointments = [
+            ...currentState.appointments,
+            ...appointments,
+          ];
+          _currentOffset += appointments.length;
+          emit(
+            AppointmentsState.success(
+              appointments: updatedAppointments,
+              total: total, // Use API's total, not accumulated length
+              hasMore: hasNext,
+              isLoadingMore: false,
+            ),
+          );
+        } else {
+          // First load or refresh
+          _currentOffset = appointments.length;
+          emit(
+            AppointmentsState.success(
+              appointments: appointments,
+              total: total, // Use API's total
+              hasMore: hasNext,
+              isLoadingMore: false,
+            ),
+          );
+        }
       },
     );
+  }
+
+  Future<void> loadMoreAppointments() async {
+    final currentState = state;
+    if (currentState is AppointmentsSuccess) {
+      if (!currentState.isLoadingMore && currentState.hasMore) {
+        await getAppointments(refresh: false);
+      }
+    }
   }
 
   Future<void> getAppointmentById(String id) async {

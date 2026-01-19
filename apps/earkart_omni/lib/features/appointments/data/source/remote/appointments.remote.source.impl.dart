@@ -5,31 +5,48 @@ import 'package:earkart_omni/config/services/failure.dart';
 import 'package:earkart_omni/config/utils/constants.dart';
 import 'package:earkart_omni/features/appointments/data/source/local/appointments.entity.source.dart';
 import 'package:earkart_omni/features/appointments/data/source/remote/appointments.remote.source.dart';
+import 'package:earkart_omni/features/auth/data/source/local/centre.entity.source.dart';
 import 'package:earkart_omni/models/appointments/appointments.entity.dart';
 import 'package:earkart_omni/models/appointments/appointments.model.dart';
 
 class AppointmentsRemoteSourceImpl implements IAppointmentsRemoteSource {
   final Dio dio;
   final AppointmentEntityDataSource appointmentEntityDataSource;
+  final CentreEntityDataSource centreEntityDataSource;
   AppointmentsRemoteSourceImpl({
     required this.dio,
     required this.appointmentEntityDataSource,
+    required this.centreEntityDataSource,
   });
   @override
-  Future<Either<Failure, List<AppointmentEntity>>> getAppointments() async {
+  Future<Either<Failure, AppointmentModel>> getAppointments({
+    int? limit,
+    int? offset,
+  }) async {
     try {
-      final response = await dio.get(Constants.getAppointmentsUrl);
+      final centre = centreEntityDataSource.getCentreEntity();
+      if (centre == null) {
+        return left(UnKnownFailure(error: "Centre not found"));
+      }
+      final queryParams = <String, dynamic>{'centreId': centre.id};
+      if (limit != null) {
+        queryParams['limit'] = limit;
+      }
+      if (offset != null) {
+        queryParams['offset'] = offset;
+      }
+      final response = await dio.get(
+        Constants.getAppointmentsUrl,
+        queryParameters: queryParams,
+      );
       final data = AppointmentModel.fromJson(response.data);
       if (data.success) {
-        // Use the helper method to get appointments in a consistent format
+        // Store appointments in local data source if available
         final appointments = data.appointments;
         if (appointments.isNotEmpty) {
-          // Store all appointments in local data source
           appointmentEntityDataSource.addAppointmentEntities(appointments);
-          return right(appointments);
-        } else {
-          return right([]);
         }
+        return right(data);
       } else {
         return left(UnKnownFailure(error: data.message));
       }

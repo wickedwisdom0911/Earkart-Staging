@@ -72,6 +72,8 @@ class ConsultationEntity extends Equatable {
   final String? oaeReport;
   @HiveField(27)
   final String? otoscopyReport;
+  @HiveField(28)
+  final String? paymentId;
 
   const ConsultationEntity({
     this.id,
@@ -102,6 +104,7 @@ class ConsultationEntity extends Equatable {
     this.toneReport,
     this.oaeReport,
     this.otoscopyReport,
+    this.paymentId,
   });
 
   factory ConsultationEntity.fromJson(
@@ -168,6 +171,7 @@ class ConsultationEntity extends Equatable {
     toneReport: json['toneReport'],
     oaeReport: json['oaeReport'],
     otoscopyReport: json['otoscopyReport'],
+    paymentId: json['paymentId'],
   );
 
   Map<String, dynamic> toJson() => {
@@ -193,6 +197,7 @@ class ConsultationEntity extends Equatable {
     'toneReport': toneReport,
     'oaeReport': oaeReport,
     'otoscopyReport': otoscopyReport,
+    'paymentId': paymentId,
   };
 
   ConsultationEntity copyWith({
@@ -224,6 +229,7 @@ class ConsultationEntity extends Equatable {
     String? toneReport,
     String? oaeReport,
     String? otoscopyReport,
+    String? paymentId,
   }) {
     return ConsultationEntity(
       id: id ?? this.id,
@@ -245,6 +251,7 @@ class ConsultationEntity extends Equatable {
       centre: centre ?? this.centre,
       recordings: recordings ?? this.recordings,
       consultationPricing: consultationPricing ?? this.consultationPricing,
+      paymentId: paymentId ?? this.paymentId,
     );
   }
 
@@ -278,5 +285,6 @@ class ConsultationEntity extends Equatable {
     toneReport,
     oaeReport,
     otoscopyReport,
+    paymentId,
   ];
 }

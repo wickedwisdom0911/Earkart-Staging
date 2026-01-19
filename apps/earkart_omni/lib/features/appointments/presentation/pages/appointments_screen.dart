@@ -17,11 +17,30 @@ class AppointmentsScreen extends StatefulWidget {
 }
 
 class _AppointmentsScreenState extends State<AppointmentsScreen> {
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
     // Load appointments when the screen initializes
-    context.read<AppointmentsCubit>().getAppointments();
+    context.read<AppointmentsCubit>().getAppointments(refresh: true);
+    // Listen to scroll events for pagination
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent * 0.8) {
+      // Load more when user scrolls to 80% of the list
+      context.read<AppointmentsCubit>().loadMoreAppointments();
+    }
   }
 
   @override
@@ -51,7 +70,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                     ),
                   ),
               success:
-                  (appointments, total) => Text(
+                  (appointments, total, hasMore, isLoadingMore) => Text(
                     'Appointments ($total)',
                     style: const TextStyle(
                       color: Colors.black87,
@@ -103,7 +122,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
         builder: (context, state) {
           return RefreshIndicator(
             onRefresh: () async {
-              context.read<AppointmentsCubit>().getAppointments();
+              context.read<AppointmentsCubit>().getAppointments(refresh: true);
             },
             color: Constants.primaryColor,
             child: state.when(
@@ -120,8 +139,13 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                     ),
                   ),
               success:
-                  (appointments, total) =>
-                      _buildAppointmentsList(appointments, total),
+                  (appointments, total, hasMore, isLoadingMore) =>
+                      _buildAppointmentsList(
+                        appointments,
+                        total,
+                        hasMore,
+                        isLoadingMore,
+                      ),
               appointmentByIdSuccess:
                   (appointment) => _buildSingleAppointment(appointment),
               createAppointmentSuccess:
@@ -144,6 +168,8 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   Widget _buildAppointmentsList(
     List<AppointmentEntity> appointments,
     int total,
+    bool hasMore,
+    bool isLoadingMore,
   ) {
     if (appointments.isEmpty) {
       return _buildEmptyState();
@@ -152,14 +178,24 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     return Padding(
       padding: const EdgeInsets.only(left: 16, right: 16, top: 16),
       child: GridView.builder(
+        controller: _scrollController,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
           childAspectRatio: 0.85,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
         ),
-        itemCount: appointments.length,
+        itemCount: appointments.length + (isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
+          if (index >= appointments.length) {
+            // Show loading indicator at the bottom
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(color: Constants.primaryColor),
+              ),
+            );
+          }
           final appointment = appointments[index];
           return CompactAppointmentCard(
             appointment: appointment,
@@ -290,7 +326,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed:
-                  () => context.read<AppointmentsCubit>().getAppointments(),
+                  () => context.read<AppointmentsCubit>().getAppointments(
+                    refresh: true,
+                  ),
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text(
                 'Try Again',

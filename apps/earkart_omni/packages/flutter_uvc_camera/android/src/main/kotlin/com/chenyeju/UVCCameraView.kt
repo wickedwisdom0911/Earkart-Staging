@@ -140,9 +140,9 @@ internal class UVCCameraView(
             }
             
             // Add delay for release mode to ensure proper initialization
-            // Always add a small delay to ensure proper initialization
+            // Increased delay to ensure platform view and native libraries are ready
             Log.i(TAG, "Adding initialization delay for stability...")
-            Thread.sleep(500) // 500ms delay for stability
+            Thread.sleep(1000) // Increased to 1 second delay for stability
             
             checkCameraPermission()
             val cameraView = AspectRatioTextureView(mContext)
@@ -166,14 +166,216 @@ internal class UVCCameraView(
     fun openUVCCamera() {
         try {
             // Add delay for camera opening to ensure proper initialization
-            // Always add a small delay to ensure proper initialization
             Log.i(TAG, "Adding camera opening delay for stability...")
-            Thread.sleep(1000) // 1 second delay for stability
+            Thread.sleep(1500) // Increased delay to ensure USBMonitor is initialized
             
             checkCameraPermission()
-            openCamera()
             
-            Log.i(TAG, "UVC camera opened successfully")
+            // CRITICAL: Wait for camera view to be initialized before proceeding
+            // The platform view (TextureView) must be ready before we can open the camera
+            var viewWaitTime = 0L
+            val maxViewWaitTime = 5000L // Wait up to 5 seconds for view
+            val viewCheckInterval = 200L
+            
+            while (mCameraView == null && viewWaitTime < maxViewWaitTime) {
+                Log.d(TAG, "Waiting for camera view to be initialized... (${viewWaitTime}ms)")
+                Thread.sleep(viewCheckInterval)
+                viewWaitTime += viewCheckInterval
+            }
+            
+            if (mCameraView == null) {
+                Log.w(TAG, "Camera view not initialized after ${maxViewWaitTime}ms, attempting to initialize...")
+                // Try to initialize camera view if it's not ready
+                try {
+                    initCamera()
+                    // Wait a bit more for initialization to complete
+                    Thread.sleep(1000)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error initializing camera view: ${e.message}", e)
+                }
+            }
+            
+            if (mCameraView == null) {
+                Log.e(TAG, "Camera view is still null after initialization attempt, cannot open camera")
+                setCameraERRORState("Camera view not initialized")
+                return
+            }
+            
+            // Additional check: ensure the TextureView's surface is available
+            if (mCameraView is AspectRatioTextureView) {
+                val textureView = mCameraView as AspectRatioTextureView
+                if (textureView.surfaceTexture == null) {
+                    Log.w(TAG, "TextureView surface not available yet, waiting...")
+                    var surfaceWaitTime = 0L
+                    val maxSurfaceWaitTime = 3000L
+                    val surfaceCheckInterval = 100L
+                    
+                    while (textureView.surfaceTexture == null && surfaceWaitTime < maxSurfaceWaitTime) {
+                        Thread.sleep(surfaceCheckInterval)
+                        surfaceWaitTime += surfaceCheckInterval
+                    }
+                    
+                    if (textureView.surfaceTexture == null) {
+                        Log.w(TAG, "TextureView surface still not available after ${maxSurfaceWaitTime}ms, proceeding anyway")
+                    } else {
+                        Log.d(TAG, "TextureView surface is now available")
+                    }
+                }
+            }
+            
+            Log.d(TAG, "Camera view is ready, proceeding with camera opening")
+            
+            // Ensure MultiCameraClient is registered and USBMonitor is initialized
+            if (mCameraClient == null) {
+                Log.w(TAG, "MultiCameraClient not initialized, registering now...")
+                registerMultiCamera()
+                // Wait for USBMonitor to initialize and enumerate already-attached devices
+                Thread.sleep(1500) // Increased delay to allow USBMonitor to enumerate devices
+            }
+            
+            // Check for already-attached devices and auto-connect if device owner
+            // USBMonitor should enumerate them and call onAttachDev, but we can proactively connect
+            try {
+                val usbManager = mContext.getSystemService(Context.USB_SERVICE) as? android.hardware.usb.UsbManager
+                // Get all attached devices - USBMonitor will filter out non-video devices
+                val attachedDevices = usbManager?.deviceList?.values?.toList() ?: emptyList()
+                
+                if (attachedDevices.isNotEmpty()) {
+                    Log.d(TAG, "Found ${attachedDevices.size} already-attached USB device(s), checking for cameras")
+                    attachedDevices.forEach { device ->
+                        Log.d(TAG, "  - Device: ${device.deviceName} (VID: ${device.vendorId}, PID: ${device.productId}, Class: ${device.deviceClass})")
+                    }
+                    
+                    val isOwner = isDeviceOwner()
+                    if (isOwner) {
+                        Log.d(TAG, "Device owner detected - auto-connecting all attached devices")
+                    } else {
+                        Log.d(TAG, "Not device owner - will check permissions")
+                    }
+                    
+                    attachedDevices.forEach { device ->
+                        // Check if device is already in our map (onAttachDev was called)
+                        if (mCameraMap.containsKey(device.deviceId)) {
+                            Log.d(TAG, "Device ${device.deviceName} already in map, checking connection status")
+                            // Device is in map, but might not be connected yet
+                            // For device owner, always try to connect; for others, check permission
+                            if (isOwner || usbManager?.hasPermission(device) == true) {
+                                Log.d(TAG, "${if (isOwner) "Device owner - " else ""}Already-attached device ${device.deviceName} ${if (isOwner) "auto-connecting" else "has permission, requesting connection"}")
+                                mCameraClient?.requestPermission(device)
+                            }
+                        } else {
+                            Log.d(TAG, "Device ${device.deviceName} not in map yet")
+                            // Device not in map - for device owner, add it and connect immediately
+                            // For others, wait for USBMonitor to enumerate it
+                            if (isOwner) {
+                                Log.d(TAG, "Device owner - manually adding and auto-connecting device: ${device.deviceName}")
+                                try {
+                                    val camera = generateCamera(view.context, device)
+                                    mCameraMap[device.deviceId] = camera
+                                    // Auto-connect for device owner
+                                    mCameraClient?.requestPermission(device)
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "Error auto-connecting device owner device: ${e.message}", e)
+                                }
+                            } else if (usbManager?.hasPermission(device) == true) {
+                                Log.d(TAG, "Manually processing already-attached device: ${device.deviceName}")
+                                val camera = generateCamera(view.context, device)
+                                mCameraMap[device.deviceId] = camera
+                                mCameraClient?.requestPermission(device)
+                            }
+                        }
+                    }
+                    
+                    // Give USBMonitor time to process the devices
+                    // Less wait time for device owner since we're auto-connecting
+                    Thread.sleep(if (isOwner) 500 else 1000)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error checking for already-attached devices: ${e.message}", e)
+            }
+            
+            // Wait for camera to be available (USB device connection)
+            // The camera will be opened automatically when onConnectDev is called
+            // But we can also try to open it manually if it's already available
+            val maxWaitTime = 10000L // Increased to 10 seconds max wait
+            val checkInterval = 200L // Check every 200ms
+            var waited = 0L
+            
+            while (waited < maxWaitTime) {
+                val currentCamera = getCurrentCamera()
+                if (currentCamera != null && mCameraView != null) {
+                    // Check if camera has UsbControlBlock before opening
+                    // The camera object exists but might not have UsbControlBlock set yet
+                    // We'll try to open and catch the error if UsbControlBlock is null
+                    try {
+                        Log.d(TAG, "Camera available, attempting to open with surface")
+                        openCamera(mCameraView)
+                        Log.i(TAG, "UVC camera opened successfully")
+                        return
+                    } catch (e: Exception) {
+                        // If we get a null pointer exception related to USBMonitor, wait longer
+                        if (e.message?.contains("USBMonitor") == true || 
+                            e.message?.contains("UsbControlBlock") == true ||
+                            e.cause?.message?.contains("USBMonitor") == true) {
+                            Log.w(TAG, "USBMonitor not ready yet, waiting longer... (${e.message})")
+                            Thread.sleep(500) // Wait longer before retrying
+                            waited += 500
+                            continue
+                        } else {
+                            // Other errors, rethrow
+                            throw e
+                        }
+                    }
+                }
+                
+                // Wait a bit before checking again
+                Thread.sleep(checkInterval)
+                waited += checkInterval
+            }
+            
+            // If we get here, camera wasn't available yet
+            // For device owner apps, auto-connect devices; for others, try manual trigger
+            if (mCameraMap.isNotEmpty()) {
+                val isOwner = isDeviceOwner()
+                Log.i(TAG, "Camera not yet available after ${maxWaitTime}ms, ${if (isOwner) "device owner - auto-connecting" else "attempting to trigger connection manually"}")
+                
+                // Get the first device from the map and try to connect
+                mCameraMap.keys.firstOrNull()?.let { deviceId ->
+                    mCameraClient?.let { client ->
+                        try {
+                            val usbManager = mContext.getSystemService(Context.USB_SERVICE) as? android.hardware.usb.UsbManager
+                            usbManager?.deviceList?.values?.firstOrNull { it.deviceId == deviceId }?.let { device ->
+                                // For device owner, always try to connect; for others, check permission
+                                if (isOwner || usbManager.hasPermission(device)) {
+                                    Log.d(TAG, "${if (isOwner) "Device owner - " else ""}Device ${if (isOwner) "auto-connecting" else "has permission, requesting connection"} via USBMonitor")
+                                    client.requestPermission(device)
+                                    // Wait for onConnectDev to fire (less wait for device owner)
+                                    Thread.sleep(if (isOwner) 1000 else 2000)
+                                    // Check again if camera is now available
+                                    val retryCamera = getCurrentCamera()
+                                    if (retryCamera != null && mCameraView != null) {
+                                        try {
+                                            Log.d(TAG, "Camera now available after ${if (isOwner) "auto-connect" else "manual trigger"}, attempting to open")
+                                            openCamera(mCameraView)
+                                            Log.i(TAG, "UVC camera opened successfully after ${if (isOwner) "auto-connect" else "manual trigger"}")
+                                            return
+                                        } catch (e: Exception) {
+                                            Log.w(TAG, "Error opening camera after ${if (isOwner) "auto-connect" else "manual trigger"}: ${e.message}")
+                                        }
+                                    }
+                                } else if (!isOwner) {
+                                    Log.d(TAG, "Device does not have permission, cannot connect")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error ${if (isOwner) "auto-connecting" else "manually triggering"} connection: ${e.message}")
+                        }
+                    }
+                }
+            }
+            
+            Log.i(TAG, "Camera not yet available after ${maxWaitTime}ms, will open when USB device connects")
+            
         } catch (e: Exception) {
             Log.e(TAG, "Error in openUVCCamera: ${e.message}", e)
             setCameraERRORState("Failed to open camera: ${e.message}")
@@ -224,6 +426,19 @@ internal class UVCCameraView(
 
     fun registerMultiCamera() {
         Log.d(TAG, "registerMultiCamera called")
+        
+        // Ensure previous client is cleaned up
+        if (mCameraClient != null) {
+            Log.d(TAG, "Cleaning up previous MultiCameraClient")
+            try {
+                mCameraClient?.unRegister()
+                mCameraClient?.destroy()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error cleaning up previous client: ${e.message}")
+            }
+            mCameraClient = null
+        }
+        
         mCameraClient = MultiCameraClient(view.context, object : IDeviceConnectCallBack {
             override fun onAttachDev(device: UsbDevice?) {
                 Log.d(TAG, "onAttachDev called with device: $device")
@@ -234,11 +449,48 @@ internal class UVCCameraView(
                         return
                     }
                     Log.d(TAG, "Generating camera for device: ${device.deviceName} (vid: ${device.vendorId}, pid: ${device.productId})")
-                    generateCamera(it, device).apply {
-                        mCameraMap[device.deviceId] = this
+                    val camera = generateCamera(it, device)
+                    mCameraMap[device.deviceId] = camera
+                    
+                    // For device owner apps, auto-grant permission and directly connect
+                    if (isDeviceOwner()) {
+                        Log.d(TAG, "Device owner detected - auto-granting permission and connecting device")
+                        try {
+                            val usbManager = it.getSystemService(Context.USB_SERVICE) as? android.hardware.usb.UsbManager
+                            if (usbManager?.hasPermission(device) == true) {
+                                Log.d(TAG, "Device owner - device has permission, directly connecting")
+                                // Directly trigger connection by requesting permission
+                                // This will cause USBMonitor to call onConnectDev immediately
+                                mCameraClient?.requestPermission(device)
+                            } else {
+                                Log.d(TAG, "Device owner - requesting permission (should auto-grant)")
+                                // Request permission - for device owner, this should auto-grant
+                                requestPermission(device)
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error auto-connecting device owner device: ${e.message}", e)
+                            // Fall back to normal permission request
+                            requestPermission(device)
+                        }
+                        return@let
                     }
+                    
+                    // Non-device owner flow
                     if (mRequestPermission.get()) {
-                        Log.d(TAG, "Permission already requested, skipping")
+                        Log.d(TAG, "Permission already requested, checking if we can connect directly")
+                        try {
+                            mCameraClient?.let { client ->
+                                val usbManager = it.getSystemService(Context.USB_SERVICE) as? android.hardware.usb.UsbManager
+                                if (usbManager?.hasPermission(device) == true) {
+                                    Log.d(TAG, "Device has permission, attempting to get UsbControlBlock and connect")
+                                    client.requestPermission(device)
+                                } else {
+                                    Log.d(TAG, "Device does not have permission yet, will wait for onConnectDev")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error checking/manually connecting device: ${e.message}", e)
+                        }
                         return@let
                     }
                     getDefaultCamera()?.apply {
@@ -271,23 +523,41 @@ internal class UVCCameraView(
                 device ?: return
                 ctrlBlock ?: return
                 view.context ?: return
-                mCameraMap[device.deviceId]?.apply {
-                    setUsbControlBlock(ctrlBlock)
-                }?.also { camera ->
-                    Log.d(TAG, "Camera connected, setting up current camera")
-                    try {
-                        mCurrentCamera?.cancel(true)
-                        mCurrentCamera = null
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error canceling previous camera: ${e.message}", e)
+                
+                // CRITICAL: Check if view is still valid before proceeding
+                try {
+                    mCameraMap[device.deviceId]?.apply {
+                        setUsbControlBlock(ctrlBlock)
+                    }?.also { camera ->
+                        Log.d(TAG, "Camera connected, setting up current camera")
+                        try {
+                            mCurrentCamera?.cancel(true)
+                            mCurrentCamera = null
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error canceling previous camera: ${e.message}", e)
+                        }
+                        mCurrentCamera = SettableFuture()
+                        mCurrentCamera?.set(camera)
+                        Log.d(TAG, "Current camera set, opening camera")
+                        
+                        // CRITICAL: Check if camera view is available before opening
+                        if (mCameraView != null) {
+                            try {
+                                openCamera(mCameraView)
+                                Logger.i(TAG, "camera connection. pid: ${device.productId}, vid: ${device.vendorId}")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error opening camera in onConnectDev: ${e.message}", e)
+                                // Don't rethrow - camera might open later when view is ready
+                            }
+                        } else {
+                            Log.w(TAG, "Camera view not ready yet, camera will open when view is available")
+                        }
+                    } ?: run {
+                        Log.w(TAG, "No camera found in map for device: ${device.deviceId}")
                     }
-                    mCurrentCamera = SettableFuture()
-                    mCurrentCamera?.set(camera)
-                    Log.d(TAG, "Current camera set, opening camera")
-                    openCamera(mCameraView)
-                    Logger.i(TAG, "camera connection. pid: ${device.productId}, vid: ${device.vendorId}")
-                } ?: run {
-                    Log.w(TAG, "No camera found in map for device: ${device.deviceId}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in onConnectDev callback: ${e.message}", e)
+                    // Don't rethrow - just log the error
                 }
             }
 
@@ -306,8 +576,17 @@ internal class UVCCameraView(
                 }
             }
         })
-        mCameraClient?.register()
-
+        
+        // Register and wait a bit for USBMonitor to initialize
+        try {
+            mCameraClient?.register()
+            // Give USBMonitor time to initialize before proceeding
+            Thread.sleep(500)
+            Log.d(TAG, "MultiCameraClient registered, USBMonitor should be initialized")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error registering MultiCameraClient: ${e.message}", e)
+            throw e
+        }
     }
 
     fun unRegisterMultiCamera() {
@@ -499,9 +778,21 @@ internal class UVCCameraView(
     private fun getCurrentCamera(): MultiCameraClient.ICamera? {
         Log.d(TAG, "getCurrentCamera called, mCurrentCamera: $mCurrentCamera")
         return try {
+            // CRITICAL: Check if view is still valid before accessing camera
+            if (view == null || view.context == null) {
+                Log.w(TAG, "View or context is null, cannot get current camera")
+                return null
+            }
+            
             val camera = mCurrentCamera?.get(2, TimeUnit.SECONDS)
             Log.d(TAG, "getCurrentCamera result: $camera")
             camera
+        } catch (e: java.util.concurrent.TimeoutException) {
+            Log.w(TAG, "Timeout getting current camera (camera not ready yet): ${e.message}")
+            null
+        } catch (e: java.util.concurrent.CancellationException) {
+            Log.w(TAG, "Camera future was cancelled: ${e.message}")
+            null
         } catch (e: Exception) {
             Log.e(TAG, "Error getting current camera: ${e.message}", e)
             null
@@ -614,6 +905,12 @@ internal class UVCCameraView(
     fun openCamera(st: IAspectRatio? = null) {
         Log.d(TAG, "openCamera called with st: $st")
         
+        // CRITICAL: Check if view is still valid
+        if (view == null || view.context == null) {
+            Log.w(TAG, "View or context is null, cannot open camera")
+            return
+        }
+        
         val currentCamera = getCurrentCamera()
         Log.d(TAG, "Current camera: $currentCamera")
         
@@ -621,6 +918,10 @@ internal class UVCCameraView(
             Log.w(TAG, "No current camera available, cannot open camera")
             return
         }
+        
+        // Note: UsbControlBlock is set in onConnectDev callback
+        // If it's not set yet, openCameraInternal will check and return early with an error
+        // We'll catch USBMonitor-related errors and let the caller handle retry logic
         
         val surface = when (st) {
             is TextureView, is SurfaceView -> {
@@ -635,11 +936,34 @@ internal class UVCCameraView(
         Log.d(TAG, "Opening camera with surface: $surface")
         surface?.apply {
             try {
-                currentCamera.openCamera(this, getCameraRequest())
-                currentCamera.setCameraStateCallBack(this@UVCCameraView)
+                // CRITICAL: Double-check camera is still valid before opening
+                val camera = getCurrentCamera()
+                if (camera == null) {
+                    Log.w(TAG, "Camera became null before opening, aborting")
+                    return@apply
+                }
+                
+                camera.openCamera(this, getCameraRequest())
+                camera.setCameraStateCallBack(this@UVCCameraView)
                 Log.d(TAG, "Camera opened successfully")
             } catch (e: Exception) {
-                Log.e(TAG, "Error opening camera: ${e.message}", e)
+                // Check for USBMonitor-related errors
+                val errorMsg = e.message ?: ""
+                val causeMsg = e.cause?.message ?: ""
+                
+                if (errorMsg.contains("USBMonitor") || 
+                    errorMsg.contains("UsbControlBlock") ||
+                    errorMsg.contains("mUsbManager") ||
+                    causeMsg.contains("USBMonitor") ||
+                    causeMsg.contains("UsbControlBlock") ||
+                    causeMsg.contains("mUsbManager")) {
+                    Log.w(TAG, "USBMonitor not ready - UsbControlBlock not set yet: ${e.message}")
+                    // Don't set error state here - let the retry logic handle it
+                    throw Exception("USBMonitor not initialized: ${e.message}", e)
+                } else {
+                    Log.e(TAG, "Error opening camera: ${e.message}", e)
+                    throw e
+                }
             }
         } ?: run {
             Log.e(TAG, "Surface is null, cannot open camera")
@@ -647,7 +971,29 @@ internal class UVCCameraView(
     }
 
     fun closeCamera() {
-        getCurrentCamera()?.closeCamera()
+        try {
+            // CRITICAL: Check if view is still valid before closing
+            if (view == null || view.context == null) {
+                Log.w(TAG, "View or context is null, skipping camera close")
+                return
+            }
+            
+            val camera = getCurrentCamera()
+            if (camera != null) {
+                try {
+                    camera.closeCamera()
+                    Log.d(TAG, "Camera closed successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error closing camera: ${e.message}", e)
+                    // Don't rethrow - continue with cleanup
+                }
+            } else {
+                Log.d(TAG, "No camera to close")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in closeCamera: ${e.message}", e)
+            // Don't rethrow - just log the error
+        }
     }
 
     private fun surfaceSizeChanged(surfaceWidth: Int, surfaceHeight: Int) {
@@ -885,6 +1231,41 @@ internal class UVCCameraView(
     fun getLastCapturedFrameBinary(callback: UVCBinaryCallback) {
         // Always capture a fresh frame instead of returning cached one
         captureFrameAsBinary(callback)
+    }
+
+    fun captureFrameAsNV21(callback: UVCBinaryCallback) {
+        if (!isCameraOpened()) {
+            callback.onError("Camera not opened")
+            return
+        }
+        
+        if (!isFrameCaptureActive) {
+            callback.onError("Frame capture not active")
+            return
+        }
+        
+        try {
+            val currentCamera = getCurrentCamera()
+            if (currentCamera is CameraUVC) {
+                // Use direct NV21 capture (no JPEG conversion)
+                currentCamera.captureFrameAsNV21 { nv21Data ->
+                    if (nv21Data != null && nv21Data.isNotEmpty()) {
+                        callback.onSuccess(nv21Data)
+                    } else {
+                        callback.onError("No NV21 frame data available")
+                    }
+                }
+            } else {
+                callback.onError("Camera not available")
+            }
+        } catch (e: Exception) {
+            callback.onError("NV21 frame capture error: ${e.message}")
+        }
+    }
+
+    fun getLastCapturedFrameNV21(callback: UVCBinaryCallback) {
+        // Always capture a fresh NV21 frame instead of returning cached one
+        captureFrameAsNV21(callback)
     }
 
 }
