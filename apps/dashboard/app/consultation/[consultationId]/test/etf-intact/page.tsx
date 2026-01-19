@@ -1091,8 +1091,17 @@ export default function EtfIntactPage() {
                 )}
               </div>
             </div>
+            {/* Curve instructions to remind audiologist of maneuvers */}
+            {(completedCurves.size >= 1 && completedCurves.size < 3) && (
+              <div className="mt-3 text-xs text-blue-900">
+                <p className="font-medium">Curve sequence:</p>
+                <p>• Curve 1 – Baseline</p>
+                <p>• Curve 2 – Swallow (ask patient to swallow during this curve)</p>
+                <p>• Curve 3 – Valsalva (ask patient to perform Valsalva during this curve)</p>
+              </div>
+            )}
             {sessionState === "waiting" && (
-              <div className="mt-2">
+              <div className="mt-3">
                 <button
                   onClick={handleResume}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-medium"
