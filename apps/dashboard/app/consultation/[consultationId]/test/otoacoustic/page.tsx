@@ -1,7 +1,7 @@
 "use client";
 import { useSocket } from "@/providers/socket-provider";
 import { useParams, useRouter } from "next/navigation";
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
