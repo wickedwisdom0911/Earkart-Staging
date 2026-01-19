@@ -85,6 +85,18 @@ export default function ConsultationLayout({
   const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
   const { isDemoAccount } = useDemoAccount();
 
+  // Ensure any global notification sounds are stopped when entering a consultation
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        // Tell the PatientAlertProvider to stop any continuous notification sound
+        window.dispatchEvent(new CustomEvent("stopContinuousSound"));
+      } catch (err) {
+        console.warn("Failed to dispatch stopContinuousSound event:", err);
+      }
+    }
+  }, []);
+
   // Wrap startRecording to prevent automatic calls
   const startRecording = useCallback(async (...args: any[]) => {
     console.log("🎯 Manual recording start initiated");
