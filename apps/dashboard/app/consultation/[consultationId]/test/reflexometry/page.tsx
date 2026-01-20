@@ -177,6 +177,7 @@ export default function ReflexometryPage() {
 
   // Reflex readings - 8 measurements per ear (4 freq x 2 modes)
   const [readings, setReadings] = useState<Map<string, ReflexReading>>(new Map());
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
 
   // Real-time waveform data for current measurement
   const [currentWaveform, setCurrentWaveform] = useState<{ time: number; amplitude: number }[]>([]);
@@ -194,64 +195,158 @@ export default function ReflexometryPage() {
   const getReadingKey = (ear: "L" | "R", mode: ReflexMode, freq: number) => 
     `${ear}-${mode}-${freq}`;
 
-  // Load existing reflexometry data from consultation on mount
+  // Load test results - prioritize backend if test is completed, otherwise use localStorage
   useEffect(() => {
-    if (!consultation) return;
+    if (!consultationId || hasLoadedFromStorage || !consultation) return;
     
     const reflexometryData = (consultation as any)?.reflexometry;
-    if (!reflexometryData || !reflexometryData.responses || reflexometryData.responses.length === 0) {
+    const isTestCompleted = reflexometryData?.status === TestStatus.COMPLETED;
+    
+    // If test is completed, skip localStorage and load from backend (handled in next useEffect)
+    if (isTestCompleted) {
+      console.log('✅ Reflexometry test is completed - will load from backend API');
+      setHasLoadedFromStorage(true);
       return;
     }
-
-    console.log("[Reflexometry] Loading existing data:", reflexometryData.responses.length, "responses");
     
-    // Transform saved responses back into readings Map
-    const loadedReadings = new Map<string, ReflexReading>();
-    const loadedCompletedEars = new Set<"L" | "R">();
-    
-    reflexometryData.responses.forEach((response: any) => {
-      const ear = response.ear === "LEFT" ? "L" : "R";
-      const mode = response.mode || (response.earType === 1 ? "CONTRA" : "IPSI");
-      const freq = response.frequencyHz;
-      const key = getReadingKey(ear, mode, freq);
+    // If test is NOT completed, load from localStorage for work in progress
+    try {
+      const storageKey = `reflexometry-${consultationId}`;
+      const storedData = localStorage.getItem(storageKey);
       
-      // Transform complianceData array back to waveform format
-      const waveformData = (response.complianceData || []).map((amplitude: number, index: number) => ({
-        time: index,
-        amplitude: amplitude,
-      }));
-      
-      loadedReadings.set(key, {
-        frequency: freq,
-        mode: mode as ReflexMode,
-        ear: ear,
-        threshold: response.levelDb || null,
-        isPresent: response.possibleReflex || false,
-        waveformData: waveformData,
-      });
-      
-      // Track completed ears (if all 8 readings exist for an ear)
-      const earReadings = Array.from(loadedReadings.values()).filter(r => r.ear === ear);
-      if (earReadings.length >= 8) {
-        loadedCompletedEars.add(ear);
+      if (storedData) {
+        const parsed = JSON.parse(storedData);
+        if (parsed.readings && parsed.readings.length > 0) {
+          // Convert array back to Map
+          const loadedReadings = new Map<string, ReflexReading>();
+          parsed.readings.forEach(([key, reading]: [string, ReflexReading]) => {
+            loadedReadings.set(key, reading);
+          });
+          
+          setReadings(loadedReadings);
+          
+          // Restore completed ears
+          if (parsed.completedEars && Array.isArray(parsed.completedEars)) {
+            setCompletedEars(new Set(parsed.completedEars));
+            parsed.completedEars.forEach((ear: "L" | "R") => {
+              autoSavedEarsRef.current.add(ear);
+            });
+          }
+          
+          console.log('📦 Loaded reflexometry results from localStorage (test not completed):', {
+            count: loadedReadings.size
+          });
+        }
       }
-    });
+      setHasLoadedFromStorage(true);
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      setHasLoadedFromStorage(true);
+    }
+  }, [consultationId, consultation, hasLoadedFromStorage]);
+
+  // Populate test results from backend API - prioritize if test is completed
+  useEffect(() => {
+    if (!consultation || !hasLoadedFromStorage) return;
+
+    const reflexometryData = (consultation as any)?.reflexometry;
+    const isTestCompleted = reflexometryData?.status === TestStatus.COMPLETED;
     
-    if (loadedReadings.size > 0) {
-      setReadings(loadedReadings);
-      setCompletedEars(loadedCompletedEars);
-      // Mark these ears as already saved (they came from database)
-      loadedCompletedEars.forEach(ear => {
-        autoSavedEarsRef.current.add(ear);
-      });
-      console.log("[Reflexometry] Restored", loadedReadings.size, "readings and", loadedCompletedEars.size, "completed ears");
+    // If test is NOT completed and we already have local data, don't override
+    if (!isTestCompleted && readings.size > 0) {
+      return; // Keep localStorage data for work in progress
     }
     
-    // Mark initial load as complete after a short delay
-    setTimeout(() => {
-      isInitialLoadRef.current = false;
-    }, 1000);
-  }, [consultation]);
+    // If test is completed OR we don't have local data, load from backend
+    if (reflexometryData && reflexometryData.responses && reflexometryData.responses.length > 0) {
+      console.log("[Reflexometry] Loading existing data from backend:", reflexometryData.responses.length, "responses");
+      
+      // Transform saved responses back into readings Map
+      const loadedReadings = new Map<string, ReflexReading>();
+      const loadedCompletedEars = new Set<"L" | "R">();
+      
+      reflexometryData.responses.forEach((response: any) => {
+        const ear = response.ear === "LEFT" ? "L" : "R";
+        const mode = response.mode || (response.earType === 1 ? "CONTRA" : "IPSI");
+        const freq = response.frequencyHz;
+        const key = getReadingKey(ear, mode, freq);
+        
+        // Transform complianceData array back to waveform format
+        const waveformData = (response.complianceData || []).map((amplitude: number, index: number) => ({
+          time: index,
+          amplitude: amplitude,
+        }));
+        
+        loadedReadings.set(key, {
+          frequency: freq,
+          mode: mode as ReflexMode,
+          ear: ear,
+          threshold: response.levelDb || null,
+          isPresent: response.possibleReflex || false,
+          waveformData: waveformData,
+        });
+        
+        // Track completed ears (if all 8 readings exist for an ear)
+        const earReadings = Array.from(loadedReadings.values()).filter(r => r.ear === ear);
+        if (earReadings.length >= 8) {
+          loadedCompletedEars.add(ear);
+        }
+      });
+      
+      if (loadedReadings.size > 0) {
+        setReadings(loadedReadings);
+        setCompletedEars(loadedCompletedEars);
+        // Mark these ears as already saved (they came from database)
+        loadedCompletedEars.forEach(ear => {
+          autoSavedEarsRef.current.add(ear);
+        });
+        console.log("[Reflexometry] Restored from backend", loadedReadings.size, "readings and", loadedCompletedEars.size, "completed ears", {
+          isCompleted: isTestCompleted
+        });
+        
+        // Also save to localStorage for future reference
+        try {
+          const storageKey = `reflexometry-${consultationId}`;
+          const dataToStore = {
+            readings: Array.from(loadedReadings.entries()),
+            completedEars: Array.from(loadedCompletedEars),
+            timestamp: new Date().toISOString(),
+            submitted: isTestCompleted
+          };
+          localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+        } catch (error) {
+          console.error('Failed to save backend data to localStorage:', error);
+        }
+      }
+      
+      // Mark initial load as complete after a short delay
+      setTimeout(() => {
+        isInitialLoadRef.current = false;
+      }, 1000);
+    }
+  }, [consultation, consultationId, hasLoadedFromStorage, readings.size]);
+
+  // Save test results to localStorage whenever they change (preserve even after submission)
+  useEffect(() => {
+    if (!consultationId || !hasLoadedFromStorage) return;
+    
+    const reflexometryData = (consultation as any)?.reflexometry;
+    const isTestCompleted = reflexometryData?.status === TestStatus.COMPLETED;
+    
+    // Always save to preserve reflexometry data, even after test completion
+    try {
+      const storageKey = `reflexometry-${consultationId}`;
+      const dataToStore = {
+        readings: Array.from(readings.entries()),
+        completedEars: Array.from(completedEars),
+        timestamp: new Date().toISOString(),
+        submitted: isTestCompleted
+      };
+      localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }, [consultationId, readings, completedEars, consultation, hasLoadedFromStorage]);
 
   // Debug: log readings when they change
   useEffect(() => {
@@ -925,6 +1020,21 @@ export default function ReflexometryPage() {
       } else {
         console.log("[Reflexometry] ✅ Results saved and verified successfully");
         toast.success("Results saved successfully!");
+      }
+
+      // Preserve localStorage data after test submission
+      try {
+        const storageKey = `reflexometry-${consultationId}`;
+        const dataToStore = {
+          readings: Array.from(readings.entries()),
+          completedEars: Array.from(completedEars),
+          timestamp: new Date().toISOString(),
+          submitted: true
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+        console.log('💾 Preserved reflexometry data in localStorage after test submission');
+      } catch (error) {
+        console.error('Failed to save to localStorage:', error);
       }
 
       // Add target ear to completed set

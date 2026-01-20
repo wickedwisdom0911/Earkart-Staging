@@ -572,26 +572,51 @@ export default function OtoacousticReportPage() {
                             <th className="border p-2 text-left">Frequency (Hz)</th>
                             <th className="border p-2 text-left">Signal (dB SPL)</th>
                             <th className="border p-2 text-left">Noise (dB SPL)</th>
+                            <th className="border p-2 text-left">SNR (dB)</th>
                             <th className="border p-2 text-left">Artefacts</th>
                             <th className="border p-2 text-left">Result</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {leftEarData.frequencyResponses.map((fr: any, idx: number) => (
-                            <tr key={idx} className={fr.pass ? "bg-green-50" : "bg-red-50"}>
-                              <td className="border p-2">{fr.frequencyHz}</td>
-                              <td className="border p-2">{fr.signal?.toFixed(2) ?? "N/A"}</td>
-                              <td className="border p-2">{fr.noise?.toFixed(2) ?? "N/A"}</td>
-                              <td className="border p-2">{fr.artefacts ?? 0}</td>
-                              <td className="border p-2">
-                                <span className={`px-2 py-1 rounded text-xs ${
-                                  fr.pass ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"
-                                }`}>
-                                  {fr.pass ? "Pass" : "Fail"}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
+                          {leftEarData.frequencyResponses.map((fr: any, idx: number) => {
+                            // Helper to format valid numbers
+                            const formatNumber = (val: any): string => {
+                              if (val === null || val === undefined) return "N/A";
+                              if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return "N/A";
+                              return val.toFixed(2);
+                            };
+                            
+                            // Calculate SNR: Signal - Noise (with validation)
+                            const signal = fr.signal;
+                            const noise = fr.noise;
+                            const isValidSignal = typeof signal === 'number' && !isNaN(signal) && isFinite(signal);
+                            const isValidNoise = typeof noise === 'number' && !isNaN(noise) && isFinite(noise);
+                            
+                            let snr = "N/A";
+                            if (isValidSignal && isValidNoise) {
+                              const calculatedSnr = signal - noise;
+                              snr = formatNumber(calculatedSnr);
+                            } else if (typeof fr.snr === 'number' && !isNaN(fr.snr) && isFinite(fr.snr)) {
+                              snr = fr.snr.toFixed(2);
+                            }
+                            
+                            return (
+                              <tr key={idx} className={fr.pass ? "bg-green-50" : "bg-red-50"}>
+                                <td className="border p-2">{fr.frequencyHz}</td>
+                                <td className="border p-2">{formatNumber(fr.signal)}</td>
+                                <td className="border p-2">{formatNumber(fr.noise)}</td>
+                                <td className="border p-2 font-semibold">{snr}</td>
+                                <td className="border p-2">{fr.artefacts ?? 0}</td>
+                                <td className="border p-2">
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    fr.pass ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"
+                                  }`}>
+                                    {fr.pass ? "Pass" : "Fail"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -639,26 +664,51 @@ export default function OtoacousticReportPage() {
                             <th className="border p-2 text-left">Frequency (Hz)</th>
                             <th className="border p-2 text-left">Signal (dB SPL)</th>
                             <th className="border p-2 text-left">Noise (dB SPL)</th>
+                            <th className="border p-2 text-left">SNR (dB)</th>
                             <th className="border p-2 text-left">Artefacts</th>
                             <th className="border p-2 text-left">Result</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {rightEarData.frequencyResponses.map((fr: any, idx: number) => (
-                            <tr key={idx} className={fr.pass ? "bg-green-50" : "bg-red-50"}>
-                              <td className="border p-2">{fr.frequencyHz}</td>
-                              <td className="border p-2">{fr.signal?.toFixed(2) ?? "N/A"}</td>
-                              <td className="border p-2">{fr.noise?.toFixed(2) ?? "N/A"}</td>
-                              <td className="border p-2">{fr.artefacts ?? 0}</td>
-                              <td className="border p-2">
-                                <span className={`px-2 py-1 rounded text-xs ${
-                                  fr.pass ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"
-                                }`}>
-                                  {fr.pass ? "Pass" : "Fail"}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
+                          {rightEarData.frequencyResponses.map((fr: any, idx: number) => {
+                            // Helper to format valid numbers
+                            const formatNumber = (val: any): string => {
+                              if (val === null || val === undefined) return "N/A";
+                              if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return "N/A";
+                              return val.toFixed(2);
+                            };
+                            
+                            // Calculate SNR: Signal - Noise (with validation)
+                            const signal = fr.signal;
+                            const noise = fr.noise;
+                            const isValidSignal = typeof signal === 'number' && !isNaN(signal) && isFinite(signal);
+                            const isValidNoise = typeof noise === 'number' && !isNaN(noise) && isFinite(noise);
+                            
+                            let snr = "N/A";
+                            if (isValidSignal && isValidNoise) {
+                              const calculatedSnr = signal - noise;
+                              snr = formatNumber(calculatedSnr);
+                            } else if (typeof fr.snr === 'number' && !isNaN(fr.snr) && isFinite(fr.snr)) {
+                              snr = fr.snr.toFixed(2);
+                            }
+                            
+                            return (
+                              <tr key={idx} className={fr.pass ? "bg-green-50" : "bg-red-50"}>
+                                <td className="border p-2">{fr.frequencyHz}</td>
+                                <td className="border p-2">{formatNumber(fr.signal)}</td>
+                                <td className="border p-2">{formatNumber(fr.noise)}</td>
+                                <td className="border p-2 font-semibold">{snr}</td>
+                                <td className="border p-2">{fr.artefacts ?? 0}</td>
+                                <td className="border p-2">
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    fr.pass ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"
+                                  }`}>
+                                    {fr.pass ? "Pass" : "Fail"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

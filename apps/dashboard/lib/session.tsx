@@ -38,19 +38,32 @@ export async function createSession(user: UserModelData) {
     
     const cookieStore = await cookies();
     
-    // Safari requires expires to be a valid date string
-    cookieStore.set("session_omni", session, {
+    // Determine secure flag for HTTPS (works for both Vercel and EC2)
+    const isSecure = process.env.NODE_ENV === "production" || 
+                     process.env.IS_PRODUCTION === "true" ||
+                     process.env.FORCE_SECURE_COOKIES === "true";
+    
+    const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isSecure,
       expires: expiresAt,
-      sameSite: "strict",
+      sameSite: "lax" as const, // Changed from "strict" for better compatibility
       path: "/",
-    });
-
-    return true;
+    };
+    
+    // Still set it via cookies() for other code that might rely on it
+    cookieStore.set("session_omni", session, cookieOptions);
+    
+    // Return cookie details so API routes can attach it to NextResponse
+    // This is the KEY FIX for EC2 - cookies().set() alone doesn't always work behind Nginx
+    return {
+      name: "session_omni",
+      value: session,
+      options: cookieOptions,
+    };
   } catch (error) {
     console.error("Session creation error:", error);
-    return false;
+    return null;
   }
 }
 

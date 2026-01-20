@@ -38,7 +38,7 @@ const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-lg">Connecting to otoscope stream...</p>
-          <p className="text-sm text-gray-400 mt-2">Please wait while the R15C camera initializes</p>
+          <p className="text-sm text-gray-400 mt-2">Please wait while the audiometer camera initializes</p>
         </div>
       </div>
     );
@@ -80,63 +80,10 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     }
   }, [isOtoscopyActive, isCameraOpen, isVideoOtoscopyPage]);
   
-  // Show fullscreen when on video-otoscopy page AND otoscopy is active
-  // Don't require isCameraOpen - the screen share should work regardless
-  const shouldEnlargeVideo = isVideoOtoscopyPage && isOtoscopyActive;
+  // REMOVED: Fullscreen behavior - otoscopy stream now shows in white panel
+  // Patient video always stays visible and unchanged in left panel
 
-  const [isStopping, setIsStopping] = React.useState(false);
-  const handleStop = React.useCallback(async () => {
-    try {
-      setIsStopping(true);
-      await stopOtoscopy();
-    } catch (e) {
-      console.error("Error stopping otoscopy:", e);
-    } finally {
-      setIsStopping(false);
-    }
-  }, [stopOtoscopy]);
-
-  // When video should be enlarged
-  if (shouldEnlargeVideo) {
-    return (
-      <div className="fixed inset-0 z-50 bg-black">
-        <div className="w-screen h-screen">
-          <VideoCall
-            channel={consultationId}
-            patientName={patientName}
-            isFullscreen={true}
-            onBeforeLeaveCall={onBeforeLeaveCall}
-            hideLocalUser={true}
-            showOtoscopyOnly={true}
-          />
-        </div>
-
-        {/* Top-left indicator */}
-        <div className="absolute top-4 left-4 z-10 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-            <span className="font-medium">🔬 OTOSCOPY FULL SCREEN</span>
-          </div>
-        </div>
-
-        {/* Top-center Share Screen button */}
-        <div className="absolute top-1 left-1/2 transform -translate-x-1/2 z-10">
-          <ShareScreenButton />
-        </div>
-
-        {/* Top-right stop button */}
-        <button
-          onClick={handleStop}
-          disabled={isStopping}
-          className="absolute top-4 right-4 z-10 px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white shadow-lg disabled:opacity-60"
-        >
-          {isStopping ? 'Stopping…' : 'Stop Otoscopy'}
-        </button>
-      </div>
-    );
-  }
-
-  // Normal layout for all other cases
+  // Normal layout - always show patient video in left panel (unchanged)
   return (
     <div className="flex gap-2 overflow-hidden h-full w-full relative">
       {/* Share Screen Button - Fixed at top right */}
@@ -144,20 +91,18 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
         <ShareScreenButton />
       </div>
       
-      {/* Otoscopy indicator when active but not fullscreen */}
-      {isOtoscopyActive && !shouldEnlargeVideo && (
-        <div className="absolute top-2 left-2 z-20 bg-green-600 text-white px-3 py-1 rounded-lg text-sm">
-          🔬 Otoscopy Active
-        </div>
-      )}
+      {/* Otoscopy indicator when active */}
+   
       
+      {/* Patient video - always show, exclude otoscopy stream to keep it unchanged */}
       <VideoCall
         channel={consultationId}
         patientName={patientName}
         isFullscreen={false}
         onBeforeLeaveCall={onBeforeLeaveCall}
         hideLocalUser={false}
-        showOtoscopyOnly={isOtoscopyActive}
+        showOtoscopyOnly={false} // Always show patient video, never otoscopy
+        excludeOtoscopyStream={isOtoscopyActive} // Exclude otoscopy stream when active
       />
       <main className="flex-1 w-full overflow-y-scroll">{children}</main>
     </div>

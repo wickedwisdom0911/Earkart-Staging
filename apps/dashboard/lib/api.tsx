@@ -17,7 +17,17 @@ export async function apiRequest<T extends ApiResponse<any>>(
 ): Promise<T> {
   try {
     console.log("🔵 [apiRequest] Fetching:", url);
-    const response = await fetch(url, options);
+    
+    // Add timeout to fetch request (60 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
     
     console.log("🔵 [apiRequest] Response status:", response.status, response.statusText);
     
@@ -122,6 +132,15 @@ export async function apiRequest<T extends ApiResponse<any>>(
     return parsedResult;
 
   } catch (error) {
+    // Handle timeout/abort errors
+    if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('timeout') || error.message.includes('Timeout'))) {
+      console.error("🔴 [apiRequest] Request timeout:", url);
+      const timeoutError = new Error("Request timeout - The server took too long to respond. Please try again.");
+      (timeoutError as any).isTimeout = true;
+      (timeoutError as any).status = 408;
+      throw timeoutError;
+    }
+    
     if (error instanceof ZodError) {
       // Log all union errors in detail
       const unionErrors = error.errors

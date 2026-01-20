@@ -71,6 +71,11 @@ export default function ToneDecayPage() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [testResults, setTestResults] = useState<ToneDecayReadingLocal[]>([]);
   const [hasSavedResults, setHasSavedResults] = useState(false);
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
+  
+  // NACK dialog state
+  const [showNackDialog, setShowNackDialog] = useState(false);
+  const [nackMessage, setNackMessage] = useState("");
 
   const testStateRef = useRef<TestState>(testState);
   const hasAutoStoppedRef = useRef(false);
@@ -96,8 +101,59 @@ export default function ToneDecayPage() {
     currentLevelRef.current = currentLevel;
   }, [currentLevel]);
 
+  // Load test results - prioritize backend if test is completed, otherwise use localStorage
   useEffect(() => {
-    if (consultation?.toneDecay?.earTests) {
+    if (!consultationId || hasLoadedFromStorage || !consultation) return;
+    
+    const isTestCompleted = consultation?.toneDecay?.status === TestStatus.COMPLETED;
+    
+    // If test is completed, skip localStorage and load from backend (handled in next useEffect)
+    if (isTestCompleted) {
+      console.log('✅ Tone Decay test is completed - will load from backend API');
+      setHasLoadedFromStorage(true);
+      return;
+    }
+    
+    // If test is NOT completed, load from localStorage for work in progress
+    try {
+      const storageKey = `tone-decay-${consultationId}`;
+      const storedData = localStorage.getItem(storageKey);
+      
+      if (storedData) {
+        const parsed = JSON.parse(storedData);
+        if (parsed.testResults && Array.isArray(parsed.testResults)) {
+          setTestResults(parsed.testResults);
+          
+          // Restore completed ears
+          if (parsed.completedEars && Array.isArray(parsed.completedEars)) {
+            setCompletedEars(new Set(parsed.completedEars));
+          }
+          
+          console.log('📦 Loaded tone decay results from localStorage (test not completed):', {
+            count: parsed.testResults.length
+          });
+        }
+      }
+      setHasLoadedFromStorage(true);
+    } catch (error) {
+      console.error('Failed to load from localStorage:', error);
+      setHasLoadedFromStorage(true);
+    }
+  }, [consultationId, consultation, hasLoadedFromStorage]);
+
+  // Populate test results from backend API - prioritize if test is completed
+  useEffect(() => {
+    if (!consultation || !hasLoadedFromStorage) return;
+
+    const isTestCompleted = consultation?.toneDecay?.status === TestStatus.COMPLETED;
+    
+    // If test is NOT completed and we already have local data, don't override
+    if (!isTestCompleted && testResults.length > 0) {
+      return; // Keep localStorage data for work in progress
+    }
+    
+    // If test is completed OR we don't have local data, load from backend
+    if (consultation?.toneDecay?.earTests && consultation.toneDecay.earTests.length > 0) {
       const loadedResults: ToneDecayReadingLocal[] = consultation.toneDecay.earTests.map(
         (test, index) => ({
           id: test.id || `loaded-${index}`,
@@ -118,8 +174,48 @@ export default function ToneDecayPage() {
       }
       setCompletedEars(completedEarSet);
       setHasSavedResults(true);
+      
+      console.log('📥 Loaded tone decay results from backend API:', {
+        count: loadedResults.length,
+        isCompleted: isTestCompleted
+      });
+      
+      // Also save to localStorage for future reference
+      try {
+        const storageKey = `tone-decay-${consultationId}`;
+        const dataToStore = {
+          testResults: loadedResults,
+          completedEars: Array.from(completedEarSet),
+          timestamp: new Date().toISOString(),
+          submitted: isTestCompleted
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+      } catch (error) {
+        console.error('Failed to save backend data to localStorage:', error);
+      }
     }
-  }, [consultation]);
+  }, [consultation, consultationId, hasLoadedFromStorage, testResults.length]);
+
+  // Save test results to localStorage whenever they change (preserve even after submission)
+  useEffect(() => {
+    if (!consultationId || !hasLoadedFromStorage) return;
+    
+    const isTestCompleted = consultation?.toneDecay?.status === TestStatus.COMPLETED;
+    
+    // Always save to preserve tone decay data, even after test completion
+    try {
+      const storageKey = `tone-decay-${consultationId}`;
+      const dataToStore = {
+        testResults,
+        completedEars: Array.from(completedEars),
+        timestamp: new Date().toISOString(),
+        submitted: isTestCompleted
+      };
+      localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }, [consultationId, testResults, completedEars, consultation?.toneDecay?.status, hasLoadedFromStorage]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -311,12 +407,40 @@ export default function ToneDecayPage() {
       }
     };
 
+    // Dedicated handler for nack-received (test cannot be performed)
+    const handleNackReceived = (data: { message?: string; testId?: string }) => {
+      console.warn("⚠️ [TONE-DECAY] [NACK Received] Test not ready or error:", data);
+      
+      // Stop the test if it was running
+      if (testStateRef.current === "running") {
+        handleStopTest();
+      }
+      setTestState("idle");
+      
+      // Extract message
+      const errorMessage = data.message || "Test device not ready or test cannot be performed at this time";
+      
+      // Show big dialog instead of toast - requires audiologist confirmation
+      setNackMessage(errorMessage);
+      setShowNackDialog(true);
+      
+      // Log for debugging
+      console.error("❌ [TONE-DECAY] [NACK] Test cannot proceed:", {
+        message: errorMessage,
+        testId: data.testId,
+        selectedEar,
+        consultationId: consultationId,
+      });
+    };
+
     socket.on("patient-response-tonedecay", onPatientResponse);
+    socket.on("nack-received", handleNackReceived);
 
     return () => {
       socket.off("patient-response-tonedecay", onPatientResponse);
+      socket.off("nack-received", handleNackReceived);
     };
-  }, [socket]);
+  }, [socket, selectedEar, consultationId, handleStopTest]);
 
   // Visual feedback effect - add/remove CSS classes based on patient response
   useEffect(() => {
@@ -476,11 +600,26 @@ export default function ToneDecayPage() {
 
       setHasSavedResults(true);
 
+      // Preserve localStorage data after test submission
+      try {
+        const storageKey = `tone-decay-${consultationId}`;
+        const dataToStore = {
+          testResults,
+          completedEars: Array.from(completedEars),
+          timestamp: new Date().toISOString(),
+          submitted: true
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+        console.log('💾 Preserved tone decay data in localStorage after test submission');
+      } catch (error) {
+        console.error('Failed to save to localStorage:', error);
+      }
+
       toast.success("Results saved successfully! You can now view the report.");
     } catch (error: any) {
       toast.error(error?.message || "Failed to save results. Please try again.");
     }
-  }, [consultation, testResults, consultationId, updateConsultationMutation, router, queryClient]);
+  }, [consultation, testResults, consultationId, updateConsultationMutation, router, queryClient, completedEars]);
 
   const resetTest = useCallback(() => {
     if (testState === "running") {
@@ -872,6 +1011,70 @@ export default function ToneDecayPage() {
           </div>
         </div>
       </div>
+
+      {/* NACK Dialog - Big warning like patient response */}
+      {showNackDialog && (
+        <>
+          <style jsx>{`
+            @keyframes shake {
+              0%, 100% { transform: translateX(0); }
+              10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+              20%, 40%, 60%, 80% { transform: translateX(10px); }
+            }
+          `}</style>
+          {/* Full-screen overlay */}
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            {/* Pulsing red background */}
+            <div className="absolute inset-0 bg-red-500/10 animate-pulse" />
+            
+            {/* Dialog box */}
+            <div 
+              className="relative bg-white border-4 border-red-500 rounded-2xl shadow-2xl p-8 max-w-lg mx-4"
+              style={{ animation: 'shake 0.5s ease-in-out' }}
+            >
+              {/* Warning icon with animation */}
+              <div className="mx-auto mb-6 relative flex h-20 w-20 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-16 w-16 bg-red-600 items-center justify-center">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </span>
+              </div>
+              
+              {/* Title */}
+              <h2 className="text-2xl font-bold text-red-700 text-center mb-4">
+                Test Cannot Be Performed
+              </h2>
+              
+              {/* Message */}
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+                <p className="text-red-800 text-lg font-medium text-center">
+                  {nackMessage}
+                </p>
+              </div>
+              
+              {/* Instructions */}
+              <p className="text-gray-700 text-center mb-6">
+                Please ensure the device is properly connected and ready before continuing.
+              </p>
+              
+              {/* Close button */}
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    setShowNackDialog(false);
+                    setNackMessage("");
+                  }}
+                  className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-lg transition-colors"
+                >
+                  Understood
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

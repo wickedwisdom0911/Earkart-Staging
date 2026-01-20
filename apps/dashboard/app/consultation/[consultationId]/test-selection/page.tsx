@@ -88,8 +88,11 @@ export default function TestSelectionPage() {
 
   const handleTestClick = (testId: string) => {
     lastRequestedTestRef.current = testId;
+    // Map testId to backend expected format
+    // For OAE, send "OAE" as testId to match backend TestType enum
+    const backendTestId = testId === "otoacoustic" ? "OAE" : testId;
     socket?.emit("start-test", {
-      testId,
+      testId: backendTestId,
       consultationId,
     });
     router.push(`/consultation/${consultationId}/test/${testId}`);

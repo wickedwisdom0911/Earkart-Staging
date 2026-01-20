@@ -205,8 +205,8 @@ export const ConsultationModelSchema = z.object({
       hasPrevious: z.boolean(),
     }).nullable(),
     // Format 2: Direct array response (backward compatibility)
-    z.array(ConsultationModelDataSchema).nullable(),
-    // Format 3: Single consultation object (backward compatibility)
+    z.array(ConsultationModelDataSchema),
+    // Format 3: Single consultation object
     ConsultationModelDataSchema,
     // Format 4: Null
     z.null(),

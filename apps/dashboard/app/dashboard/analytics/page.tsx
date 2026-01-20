@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { format, isToday, isSameDay, subDays } from "date-fns";
+import { format, isToday, isSameDay, subDays, startOfDay, endOfDay } from "date-fns";
 import { SessionStatus, Role } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
@@ -53,27 +53,50 @@ export default function AnalyticsPage() {
   // Real-time audiologist status from WebSocket
   const { isInCall: checkAudiologistInCall } = useAudiologistStatus();
 
-  // Date filter state
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // Date range filter state
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
+  const [fromDateOpen, setFromDateOpen] = useState(false);
+  const [toDateOpen, setToDateOpen] = useState(false);
   const today = new Date();
   const yesterday = subDays(today, 1);
 
-  // Filter consultations by selected date (today by default, or selected date)
+  // Filter consultations by date range (from/to dates)
   // Only show consultations that have an audiologist assigned
   const filteredConsultations = useMemo(() => {
-    if (!consultations?.data) return [];
-    
-    const consultationsArray = extractConsultations(consultations.data);
-    const targetDate = selectedDate || today;
+    if (!consultations?.data || !Array.isArray(consultations.data))
+      return [];
 
-    return consultationsArray.filter((c) => {
+    return consultations.data.filter((c) => {
       // Only show consultations with audiologist assigned
       if (!c.audiologist || !c.audiologist.userId) return false;
       if (!c.createdAt) return false;
+      
       const consultationDate = new Date(c.createdAt);
-      return isSameDay(consultationDate, targetDate);
+      
+      // If no date filters are set, show all consultations
+      if (!fromDate && !toDate) {
+        return true;
+      }
+      
+      // If only fromDate is set, filter from that date onwards
+      if (fromDate && !toDate) {
+        return consultationDate >= startOfDay(fromDate);
+      }
+      
+      // If only toDate is set, filter up to that date
+      if (!fromDate && toDate) {
+        return consultationDate <= endOfDay(toDate);
+      }
+      
+      // If both dates are set, filter within the range
+      if (fromDate && toDate) {
+        return consultationDate >= startOfDay(fromDate) && consultationDate <= endOfDay(toDate);
+      }
+      
+      return true;
     });
-  }, [consultations, selectedDate, today]);
+  }, [consultations, fromDate, toDate]);
 
   // Group all consultations by audiologist for the details modal
   // Only include consultations that have an audiologist assigned
@@ -197,66 +220,134 @@ export default function AnalyticsPage() {
               <div className="w-px h-10 bg-white/20" />
               <div className="text-center">
                 <p className="text-primary-100 text-[10px] font-medium uppercase">
-                  {selectedDate ? format(selectedDate, "dd/MM/yy") : "Today"}
+                  {(() => {
+                    if (!fromDate && !toDate) return "All Time";
+                    if (fromDate && !toDate) return format(fromDate, "dd/MM/yy");
+                    if (!fromDate && toDate) return format(toDate, "dd/MM/yy");
+                    if (fromDate && toDate) {
+                      if (isSameDay(fromDate, toDate)) return format(fromDate, "dd/MM/yy");
+                      return `${format(fromDate, "dd/MM")}-${format(toDate, "dd/MM")}`;
+                    }
+                    return "All Time";
+                  })()}
                 </p>
                 <p className="text-2xl font-bold text-white">{summaryStats.totalTodayConsultations}</p>
               </div>
               </div>
             </div>
             
-            {/* Calendar Filter */}
-            <div className="flex items-center gap-3 pt-2 border-t border-white/20">
+            {/* Date Range Filter */}
+            <div className="flex flex-col gap-2 pt-2 border-t border-white/20">
               <div className="flex items-center gap-2">
                 <CalendarIcon className="w-4 h-4 text-white" />
-                <span className="text-sm font-medium text-white">Select Date:</span>
+                <span className="text-sm font-medium text-white">Date Range:</span>
               </div>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
-                  >
-                    <CalendarIcon className="w-3 h-3 mr-2" />
-                    {selectedDate ? format(selectedDate, "dd/MM/yy") : "Select date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate || undefined}
-                    onSelect={(date) => setSelectedDate(date || null)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedDate(yesterday)}
-                className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
-              >
-                Yesterday
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedDate(today)}
-                className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
-              >
-                Today
-              </Button>
-              {selectedDate && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Quick Date Buttons */}
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSelectedDate(null)}
-                  className="h-9 bg-white/20 hover:bg-white/30 text-white border-white/40"
+                  onClick={() => {
+                    setFromDate(today);
+                    setToDate(today);
+                  }}
+                  className={`h-9 bg-white/10 hover:bg-white/20 text-white border-white/30 ${
+                    fromDate && toDate && isSameDay(fromDate, today) && isSameDay(toDate, today)
+                      ? "bg-white/30 border-white/50"
+                      : ""
+                  }`}
                 >
-                  <XCircle className="w-3 h-3 mr-1" />
-                  Clear
+                  Today
                 </Button>
-              )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFromDate(yesterday);
+                    setToDate(yesterday);
+                  }}
+                  className={`h-9 bg-white/10 hover:bg-white/20 text-white border-white/30 ${
+                    fromDate && toDate && isSameDay(fromDate, yesterday) && isSameDay(toDate, yesterday)
+                      ? "bg-white/30 border-white/50"
+                      : ""
+                  }`}
+                >
+                  Yesterday
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const weekAgo = subDays(today, 7);
+                    setFromDate(weekAgo);
+                    setToDate(today);
+                  }}
+                  className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
+                >
+                  Last 7 Days
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const monthAgo = subDays(today, 30);
+                    setFromDate(monthAgo);
+                    setToDate(today);
+                  }}
+                  className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
+                >
+                  Last 30 Days
+                </Button>
+                
+                {/* From Date - native input for stability */}
+                <input
+                  type="date"
+                  value={fromDate ? format(fromDate, "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const date = v ? new Date(v) : null;
+                    setFromDate(date);
+                    if (date && toDate && date > toDate) {
+                      setToDate(date);
+                    }
+                  }}
+                  max={toDate ? format(toDate, "yyyy-MM-dd") : undefined}
+                  className="h-9 rounded-md border border-white/40 bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0"
+                />
+                
+                <span className="text-white text-sm font-medium">to</span>
+                
+                {/* To Date - native input for stability */}
+                <input
+                  type="date"
+                  value={toDate ? format(toDate, "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const date = v ? new Date(v) : null;
+                    setToDate(date);
+                    if (date && fromDate && date < fromDate) {
+                      setFromDate(date);
+                    }
+                  }}
+                  min={fromDate ? format(fromDate, "yyyy-MM-dd") : undefined}
+                  className="h-9 rounded-md border border-white/40 bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0"
+                />
+                
+                {(fromDate || toDate) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFromDate(null);
+                      setToDate(null);
+                    }}
+                    className="h-9 bg-white/20 hover:bg-white/30 text-white border-white/40"
+                  >
+                    <XCircle className="w-3 h-3 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -315,12 +406,11 @@ export default function AnalyticsPage() {
                   <Card
                     key={cardData.audiologistId}
                     className={`
-                      group relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl cursor-pointer
+                      group relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl
                       ${cardData.isInCall 
                         ? 'bg-red-50 border-red-300 hover:border-red-400' 
                         : 'bg-white border-gray-200 hover:border-primary-400'}
                     `}
-                    onClick={() => router.push(`/dashboard/analytics/audiologist/${cardData.audiologistId}`)}
                   >
                     {/* Status Indicator Banner */}
                     <div className={`

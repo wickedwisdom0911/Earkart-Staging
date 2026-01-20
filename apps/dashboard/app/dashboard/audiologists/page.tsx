@@ -317,19 +317,13 @@ export default function Audiologists() {
                   </span>
                 </div>
                 
-                {/* Action Buttons */}
-                <div className="flex gap-2 pt-3 border-t border-gray-100 dark:border-neutral-800">
+                {/* Action Button */}
+                <div className="flex pt-3 border-t border-gray-100 dark:border-neutral-800">
                   <Link
                     href={ROUTES.AUDIOLOGIST(audiologist.id || "")}
-                    className="flex-1 bg-primary-500 hover:bg-primary-600 text-white py-2 rounded-lg text-center text-sm font-medium transition-colors"
+                    className="w-full bg-primary-500 hover:bg-primary-600 text-white py-2 rounded-lg text-center text-sm font-medium transition-colors"
                   >
                     View Profile
-                  </Link>
-                  <Link
-                    href={ROUTES.AUDIOLOGIST_ANALYTICS(audiologist.id || "")}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-200 py-2 rounded-lg text-center text-sm font-medium transition-colors"
-                  >
-                    Analytics
                   </Link>
                 </div>
               </div>

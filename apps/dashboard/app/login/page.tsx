@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -53,10 +53,18 @@ function LoginPageInner() {
     },
   });
 
-  // Check for URL parameters and handle them securely
+  // Check for URL parameters and handle them securely - only run once
+  const hasProcessedParamsRef = useRef(false);
+  
   useEffect(() => {
+    // Only process params once
+    if (hasProcessedParamsRef.current) return;
+    
     const email = searchParams?.get('email');
     const password = searchParams?.get('password');
+    
+    // Mark as processed immediately to prevent re-runs
+    hasProcessedParamsRef.current = true;
     
     // Pre-fill email safely (no security risk)
     if (email) {
@@ -66,11 +74,22 @@ function LoginPageInner() {
     // Security warning if password is in URL
     if (password) {
       setShowSecurityWarning(true);
-      
-      // Clean URL by removing parameters
-      window.history.replaceState({}, '', window.location.pathname);
     }
-  }, [searchParams, form]);
+    
+    // Clean URL by removing parameters if they exist - use router to avoid refresh
+    // Only do this if params actually exist
+    if (email || password) {
+      // Use router.replace to clean URL without causing a full page refresh
+      const currentPath = window.location.pathname;
+      if (window.location.search) {
+        // Use setTimeout to avoid state update during render
+        setTimeout(() => {
+          router.replace(currentPath, { scroll: false });
+        }, 0);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]); // Include searchParams but use ref to prevent re-runs
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsPending(true);
@@ -90,13 +109,15 @@ function LoginPageInner() {
       const result = await resp.json();
       
       if (result.success) {
-        router.push("/dashboard");
+        // Use window.location.href for full page reload
+        // Ensures cookies are set before middleware check
+        window.location.href = "/dashboard";
       } else {
         toast.error(result.message || "Login failed");
+        setIsPending(false);
       }
     } catch (error) {
       toast.error("An unexpected error occurred");
-    } finally {
       setIsPending(false);
     }
   }

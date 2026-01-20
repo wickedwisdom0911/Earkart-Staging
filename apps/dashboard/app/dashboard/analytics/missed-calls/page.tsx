@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { format, isSameDay, subDays } from "date-fns";
+import { format, isSameDay, subDays, startOfDay, endOfDay } from "date-fns";
 import { SessionStatus } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
@@ -38,8 +38,11 @@ export default function MissedCallsPage() {
     error,
   } = useGetAllConsultations();
 
-  // Date filter state
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // Date range filter state
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
+  const [fromDateOpen, setFromDateOpen] = useState(false);
+  const [toDateOpen, setToDateOpen] = useState(false);
   const today = new Date();
   const yesterday = subDays(today, 1);
 
@@ -61,17 +64,31 @@ export default function MissedCallsPage() {
       // Include all statuses (PENDING, IN_PROGRESS, COMPLETED, CANCELLED)
       // because all represent consultations where no audiologist was assigned
 
-      // Filter by date only if a date is selected
-      if (selectedDate) {
+      // Filter by date range
+      if (fromDate || toDate) {
         if (!c.createdAt) return false;
         const consultationDate = new Date(c.createdAt);
-        return isSameDay(consultationDate, selectedDate);
+        
+        // If only fromDate is set, filter from that date onwards
+        if (fromDate && !toDate) {
+          return consultationDate >= startOfDay(fromDate);
+        }
+        
+        // If only toDate is set, filter up to that date
+        if (!fromDate && toDate) {
+          return consultationDate <= endOfDay(toDate);
+        }
+        
+        // If both dates are set, filter within the range
+        if (fromDate && toDate) {
+          return consultationDate >= startOfDay(fromDate) && consultationDate <= endOfDay(toDate);
+        }
       }
 
       // No date filter - show all missed calls
       return true;
     });
-  }, [consultations, selectedDate]);
+  }, [consultations, fromDate, toDate]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -117,22 +134,23 @@ export default function MissedCallsPage() {
     };
   }, [consultations]);
 
+  // For missed calls view, always show "Missed" instead of the raw session status
   const statusConfig: Record<string, { color: string; label: string }> = {
     [SessionStatus.PENDING]: {
-      color: "bg-amber-50 text-amber-700 border-amber-200",
-      label: "Pending",
+      color: "bg-red-50 text-red-700 border-red-200",
+      label: "Missed",
     },
     [SessionStatus.IN_PROGRESS]: {
-      color: "bg-blue-50 text-blue-700 border-blue-200",
-      label: "In Progress",
+      color: "bg-red-50 text-red-700 border-red-200",
+      label: "Missed",
     },
     [SessionStatus.COMPLETED]: {
-      color: "bg-gray-50 text-gray-700 border-gray-200",
-      label: "Completed",
+      color: "bg-red-50 text-red-700 border-red-200",
+      label: "Missed",
     },
     [SessionStatus.CANCELLED]: {
       color: "bg-red-50 text-red-700 border-red-200",
-      label: "Cancelled",
+      label: "Missed",
     },
   };
 
@@ -196,59 +214,118 @@ export default function MissedCallsPage() {
             </div>
           </div>
 
-          {/* Calendar Filter */}
-          <div className="flex items-center gap-3 pt-4 mt-4 border-t border-white/20">
+          {/* Date Range Filter */}
+          <div className="flex flex-col gap-2 pt-4 mt-4 border-t border-white/20">
             <div className="flex items-center gap-2">
               <CalendarIcon className="w-4 h-4 text-white" />
-              <span className="text-sm font-medium text-white">Select Date:</span>
+              <span className="text-sm font-medium text-white">Date Range:</span>
             </div>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
-                >
-                  <CalendarIcon className="w-3 h-3 mr-2" />
-                  {selectedDate ? format(selectedDate, "dd/MM/yy") : "Select date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate || undefined}
-                  onSelect={(date) => setSelectedDate(date || null)}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedDate(today)}
-              className={`h-9 ${selectedDate && isSameDay(selectedDate, today) ? "bg-white/30 border-white/50" : "bg-white/10 border-white/30"} hover:bg-white/20 text-white`}
-            >
-              Today
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedDate(yesterday)}
-              className={`h-9 ${selectedDate && isSameDay(selectedDate, yesterday) ? "bg-white/30 border-white/50" : "bg-white/10 border-white/30"} hover:bg-white/20 text-white`}
-            >
-              Yesterday
-            </Button>
-            {selectedDate && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Quick Date Buttons */}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedDate(null)}
-                className="h-9 bg-white/20 hover:bg-white/30 text-white border-white/40"
+                onClick={() => {
+                  setFromDate(today);
+                  setToDate(today);
+                }}
+                className={`h-9 bg-white/10 hover:bg-white/20 text-white border-white/30 ${
+                  fromDate && toDate && isSameDay(fromDate, today) && isSameDay(toDate, today)
+                    ? "bg-white/30 border-white/50"
+                    : ""
+                }`}
               >
-                <XCircle className="w-3 h-3 mr-1" />
-                Clear
+                Today
               </Button>
-            )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFromDate(yesterday);
+                  setToDate(yesterday);
+                }}
+                className={`h-9 bg-white/10 hover:bg-white/20 text-white border-white/30 ${
+                  fromDate && toDate && isSameDay(fromDate, yesterday) && isSameDay(toDate, yesterday)
+                    ? "bg-white/30 border-white/50"
+                    : ""
+                }`}
+              >
+                Yesterday
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const weekAgo = subDays(today, 7);
+                  setFromDate(weekAgo);
+                  setToDate(today);
+                }}
+                className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
+              >
+                Last 7 Days
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const monthAgo = subDays(today, 30);
+                  setFromDate(monthAgo);
+                  setToDate(today);
+                }}
+                className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
+              >
+                Last 30 Days
+              </Button>
+              
+              {/* From Date Picker - native input for stability */}
+              <input
+                type="date"
+                value={fromDate ? format(fromDate, "yyyy-MM-dd") : ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const date = v ? new Date(v) : null;
+                  setFromDate(date);
+                  if (date && toDate && date > toDate) {
+                    setToDate(date);
+                  }
+                }}
+                max={toDate ? format(toDate, "yyyy-MM-dd") : undefined}
+                className="h-9 rounded-md border border-white/40 bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0"
+              />
+              
+              <span className="text-white text-sm font-medium">to</span>
+              
+              {/* To Date Picker - native input for stability */}
+              <input
+                type="date"
+                value={toDate ? format(toDate, "yyyy-MM-dd") : ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const date = v ? new Date(v) : null;
+                  setToDate(date);
+                  if (date && fromDate && date < fromDate) {
+                    setFromDate(date);
+                  }
+                }}
+                min={fromDate ? format(fromDate, "yyyy-MM-dd") : undefined}
+                className="h-9 rounded-md border border-white/40 bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0"
+              />
+              
+              {(fromDate || toDate) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFromDate(null);
+                    setToDate(null);
+                  }}
+                  className="h-9 bg-white/20 hover:bg-white/30 text-white border-white/40"
+                >
+                  <XCircle className="w-3 h-3 mr-1" />
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -295,8 +372,8 @@ export default function MissedCallsPage() {
                       No Missed Calls
                     </h3>
                     <p className="text-gray-600">
-                      {selectedDate
-                        ? `All consultations on ${format(selectedDate, "dd/MM/yy")} have been assigned.`
+                      {(fromDate || toDate)
+                        ? `All consultations in the selected date range have been assigned.`
                         : "All consultations have been assigned to audiologists."}
                     </p>
                     <p className="text-xs text-gray-400 mt-4">
@@ -316,8 +393,7 @@ export default function MissedCallsPage() {
                   return (
                     <Card
                       key={consultation.id}
-                      className="group relative overflow-hidden border-2 border-primary-200 hover:border-primary-400 transition-all duration-300 hover:shadow-xl cursor-pointer"
-                      onClick={() => router.push(`/consultation/${consultation.id}`)}
+                      className="group relative overflow-hidden border-2 border-primary-200 hover:border-primary-400 transition-all duration-300 hover:shadow-xl"
                     >
                       {/* Status Indicator Banner */}
                       <div className="absolute top-0 left-0 right-0 h-1 bg-primary-500" />

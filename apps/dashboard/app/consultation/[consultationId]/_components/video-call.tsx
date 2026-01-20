@@ -26,6 +26,7 @@ interface VideoCallProps {
   onBeforeLeaveCall?: () => Promise<void>;
   hideLocalUser?: boolean;
   showOtoscopyOnly?: boolean; // New prop to show only otoscopy stream
+  excludeOtoscopyStream?: boolean; // New prop to exclude otoscopy stream (show patient video only)
 }
 
 // Remote user loading skeleton - only shows the remote video area loading
@@ -83,6 +84,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   onBeforeLeaveCall,
   hideLocalUser = false,
   showOtoscopyOnly = false,
+  excludeOtoscopyStream = false,
 }) => {
   const localRef = useRef<HTMLDivElement>(null);
   const remoteRef = useRef<HTMLDivElement>(null);
@@ -104,13 +106,30 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   // Get client and connection status
   const client = useRTCClient();
   const isConnected = useIsConnected();
+  
+  // Log component initialization for otoscopy
+  useEffect(() => {
+    console.log("🔬 [VIDEO-CALL] ========== COMPONENT INITIALIZED ==========");
+    console.log("🔬 [VIDEO-CALL] Channel:", channel);
+    console.log("🔬 [VIDEO-CALL] Otoscopy mode:", showOtoscopyOnly);
+    console.log("🔬 [VIDEO-CALL] Hide local user:", hideLocalUser);
+    console.log("🔬 [VIDEO-CALL] Is fullscreen:", isFullscreen);
+    console.log("🔬 [VIDEO-CALL] Client:", !!client);
+    console.log("🔬 [VIDEO-CALL] Is connected:", isConnected);
+    console.log("🔬 [VIDEO-CALL] ============================================");
+  }, []);
 
   // Set up event handlers
   useEffect(() => {
     if (!client) return;
 
     const handleJoinSuccess = () => {
-      console.log("Successfully joined channel:", { channel, uid });
+      console.log("🔬 [VIDEO-CALL] ========== JOINED CHANNEL SUCCESS ==========");
+      console.log("🔬 [VIDEO-CALL] Channel:", channel);
+      console.log("🔬 [VIDEO-CALL] UID:", uid);
+      console.log("🔬 [VIDEO-CALL] Otoscopy mode:", showOtoscopyOnly);
+      console.log("🔬 [VIDEO-CALL] Current remote users:", client.remoteUsers.map(u => ({ uid: u.uid, hasVideo: u.hasVideo, hasAudio: u.hasAudio })));
+      console.log("🔬 [VIDEO-CALL] ============================================");
       setIsInitializing(false);
       setIsReconnecting(false);
       setError(null);
@@ -199,84 +218,196 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   // Get remote users
   const remoteUsers = useRemoteUsers();
   
-  // Filter remote users for otoscopy mode
-  // When showOtoscopyOnly is true, we want to show the UVC/screen share stream
-  // UVC stream typically has a higher UID or joins after the regular camera
-  const filteredRemoteUsers = React.useMemo(() => {
-    if (!showOtoscopyOnly || remoteUsers.length === 0) {
-      return remoteUsers;
-    }
-    
-    // In otoscopy mode, filter to show only the UVC stream
-    // Strategy: Show users with video track, preferring higher UIDs (UVC pattern)
-    const usersWithVideo = remoteUsers.filter(u => u.videoTrack);
-    
-    if (usersWithVideo.length === 0) {
-      console.log("🔬 [OTOSCOPY] No users with video track, showing all");
-      return remoteUsers;
-    }
-    
-    if (usersWithVideo.length === 1) {
-      console.log("🔬 [OTOSCOPY] Single user with video, showing:", usersWithVideo[0].uid);
-      return usersWithVideo;
-    }
-    
-    // Multiple users with video - show the one with higher UID (UVC pattern)
-    // Screen share / UVC typically uses a higher UID than regular camera
-    const sortedByUid = [...usersWithVideo].sort((a, b) => 
-      Number(b.uid) - Number(a.uid)
-    );
-    
-    console.log("🔬 [OTOSCOPY] Multiple users, selecting highest UID:", sortedByUid[0].uid);
-    return [sortedByUid[0]];
-  }, [remoteUsers, showOtoscopyOnly]);
+  // Track users before otoscopy starts to identify patient video
+  const usersBeforeOtoscopyRef = useRef<Set<number>>(new Set());
+  const wasExcludingRef = useRef(false);
   
-  // Debug otoscopy mode
+  // Update tracked users when otoscopy is not active (before otoscopy starts)
   useEffect(() => {
-    console.log("🔬 [OTOSCOPY] Mode:", showOtoscopyOnly ? "ACTIVE" : "inactive", {
-      remoteUsersCount: remoteUsers.length,
-      filteredCount: filteredRemoteUsers.length,
-      isConnected,
-      users: remoteUsers.map(u => ({
+    // When we transition from excluding to not excluding, reset the tracking
+    if (!excludeOtoscopyStream && wasExcludingRef.current) {
+      usersBeforeOtoscopyRef.current = new Set();
+      wasExcludingRef.current = false;
+      console.log("🔬 [VIDEO-CALL] Reset user tracking - otoscopy stopped");
+    }
+    
+    // Track users when otoscopy is NOT active (before otoscopy starts)
+    // This captures the patient video users before otoscopy stream joins
+    if (!excludeOtoscopyStream && remoteUsers.length > 0) {
+      // Store UIDs of ALL users before otoscopy starts (this includes patient video)
+      const currentUids = new Set(remoteUsers.map(u => Number(u.uid)));
+      usersBeforeOtoscopyRef.current = currentUids;
+      console.log("🔬 [VIDEO-CALL] Tracking users before otoscopy (patient video):", Array.from(currentUids));
+      console.log("🔬 [VIDEO-CALL] Users details:", remoteUsers.map(u => ({
+        uid: u.uid,
+        hasVideo: u.hasVideo,
+        videoTrack: !!u.videoTrack
+      })));
+    }
+    
+    // Mark that we're now excluding
+    if (excludeOtoscopyStream) {
+      wasExcludingRef.current = true;
+    }
+  }, [remoteUsers, excludeOtoscopyStream]);
+  
+  // Filter remote users based on mode
+  const filteredRemoteUsers = React.useMemo(() => {
+    // If excluding otoscopy stream, filter to show only patient video
+    // Strategy: Exclude users with videoTrack (otoscopy stream) OR use tracking if available
+    if (excludeOtoscopyStream) {
+      const beforeOtoscopyUids = usersBeforeOtoscopyRef.current;
+      
+      // If we have tracked users, show only those (patient video)
+      if (beforeOtoscopyUids.size > 0) {
+        const patientUsers = remoteUsers.filter(u => {
+          const uid = Number(u.uid);
+          const wasBeforeOtoscopy = beforeOtoscopyUids.has(uid);
+          return wasBeforeOtoscopy; // Show ONLY users that were there before otoscopy
+        });
+        
+        console.log("🔬 [VIDEO-CALL] ========== PATIENT VIDEO FILTERING ==========");
+        console.log("🔬 [VIDEO-CALL] Excluding otoscopy stream - showing patient video only in LEFT panel");
+        console.log("🔬 [VIDEO-CALL] Users before otoscopy UIDs:", Array.from(beforeOtoscopyUids));
+        console.log("🔬 [VIDEO-CALL] All remote users:", remoteUsers.map(u => ({ 
+          uid: u.uid, 
+          hasVideo: u.hasVideo, 
+          videoTrack: !!u.videoTrack,
+          wasBeforeOtoscopy: beforeOtoscopyUids.has(Number(u.uid))
+        })));
+        console.log("🔬 [VIDEO-CALL] Filtered patient users (LEFT panel):", patientUsers.map(u => ({ 
+          uid: u.uid, 
+          hasVideo: u.hasVideo, 
+          videoTrack: !!u.videoTrack 
+        })));
+        console.log("🔬 [VIDEO-CALL] ============================================");
+        
+        // If we found patient users, return them. Otherwise, exclude users with videoTrack
+        if (patientUsers.length > 0) {
+          return patientUsers;
+        }
+      }
+      
+      // Fallback: Show all users (patient video should be visible)
+      // The otoscopy panel will filter by wasBeforeOtoscopy=false
+      console.log("🔬 [VIDEO-CALL] Fallback: Showing all users (tracking not ready yet)");
+      return remoteUsers;
+    }
+    
+    // If showing otoscopy only, show ALL users
+    if (showOtoscopyOnly && remoteUsers.length > 0) {
+      console.log("🔬 [OTOSCOPY] Showing ALL remote users in otoscopy mode:", remoteUsers.length);
+      console.log("🔬 [OTOSCOPY] Remote users details:", remoteUsers.map(u => ({
         uid: u.uid,
         hasVideo: u.hasVideo,
         hasAudio: u.hasAudio,
         videoTrack: !!u.videoTrack,
-      })),
-    });
-  }, [showOtoscopyOnly, remoteUsers, filteredRemoteUsers, isConnected]);
+      })));
+      return remoteUsers;
+    }
+    
+    // Default: show all users (normal video call)
+    return remoteUsers;
+  }, [remoteUsers, showOtoscopyOnly, excludeOtoscopyStream]);
+  
+  // Debug otoscopy mode - log when otoscopy mode becomes active
+  useEffect(() => {
+    if (showOtoscopyOnly) {
+      console.log("🔬 [VIDEO-CALL] ========== OTOSCOPY MODE ACTIVATED ==========");
+      console.log("🔬 [VIDEO-CALL] Checking users when otoscopy mode becomes active...");
+      console.log("🔬 [VIDEO-CALL] Connection status:", {
+        isConnected,
+        clientState: client?.connectionState,
+        channel: client?.channelName,
+      });
+      console.log("🔬 [VIDEO-CALL] Remote users count:", remoteUsers.length);
+      console.log("🔬 [VIDEO-CALL] Remote users details:", remoteUsers.map(u => ({
+        uid: u.uid,
+        hasVideo: u.hasVideo,
+        hasAudio: u.hasAudio,
+        videoTrack: !!u.videoTrack,
+        audioTrack: !!u.audioTrack,
+        videoTrackPlaying: u.videoTrack?.isPlaying || false,
+        audioTrackPlaying: u.audioTrack?.isPlaying || false,
+      })));
+      
+      // Also check client's remote users directly
+      if (client) {
+        const clientRemoteUsers = client.remoteUsers || [];
+        console.log("🔬 [VIDEO-CALL] Client remote users (direct from agora):", clientRemoteUsers.length);
+        console.log("🔬 [VIDEO-CALL] Client remote users details:", clientRemoteUsers.map(u => ({
+          uid: u.uid,
+          hasVideo: u.hasVideo,
+          hasAudio: u.hasAudio,
+          videoTrack: !!u.videoTrack,
+          audioTrack: !!u.audioTrack,
+        })));
+      }
+      console.log("🔬 [VIDEO-CALL] ============================================");
+    } else {
+      console.log("🔬 [VIDEO-CALL] Otoscopy mode: inactive", {
+        remoteUsersCount: remoteUsers.length,
+        filteredCount: filteredRemoteUsers.length,
+        isConnected,
+      });
+    }
+  }, [showOtoscopyOnly, remoteUsers, filteredRemoteUsers, isConnected, client]);
 
   // Listen for user-published events and auto-subscribe IMMEDIATELY
   useEffect(() => {
     if (!client) return;
 
     const handleUserPublished = async (user: any, mediaType: "audio" | "video") => {
+      console.log(`🔬 [VIDEO-CALL] ========== USER PUBLISHED ${mediaType.toUpperCase()} ==========`);
+      console.log(`🔬 [VIDEO-CALL] User ${user.uid} published ${mediaType}`);
+      console.log(`🔬 [VIDEO-CALL] User details:`, {
+        uid: user.uid,
+        hasVideo: user.hasVideo,
+        hasAudio: user.hasAudio,
+        videoTrack: !!user.videoTrack,
+        audioTrack: !!user.audioTrack,
+        publishedMediaType: mediaType,
+        showOtoscopyOnly,
+      });
+      
       // Subscribe immediately when user publishes
       try {
         await client.subscribe(user, mediaType);
-        console.log(`✅ [AGORA] Subscribed to ${mediaType} from user ${user.uid}`);
+        console.log(`🔬 [VIDEO-CALL] ✅ Subscribed to ${mediaType} from user ${user.uid}`);
+        
+        if (mediaType === "video" && showOtoscopyOnly) {
+          console.log(`🔬 [VIDEO-CALL] ✅ Otoscopy VIDEO stream subscribed!`);
+          console.log(`🔬 [VIDEO-CALL] Video track after subscribe:`, {
+            hasTrack: !!user.videoTrack,
+            isPlaying: user.videoTrack?.isPlaying,
+            trackId: user.videoTrack?.getTrackId(),
+          });
+        }
       } catch (error) {
-        // Silent fail - might already be subscribed
+        console.error(`🔬 [VIDEO-CALL] ❌ Failed to subscribe to ${mediaType} from user ${user.uid}:`, error);
       }
+      console.log(`🔬 [VIDEO-CALL] ============================================`);
     };
 
     // Also subscribe to any existing users when client is ready
     const subscribeToExistingUsers = async () => {
       const users = client.remoteUsers || [];
+      console.log(`🔬 [VIDEO-CALL] Checking existing users:`, users.length);
       for (const user of users) {
         if (user.hasVideo && !user.videoTrack) {
           try {
             await client.subscribe(user, "video");
-            console.log(`✅ [AGORA] Subscribed to existing video from user ${user.uid}`);
+            console.log(`🔬 [VIDEO-CALL] Subscribed to existing video from user ${user.uid}`);
           } catch (error) {
-            // Silent fail
+            console.error(`🔬 [VIDEO-CALL] Failed to subscribe to existing video from user ${user.uid}:`, error);
           }
         }
         if (user.hasAudio && !user.audioTrack) {
           try {
             await client.subscribe(user, "audio");
+            console.log(`🔬 [VIDEO-CALL] Subscribed to existing audio from user ${user.uid}`);
           } catch (error) {
-            // Silent fail
+            console.error(`🔬 [VIDEO-CALL] Failed to subscribe to existing audio from user ${user.uid}:`, error);
           }
         }
       }
@@ -294,22 +425,46 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
 
   // Quick re-check when remote users change (handles late joins)
   useEffect(() => {
-    if (!client || !isConnected || remoteUsers.length === 0) return;
+    if (!client || !isConnected) {
+      if (showOtoscopyOnly && remoteUsers.length === 0) {
+        console.log("🔬 [VIDEO-CALL] ⚠️ Otoscopy mode: Waiting for remote users to join...");
+      }
+      return;
+    }
+
+    console.log("🔬 [VIDEO-CALL] ========== REMOTE USERS CHANGED ==========");
+    console.log("🔬 [VIDEO-CALL] Remote users count:", remoteUsers.length);
+    console.log("🔬 [VIDEO-CALL] Remote users details:", remoteUsers.map(u => ({
+      uid: u.uid,
+      hasVideo: u.hasVideo,
+      hasAudio: u.hasAudio,
+      videoTrack: !!u.videoTrack,
+      audioTrack: !!u.audioTrack,
+      videoTrackPlaying: u.videoTrack?.isPlaying || false,
+    })));
+    console.log("🔬 [VIDEO-CALL] Otoscopy mode:", showOtoscopyOnly);
+    console.log("🔬 [VIDEO-CALL] ============================================");
 
     const quickSubscribe = async () => {
       for (const user of remoteUsers) {
         if (user.hasVideo && !user.videoTrack) {
           try {
+            console.log(`🔬 [VIDEO-CALL] Attempting to subscribe to video from user ${user.uid}...`);
             await client.subscribe(user, "video");
+            console.log(`🔬 [VIDEO-CALL] ✅ Subscribed to video from user ${user.uid}`);
+            if (showOtoscopyOnly) {
+              console.log(`🔬 [VIDEO-CALL] ✅ Otoscopy video stream subscribed!`);
+            }
           } catch (error) {
-            // Silent fail
+            console.error(`🔬 [VIDEO-CALL] ❌ Failed to subscribe to video from user ${user.uid}:`, error);
           }
         }
         if (user.hasAudio && !user.audioTrack) {
           try {
             await client.subscribe(user, "audio");
+            console.log(`🔬 [VIDEO-CALL] ✅ Subscribed to audio from user ${user.uid}`);
           } catch (error) {
-            // Silent fail
+            console.error(`🔬 [VIDEO-CALL] ❌ Failed to subscribe to audio from user ${user.uid}:`, error);
           }
         }
       }
@@ -317,7 +472,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
 
     // Run immediately when remoteUsers changes
     quickSubscribe();
-  }, [client, isConnected, remoteUsers]);
+  }, [client, isConnected, remoteUsers, showOtoscopyOnly]);
 
   // Manually play video tracks as fallback (in case RemoteUser doesn't auto-play)
   useEffect(() => {
@@ -506,45 +661,97 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         </div>
       )}
       <div className="flex flex-col h-full w-full gap-1 mb-2">
-        {/* Remote user (patient or otoscopy) - full screen */}
-        <div
-          ref={remoteRef}
-          className={`w-full h-full bg-gray-900 overflow-hidden ${
-            isFullscreen ? 'rounded-none border-none' : 'rounded-2xl border'
-          }`}
-        >
-          {isLoading ? (
-            <RemoteUserSkeleton />
-          ) : filteredRemoteUsers.length > 0 ? (
-            filteredRemoteUsers.map((user) => {
-              // Force re-render when video track changes
+        {/* Remote user (patient or otoscopy) - full screen or grid for multiple users */}
+        {showOtoscopyOnly && filteredRemoteUsers.length > 1 ? (
+          // Show multiple users in grid layout when otoscopy is active
+          <div
+            className={`w-full h-full bg-gray-900 overflow-hidden grid grid-cols-2 gap-2 p-2 ${
+              isFullscreen ? 'rounded-none border-none' : 'rounded-2xl border'
+            }`}
+          >
+            {filteredRemoteUsers.map((user, index) => {
               const videoTrackId = user.videoTrack?.getTrackId?.();
+              const userRef = index === 0 ? remoteRef : null;
               
               return (
-                <RemoteUser
+                <div
                   key={`${user.uid}-${videoTrackId || 'no-video'}`}
-                  user={user}
-                  playVideo={true}
-                  playAudio={true}
-                  style={{ 
-                    width: "100%", 
-                    height: "100%",
-                    transform: "scaleX(-1)"
-                  }}
+                  ref={userRef}
+                  className="w-full h-full bg-gray-800 rounded-lg overflow-hidden relative"
                 >
-                  <div className="absolute bottom-3 left-3 text-white text-sm bg-black/50 px-2 py-1 rounded">
-                    {showOtoscopyOnly ? "🔬 Otoscopy" : patientName}
-                  </div>
-                </RemoteUser>
+                  <RemoteUser
+                    user={user}
+                    playVideo={true}
+                    playAudio={true}
+                    style={{ 
+                      width: "100%", 
+                      height: "100%",
+                      transform: "scaleX(-1)"
+                    }}
+                  >
+                    <div className="absolute bottom-3 left-3 text-white text-sm bg-black/50 px-2 py-1 rounded">
+                      {user.videoTrack ? `🔬 Otoscopy (${user.uid})` : `User ${user.uid}`}
+                    </div>
+                  </RemoteUser>
+                </div>
               );
-            })
-          ) : (
-            <VideoPlaceholder 
-              name={showOtoscopyOnly ? "Waiting for otoscope stream..." : patientName} 
-              isLoading={isReconnecting || (showOtoscopyOnly && remoteUsers.length === 0)} 
-            />
-          )}
-        </div>
+            })}
+          </div>
+        ) : (
+          // Single user or non-otoscopy mode - full screen
+          <div
+            ref={remoteRef}
+            className={`w-full h-full bg-gray-900 overflow-hidden ${
+              isFullscreen ? 'rounded-none border-none' : 'rounded-2xl border'
+            }`}
+          >
+            {isLoading ? (
+              <RemoteUserSkeleton />
+            ) : filteredRemoteUsers.length > 0 ? (
+              filteredRemoteUsers.map((user) => {
+                // Force re-render when video track changes
+                const videoTrackId = user.videoTrack?.getTrackId?.();
+                
+                return (
+                  <RemoteUser
+                    key={`${user.uid}-${videoTrackId || 'no-video'}`}
+                    user={user}
+                    playVideo={true}
+                    playAudio={true}
+                    style={{ 
+                      width: "100%", 
+                      height: "100%",
+                      transform: "scaleX(-1)"
+                    }}
+                  >
+                    {/* Left indicator - Blue */}
+                    <div className="absolute top-1 left-3 text-white text-sm font-bold bg-red-600 px-1 py-1 rounded shadow-lg z-10"   style={{ transform: "scaleX(-1)" }}>
+                      R
+                    </div>
+                    
+                    {/* Right indicator - Red */}
+                    <div className="absolute top-1 right-3 text-white text-sm font-bold bg-blue-600 px-1 py-1 rounded shadow-lg z-10"   style={{ transform: "scaleX(-1)" }}>
+                      L
+                    </div>
+                    
+                    {/* Patient name - Unflipped (counter the parent's scaleX(-1)) */}
+                    <div 
+                      className="absolute bottom-3 left-3 text-white text-sm bg-black/50 px-2 py-1 rounded z-10"
+                      style={{ transform: "scaleX(-1)" }}
+                    >
+                      {showOtoscopyOnly ? "🔬 Otoscopy" : patientName}
+                    </div>
+                  </RemoteUser>
+                );
+              })
+            ) : (
+              <VideoPlaceholder 
+                name={showOtoscopyOnly ? "Waiting for otoscope stream..." : patientName} 
+                isLoading={isReconnecting || (showOtoscopyOnly && remoteUsers.length === 0)} 
+              />
+            )}
+          </div>
+        )}
 
         {/* Local user (audiologist) - floating circle top right */}
         {!hideLocalUser && (

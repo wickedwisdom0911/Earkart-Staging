@@ -3,13 +3,14 @@
 import { useState, useMemo } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { format, isSameDay, isToday, subDays } from "date-fns";
+import { format, isSameDay, isToday, subDays, startOfDay, endOfDay } from "date-fns";
 import { SessionStatus, Role } from "@/models/enums";
 import { useParams, useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import { extractConsultations } from "@/models/consultation.model";
 import useGetCentre from "@/hooks/centre/use-get-centre";
+import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import {
   ArrowLeft,
   Building2,
@@ -21,6 +22,11 @@ import {
   Phone,
   MapPin,
   User,
+  Filter,
+  PhoneOff,
+  Stethoscope,
+  Eye,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +37,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { XCircle } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function CentreDetailPage() {
   const params = useParams();
@@ -58,10 +78,15 @@ export default function CentreDetailPage() {
     return null;
   }
 
-  // Date filter state
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // Filter states
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
+  const [selectedAudiologistId, setSelectedAudiologistId] = useState<string>("");
+  const [showMissedCallsOnly, setShowMissedCallsOnly] = useState<boolean>(false);
   const today = new Date();
   const yesterday = subDays(today, 1);
+
+  const { data: audiologists } = useGetAllAudiologists();
 
   // Get centre data
   const centreData = useMemo(() => {
@@ -79,16 +104,59 @@ export default function CentreDetailPage() {
     );
   }, [consultations, centreId]);
 
-  // Filter by date if selected
-  const filteredConsultations = useMemo(() => {
-    if (!selectedDate) return centreConsultations;
-
-    return centreConsultations.filter((c) => {
-      if (!c.createdAt) return false;
-      const consultationDate = new Date(c.createdAt);
-      return isSameDay(consultationDate, selectedDate);
+  // Get unique audiologists from consultations
+  const availableAudiologists = useMemo(() => {
+    const audiologistMap = new Map<string, { id: string; name: string }>();
+    centreConsultations.forEach(c => {
+      const audiologistId = c.audiologist?.userId;
+      const audiologistName = c.audiologist?.user?.name || "Unassigned";
+      if (audiologistId && !audiologistMap.has(audiologistId)) {
+        audiologistMap.set(audiologistId, { id: audiologistId, name: audiologistName });
+      }
     });
-  }, [centreConsultations, selectedDate]);
+    return Array.from(audiologistMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [centreConsultations]);
+
+  // Filter consultations by date range, audiologist, and missed calls
+  const filteredConsultations = useMemo(() => {
+    let filtered = [...centreConsultations];
+
+    // Filter by date range
+    if (fromDate || toDate) {
+      filtered = filtered.filter((c) => {
+        if (!c.createdAt) return false;
+        const consultationDate = new Date(c.createdAt);
+        
+        if (fromDate && !toDate) {
+          return consultationDate >= startOfDay(fromDate);
+        }
+        if (!fromDate && toDate) {
+          return consultationDate <= endOfDay(toDate);
+        }
+        if (fromDate && toDate) {
+          return consultationDate >= startOfDay(fromDate) && consultationDate <= endOfDay(toDate);
+        }
+        return true;
+      });
+    }
+
+    // Filter by audiologist
+    if (selectedAudiologistId) {
+      filtered = filtered.filter((c) => c.audiologist?.userId === selectedAudiologistId);
+    }
+
+    // Filter by missed calls (consultations without audiologist assigned)
+    if (showMissedCallsOnly) {
+      filtered = filtered.filter((c) => !c.audiologist?.user?.name);
+    }
+
+    // Sort by date (newest first)
+    return filtered.sort((a, b) => {
+      const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bDate - aDate;
+    });
+  }, [centreConsultations, fromDate, toDate, selectedAudiologistId, showMissedCallsOnly]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -105,6 +173,9 @@ export default function CentreDetailPage() {
     const cancelled = filteredConsultations.filter(
       (c) => c.status === SessionStatus.CANCELLED
     ).length;
+    const missedCalls = filteredConsultations.filter(
+      (c) => !c.audiologist?.user?.name
+    ).length;
 
     return {
       total,
@@ -112,8 +183,17 @@ export default function CentreDetailPage() {
       inProgress,
       pending,
       cancelled,
+      missedCalls,
     };
   }, [filteredConsultations]);
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setFromDate(null);
+    setToDate(null);
+    setSelectedAudiologistId("");
+    setShowMissedCallsOnly(false);
+  };
 
   // Get status badge
   const getStatusBadge = (status: SessionStatus) => {
@@ -151,12 +231,18 @@ export default function CentreDetailPage() {
     }
   };
 
-  // Format the date for display
+  // Format the date range for display
   const getDateDisplayText = () => {
-    if (!selectedDate) return "All Time";
-    if (isToday(selectedDate)) return "Today";
-    if (isSameDay(selectedDate, yesterday)) return "Yesterday";
-    return format(selectedDate, "dd/MM/yy");
+    if (!fromDate && !toDate) return "All Time";
+    if (fromDate && !toDate) return `From ${format(fromDate, "dd MMM yyyy")}`;
+    if (!fromDate && toDate) return `Until ${format(toDate, "dd MMM yyyy")}`;
+    if (fromDate && toDate) {
+      if (isSameDay(fromDate, toDate)) {
+        return format(fromDate, "dd MMM yyyy");
+      }
+      return `${format(fromDate, "dd MMM yyyy")} - ${format(toDate, "dd MMM yyyy")}`;
+    }
+    return "All Time";
   };
 
   if (consultationsLoading || centreLoading) {
@@ -221,83 +307,207 @@ export default function CentreDetailPage() {
                 </div>
               </div>
 
-              {/* Date Filter */}
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setSelectedDate(null)}
-                  className={`${
-                    !selectedDate
-                      ? "bg-white text-primary-700"
-                      : "bg-primary-500 text-white hover:bg-white hover:text-primary-700"
-                  }`}
-                >
-                  All Time
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setSelectedDate(today)}
-                  className={`${
-                    selectedDate && isToday(selectedDate)
-                      ? "bg-white text-primary-700"
-                      : "bg-primary-500 text-white hover:bg-white hover:text-primary-700"
-                  }`}
-                >
-                  Today
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setSelectedDate(yesterday)}
-                  className={`${
-                    selectedDate && isSameDay(selectedDate, yesterday)
-                      ? "bg-white text-primary-700"
-                      : "bg-primary-500 text-white hover:bg-white hover:text-primary-700"
-                  }`}
-                >
-                  Yesterday
-                </Button>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="bg-primary-500 text-white hover:bg-white hover:text-primary-700"
-                    >
-                      <CalendarIcon className="w-4 h-4 mr-2" />
-                      {selectedDate && !isToday(selectedDate) && !isSameDay(selectedDate, yesterday)
-                        ? format(selectedDate, "dd/MM/yy")
-                        : "Pick Date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate || today}
-                      onSelect={(date) => setSelectedDate(date || null)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                {selectedDate && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedDate(null)}
-                    className="text-white hover:bg-white hover:text-primary-700"
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
             </div>
           </div>
         </div>
 
+        {/* Filters Card */}
+        <Card className="mb-6 border-2 border-primary-200 shadow-md">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Filter className="w-5 h-5 text-primary-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+              {(fromDate || toDate || selectedAudiologistId || showMissedCallsOnly) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="ml-auto text-red-600 hover:text-red-700"
+                >
+                  <XCircle className="w-4 h-4 mr-1" />
+                  Clear All
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Date Range - From */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  From Date
+                </label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="w-4 h-4 mr-2" />
+                      {fromDate ? format(fromDate, "dd MMM yyyy") : "Select start date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={fromDate || undefined}
+                      onSelect={(date) => {
+                        setFromDate(date || null);
+                        if (date && toDate && date > toDate) {
+                          setToDate(date);
+                        }
+                      }}
+                      initialFocus
+                      disabled={(date) => toDate ? date > toDate : false}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Date Range - To */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  To Date
+                </label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="w-4 h-4 mr-2" />
+                      {toDate ? format(toDate, "dd MMM yyyy") : "Select end date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={toDate || undefined}
+                      onSelect={(date) => {
+                        setToDate(date || null);
+                        if (date && fromDate && date < fromDate) {
+                          setFromDate(date);
+                        }
+                      }}
+                      initialFocus
+                      disabled={(date) => fromDate ? date < fromDate : false}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Quick Date Buttons */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Quick Select
+                </label>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFromDate(today);
+                      setToDate(today);
+                    }}
+                    className={`${
+                      fromDate && toDate && isSameDay(fromDate, today) && isSameDay(toDate, today)
+                        ? "bg-primary-600 text-white"
+                        : ""
+                    }`}
+                  >
+                    Today
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const weekAgo = subDays(today, 7);
+                      setFromDate(weekAgo);
+                      setToDate(today);
+                    }}
+                  >
+                    7 Days
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const monthAgo = subDays(today, 30);
+                      setFromDate(monthAgo);
+                      setToDate(today);
+                    }}
+                  >
+                    30 Days
+                  </Button>
+                </div>
+              </div>
+
+              {/* Audiologist Filter */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Filter by Audiologist
+                </label>
+                <div className="flex gap-2">
+                  <Select
+                    value={selectedAudiologistId || undefined}
+                    onValueChange={(value) => setSelectedAudiologistId(value || "")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Audiologists" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableAudiologists.map((audiologist) => (
+                        <SelectItem key={audiologist.id} value={audiologist.id}>
+                          {audiologist.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedAudiologistId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedAudiologistId("")}
+                      className="px-3"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Missed Calls Filter */}
+            <div className="mt-4 pt-4 border-t">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showMissedCallsOnly}
+                  onChange={(e) => setShowMissedCallsOnly(e.target.checked)}
+                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <PhoneOff className="w-4 h-4 text-red-600" />
+                  Show only missed calls (no audiologist assigned)
+                </span>
+              </label>
+            </div>
+
+            {/* Active Filters Display */}
+            {(fromDate || toDate || selectedAudiologistId || showMissedCallsOnly) && (
+              <div className="mt-4 p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                <p className="text-sm text-primary-900">
+                  <span className="font-semibold">Active filters:</span>{" "}
+                  {getDateDisplayText()}
+                  {selectedAudiologistId && ` • Audiologist: ${availableAudiologists.find(a => a.id === selectedAudiologistId)?.name || "Selected"}`}
+                  {showMissedCallsOnly && " • Missed Calls Only"}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
           <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -367,9 +577,23 @@ export default function CentreDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-white">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-orange-100 rounded-lg">
+                  <PhoneOff className="w-6 h-6 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Missed Calls</p>
+                  <p className="text-2xl font-bold text-orange-700">{stats.missedCalls}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Consultations List */}
+        {/* Consultations Table */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -385,57 +609,97 @@ export default function CentreDetailPage() {
                 <Clock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600 text-lg">No consultations found</p>
                 <p className="text-gray-500 text-sm mt-2">
-                  {selectedDate
-                    ? "Try selecting a different date"
+                  {(fromDate || toDate || selectedAudiologistId || showMissedCallsOnly)
+                    ? "Try adjusting your filters"
                     : "Consultations will appear here once they are created"}
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredConsultations.map((consultation) => (
-                  <div
-                    key={consultation.id}
-                    className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => router.push(`/dashboard/all-consultations`)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-semibold text-gray-900">
-                            {consultation.patient?.name || "Unknown Patient"}
-                          </h3>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="font-bold">Patient</TableHead>
+                      <TableHead className="font-bold">Contact</TableHead>
+                      <TableHead className="font-bold">Audiologist</TableHead>
+                      <TableHead className="font-bold">Status</TableHead>
+                      <TableHead className="font-bold">Date & Time</TableHead>
+                      <TableHead className="font-bold">Tests</TableHead>
+                      <TableHead className="font-bold">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredConsultations.map((consultation) => (
+                      <TableRow
+                        key={consultation.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => router.push(`/dashboard/consultation-details/${consultation.id}`)}
+                      >
+                        <TableCell className="font-semibold">
+                          {consultation.patient?.name || "Unknown Patient"}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {consultation.patient?.contactNumber || "N/A"}
+                        </TableCell>
+                        <TableCell>
+                          {consultation.audiologist?.user?.name ? (
+                            <span className="text-sm text-gray-700">
+                              {consultation.audiologist.user.name}
+                            </span>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-700 border-red-300">
+                              <PhoneOff className="w-3 h-3 mr-1" />
+                              Not Assigned
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           {getStatusBadge(consultation.status as SessionStatus)}
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-600">
-                          <div>
-                            <span className="text-gray-500">Code:</span>{" "}
-                            <span className="font-medium">{consultation.code || "N/A"}</span>
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {consultation.createdAt
+                            ? format(new Date(consultation.createdAt), "dd MMM yyyy, HH:mm")
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {consultation.audiometry && (
+                              <Badge variant="outline" className="text-xs">PTA</Badge>
+                            )}
+                            {consultation.tympanometry && (
+                              <Badge variant="outline" className="text-xs">Tympano</Badge>
+                            )}
+                            {consultation.oae && (
+                              <Badge variant="outline" className="text-xs">OAE</Badge>
+                            )}
+                            {consultation.etfIntact && (
+                              <Badge variant="outline" className="text-xs">ETF</Badge>
+                            )}
+                            {consultation.otoscopy && (
+                              <Badge variant="outline" className="text-xs">Otoscopy</Badge>
+                            )}
+                            {!consultation.audiometry && !consultation.tympanometry && 
+                             !consultation.oae && !consultation.etfIntact && !consultation.otoscopy && (
+                              <span className="text-xs text-gray-400">No tests</span>
+                            )}
                           </div>
-                          <div>
-                            <span className="text-gray-500">Patient Contact:</span>{" "}
-                            <span className="font-medium">
-                              {consultation.patient?.contactNumber || "N/A"}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Audiologist:</span>{" "}
-                            <span className="font-medium">
-                              {consultation.audiologist?.user?.name || "Not Assigned"}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Date:</span>{" "}
-                            <span className="font-medium">
-                              {consultation.createdAt
-                                ? format(new Date(consultation.createdAt), "dd/MM/yy HH:mm")
-                                : "N/A"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/dashboard/consultation-details/${consultation.id}`);
+                            }}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>

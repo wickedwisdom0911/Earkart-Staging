@@ -16,7 +16,7 @@ import CitySelector from "@/components/ui/selector/city-selector";
 import { createCentre } from "@/actions/centre/create-centre";
 
 export default function BulkCreateCentresPage() {
-  const [count, setCount] = useState(10);
+  const [count, setCount] = useState(50); // Default 50 for pagination testing
   const [isCreating, setIsCreating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
@@ -67,8 +67,8 @@ export default function BulkCreateCentresPage() {
 
     return {
       user: {
-        name: `Test Centre ${index}`,
-        email: `testcentre${index}_${Date.now()}@example.com`,
+        name: `Test Centre ${index.toString().padStart(3, '0')}`,
+        email: `testcentre${index.toString().padStart(3, '0')}_${Date.now()}@example.com`,
         password: "Test@123",
         role: "CENTRE" as const,
         gender: "MALE" as const,
@@ -215,14 +215,53 @@ export default function BulkCreateCentresPage() {
                   id="count"
                   type="number"
                   min="1"
-                  max="100"
+                  max="500"
                   value={count}
                   onChange={(e) => setCount(parseInt(e.target.value) || 1)}
                   disabled={isCreating}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Max 100 centres per batch
+                  Max 500 centres per batch. Recommended: 50-100 for pagination testing
                 </p>
+                {/* Quick select buttons */}
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCount(25)}
+                    disabled={isCreating}
+                  >
+                    25
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCount(50)}
+                    disabled={isCreating}
+                  >
+                    50
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCount(100)}
+                    disabled={isCreating}
+                  >
+                    100
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCount(200)}
+                    disabled={isCreating}
+                  >
+                    200
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -286,11 +325,15 @@ export default function BulkCreateCentresPage() {
               </div>
             )}
 
-            {/* Warning */}
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
-              <strong>⚠️ Warning:</strong> This is a test tool. Make sure you select
-              all location fields (Country, State, District, City) before creating centres.
-              Created centres will have test data with sequential names and contact numbers.
+            {/* Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+              <strong>ℹ️ Info:</strong> This tool creates test centres for pagination testing.
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Select Country, State, District, and City before creating</li>
+                <li>Centres will be created with sequential names (Test Centre 1, Test Centre 2, etc.)</li>
+                <li>Recommended: Create 50-100 centres to properly test pagination (12 per page grid, 10 per page table)</li>
+                <li>Progress and logs are shown in real-time</li>
+              </ul>
             </div>
           </CardContent>
         </Card>

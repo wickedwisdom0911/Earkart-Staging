@@ -3,9 +3,10 @@ import getAllConsultations from "@/actions/consultations/get_all_consultations";
 import { extractConsultations } from "@/models/consultation.model";
 import { ConsultationModelData } from "@/models/consultation.model";
 
-export const useGetAllConsultations = () => {
+export const useGetAllConsultations = (options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: ["consultations"],
+    enabled: options?.enabled !== false, // Default to true, but can be disabled
     queryFn: async () => {
       console.log("🔵 [useGetAllConsultations] Query function called");
       try {

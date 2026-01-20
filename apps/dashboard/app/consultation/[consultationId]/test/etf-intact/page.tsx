@@ -26,6 +26,7 @@ import { ROUTES } from "@/lib/routes";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
+import { TestStatus } from "@/models/enums";
 
 type SessionState = "idle" | "initializing" | "running" | "waiting" | "completed";
 type CurveStatus = "pending" | "running" | "waiting" | "completed";
@@ -112,10 +113,15 @@ export default function EtfIntactPage() {
   const [completedCurves, setCompletedCurves] = useState<Set<number>>(new Set());
   const [overlayData, setOverlayData] = useState<CurvePoint[]>([]);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+  
+  // NACK dialog state
+  const [showNackDialog, setShowNackDialog] = useState(false);
+  const [nackMessage, setNackMessage] = useState("");
 
   // Consultation hooks
   const { data: consultation } = useGetConsultation(consultationId);
   const updateConsultationMutation = useUpdateConsultation();
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
 
   const activeCurveRef = useRef(activeCurve);
   const sessionStateRef = useRef<SessionState>(sessionState);
@@ -135,6 +141,31 @@ export default function EtfIntactPage() {
       hasAutoSavedRef.current = false;
     }
   }, [sessionState]);
+
+  // Save test results to localStorage whenever they change (preserve even after submission)
+  useEffect(() => {
+    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
+    if (!consultationId || !hasLoadedFromStorage || !consultationData) return;
+    
+    const etfIntactData = (consultationData as any)?.etfIntact;
+    const isTestCompleted = etfIntactData?.status === TestStatus.COMPLETED;
+    
+    // Always save to preserve ETF Intact data, even after test completion
+    try {
+      const storageKey = `etf-intact-${consultationId}`;
+      const dataToStore = {
+        curves,
+        completedEars: Array.from(completedEars),
+        earCanalVolume,
+        selectedEar,
+        timestamp: new Date().toISOString(),
+        submitted: isTestCompleted
+      };
+      localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  }, [consultationId, curves, completedEars, earCanalVolume, selectedEar, consultation, hasLoadedFromStorage]);
 
   // Build overlay data from curve samples (like tympanometry: data = isTestCompleted ? finalData : realTimeData)
   // For ETF: merge all curve samples into overlay points grouped by pressure
@@ -677,6 +708,23 @@ export default function EtfIntactPage() {
       const result = await updateConsultationMutation.mutateAsync(updatedConsultation);
       console.log("ETF results saved successfully:", result);
 
+      // Preserve localStorage data after test submission
+      try {
+        const storageKey = `etf-intact-${consultationId}`;
+        const dataToStore = {
+          curves: allCurves,
+          completedEars: Array.from(completedEars),
+          earCanalVolume: ecvValue,
+          selectedEar: selectedEar,
+          timestamp: new Date().toISOString(),
+          submitted: true
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
+        console.log('💾 Preserved ETF Intact data in localStorage after test submission');
+      } catch (error) {
+        console.error('Failed to save to localStorage:', error);
+      }
+
       // Mark this ear as completed
       setCompletedEars((prev) => {
         const newSet = new Set(prev);
@@ -875,6 +923,30 @@ export default function EtfIntactPage() {
       setSessionState("idle");
     };
 
+    // Dedicated handler for nack-received (test cannot be performed)
+    const handleNackReceived = (data: { message?: string; testId?: string }) => {
+      console.warn("⚠️ [ETF] [NACK Received] Test not ready or error:", data);
+      
+      // Stop the test if it was running
+      setIsRunning(false);
+      setSessionState("idle");
+      
+      // Extract message
+      const errorMessage = data.message || "Test device not ready or test cannot be performed at this time";
+      
+      // Show big dialog instead of toast - requires audiologist confirmation
+      setNackMessage(errorMessage);
+      setShowNackDialog(true);
+      
+      // Log for debugging
+      console.error("❌ [ETF] [NACK] Test cannot proceed:", {
+        message: errorMessage,
+        testId: data.testId,
+        selectedEar,
+        consultationId: consultationId,
+      });
+    };
+
     // Register all event listeners
     // Try multiple possible event names to see what backend sends
     socket.on("tympanometry-status", handleStatus);
@@ -883,6 +955,7 @@ export default function EtfIntactPage() {
     socket.on("etf-data", handleData);
     socket.on("etf-resumed", handleResumed);
     socket.on("etf-stopped", handleStopped);
+    socket.on("nack-received", handleNackReceived);
 
     return () => {
       socket.off("tympanometry-status", handleStatus);
@@ -891,6 +964,7 @@ export default function EtfIntactPage() {
       socket.off("etf-data", handleData);
       socket.off("etf-resumed", handleResumed);
       socket.off("etf-stopped", handleStopped);
+      socket.off("nack-received", handleNackReceived);
     };
   }, [socket, appendPoint, updateCurveData, selectedEar, nextCurve]);
 
@@ -1017,8 +1091,17 @@ export default function EtfIntactPage() {
                 )}
               </div>
             </div>
+            {/* Curve instructions to remind audiologist of maneuvers */}
+            {(completedCurves.size >= 1 && completedCurves.size < 3) && (
+              <div className="mt-3 text-xs text-blue-900">
+                <p className="font-medium">Curve sequence:</p>
+                <p>• Curve 1 – Baseline</p>
+                <p>• Curve 2 – Swallow (ask patient to swallow during this curve)</p>
+                <p>• Curve 3 – Valsalva (ask patient to perform Valsalva during this curve)</p>
+              </div>
+            )}
             {sessionState === "waiting" && (
-              <div className="mt-2">
+              <div className="mt-3">
                 <button
                   onClick={handleResume}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-medium"
@@ -1307,8 +1390,72 @@ export default function EtfIntactPage() {
               </button>
             )}
       </div>
+        </div>
       </div>
-      </div>
+
+      {/* NACK Dialog - Big warning like patient response */}
+      {showNackDialog && (
+        <>
+          <style jsx>{`
+            @keyframes shake {
+              0%, 100% { transform: translateX(0); }
+              10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+              20%, 40%, 60%, 80% { transform: translateX(10px); }
+            }
+          `}</style>
+          {/* Full-screen overlay */}
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            {/* Pulsing red background */}
+            <div className="absolute inset-0 bg-red-500/10 animate-pulse" />
+            
+            {/* Dialog box */}
+            <div 
+              className="relative bg-white border-4 border-red-500 rounded-2xl shadow-2xl p-8 max-w-lg mx-4"
+              style={{ animation: 'shake 0.5s ease-in-out' }}
+            >
+              {/* Warning icon with animation */}
+              <div className="mx-auto mb-6 relative flex h-20 w-20 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-16 w-16 bg-red-600 items-center justify-center">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </span>
+              </div>
+              
+              {/* Title */}
+              <h2 className="text-2xl font-bold text-red-700 text-center mb-4">
+                Test Cannot Be Performed
+              </h2>
+              
+              {/* Message */}
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+                <p className="text-red-800 text-lg font-medium text-center">
+                  {nackMessage}
+                </p>
+              </div>
+              
+              {/* Instructions */}
+              <p className="text-gray-700 text-center mb-6">
+                Please ensure the device is properly connected and ready before continuing.
+              </p>
+              
+              {/* Close button */}
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    setShowNackDialog(false);
+                    setNackMessage("");
+                  }}
+                  className="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-lg transition-colors"
+                >
+                  Understood
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

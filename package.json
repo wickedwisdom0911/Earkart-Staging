@@ -1,7 +1,7 @@
 {
   "name": "omni_frontend",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.6",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",

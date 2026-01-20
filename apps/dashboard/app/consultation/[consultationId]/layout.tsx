@@ -85,6 +85,18 @@ export default function ConsultationLayout({
   const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
   const { isDemoAccount } = useDemoAccount();
 
+  // Ensure any global notification sounds are stopped when entering a consultation
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        // Tell the PatientAlertProvider to stop any continuous notification sound
+        window.dispatchEvent(new CustomEvent("stopContinuousSound"));
+      } catch (err) {
+        console.warn("Failed to dispatch stopContinuousSound event:", err);
+      }
+    }
+  }, []);
+
   // Wrap startRecording to prevent automatic calls
   const startRecording = useCallback(async (...args: any[]) => {
     console.log("🎯 Manual recording start initiated");
@@ -864,7 +876,7 @@ export default function ConsultationLayout({
             className="border-none "
             button={
               <div className="flex items-center justify-center gap-6 mr-2">
-                {/* R15C Device Status */}
+                {/* Audiometer Device Status */}
                 <div className="flex items-center gap-2">
                   <div
                     className={`w-3 h-3 rounded-full ${
@@ -872,19 +884,19 @@ export default function ConsultationLayout({
                     }`}
                   />
                   <span className="text-sm font-medium">
-                    R15C:{" "}
+                    Audiometer:{" "}
                     {r15c.connectionStatus.charAt(0).toUpperCase() +
                       r15c.connectionStatus.slice(1)}
                     {typeof r15c.batteryLevel === 'number' && (
-                      <span className="ml-2 text-xs text-gray-600">R15C 🔋 {r15c.batteryLevel}%</span>
+                      <span className="ml-2 text-xs text-gray-600">🔋 {r15c.batteryLevel}%</span>
                     )}
                     {typeof r15c.isCharging === 'boolean' && (
-                      <span className="ml-1 text-xs text-gray-600">{r15c.isCharging ? "(R15C Charging)" : "(R15C On Battery)"}</span>
+                      <span className="ml-1 text-xs text-gray-600">{r15c.isCharging ? "(Charging)" : "(On Battery)"}</span>
                     )}
                   </span>
                 </div>
 
-                {/* Revo2 Device Status */}
+                {/* Otoscope Device Status */}
                 <div className="flex items-center gap-2">
                   <div
                     className={`w-3 h-3 rounded-full ${
@@ -892,7 +904,7 @@ export default function ConsultationLayout({
                     }`}
                   />
                   <span className="text-sm font-medium">
-                    Revo2:{" "}
+                    Otoscope:{" "}
                     {revo2.connectionStatus.charAt(0).toUpperCase() +
                       revo2.connectionStatus.slice(1)}
                   </span>
@@ -1116,7 +1128,7 @@ export default function ConsultationLayout({
                 )}
                 {recordingState.isUploading && (
                   <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
-                    Finalizing previous recording… You can start a new one as soon as it completes.
+                    Finalizing previous recording… Upload is still running in the background, but you can safely start a new one.
                   </div>
                 )}
                 {hasAttemptedAutoStart && (
@@ -1137,7 +1149,9 @@ export default function ConsultationLayout({
                       timesliceMs: 5000,
                     })
                   }
-                  disabled={recordingState.isInitializing || recordingState.isRecovering || recordingState.isUploading}
+                  // Allow starting a new recording even if a previous upload is still finalizing.
+                  // Only block when we are initializing or recovering a session.
+                  disabled={recordingState.isInitializing || recordingState.isRecovering}
                 >
                   {recordingState.isRecovering 
                     ? "Recovering session..." 
