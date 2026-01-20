@@ -368,8 +368,81 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
 
     // Direct binary frame capture for otoscopy streaming (no base64 conversion)
     private var lastValidBinaryFrame: ByteArray? = null
+    private var lastValidNV21Frame: ByteArray? = null
     private var frameProcessingInProgress = false
     private val maxBinaryFrameSize = 300 * 1024 // 300KB max frame size - balanced for quality and stability
+    
+    // Get raw NV21 frame directly (no JPEG conversion) - optimized for Agora streaming
+    fun captureFrameAsNV21(callback: ((ByteArray) -> Unit)?) {
+        if (!isFrameCaptureActive) {
+            Log.w(TAG, "Frame capture not active, returning empty NV21 array")
+            callback?.invoke(lastValidNV21Frame ?: ByteArray(0))
+            return
+        }
+
+        // Prevent overlapping frame processing to avoid memory pressure
+        if (frameProcessingInProgress) {
+            Log.d(TAG, "Frame processing already in progress, returning cached NV21 frame")
+            callback?.invoke(lastValidNV21Frame ?: ByteArray(0))
+            return
+        }
+
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastFrameCaptureTime < MIN_FRAME_INTERVAL_MS) {
+            // Return last valid NV21 frame if too soon
+            Log.d(TAG, "Frame interval too short (${currentTime - lastFrameCaptureTime}ms), returning cached NV21 frame")
+            callback?.invoke(lastValidNV21Frame ?: ByteArray(0))
+            return
+        }
+
+        frameProcessingInProgress = true
+        try {
+            // Get current NV21 frame data from the queue with thread safety
+            val frameData = synchronized(mNV21DataQueue) {
+                mNV21DataQueue.pollFirst()
+            }
+            
+            if (frameData != null && frameData.isNotEmpty()) {
+                Log.d(TAG, "Retrieved NV21 frame data from queue: ${frameData.size} bytes")
+                // Use NV21 directly - no conversion needed!
+                frameProcessingInProgress = false
+                
+                // Clear old frame to prevent memory accumulation
+                lastValidNV21Frame?.let { 
+                    lastValidNV21Frame = null
+                }
+                lastValidNV21Frame = frameData
+                lastFrameCaptureTime = currentTime
+                Log.d(TAG, "Direct NV21 frame captured: ${frameData.size} bytes")
+                callback?.invoke(frameData)
+            } else {
+                Log.w(TAG, "No NV21 frame data available in queue (queue size: ${mNV21DataQueue.size})")
+                frameProcessingInProgress = false
+                // Return last valid NV21 frame if no new frame available
+                callback?.invoke(lastValidNV21Frame ?: ByteArray(0))
+            }
+        } catch (e: Exception) {
+            frameProcessingInProgress = false
+            Log.e(TAG, "Error capturing NV21 frame", e)
+            
+            // Handle memory-related errors more aggressively
+            if (e is OutOfMemoryError || e.message?.contains("memory", ignoreCase = true) == true) {
+                Log.e(TAG, "Memory error detected, clearing all cached NV21 data", e)
+                lastValidNV21Frame = null
+                lastValidBinaryFrame = null
+                lastValidFrame = null
+                synchronized(mNV21DataQueue) {
+                    mNV21DataQueue.clear()
+                }
+                System.gc()
+                callback?.invoke(ByteArray(0))
+                return
+            }
+            
+            // Return last valid NV21 frame on error
+            callback?.invoke(lastValidNV21Frame ?: ByteArray(0))
+        }
+    }
     
     fun captureFrameAsBinary(callback: ((ByteArray) -> Unit)?) {
         if (!isFrameCaptureActive) {

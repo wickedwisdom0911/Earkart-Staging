@@ -8,6 +8,7 @@ import { SessionStatus, Role } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
+import { extractConsultations } from "@/models/consultation.model";
 import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import { useAudiologistStatus } from "@/hooks/audiologist/use-audiologist-status";
 import {
@@ -100,11 +101,12 @@ export default function AnalyticsPage() {
   // Group all consultations by audiologist for the details modal
   // Only include consultations that have an audiologist assigned
   const consultationsByAudiologist = useMemo(() => {
-    if (!consultations?.data || !Array.isArray(consultations.data)) return new Map();
+    if (!consultations?.data) return new Map();
     
+    const consultationsArray = extractConsultations(consultations.data);
     const map = new Map<string, ConsultationModelData[]>();
     
-    consultations.data.forEach((c) => {
+    consultationsArray.forEach((c) => {
       // Only include consultations with audiologist assigned
       const audiologistId = c.audiologist?.userId;
       if (audiologistId) {

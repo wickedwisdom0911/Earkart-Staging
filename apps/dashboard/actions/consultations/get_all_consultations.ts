@@ -9,9 +9,17 @@ import {
   ConsultationModelData,
 } from "@/models/consultation.model";
 
-export default async function getAllConsultations(): Promise<ConsultationModel> {
+export interface GetAllConsultationsParams {
+  page?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export default async function getAllConsultations(
+  params?: GetAllConsultationsParams
+): Promise<ConsultationModel> {
   try {
-    console.log("🔵 [getAllConsultations] Starting...");
+    console.log("🔵 [getAllConsultations] Starting...", { params });
     
     const baseUrl = await getBaseUrl();
     const user = await verifySession();

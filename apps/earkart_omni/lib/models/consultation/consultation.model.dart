@@ -9,12 +9,115 @@ import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
 import 'package:earkart_omni/models/audiologist/audiologist.entity.dart';
 import 'package:earkart_omni/models/centre/centre.entity.dart';
+import 'package:earkart_omni/models/paginated_response.dart';
+
+// Custom class to handle consultation data structures
+// All paginated APIs return the same structure: { data: [], total, hasNext, ... }
+class ConsultationData {
+  final ConsultationDataType type;
+  final ConsultationModelData? singleConsultation;
+  final PaginatedResponse<ConsultationModelData>? paginatedResponse;
+
+  const ConsultationData._({
+    required this.type,
+    this.singleConsultation,
+    this.paginatedResponse,
+  });
+
+  factory ConsultationData.single(ConsultationModelData consultation) {
+    return ConsultationData._(
+      type: ConsultationDataType.single,
+      singleConsultation: consultation,
+    );
+  }
+
+  factory ConsultationData.paginated(
+    PaginatedResponse<ConsultationModelData> paginated,
+  ) {
+    return ConsultationData._(
+      type: ConsultationDataType.list,
+      paginatedResponse: paginated,
+    );
+  }
+
+  factory ConsultationData.empty() {
+    return const ConsultationData._(type: ConsultationDataType.empty);
+  }
+
+  factory ConsultationData.fromJson(dynamic dataJson) {
+    if (dataJson == null) {
+      return ConsultationData.empty();
+    }
+
+    if (dataJson is Map<String, dynamic>) {
+      // Check if it's the paginated response format (has 'data' array and pagination fields)
+      if (dataJson.containsKey('data') &&
+          dataJson['data'] is List &&
+          dataJson.containsKey('total')) {
+        return ConsultationData.paginated(
+          PaginatedResponse<ConsultationModelData>.fromJson(
+            dataJson,
+            (json) => ConsultationModelData.fromJson(json),
+          ),
+        );
+      } else {
+        // Handle single consultation format (for get-by-id endpoints)
+        return ConsultationData.single(
+          ConsultationModelData.fromJson(dataJson),
+        );
+      }
+    }
+
+    return ConsultationData.empty();
+  }
+
+  dynamic toJson() {
+    switch (type) {
+      case ConsultationDataType.single:
+        return singleConsultation?.toJson() ?? {};
+      case ConsultationDataType.list:
+        return paginatedResponse?.toJson((item) => item.toJson()) ?? {};
+      case ConsultationDataType.empty:
+        return {};
+    }
+  }
+
+  // Helper methods to get consultations in a consistent format
+  List<ConsultationModelData> get consultations {
+    switch (type) {
+      case ConsultationDataType.single:
+        return singleConsultation != null ? [singleConsultation!] : [];
+      case ConsultationDataType.list:
+        return paginatedResponse?.data ?? [];
+      case ConsultationDataType.empty:
+        return [];
+    }
+  }
+
+  int get total {
+    switch (type) {
+      case ConsultationDataType.single:
+        return singleConsultation != null ? 1 : 0;
+      case ConsultationDataType.list:
+        return paginatedResponse?.total ?? 0;
+      case ConsultationDataType.empty:
+        return 0;
+    }
+  }
+
+  bool get hasNext {
+    return type == ConsultationDataType.list
+        ? (paginatedResponse?.hasNext ?? false)
+        : false;
+  }
+}
+
+enum ConsultationDataType { single, list, empty }
 
 class ConsultationModel {
   final bool success;
   final String message;
-  final dynamic
-  data; // Can be ConsultationModelData or List<ConsultationModelData>
+  final ConsultationData data;
 
   ConsultationModel({
     required this.success,
@@ -23,22 +126,21 @@ class ConsultationModel {
   });
 
   factory ConsultationModel.fromJson(Map<String, dynamic> json) {
-    final dataJson = json['data'];
-    dynamic parsedData;
-    if (dataJson is List) {
-      parsedData =
-          dataJson.map((item) => ConsultationModelData.fromJson(item)).toList();
-    } else if (dataJson is Map<String, dynamic>) {
-      parsedData = ConsultationModelData.fromJson(dataJson);
-    } else {
-      parsedData = null;
-    }
     return ConsultationModel(
       success: json['success'],
       message: json['message'],
-      data: parsedData,
+      data: ConsultationData.fromJson(json['data']),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {'success': success, 'message': message, 'data': data.toJson()};
+  }
+
+  // Helper methods to get consultations in a consistent format
+  List<ConsultationModelData> get consultations => data.consultations;
+  int get total => data.total;
+  bool get hasNext => data.hasNext;
 }
 
 class ConsultationModelData extends ConsultationEntity {

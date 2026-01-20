@@ -251,6 +251,32 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 )
             }
 
+            "captureFrameAsNV21" -> {
+                mUVCCameraViewFactory?.captureFrameAsNV21(
+                    object : UVCBinaryCallback {
+                        override fun onSuccess(binaryData: ByteArray) {
+                            result.success(binaryData)
+                        }
+                        override fun onError(error: String) {
+                            result.error("error", error, error)
+                        }
+                    }
+                )
+            }
+
+            "getLastCapturedFrameNV21" -> {
+                mUVCCameraViewFactory?.getLastCapturedFrameNV21(
+                    object : UVCBinaryCallback {
+                        override fun onSuccess(binaryData: ByteArray) {
+                            result.success(binaryData)
+                        }
+                        override fun onError(error: String) {
+                            result.error("error", error, error)
+                        }
+                    }
+                )
+            }
+
             "getPlatformVersion" -> {
                 result.success("Android " + Build.VERSION.RELEASE)
             }

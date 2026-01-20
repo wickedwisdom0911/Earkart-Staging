@@ -4,6 +4,7 @@ import 'package:earkart_omni/models/centre/centre.entity.dart';
 import 'package:earkart_omni/models/consultation/consultation.entity.dart';
 import 'package:earkart_omni/models/enums.dart';
 import 'package:earkart_omni/models/patient/patient.entity.dart';
+import 'package:earkart_omni/models/paginated_response.dart';
 import 'appointments.entity.dart';
 
 AppointmentModel appointmentModelFromJson(String str) =>
@@ -11,18 +12,17 @@ AppointmentModel appointmentModelFromJson(String str) =>
 String appointmentModelToJson(AppointmentModel data) =>
     json.encode(data.toJson());
 
-// Custom class to handle different appointment data structures
+// Custom class to handle appointment data structures
+// All paginated APIs return the same structure: { data: [], total, hasNext, ... }
 class AppointmentData {
   final AppointmentDataType type;
   final AppointmentModelData? singleAppointment;
-  final AppointmentListModel? appointmentList;
-  final List<AppointmentModelData>? directList;
+  final PaginatedResponse<AppointmentModelData>? paginatedResponse;
 
   const AppointmentData._({
     required this.type,
     this.singleAppointment,
-    this.appointmentList,
-    this.directList,
+    this.paginatedResponse,
   });
 
   factory AppointmentData.single(AppointmentModelData appointment) {
@@ -32,17 +32,12 @@ class AppointmentData {
     );
   }
 
-  factory AppointmentData.list(AppointmentListModel list) {
+  factory AppointmentData.paginated(
+    PaginatedResponse<AppointmentModelData> paginated,
+  ) {
     return AppointmentData._(
       type: AppointmentDataType.list,
-      appointmentList: list,
-    );
-  }
-
-  factory AppointmentData.direct(List<AppointmentModelData> appointments) {
-    return AppointmentData._(
-      type: AppointmentDataType.direct,
-      directList: appointments,
+      paginatedResponse: paginated,
     );
   }
 
@@ -53,23 +48,26 @@ class AppointmentData {
   factory AppointmentData.fromJson(dynamic dataJson) {
     if (dataJson == null) {
       return AppointmentData.empty();
-    } else if (dataJson is List) {
-      // Handle direct array format
-      final appointments =
-          dataJson.map((e) => AppointmentModelData.fromJson(e)).toList();
-      return AppointmentData.direct(appointments);
-    } else if (dataJson is Map<String, dynamic>) {
-      // Check if it's the new appointments list format
-      if (dataJson.containsKey('appointments') &&
+    }
+
+    if (dataJson is Map<String, dynamic>) {
+      // Check if it's the paginated response format (has 'data' array and pagination fields)
+      if (dataJson.containsKey('data') &&
+          dataJson['data'] is List &&
           dataJson.containsKey('total')) {
-        return AppointmentData.list(AppointmentListModel.fromJson(dataJson));
+        return AppointmentData.paginated(
+          PaginatedResponse<AppointmentModelData>.fromJson(
+            dataJson,
+            (json) => AppointmentModelData.fromJson(json),
+          ),
+        );
       } else {
-        // Handle single appointment format
+        // Handle single appointment format (for get-by-id endpoints)
         return AppointmentData.single(AppointmentModelData.fromJson(dataJson));
       }
-    } else {
-      return AppointmentData.empty();
     }
+
+    return AppointmentData.empty();
   }
 
   dynamic toJson() {
@@ -77,9 +75,7 @@ class AppointmentData {
       case AppointmentDataType.single:
         return singleAppointment?.toJson() ?? {};
       case AppointmentDataType.list:
-        return appointmentList?.toJson() ?? {};
-      case AppointmentDataType.direct:
-        return directList?.map((e) => e.toJson()).toList() ?? [];
+        return paginatedResponse?.toJson((item) => item.toJson()) ?? {};
       case AppointmentDataType.empty:
         return {};
     }
@@ -91,9 +87,7 @@ class AppointmentData {
       case AppointmentDataType.single:
         return singleAppointment != null ? [singleAppointment!] : [];
       case AppointmentDataType.list:
-        return appointmentList?.appointments ?? [];
-      case AppointmentDataType.direct:
-        return directList ?? [];
+        return paginatedResponse?.data ?? [];
       case AppointmentDataType.empty:
         return [];
     }
@@ -104,16 +98,20 @@ class AppointmentData {
       case AppointmentDataType.single:
         return singleAppointment != null ? 1 : 0;
       case AppointmentDataType.list:
-        return appointmentList?.total ?? 0;
-      case AppointmentDataType.direct:
-        return directList?.length ?? 0;
+        return paginatedResponse?.total ?? 0;
       case AppointmentDataType.empty:
         return 0;
     }
   }
+
+  bool get hasNext {
+    return type == AppointmentDataType.list
+        ? (paginatedResponse?.hasNext ?? false)
+        : false;
+  }
 }
 
-enum AppointmentDataType { single, list, direct, empty }
+enum AppointmentDataType { single, list, empty }
 
 class AppointmentModel {
   final bool success;
@@ -141,31 +139,7 @@ class AppointmentModel {
   // Helper methods to get appointments in a consistent format
   List<AppointmentModelData> get appointments => data.appointments;
   int get total => data.total;
-}
-
-class AppointmentListModel {
-  final List<AppointmentModelData> appointments;
-  final int total;
-
-  AppointmentListModel({required this.appointments, required this.total});
-
-  factory AppointmentListModel.fromJson(Map<String, dynamic> json) {
-    return AppointmentListModel(
-      appointments:
-          (json['appointments'] as List?)
-              ?.map((e) => AppointmentModelData.fromJson(e))
-              .toList() ??
-          [],
-      total: json['total'] ?? 0,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'appointments': appointments.map((e) => e.toJson()).toList(),
-      'total': total,
-    };
-  }
+  bool get hasNext => data.hasNext;
 }
 
 class AppointmentModelData extends AppointmentEntity {

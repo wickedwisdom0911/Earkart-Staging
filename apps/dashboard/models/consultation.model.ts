@@ -219,6 +219,71 @@ export type ConsultationRecordingModelData = z.infer<
 export type ConsultationModelData = z.infer<typeof ConsultationModelDataSchema>;
 export type ConsultationModel = z.infer<typeof ConsultationModelSchema>;
 
+// Helper type for paginated response data
+export interface PaginatedConsultationData {
+  data: ConsultationModelData[];
+  total: number;
+  limit: number;
+  offset: number;
+  page: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+// Helper function to extract consultations array from response data
+export function extractConsultations(
+  data: ConsultationModel["data"]
+): ConsultationModelData[] {
+  if (!data) return [];
+  
+  // Check if it's a paginated response
+  if (
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    "data" in data &&
+    Array.isArray(data.data)
+  ) {
+    return data.data.filter((c): c is ConsultationModelData => c !== null);
+  }
+  
+  // Check if it's a direct array
+  if (Array.isArray(data)) {
+    return data.filter((c): c is ConsultationModelData => c !== null);
+  }
+  
+  // Check if it's a single consultation object
+  if (typeof data === "object" && "id" in data && "patientId" in data) {
+    return [data];
+  }
+  
+  return [];
+}
+
+// Helper function to check if response is paginated
+export function isPaginatedResponse(
+  data: ConsultationModel["data"]
+): data is PaginatedConsultationData {
+  return (
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    data !== null &&
+    "data" in data &&
+    "total" in data &&
+    "hasNext" in data
+  );
+}
+
+// Helper function to get pagination info
+export function getPaginationInfo(
+  data: ConsultationModel["data"]
+): PaginatedConsultationData | null {
+  if (isPaginatedResponse(data)) {
+    return data;
+  }
+  return null;
+}
+
 // ETF Intact Types
 export type ETFIntactCurve = z.infer<typeof ETFIntactCurveSchema>;
 export type ETFIntact = z.infer<typeof ETFIntactSchema>; // null | { ecv: number, probeToneFreq: number, ... }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 /// A reusable searchable dropdown dialog widget
@@ -67,19 +68,32 @@ class _SearchableDropdownDialogState<T>
     extends State<SearchableDropdownDialog<T>> {
   final TextEditingController _searchController = TextEditingController();
   List<T> _filteredItems = [];
+  Timer? _debounceTimer;
+  static const Duration _debounceDelay = Duration(milliseconds: 500);
 
   @override
   void initState() {
     super.initState();
     _filteredItems = widget.items;
-    _searchController.addListener(_filterItems);
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_filterItems);
+    _debounceTimer?.cancel();
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    // Cancel the previous timer if it exists
+    _debounceTimer?.cancel();
+
+    // Start a new timer
+    _debounceTimer = Timer(_debounceDelay, () {
+      _filterItems();
+    });
   }
 
   void _filterItems() {
@@ -154,7 +168,9 @@ class _SearchableDropdownDialogState<T>
                               color: Colors.grey.shade600,
                             ),
                             onPressed: () {
+                              _debounceTimer?.cancel();
                               _searchController.clear();
+                              _filterItems(); // Filter immediately when clearing
                             },
                           )
                           : null,
@@ -205,9 +221,13 @@ class _SearchableDropdownDialogState<T>
                         itemCount: _filteredItems.length,
                         itemBuilder: (context, index) {
                           final item = _filteredItems[index];
-                          final isSelected = widget.compareItems != null
-                              ? widget.compareItems!(item, widget.selectedValue)
-                              : item == widget.selectedValue;
+                          final isSelected =
+                              widget.compareItems != null
+                                  ? widget.compareItems!(
+                                    item,
+                                    widget.selectedValue,
+                                  )
+                                  : item == widget.selectedValue;
 
                           return InkWell(
                             onTap: () => widget.onItemSelected(item),

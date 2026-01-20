@@ -21,21 +21,29 @@ class ConsultationLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     if (showCamera) {
       // Split screen: video call on left, camera on right
+      // Use RepaintBoundary to isolate video rendering from layout changes
       return Row(
         children: [
           // Left half - Video call
+          // Expanded must be direct child of Row, RepaintBoundary goes inside
           Expanded(
             flex: 1,
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  right: BorderSide(
-                    color: Colors.grey[300]!,
-                    width: 1,
+            child: RepaintBoundary(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: BorderSide(
+                      color: Colors.grey[300]!,
+                      width: 1,
+                    ),
                   ),
                 ),
+                // Use key to maintain video widget state during layout changes
+                child: KeyedSubtree(
+                  key: const ValueKey('video-call-widget'),
+                  child: videoWidget,
+                ),
               ),
-              child: videoWidget,
             ),
           ),
           Expanded(
@@ -75,7 +83,13 @@ class ConsultationLayout extends StatelessWidget {
       );
     } else {
       // Full screen video call
-      return videoWidget;
+      // Use key to maintain video widget state during layout changes
+      return RepaintBoundary(
+        child: KeyedSubtree(
+          key: const ValueKey('video-call-widget'),
+          child: videoWidget,
+        ),
+      );
     }
   }
 }

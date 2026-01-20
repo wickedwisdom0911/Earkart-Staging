@@ -3,7 +3,7 @@ description: "Earkart OMNI 2.0 with OAE module."
 
 publish_to: "none"
 
-version: 1.0.5+1
+version: 1.0.6+1
 
 environment:
   sdk: ^3.7.0
@@ -43,6 +43,7 @@ dependencies:
   internet_connection_checker: ^3.0.1
   wakelock_plus: ^1.2.8
   battery_plus: ^5.0.2
+  razorpay_flutter: ^1.4.0
 
   #ui
   figma_squircle: ^0.6.3

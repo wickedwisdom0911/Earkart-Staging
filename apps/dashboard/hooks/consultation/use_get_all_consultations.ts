@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import getAllConsultations from "@/actions/consultations/get_all_consultations";
+import { extractConsultations } from "@/models/consultation.model";
+import { ConsultationModelData } from "@/models/consultation.model";
 
 export const useGetAllConsultations = (options?: { enabled?: boolean }) => {
   return useQuery({
@@ -8,6 +10,8 @@ export const useGetAllConsultations = (options?: { enabled?: boolean }) => {
     queryFn: async () => {
       console.log("🔵 [useGetAllConsultations] Query function called");
       try {
+        // Fetch all consultations without pagination (for backward compatibility)
+        // Note: This may return paginated response, but we'll extract all data
         const result = await getAllConsultations();
         console.log("🔵 [useGetAllConsultations] Query result:", {
           hasResult: !!result,
@@ -37,4 +41,18 @@ export const useGetAllConsultations = (options?: { enabled?: boolean }) => {
     refetchOnWindowFocus: true, // Refetch when window gains focus
     staleTime: 0, // Always consider data stale to ensure fresh data
   });
+};
+
+// Helper hook that returns consultations as a flat array (handles paginated responses)
+export const useGetAllConsultationsFlat = () => {
+  const query = useGetAllConsultations();
+  
+  const consultations: ConsultationModelData[] = query.data
+    ? extractConsultations(query.data.data)
+    : [];
+
+  return {
+    ...query,
+    consultations,
+  };
 };

@@ -7,6 +7,7 @@ import { format, isToday, isSameDay } from "date-fns";
 import { SessionStatus } from "@/models/enums";
 import { useRouter, useParams } from "next/navigation";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
+import { extractConsultations } from "@/models/consultation.model";
 import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import {
   User,
@@ -69,8 +70,9 @@ export default function AudiologistDetailsPage() {
   // Get all consultations for this audiologist
   // Only include consultations that have an audiologist assigned
   const allConsultations = useMemo(() => {
-    if (!consultations?.data || !Array.isArray(consultations.data)) return [];
-    return consultations.data.filter(
+    if (!consultations?.data) return [];
+    const consultationsArray = extractConsultations(consultations.data);
+    return consultationsArray.filter(
       (c) => c.audiologist?.userId === audiologistId && c.audiologist?.userId
     );
   }, [consultations, audiologistId]);

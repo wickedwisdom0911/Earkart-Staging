@@ -10,6 +10,8 @@ class AppointmentsState with _$AppointmentsState {
   const factory AppointmentsState.success({
     required List<AppointmentEntity> appointments,
     required int total,
+    @Default(false) bool hasMore,
+    @Default(false) bool isLoadingMore,
   }) = AppointmentsSuccess;
   const factory AppointmentsState.appointmentByIdSuccess({
     required AppointmentEntity appointment,

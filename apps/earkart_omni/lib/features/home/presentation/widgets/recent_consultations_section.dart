@@ -86,7 +86,7 @@ class RecentConsultationsSection extends StatelessWidget {
                     onRetry: () {
                       context
                           .read<ConsultationCubit>()
-                          .getConsultationsByCentreId();
+                          .getConsultationsByCentreId(refresh: true);
                     },
                   );
                 }

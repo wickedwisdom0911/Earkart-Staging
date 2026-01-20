@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
+import { extractConsultations } from "@/models/consultation.model";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
 import {
   User,
@@ -58,9 +59,11 @@ export default function DashboardPage() {
   const isAudiologist = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
 
   useEffect(() => {
-    if (Array.isArray(consultations?.data)) {
+    if (consultations?.data) {
+      const consultationsArray = extractConsultations(consultations.data);
+      
       // 🐛 DEBUG: Console log consultations data structure
-      console.log("[CONSULTATIONS] Raw consultations data:", consultations.data.map(c => ({
+      console.log("[CONSULTATIONS] Raw consultations data:", consultationsArray.map(c => ({
         id: c.id.substring(0, 8),
         status: c.status,
         recordings: c.recordings?.map(r => ({
@@ -77,7 +80,7 @@ export default function DashboardPage() {
       })));
       
       // Filter to show only active consultations (exclude completed and cancelled)
-      const activeConsultations = consultations.data.filter(
+      const activeConsultations = consultationsArray.filter(
         (c) => c.status !== SessionStatus.COMPLETED && c.status !== SessionStatus.CANCELLED
       );
       
@@ -93,24 +96,22 @@ export default function DashboardPage() {
         
         // Small delay to ensure cache is cleared before checking consultations
         setTimeout(() => {
-          if (Array.isArray(consultations.data)) {
-            consultations.data.forEach((consultation: ConsultationModelData) => {
-              // Check if consultation needs attention (no audiologist assigned) AND not in progress/completed/cancelled
-              const needsAttention = 
-                (!consultation.audiologist) &&
-                consultation.status !== SessionStatus.IN_PROGRESS && // NOT in progress (being handled)
-                consultation.status !== SessionStatus.COMPLETED && // NOT completed  
-                consultation.status !== SessionStatus.CANCELLED; // NOT cancelled
-              
-              if (needsAttention) {
-                // Create a notification for this consultation
-                const event = new CustomEvent('consultationNeedsAttention', {
-                  detail: consultation
-                });
-                window.dispatchEvent(event);
-              }
-            });
-          }
+          consultationsArray.forEach((consultation: ConsultationModelData) => {
+            // Check if consultation needs attention (no audiologist assigned) AND not in progress/completed/cancelled
+            const needsAttention = 
+              (!consultation.audiologist) &&
+              consultation.status !== SessionStatus.IN_PROGRESS && // NOT in progress (being handled)
+              consultation.status !== SessionStatus.COMPLETED && // NOT completed  
+              consultation.status !== SessionStatus.CANCELLED; // NOT cancelled
+            
+            if (needsAttention) {
+              // Create a notification for this consultation
+              const event = new CustomEvent('consultationNeedsAttention', {
+                detail: consultation
+              });
+              window.dispatchEvent(event);
+            }
+          });
         }, 100);
       }
     }
@@ -289,13 +290,14 @@ export default function DashboardPage() {
                          toast.error("Another audiologist has already joined this consultation");
                          setJoiningConsultationId(null);
                          return;
-                       }
-                     }
-                   } catch (fetchError) {
-                     console.error("Error fetching consultation:", fetchError);
-                     // Fallback: check cached data
-                     const consultation = consultations?.data?.find(c => c.id === consultationId);
-                     if (consultation?.audiologist?.userId === user?.id) {
+                      }
+                    }
+                  } catch (fetchError) {
+                    console.error("Error fetching consultation:", fetchError);
+                    // Fallback: check cached data
+                    const consultationsArray = consultations?.data ? extractConsultations(consultations.data) : [];
+                    const consultation = consultationsArray.find(c => c.id === consultationId);
+                    if (consultation?.audiologist?.userId === user?.id) {
                        console.log("✅ Same audiologist rejoining (from cache), allowing rejoin");
                        const stopSoundEvent = new CustomEvent('stopContinuousSound');
                        window.dispatchEvent(stopSoundEvent);
@@ -355,7 +357,8 @@ export default function DashboardPage() {
             } catch (fetchError) {
               console.error("Error fetching consultation:", fetchError);
               // Fallback: check cached data
-              const consultation = consultations?.data?.find(c => c.id === consultationId);
+              const consultationsArray = consultations?.data ? extractConsultations(consultations.data) : [];
+              const consultation = consultationsArray.find(c => c.id === consultationId);
               if (consultation?.audiologist?.userId === user?.id) {
                 console.log("✅ Same audiologist rejoining (from cache), allowing rejoin");
                 const stopSoundEvent = new CustomEvent('stopContinuousSound');
@@ -420,7 +423,8 @@ export default function DashboardPage() {
             } catch (fetchError) {
               console.error("Error fetching consultation:", fetchError);
               // Fallback: check cached data
-              const consultation = consultations?.data?.find(c => c.id === joiningConsultationId);
+              const consultationsArray = consultations?.data ? extractConsultations(consultations.data) : [];
+              const consultation = consultationsArray.find(c => c.id === joiningConsultationId);
               if (consultation?.audiologist?.userId === user?.id) {
                 console.log("✅ Same audiologist rejoining (from cache), allowing rejoin");
                 setJoiningConsultationId(null);
@@ -490,7 +494,8 @@ export default function DashboardPage() {
             } catch (fetchError) {
               console.error("Error fetching consultation:", fetchError);
               // Fallback: check cached data
-              const consultation = consultations?.data?.find(c => c.id === joiningConsultationId);
+              const consultationsArray = consultations?.data ? extractConsultations(consultations.data) : [];
+              const consultation = consultationsArray.find(c => c.id === joiningConsultationId);
               if (consultation?.audiologist?.userId === user?.id) {
                 console.log("✅ Same audiologist rejoining (from cache), allowing rejoin");
                 setJoiningConsultationId(null);
@@ -566,7 +571,8 @@ export default function DashboardPage() {
     console.log(consultationId);
 
     // Frontend defensive check: Verify consultation is still available before joining
-    const consultation = consultations?.data?.find(c => c.id === consultationId);
+    const consultationsArray = consultations?.data ? extractConsultations(consultations.data) : [];
+    const consultation = consultationsArray.find(c => c.id === consultationId);
     
     // Check if consultation is already completed or cancelled
     if (consultation?.status === SessionStatus.COMPLETED || 

@@ -20,7 +20,8 @@ mixin _$AppointmentsState {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments, int total)
+    required TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)
         success,
     required TResult Function(AppointmentEntity appointment)
         appointmentByIdSuccess,
@@ -35,7 +36,9 @@ mixin _$AppointmentsState {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult? Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult? Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult? Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult? Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -46,7 +49,9 @@ mixin _$AppointmentsState {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -152,7 +157,8 @@ class _$AppointmentsInitialImpl implements AppointmentsInitial {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments, int total)
+    required TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)
         success,
     required TResult Function(AppointmentEntity appointment)
         appointmentByIdSuccess,
@@ -170,7 +176,9 @@ class _$AppointmentsInitialImpl implements AppointmentsInitial {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult? Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult? Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult? Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult? Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -184,7 +192,9 @@ class _$AppointmentsInitialImpl implements AppointmentsInitial {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -292,7 +302,8 @@ class _$AppointmentsLoadingImpl implements AppointmentsLoading {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments, int total)
+    required TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)
         success,
     required TResult Function(AppointmentEntity appointment)
         appointmentByIdSuccess,
@@ -310,7 +321,9 @@ class _$AppointmentsLoadingImpl implements AppointmentsLoading {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult? Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult? Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult? Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult? Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -324,7 +337,9 @@ class _$AppointmentsLoadingImpl implements AppointmentsLoading {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -397,7 +412,11 @@ abstract class _$$AppointmentsSuccessImplCopyWith<$Res> {
           $Res Function(_$AppointmentsSuccessImpl) then) =
       __$$AppointmentsSuccessImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({List<AppointmentEntity> appointments, int total});
+  $Res call(
+      {List<AppointmentEntity> appointments,
+      int total,
+      bool hasMore,
+      bool isLoadingMore});
 }
 
 /// @nodoc
@@ -413,6 +432,8 @@ class __$$AppointmentsSuccessImplCopyWithImpl<$Res>
   $Res call({
     Object? appointments = null,
     Object? total = null,
+    Object? hasMore = null,
+    Object? isLoadingMore = null,
   }) {
     return _then(_$AppointmentsSuccessImpl(
       appointments: null == appointments
@@ -423,6 +444,14 @@ class __$$AppointmentsSuccessImplCopyWithImpl<$Res>
           ? _value.total
           : total // ignore: cast_nullable_to_non_nullable
               as int,
+      hasMore: null == hasMore
+          ? _value.hasMore
+          : hasMore // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isLoadingMore: null == isLoadingMore
+          ? _value.isLoadingMore
+          : isLoadingMore // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -432,7 +461,9 @@ class __$$AppointmentsSuccessImplCopyWithImpl<$Res>
 class _$AppointmentsSuccessImpl implements AppointmentsSuccess {
   const _$AppointmentsSuccessImpl(
       {required final List<AppointmentEntity> appointments,
-      required this.total})
+      required this.total,
+      this.hasMore = false,
+      this.isLoadingMore = false})
       : _appointments = appointments;
 
   final List<AppointmentEntity> _appointments;
@@ -445,10 +476,16 @@ class _$AppointmentsSuccessImpl implements AppointmentsSuccess {
 
   @override
   final int total;
+  @override
+  @JsonKey()
+  final bool hasMore;
+  @override
+  @JsonKey()
+  final bool isLoadingMore;
 
   @override
   String toString() {
-    return 'AppointmentsState.success(appointments: $appointments, total: $total)';
+    return 'AppointmentsState.success(appointments: $appointments, total: $total, hasMore: $hasMore, isLoadingMore: $isLoadingMore)';
   }
 
   @override
@@ -458,12 +495,19 @@ class _$AppointmentsSuccessImpl implements AppointmentsSuccess {
             other is _$AppointmentsSuccessImpl &&
             const DeepCollectionEquality()
                 .equals(other._appointments, _appointments) &&
-            (identical(other.total, total) || other.total == total));
+            (identical(other.total, total) || other.total == total) &&
+            (identical(other.hasMore, hasMore) || other.hasMore == hasMore) &&
+            (identical(other.isLoadingMore, isLoadingMore) ||
+                other.isLoadingMore == isLoadingMore));
   }
 
   @override
   int get hashCode => Object.hash(
-      runtimeType, const DeepCollectionEquality().hash(_appointments), total);
+      runtimeType,
+      const DeepCollectionEquality().hash(_appointments),
+      total,
+      hasMore,
+      isLoadingMore);
 
   @JsonKey(ignore: true)
   @override
@@ -477,7 +521,8 @@ class _$AppointmentsSuccessImpl implements AppointmentsSuccess {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments, int total)
+    required TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)
         success,
     required TResult Function(AppointmentEntity appointment)
         appointmentByIdSuccess,
@@ -487,7 +532,7 @@ class _$AppointmentsSuccessImpl implements AppointmentsSuccess {
         updateAppointmentSuccess,
     required TResult Function(String message) error,
   }) {
-    return success(appointments, total);
+    return success(appointments, total, hasMore, isLoadingMore);
   }
 
   @override
@@ -495,13 +540,15 @@ class _$AppointmentsSuccessImpl implements AppointmentsSuccess {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult? Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult? Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult? Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult? Function(AppointmentEntity appointment)? updateAppointmentSuccess,
     TResult? Function(String message)? error,
   }) {
-    return success?.call(appointments, total);
+    return success?.call(appointments, total, hasMore, isLoadingMore);
   }
 
   @override
@@ -509,7 +556,9 @@ class _$AppointmentsSuccessImpl implements AppointmentsSuccess {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -517,7 +566,7 @@ class _$AppointmentsSuccessImpl implements AppointmentsSuccess {
     required TResult orElse(),
   }) {
     if (success != null) {
-      return success(appointments, total);
+      return success(appointments, total, hasMore, isLoadingMore);
     }
     return orElse();
   }
@@ -575,10 +624,14 @@ class _$AppointmentsSuccessImpl implements AppointmentsSuccess {
 abstract class AppointmentsSuccess implements AppointmentsState {
   const factory AppointmentsSuccess(
       {required final List<AppointmentEntity> appointments,
-      required final int total}) = _$AppointmentsSuccessImpl;
+      required final int total,
+      final bool hasMore,
+      final bool isLoadingMore}) = _$AppointmentsSuccessImpl;
 
   List<AppointmentEntity> get appointments;
   int get total;
+  bool get hasMore;
+  bool get isLoadingMore;
   @JsonKey(ignore: true)
   _$$AppointmentsSuccessImplCopyWith<_$AppointmentsSuccessImpl> get copyWith =>
       throw _privateConstructorUsedError;
@@ -654,7 +707,8 @@ class _$AppointmentByIdSuccessImpl implements AppointmentByIdSuccess {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments, int total)
+    required TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)
         success,
     required TResult Function(AppointmentEntity appointment)
         appointmentByIdSuccess,
@@ -672,7 +726,9 @@ class _$AppointmentByIdSuccessImpl implements AppointmentByIdSuccess {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult? Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult? Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult? Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult? Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -686,7 +742,9 @@ class _$AppointmentByIdSuccessImpl implements AppointmentByIdSuccess {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -831,7 +889,8 @@ class _$CreateAppointmentSuccessImpl implements CreateAppointmentSuccess {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments, int total)
+    required TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)
         success,
     required TResult Function(AppointmentEntity appointment)
         appointmentByIdSuccess,
@@ -849,7 +908,9 @@ class _$CreateAppointmentSuccessImpl implements CreateAppointmentSuccess {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult? Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult? Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult? Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult? Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -863,7 +924,9 @@ class _$CreateAppointmentSuccessImpl implements CreateAppointmentSuccess {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -1008,7 +1071,8 @@ class _$UpdateAppointmentSuccessImpl implements UpdateAppointmentSuccess {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments, int total)
+    required TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)
         success,
     required TResult Function(AppointmentEntity appointment)
         appointmentByIdSuccess,
@@ -1026,7 +1090,9 @@ class _$UpdateAppointmentSuccessImpl implements UpdateAppointmentSuccess {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult? Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult? Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult? Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult? Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -1040,7 +1106,9 @@ class _$UpdateAppointmentSuccessImpl implements UpdateAppointmentSuccess {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -1181,7 +1249,8 @@ class _$AppointmentsErrorImpl implements AppointmentsError {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments, int total)
+    required TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)
         success,
     required TResult Function(AppointmentEntity appointment)
         appointmentByIdSuccess,
@@ -1199,7 +1268,9 @@ class _$AppointmentsErrorImpl implements AppointmentsError {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult? Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult? Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult? Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult? Function(AppointmentEntity appointment)? updateAppointmentSuccess,
@@ -1213,7 +1284,9 @@ class _$AppointmentsErrorImpl implements AppointmentsError {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int total)? success,
+    TResult Function(List<AppointmentEntity> appointments, int total,
+            bool hasMore, bool isLoadingMore)?
+        success,
     TResult Function(AppointmentEntity appointment)? appointmentByIdSuccess,
     TResult Function(AppointmentEntity appointment)? createAppointmentSuccess,
     TResult Function(AppointmentEntity appointment)? updateAppointmentSuccess,

@@ -19,6 +19,7 @@ import 'package:earkart_omni/features/home/presentation/pages/root_screen.dart';
 import 'package:earkart_omni/features/lookup/presentation/cubit/lookup.cubit.dart';
 import 'package:earkart_omni/features/network/presentation/cubit/network.cubit.dart';
 import 'package:earkart_omni/features/chat/presentation/cubit/chat.cubit.dart';
+import 'package:earkart_omni/features/payment/presentation/cubit/payment.cubit.dart';
 import 'package:earkart_omni/features/patients/data/source/local/patient.entity.source.dart';
 import 'package:earkart_omni/features/appointments/data/source/local/appointments.entity.source.dart';
 import 'package:earkart_omni/features/patients/presentation/cubit/patient.cubit.dart';
@@ -259,6 +260,8 @@ class _SystemUIObserver extends WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         // App resumed, ensure full screen mode
         _enableFullScreenMode();
+        // Ensure wakelock is active when app is active
+        WakelockManager.ensureActive();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
@@ -486,6 +489,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ),
         BlocProvider<ChatCubit>(
           create: (context) => di.call<ChatCubit>(),
+        ),
+        BlocProvider<PaymentCubit>(
+          create: (context) => di.call<PaymentCubit>(),
         ),
       ],
       child: AnimatedSwitcher(

@@ -15,6 +15,8 @@ class ConsultationState with _$ConsultationState {
   }) = CreateConsultationSuccess;
   const factory ConsultationState.allConsultationsSuccess({
     required List<ConsultationEntity> consultations,
+    @Default(false) bool hasMore,
+    @Default(false) bool isLoadingMore,
   }) = AllConsultationsSuccess;
   const factory ConsultationState.allConsultationsError({
     required String message,
