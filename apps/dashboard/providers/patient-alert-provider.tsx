@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
   ReactNode,
+  useCallback,
 } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useGetUser } from "@/hooks/auth/use-get-user";
@@ -95,7 +96,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
 
   // Initialize audio
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && !audioRef.current) {
       audioRef.current = new Audio("/notification-sound.mp3");
       audioRef.current.volume = 0.7;
       audioRef.current.preload = "auto";
@@ -116,7 +117,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
 
       // Audio will be initialized when first alert triggers
     }
-  }, [audioInitialized]);
+  }, []); // Only run once on mount
 
   // Function to start continuous notification sound
   const startContinuousSound = async () => {
@@ -277,7 +278,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   }, [alerts, isAudiologist, isOnConsultationRoute, currentUserIsInCall]);
 
   // Function to check if consultation needs attention
-  const checkConsultationNeedsAttention = (consultation: ConsultationModelData) => {
+  const checkConsultationNeedsAttention = useCallback((consultation: ConsultationModelData) => {
     if (!isAudiologist) return false;
 
     // Check if consultation is already in progress, completed, or cancelled - no longer needs attention
@@ -293,10 +294,10 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
     const needsAttention = !consultation.audiologist; // No audiologist assigned
 
     return needsAttention;
-  };
+  }, [isAudiologist]);
 
   // Function to create alert for consultation that needs attention
-  const resolveConsultationAlert = (consultationId: string) => {
+  const resolveConsultationAlert = useCallback((consultationId: string) => {
     console.log(`🛑 Resolving alert for consultation: ${consultationId}`);
     
     // Check current alerts to see if this is the last active one
@@ -320,76 +321,67 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       next.delete(consultationId);
       return next;
     });
-  };
+  }, []); // stopContinuousSound is defined above and stable
 
-  const createAttentionAlert = (consultation: ConsultationModelData) => {
-    // Don't create duplicate alerts for the same consultation
-    if (notifiedConsultations.has(consultation.id)) {
-      console.log(`Skipping duplicate alert for consultation: ${consultation.id}`);
-      return;
-    }
-
-    // Check if there's already an active alert for this consultation
-    const existingAlert = alerts.find(
-      alert => alert.consultationId === consultation.id && alert.isActive
-    );
-    
-    if (existingAlert) {
-      console.log(`Active alert already exists for consultation: ${consultation.id}`);
-      return;
-    }
-
-    const reason = "NO_AUDIOLOGIST";
-    const reasonText = "No Audiologist Assigned";
-
-    const newAlert: ConsultationNeedsAttentionAlert = {
-      id: `${consultation.id}-${Date.now()}-${reason}`,
-      consultationId: consultation.id,
-      patientName: consultation.patient?.name || "Unknown Patient",
-      centreName: consultation.centre?.user?.name || "Unknown Centre",
-      reason,
-      timestamp: new Date(),
-      isActive: true,
-    };
-
-    console.log(`Creating new alert for consultation: ${consultation.id}, reason: ${reason}, patient: ${newAlert.patientName}`);
-
-    setAlerts((prev) => [newAlert, ...prev]);
-    setNotifiedConsultations((prev) => new Set([...prev, consultation.id]));
-
-    // Play audio alert immediately when consultation needs attention
-    // BUT only if:
-    // 1. Audiologist is NOT on a consultation route
-    // 2. Current audiologist is NOT in a call (real-time status check)
-    // This ensures notifications play for everyone EXCEPT those currently in a call
-    // When a new consultation arrives, sound should come to all audiologists EXCEPT the one in call
-    if (!isOnConsultationRoute && !currentUserIsInCall) {
-      console.log("🔔 Playing notification sound for new alert - consultation:", consultation.id, "user in call:", currentUserIsInCall);
-      playNotificationSound();
-    } else {
-      if (isOnConsultationRoute) {
-        console.log("⏭️ Skipping notification sound - audiologist is on consultation route");
+  const createAttentionAlert = useCallback((consultation: ConsultationModelData) => {
+    // Use functional updates to access current state without dependencies
+    setNotifiedConsultations((prevNotified) => {
+      // Don't create duplicate alerts for the same consultation
+      if (prevNotified.has(consultation.id)) {
+        console.log(`Skipping duplicate alert for consultation: ${consultation.id}`);
+        return prevNotified;
       }
-      if (currentUserIsInCall) {
-        console.log("⏭️ Skipping notification sound - audiologist is currently in a call (should not hear notifications)");
-      }
-    }
 
-    // Show visual toast notification
-    // toast.warning(
-    //   `⚠️ ${reasonText}: ${newAlert.patientName} at ${newAlert.centreName}`,
-    //   {
-    //     duration: 10000,
-    //     action: {
-    //       label: "View",
-    //       onClick: () => {
-    //         window.open(`/consultation/${consultation.id}`, "_blank");
-    //         dismissAlert(newAlert.id);
-    //       },
-    //     },
-    //   }
-    // );
-  };
+      setAlerts((prevAlerts) => {
+        // Check if there's already an active alert for this consultation
+        const existingAlert = prevAlerts.find(
+          alert => alert.consultationId === consultation.id && alert.isActive
+        );
+        
+        if (existingAlert) {
+          console.log(`Active alert already exists for consultation: ${consultation.id}`);
+          return prevAlerts;
+        }
+
+        const reason = "NO_AUDIOLOGIST";
+        const reasonText = "No Audiologist Assigned";
+
+        const newAlert: ConsultationNeedsAttentionAlert = {
+          id: `${consultation.id}-${Date.now()}-${reason}`,
+          consultationId: consultation.id,
+          patientName: consultation.patient?.name || "Unknown Patient",
+          centreName: consultation.centre?.user?.name || "Unknown Centre",
+          reason,
+          timestamp: new Date(),
+          isActive: true,
+        };
+
+        console.log(`Creating new alert for consultation: ${consultation.id}, reason: ${reason}, patient: ${newAlert.patientName}`);
+
+        // Play audio alert immediately when consultation needs attention
+        // BUT only if:
+        // 1. Audiologist is NOT on a consultation route
+        // 2. Current audiologist is NOT in a call (real-time status check)
+        // This ensures notifications play for everyone EXCEPT those currently in a call
+        // When a new consultation arrives, sound should come to all audiologists EXCEPT the one in call
+        if (!isOnConsultationRoute && !currentUserIsInCall) {
+          console.log("🔔 Playing notification sound for new alert - consultation:", consultation.id, "user in call:", currentUserIsInCall);
+          playNotificationSound();
+        } else {
+          if (isOnConsultationRoute) {
+            console.log("⏭️ Skipping notification sound - audiologist is on consultation route");
+          }
+          if (currentUserIsInCall) {
+            console.log("⏭️ Skipping notification sound - audiologist is currently in a call (should not hear notifications)");
+          }
+        }
+
+        return [newAlert, ...prevAlerts];
+      });
+
+      return new Set([...prevNotified, consultation.id]);
+    });
+  }, [isOnConsultationRoute, currentUserIsInCall]);
 
   // Socket event listeners for consultation updates
   useEffect(() => {
@@ -478,7 +470,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       socket.off("consultation_ended", handleConsultationEnded);
       socket.off("end:consultation", handleConsultationEnded);
     };
-  }, [socket, isAudiologist, notifiedConsultations]);
+  }, [socket, isAudiologist]); // Removed notifiedConsultations to prevent frequent re-registration
 
   // NEW: Listen for CustomEvent when consultations are displayed and need attention
   useEffect(() => {
@@ -514,7 +506,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
         window.removeEventListener('clearNotificationCache', handleClearNotificationCache);
       }
     };
-  }, [isAudiologist, notifiedConsultations]);
+  }, [isAudiologist]); // Removed notifiedConsultations to prevent frequent re-registration
 
   const dismissAlert = (alertId: string) => {
     console.log(`Dismissing alert: ${alertId}`);

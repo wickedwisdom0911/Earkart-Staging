@@ -28,10 +28,11 @@ import {
 interface FrequencyResponseData {
   frequency: number;
   responseDb: number;
-  snr: number;
+  snr: number | null;
   noiseLevel: number;
   passed: boolean;
   isTesting: boolean; // Currently being tested
+  ear?: "L" | "R"; // Track which ear this response belongs to
 }
 
 // DPOAE Graph Component
@@ -43,8 +44,10 @@ interface DpoaeGraphProps {
 
 function DpoaeGraph({ data, frequencies, selectedEar }: DpoaeGraphProps) {
   // Build chart data from frequencies list, merging with actual response data
+  // Filter by selected ear to show only current ear's data
+  const earFilteredData = data.filter((r) => !r.ear || r.ear === selectedEar);
   const chartData = frequencies.map((freqConfig) => {
-    const response = data.find((r) => r.frequency === freqConfig.Frequency);
+    const response = earFilteredData.find((r) => r.frequency === freqConfig.Frequency);
     return {
       frequency: freqConfig.Frequency,
       responseDb: response?.responseDb ?? null,
@@ -405,8 +408,9 @@ export default function OtoacousticPage() {
               responseDb: fr.signal,
               noiseLevel: fr.noise,
               snr: fr.signal && fr.noise ? fr.signal - fr.noise : null,
-              pass: fr.pass || false,
+              passed: fr.pass || false,
               ear: ear,
+              isTesting: false,
             });
           });
         }
@@ -458,7 +462,7 @@ export default function OtoacousticPage() {
     } catch (error) {
       console.error('Failed to save to localStorage:', error);
     }
-  }, [params.consultationId, frequencyResponses, completedEars, testResults, consultation?.oae?.status, hasLoadedFromStorage]);
+  }, [params.consultationId, frequencyResponses, completedEars, testResults, (consultation as any)?.data?.oae?.status, hasLoadedFromStorage]);
 
   // Function to save OAE results to consultation
   const saveOaeResults = useCallback(async () => {
@@ -472,9 +476,9 @@ export default function OtoacousticPage() {
     const existingOae = consultationData.oae || {};
     const existingEarTests = existingOae.earTests || [];
 
-    // Process current ear's frequency responses
+    // Process current ear's frequency responses - FILTER BY SELECTED EAR
     const currentEarResponses = frequencyResponses
-      .filter(fr => fr.frequency !== null && fr.responseDb !== null)
+      .filter(fr => (!fr.ear || fr.ear === selectedEar) && fr.frequency !== null && fr.responseDb !== null)
       .map(fr => {
         const freqConfig = frequencies.find(f => f.Frequency === fr.frequency);
         const threshold = freqConfig?.SNR ?? 6;
@@ -616,7 +620,8 @@ export default function OtoacousticPage() {
       setResponseLevel(null);
       setNoiseLevel(null);
       setCurrentFrequency(null);
-      setFrequencyResponses([]);
+      // Only clear current ear's responses, preserve the other ear's data
+      setFrequencyResponses(prev => prev.filter(fr => fr.ear && fr.ear !== selectedEar));
 
       // Start the test
       setIsRunning(true);
@@ -801,7 +806,7 @@ export default function OtoacousticPage() {
       if (frequency !== undefined && signal !== undefined) {
         setFrequencyResponses((prev) => {
           const existingIndex = prev.findIndex(
-            (r) => r.frequency === frequency
+            (r) => r.frequency === frequency && (!r.ear || r.ear === selectedEar)
           );
           
           const freqConfig = frequencies.find(
@@ -817,6 +822,7 @@ export default function OtoacousticPage() {
             noiseLevel: noise ?? 0, // Use 0 as default if null
             passed: passed,
             isTesting: true,
+            ear: selectedEar, // Track which ear this response belongs to
           };
           
           console.log("📈 [DPOAE Status] Updating graph data for frequency:", frequency, {
@@ -899,7 +905,7 @@ export default function OtoacousticPage() {
               ? fr.passed 
               : (snrValue !== null ? snrValue >= threshold : (responseValue ?? 0) > minimumSignalThreshold);
             
-            const existingIndex = updated.findIndex((r) => r.frequency === freqHz);
+            const existingIndex = updated.findIndex((r) => r.frequency === freqHz && (!r.ear || r.ear === selectedEar));
             const finalResponse: FrequencyResponseData = {
               frequency: freqHz,
               responseDb: responseValue,
@@ -907,6 +913,7 @@ export default function OtoacousticPage() {
               noiseLevel: noiseValue,
               passed: passed,
               isTesting: false,
+              ear: selectedEar, // Track which ear this response belongs to
             };
             
             console.log(`✅ [DPOAE Data] Final response for ${freqHz}Hz:`, {
@@ -932,7 +939,7 @@ export default function OtoacousticPage() {
         console.log("📊 [DPOAE Data] Processing single frequency completion:", freqHz, dpoaeData);
         
         setFrequencyResponses((prev) => {
-          const existingIndex = prev.findIndex((r) => r.frequency === freqHz);
+          const existingIndex = prev.findIndex((r) => r.frequency === freqHz && (!r.ear || r.ear === selectedEar));
           const freqConfig = frequencies.find((f) => f.Frequency === freqHz);
           const threshold = freqConfig?.SNR ?? 6;
           const snrValue = dpoaeData.snr ?? dpoaeData.SNR ?? null;
@@ -949,6 +956,7 @@ export default function OtoacousticPage() {
             noiseLevel: noiseValue,
             passed: passed,
             isTesting: false,
+            ear: selectedEar, // Track which ear this response belongs to
           };
           
           console.log(`✅ [DPOAE Data] Final response for ${freqHz}Hz:`, {
