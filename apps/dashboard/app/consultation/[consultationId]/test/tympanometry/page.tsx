@@ -648,7 +648,10 @@ export default function TympanometryPage() {
     }
   }, [consultation, params.consultationId, hasLoadedFromStorage, localReadings.length]);
 
-  // Load saved reading data whenever the selected ear changes
+  // Load saved reading data whenever the selected ear changes (but NOT when test completes)
+  // Use a ref to track the previous ear to detect actual ear switches
+  const prevEarRef = React.useRef<"L" | "R" | null>(null);
+  
   React.useEffect(() => {
     const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
     const savedReading = localReadings.find(r => 
@@ -657,7 +660,13 @@ export default function TympanometryPage() {
       r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
     );
 
-    if (savedReading && !isRunning) {
+    // Only reload saved data when:
+    // 1. Ear actually changed (not when isRunning changes from test completion)
+    // 2. Test is not currently running
+    const earChanged = prevEarRef.current !== null && prevEarRef.current !== selectedEar;
+    const isInitialLoad = prevEarRef.current === null;
+    
+    if (savedReading && !isRunning && (earChanged || isInitialLoad)) {
       // Load saved values for display
       setPeakPressure(savedReading.peakPressure);
       setPeakCompliance(savedReading.peakCompliance ?? null);
@@ -689,7 +698,10 @@ export default function TympanometryPage() {
         setIsTestCompleted(false);
       }
     }
-  }, [selectedEar, consultation, localReadings, isRunning]);
+    
+    // Update ref to track current ear
+    prevEarRef.current = selectedEar;
+  }, [selectedEar, consultation, localReadings]);
 
   // Save test results to localStorage whenever they change (preserve even after submission)
   useEffect(() => {

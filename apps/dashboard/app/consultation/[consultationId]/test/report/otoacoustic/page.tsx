@@ -419,18 +419,18 @@ export default function OtoacousticReportPage() {
               <div className="relative">
                 <div className="text-blue-900 px-6 py-4 rounded-lg shadow-md" style={{ backgroundColor: '#8bdaef' }}>
                   <div className="text-center">
-                    <p className="font-bold text-sm mb-2">{consultationData.centre?.user?.name || "Clinic Name"}</p>
+                    <p className="font-bold text-base mb-2">{consultationData.centre?.user?.name || "Demo Clinic"}</p>
                     <div className="flex items-center justify-center mb-1">
-                      <span className="text-xs mr-1">👨‍⚕️</span>
-                      <span className="text-xs">Dr. {consultationData.centre?.entName || "ENT Name"}</span>
+                      <span className="text-sm mr-1">👨‍⚕️</span>
+                      <span className="text-sm">Dr. {consultationData.centre?.entName || "Demo ENT"}</span>
                     </div>
                     <div className="flex items-center justify-center mb-1">
-                      <span className="text-xs mr-1">📞</span>
-                      <span className="text-xs">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
+                      <span className="text-sm mr-1">📞</span>
+                      <span className="text-sm">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
                     </div>
                     <div className="flex items-center justify-center">
-                      <span className="text-xs mr-1">📍</span>
-                      <span className="text-xs">{consultationData.centre?.address || "Address"}</span>
+                      <span className="text-sm mr-1">📍</span>
+                      <span className="text-sm">{consultationData.centre?.address || "Address"}</span>
                     </div>
                   </div>
                 </div>
