@@ -993,66 +993,123 @@ export default function ReportPage() {
   };
 
   return (
-    <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
-      <div className="w-[1100px] max-h-[calc(100vh-2rem)] bg-white shadow-lg overflow-hidden">
-        <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareClick} />
+    <>
+      <style jsx global>{`
+        @page {
+          size: A4;
+          margin: 10mm 3mm 2mm 3mm;
+        }
         
-        <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: 'Arial, sans-serif' }}>
+        @media print {
+          * {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+          
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          /* Audiogram container - Page 1 */
+          [data-section="audiogram-charts"] {
+            page-break-inside: avoid !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            padding: 5mm 3mm !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            min-height: 700px !important;
+          }
+          
+          /* Make audiogram charts larger */
+          .audiogram-chart-wrapper svg {
+            margin-top: 2mm !important;
+            margin-bottom: 2mm !important;
+            transform: scale(1.25);
+            transform-origin: center;
+          }
+          
+          .audiogram-chart-wrapper h3 {
+            margin-bottom: 5mm !important;
+            margin-top: 3mm !important;
+            font-size: 14px !important;
+            font-weight: bold !important;
+          }
+          
+          /* PTA section - starts Page 2 */
+          .pta-symbols-container {
+            page-break-before: always !important;
+            break-before: page !important;
+            margin-top: 5mm !important;
+            padding-top: 5mm !important;
+          }
+          
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
+      
+      <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
+        <div className="w-[1100px] h-[calc(100vh-2rem)] print:h-auto bg-white shadow-lg overflow-hidden print:overflow-visible print-report-container flex flex-col print:block">
+          <div className="no-print flex-shrink-0">
+            <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareClick} />
+          </div>
+          
+          <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto flex-1 print:max-h-none print:overflow-visible print:flex-none print:h-auto pb-8" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
-          <div className="relative text-white overflow-hidden" >
-            <div className="relative flex items-center justify-between p-6 z-10">
-              {/* Left Side - Logo */}
-              <div className="flex items-center bg-white p-2 rounded">
-              <Image
-                    src="/EARKART LOGO BLUE.webp" 
-                    alt="earKART Logo" 
-                    width={200} 
-                    height={250}
-                    className="bg-white"
-                  />
+          <div className="relative text-white overflow-hidden" data-section="header">
+            <div className="relative flex items-center justify-between p-6 print:p-3 z-10">
+              <div className="flex items-center bg-white p-2 print:p-1 rounded">
+                <Image
+                  src="/EARKART LOGO BLUE.webp" 
+                  alt="earKART Logo" 
+                  width={200} 
+                  height={250}
+                  className="bg-white print:w-32 print:h-auto"
+                />
               </div>
               
-              {/* Right Side - Clean Card */}
               <div className="relative">
                 <div 
                   className="text-blue-900 px-6 py-4 rounded-lg shadow-md"
                   style={{ backgroundColor: '#8bdaef' }}
                 >
                   <div className="text-center">
-                    <p className="font-bold text-sm mb-2">{consultationData.centre?.user?.name || "Clinic Name"}</p>
+                    <p className="font-bold text-base mb-2">{consultationData.centre?.user?.name || "Demo Clinic"}</p>
                     <div className="flex items-center justify-center mb-1">
-                      <span className="text-xs mr-1">👨‍⚕️</span>
-                      <span className="text-xs">Dr. {consultationData.centre?.entName || "ENT Name"}</span>
+                      <span className="text-sm mr-1">👨‍⚕️</span>
+                      <span className="text-sm">Dr. {consultationData.centre?.entName || "Demo ENT"}</span>
                     </div>
                     <div className="flex items-center justify-center mb-1">
-                      <span className="text-xs mr-1">📞</span>
-                      <span className="text-xs">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
+                      <span className="text-sm mr-1">📞</span>
+                      <span className="text-sm">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
                     </div>
                     <div className="flex items-center justify-center">
-                      <span className="text-xs mr-1">📍</span>
-                      <span className="text-xs">{consultationData.centre?.address || "Address"}</span>
+                      <span className="text-sm mr-1">📍</span>
+                      <span className="text-sm">{consultationData.centre?.address || "Address"}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-            
-
           </div>
 
           {/* Pure Tone Audiogram Title */}
-          <div className="py-8 bg-gray-50 text-center">
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex items-center gap-3 flex-wrap justify-center">
-                <h2 className="text-2xl font-bold text-gray-800">Pure Tone Audiogram</h2>
+          <div className="py-4 print:py-0.5 bg-gray-50 text-center">
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                <h2 className="text-2xl print:text-base font-bold text-gray-800">Pure Tone Audiogram</h2>
                 {isDemoAccount && (
-                  <span className="bg-amber-100 text-amber-900 border border-amber-200 text-xs font-semibold uppercase tracking-wide px-3 py-1 rounded-full">
+                  <span className="bg-amber-100 text-amber-900 border border-amber-200 text-xs print:text-[8px] font-semibold uppercase tracking-wide px-3 print:px-2 py-1 print:py-0.5 rounded-full">
                     Demo Report
                   </span>
                 )}
               </div>
               {isDemoAccount && (
-                <p className="text-xs text-amber-800">
+                <p className="text-xs print:text-[8px] text-amber-800">
                   Generated from a demo account – values are for training purposes only.
                 </p>
               )}
@@ -1060,22 +1117,22 @@ export default function ReportPage() {
           </div>
 
           {/* Patient Information */}
-          <div className="px-10 py-6 bg-white border-b relative z-10">
-            <div className="grid grid-cols-12 gap-6 text-base">
+          <div className="px-10 print:px-3 py-3 print:py-1 bg-white border-b relative z-10">
+            <div className="grid grid-cols-12 gap-3 print:gap-2 text-sm print:text-[9px]">
               <div className="col-span-3 flex items-center">
-                <span className="font-medium mr-2">ID :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
+                <span className="font-medium mr-1 print:mr-0.5">ID :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
                   {consultationData.patient?.code || ""}
                 </span>
               </div>
-              <div className="col-span-6 flex items-center">
-                <span className="font-medium mr-2">Name :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
+              <div className="col-span-3 flex items-center">
+                <span className="font-medium mr-1 print:mr-0.5">Name :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
                   {consultationData.patient?.name || ""}
                 </span>
               </div>
               <div className="col-span-3 flex items-center">
-                <span className="font-medium mr-2">Date :</span>
+                <span className="font-medium mr-1 print:mr-0.5">Date :</span>
                 {isAiims && isEditingDate ? (
                   <div className="flex items-center gap-2 flex-1">
                     <Input
@@ -1107,7 +1164,7 @@ export default function ReportPage() {
                   </div>
                 ) : (
                   <span 
-                    className={`border-b border-dotted border-gray-400 flex-1 pb-1 ${isAiims ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                    className={`border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0 ${isAiims ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                     onClick={() => isAiims && setIsEditingDate(true)}
                     title={isAiims ? "Click to edit date" : ""}
                   >
@@ -1115,57 +1172,47 @@ export default function ReportPage() {
                   </span>
                 )}
               </div>
-            </div>
-            
-            <div className="grid grid-cols-12 gap-6 text-base mt-4">
-              <div className="col-span-7 flex items-center">
-                <span className="font-medium mr-2">Address :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
-                  {consultationData.patient?.address || ""}
-                </span>
-              </div>
-              <div className="col-span-2 flex items-center">
-                <span className="font-medium mr-2">Age :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
+              <div className="col-span-3 flex items-center">
+                <span className="font-medium mr-1 print:mr-0.5">Age :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
                   {consultationData.patient?.age || 
                    (consultationData.patient?.dob ? 
                      Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) 
                      : "")}
                 </span>
               </div>
-              <div className="col-span-2 flex items-center">
-                <span className="font-medium mr-2">Sex :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
+              <div className="col-span-3 flex items-center">
+                <span className="font-medium mr-1 print:mr-0.5">Sex :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
                   {consultationData.patient?.gender || ""}
                 </span>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-6 text-base mt-4 bg-white">
-              <div className="flex items-center">
-                <span className="font-medium mr-2">Contact No. :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">
+              <div className="col-span-3 flex items-center">
+                <span className="font-medium mr-1 print:mr-0.5">Contact No. :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
                   {consultationData.patient?.contactNumber || ""}
                 </span>
               </div>
-              <div className="flex items-center">
-                <span className="font-medium mr-2">Referred by :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.centre?.entName || "ENT Name"}</span>
+              <div className="col-span-6 flex items-center">
+                <span className="font-medium mr-1 print:mr-0.5">Referred by :</span>
+                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
+                  {consultationData.centre?.entName || ""}
+                </span>
               </div>
             </div>
           </div>
 
           {/* Audiogram Charts */}
-          <div className="px-10 py-8 bg-gray-50 relative z-0 overflow-hidden" data-section="audiogram-charts">
-            <div className="flex justify-between items-start gap-8 pointer-events-none">
-              <div className="flex-1 overflow-hidden">
+          <div className="px-6 print:px-2 py-5 print:py-3 bg-gray-50 relative z-0 overflow-visible audiogram-charts-container" data-section="audiogram-charts">
+            <div className="flex justify-center items-start gap-3 pointer-events-none print:gap-2">
+              <div className="flex-1 overflow-hidden audiogram-chart-wrapper">
                 <AudiogramChart
                   title="Right Ear"
                   results={rightResults}
                   ear="R"
                 />
               </div>
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-hidden audiogram-chart-wrapper">
                 <AudiogramChart
                   title="Left Ear"
                   results={leftResults}
@@ -1175,150 +1222,109 @@ export default function ReportPage() {
             </div>
           </div>
 
+
           {/* PTA and Symbols Section */}
-          <div className="mx-10 mb-8 relative z-10">
-            <div className="flex gap-6 bg-white">
+          <div className="mx-6 print:mx-2 mb-2 print:mb-1 relative z-10 pta-symbols-container">
+            <div className="flex gap-2 print:gap-1 bg-white">
               {/* PTA Section */}
               <div className="flex-1">
-                <div className="bg-blue-900 text-white p-4 text-center">
-                  <h3 className="text-base font-bold">PTA (dB HL)</h3>
-                  <div className="text-sm opacity-80">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
-                  <div className="text-sm opacity-70">*Includes no-response values</div>
+                <div className="bg-blue-900 text-white p-2.5 print:p-1 text-center">
+                  <h3 className="text-xl print:text-xs font-bold">PTA (dB HL)</h3>
+                  <div className="text-[10px] print:text-[7px] opacity-80">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
+                  <div className="text-[10px] print:text-[7px] opacity-70">*Includes no-response values</div>
                 </div>
-                <div className="bg-white border border-gray-300 p-4">
-                  <div className="grid grid-cols-3 gap-0 text-sm">
-                  <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Test</div>
-                    <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Right</div>
-                    <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Left</div>
-                    <div className="font-bold border border-gray-400 p-2 text-center bg-gray-100 text-gray-800">AC</div>
-                    <div className="border border-gray-400 p-2 text-center font-semibold text-gray-800">
+                <div className="bg-white border border-gray-300 p-2.5 print:p-1">
+                  <div className="grid grid-cols-3 gap-0 text-[9px] print:text-[7px]">
+                    <div className="text-center font-bold border border-gray-400 p-1.5 print:p-1 bg-gray-100 text-gray-800">Test</div>
+                    <div className="text-center font-bold border border-gray-400 p-1.5 print:p-1 bg-gray-100 text-gray-800">Right</div>
+                    <div className="text-center font-bold border border-gray-400 p-1.5 print:p-1 bg-gray-100 text-gray-800">Left</div>
+                    <div className="font-bold border border-gray-400 p-1.5 print:p-1 text-center bg-gray-100 text-gray-800">AC</div>
+                    <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
                       {acAverage.rightEar ? `${Math.round(acAverage.rightEar)}` : "—"}
                     </div>
-                    <div className="border border-gray-400 p-2 text-center font-semibold text-gray-800">
+                    <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
                       {acAverage.leftEar ? `${Math.round(acAverage.leftEar)}` : "—"}
                     </div>
-                    <div className="font-bold border border-gray-400 p-2 text-center bg-gray-100 text-gray-800">BC</div>
-                    <div className="border border-gray-400 p-2 text-center font-semibold text-gray-800">
+                    <div className="font-bold border border-gray-400 p-1.5 print:p-1 text-center bg-gray-100 text-gray-800">BC</div>
+                    <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
                       {bcAverage.rightEar ? `${Math.round(bcAverage.rightEar)}` : "—"}
                     </div>
-                    <div className="border border-gray-400 p-2 text-center font-semibold text-gray-800">
+                    <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
                       {bcAverage.leftEar ? `${Math.round(bcAverage.leftEar)}` : "—"}
                     </div>
                   </div>
-                
-                  {/* Clinical Notes for No Responses */}
-                  {(noResponseFreqs.rightAC.length > 0 || noResponseFreqs.leftAC.length > 0 || 
-                    noResponseFreqs.rightBC.length > 0 || noResponseFreqs.leftBC.length > 0) && (
-                    <div className="mt-3 pt-3 border-t border-gray-300">
-                      <div className="text-xs font-semibold text-center mb-2 text-gray-800">No Response Frequencies</div>
-                      <div className="text-xs text-gray-700 space-y-1">
-                        {noResponseFreqs.rightAC.length > 0 && (
-                          <div>R AC: {noResponseFreqs.rightAC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
-                        )}
-                        {noResponseFreqs.leftAC.length > 0 && (
-                          <div>L AC: {noResponseFreqs.leftAC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
-                        )}
-                        {noResponseFreqs.rightBC.length > 0 && (
-                          <div>R BC: {noResponseFreqs.rightBC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
-                        )}
-                        {noResponseFreqs.leftBC.length > 0 && (
-                          <div>L BC: {noResponseFreqs.leftBC.map(f => f >= 1000 ? `${f/1000}K` : f).join(', ')} Hz</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
               
               {/* Symbols Section */}
               <div className="flex-1">
-                <div className="bg-blue-900 text-white p-4 text-center">
-                  <h3 className="text-base font-bold">Symbols (ASHA Standards)</h3>
+                <div className="bg-blue-900 text-white p-2.5 print:p-1 text-center">
+                  <h3 className="text-xl print:text-xs font-bold">Symbols (ASHA Standards)</h3>
                 </div>
-                <div className="bg-white border border-gray-300 p-4">
-                  <div className="grid grid-cols-4 gap-4 text-sm">
+                <div className="bg-white border border-gray-300 p-2.5 print:p-1">
+                  <div className="grid grid-cols-4 gap-2 print:gap-1 text-xs print:text-[8px]">
                     {/* Air Conduction Unmasked */}
                     <div className="text-center">
-                      <div className="font-bold mb-2 text-gray-800 text-xs">AC Unmasked</div>
-                      <div className="flex flex-col space-y-2">
+                      <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">AC Unmasked</div>
+                      <div className="flex flex-col space-y-1">
                         <div className="flex items-center justify-center">
-                          <div className="w-6 flex justify-center">
-                            <span className="text-red-500 text-lg">○</span>
-                          </div>
-                          <span className="text-xs text-gray-700 ml-1">R</span>
+                          <span className="text-red-500 text-base print:text-sm">○</span>
+                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">R</span>
                         </div>
                         <div className="flex items-center justify-center">
-                          <div className="w-6 flex justify-center">
-                            <span className="text-blue-500 text-lg font-bold">×</span>
-                          </div>
-                          <span className="text-xs text-gray-700 ml-1">L</span>
+                          <span className="text-blue-500 text-base print:text-sm font-bold">×</span>
+                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">L</span>
                         </div>
                       </div>
                     </div>
                     
                     {/* Air Conduction Masked */}
                     <div className="text-center">
-                      <div className="font-bold mb-2 text-gray-800 text-xs">AC Masked</div>
-                      <div className="flex flex-col space-y-2">
+                      <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">AC Masked</div>
+                      <div className="flex flex-col space-y-1">
                         <div className="flex items-center justify-center">
-                          <div className="w-6 flex justify-center">
-                            <span className="text-red-500 text-lg">□</span>
-                          </div>
-                          <span className="text-xs text-gray-700 ml-1">R</span>
+                          <span className="text-red-500 text-base print:text-sm">□</span>
+                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">R</span>
                         </div>
                         <div className="flex items-center justify-center">
-                          <div className="w-6 flex justify-center">
-                            <span className="text-blue-500 text-lg">△</span>
-                          </div>
-                          <span className="text-xs text-gray-700 ml-1">L</span>
+                          <span className="text-blue-500 text-base print:text-sm">△</span>
+                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">L</span>
                         </div>
                       </div>
                     </div>
                     
                     {/* Bone Conduction */}
                     <div className="text-center">
-                      <div className="font-bold mb-2 text-gray-800 text-xs">Bone Conduction</div>
-                      <div className="flex flex-col space-y-1">
-                        <div className="text-xs font-semibold text-gray-700 mb-1">Unmasked:</div>
-                        <div className="flex items-center justify-center space-x-3 mb-2">
-                          <div className="flex items-center">
-                            <span className="text-red-500 text-lg font-bold">&lt;</span>
-                            <span className="text-xs text-gray-700 ml-1">R</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="text-blue-500 text-lg font-bold">&gt;</span>
-                            <span className="text-xs text-gray-700 ml-1">L</span>
-                          </div>
+                      <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">Bone Cond.</div>
+                      <div className="flex flex-col space-y-0.5">
+                        <div className="text-[8px] print:text-[6px] font-semibold text-gray-600">Unmasked:</div>
+                        <div className="flex items-center justify-center space-x-1">
+                          <span className="text-red-500 text-sm print:text-xs font-bold">&lt;</span>
+                          <span className="text-[8px] print:text-[6px] text-gray-700">R</span>
+                          <span className="text-blue-500 text-sm print:text-xs font-bold">&gt;</span>
+                          <span className="text-[8px] print:text-[6px] text-gray-700">L</span>
                         </div>
-                        <div className="text-xs font-semibold text-gray-700 mb-1">Masked:</div>
-                        <div className="flex items-center justify-center space-x-3">
-                          <div className="flex items-center">
-                            <span className="text-red-500 text-lg font-bold">[</span>
-                            <span className="text-xs text-gray-700 ml-1">R</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="text-blue-500 text-lg font-bold">]</span>
-                            <span className="text-xs text-gray-700 ml-1">L</span>
-                          </div>
+                        <div className="text-[8px] print:text-[6px] font-semibold text-gray-600">Masked:</div>
+                        <div className="flex items-center justify-center space-x-1">
+                          <span className="text-red-500 text-sm print:text-xs font-bold">[</span>
+                          <span className="text-[8px] print:text-[6px] text-gray-700">R</span>
+                          <span className="text-blue-500 text-sm print:text-xs font-bold">]</span>
+                          <span className="text-[8px] print:text-[6px] text-gray-700">L</span>
                         </div>
                       </div>
                     </div>
                     
                     {/* No Response */}
                     <div className="text-center">
-                      <div className="font-bold mb-2 text-gray-800 text-xs">No Response</div>
-                      <div className="flex flex-col space-y-2">
+                      <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">No Response</div>
+                      <div className="flex flex-col space-y-1">
                         <div className="flex items-center justify-center">
-                          <div className="w-6 flex justify-center">
-                            <span className="text-red-500 text-lg">↙</span>
-                          </div>
-                          <span className="text-xs text-gray-700 ml-1">R</span>
+                          <span className="text-red-500 text-base print:text-sm">↙</span>
+                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">R</span>
                         </div>
                         <div className="flex items-center justify-center">
-                          <div className="w-6 flex justify-center">
-                            <span className="text-blue-500 text-lg">↘</span>
-                          </div>
-                          <span className="text-xs text-gray-700 ml-1">L</span>
+                          <span className="text-blue-500 text-base print:text-sm">↘</span>
+                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">L</span>
                         </div>
                       </div>
                     </div>
@@ -1497,58 +1503,50 @@ export default function ReportPage() {
           </div>
 
           {/* Diagnosis Display for PDF - Only show in print */}
-          <div className="px-8 mb-6 space-y-4 hidden print:block">
-            <div>
-              <div className="text-sm font-bold mb-2">Diagnosis :</div>
-              <div className="border border-gray-400 bg-gray-50 p-4 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible" style={{ minHeight: 'auto', height: 'auto' }}>
-                {formData.diagnosisComment || "No diagnosis entered"}
+          <div className="px-6 print:px-2 mb-2 print:mb-1 hidden print:block">
+            <div className="space-y-2 print:space-y-1">
+              <div>
+                <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Provisional Diagnosis :</div>
+                <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">
+                  {formData.diagnosisComment || "No diagnosis entered"}
+                </div>
               </div>
-            </div>
-            
-            <div>
-              <div className="text-sm font-bold mb-2">Suggestive of Diagnosis :</div>
-              <div className="border border-gray-400 bg-gray-50 p-4 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible" style={{ minHeight: 'auto', height: 'auto' }}>
-                {formData.suggestiveOf || "No suggestions entered"}
+              
+              <div>
+                <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Suggestive of Diagnosis :</div>
+                <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">
+                  {formData.suggestiveOf || "No suggestions entered"}
+                </div>
               </div>
-            </div>
-            
-            <div>
-              <div className="text-sm font-bold mb-2">Recommendation :</div>
-              <div className="border border-gray-400 bg-gray-50 p-4 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible" style={{ minHeight: 'auto', height: 'auto' }}>
-                {formData.recommendationComment || "No recommendations entered"}
+              
+              <div>
+                <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Recommendation :</div>
+                <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">
+                  {formData.recommendationComment || "No recommendations entered"}
+                </div>
               </div>
             </div>
           </div>
 
           {/* Audiologist Box */}
-          <div className="px-8 mb-6 flex justify-end">
-            <div className="border-2 border-blue-600 bg-blue-50 p-4 text-center">
-              <div className="text-sm font-bold text-blue-900">Audiologist Name</div>
-              <div className="text-xs text-blue-800 mt-1">{consultationData.audiologist?.user?.name || ""}</div>
-              <div className="text-xs text-blue-900 font-bold mt-2">RCI No.</div>
-              <div className="text-xs text-blue-800">{consultationData.audiologist?.rciNumber || ""}</div>
+          <div className="px-6 print:px-2 mb-2 print:mb-1 flex justify-end">
+            <div className="border-2 border-blue-600 bg-blue-50 p-3 print:p-2 text-center">
+              <div className="text-xs print:text-[9px] font-bold text-blue-900">Audiologist Name</div>
+              <div className="text-xs print:text-[8px] text-blue-800 mt-0.5">{consultationData.audiologist?.user?.name || ""}</div>
+              <div className="text-xs print:text-[9px] text-blue-900 font-bold mt-1">RCI No.</div>
+              <div className="text-xs print:text-[8px] text-blue-800">{consultationData.audiologist?.rciNumber || ""}</div>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="bg-blue-900 text-white p-4">
-            <div className="flex justify-center items-center space-x-8 text-sm">
-              <div className="flex items-center">
-                <span className="mr-2">📞</span>
-                <span>{consultationData.centre?.contactNumber || "+91 9289097578"}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="mr-2">🌐</span>
-                <span>www.earkart.in</span>
-              </div>
-              <div className="flex items-center">
-                <span className="mr-2">📧</span>
-                <span>info@earkart.in</span>
-              </div>
+          <div className="px-6 print:px-2 py-2 print:py-1 bg-gray-50 border-t text-center">
+            <div className="text-[10px] print:text-[8px] text-gray-600">
+              📧 info@earkart.in
             </div>
-            <div className="text-center text-xs mt-2 opacity-80">
+            <div className="text-[9px] print:text-[7px] text-gray-500 mt-0.5">
               (Not for Medico-legal Purpose)
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -1597,6 +1595,6 @@ export default function ReportPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

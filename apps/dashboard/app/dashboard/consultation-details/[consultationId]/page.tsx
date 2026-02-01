@@ -428,19 +428,14 @@ export default function ConsultationDetailsPage() {
                         const fileName = (rec as any).fileName || `Recording ${idx + 1}`;
                         const isScreen = fileName.includes('.webm') || fileName.includes('consultation-') || fileName.includes('session-');
                         const type = isScreen ? '🖥️ Screen' : '🎥 Video';
+                        const recordingUrl = normalizePlaybackUrl(rec.recordingUrl) || rec.recordingUrl;
                         return (
-                          <button
+                          <div
                             key={rec.id || idx}
-                            onClick={() => {
-                              setSelectedRecording({
-                                url: normalizePlaybackUrl(rec.recordingUrl) || rec.recordingUrl,
-                                title: `${type} Recording ${idx + 1}`
-                              });
-                            }}
-                            className={`w-full flex items-center justify-between p-4 rounded-lg border-2 transition-all hover:shadow-md ${
+                            className={`w-full flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
                               isScreen 
-                                ? 'bg-blue-50 border-blue-300 hover:bg-blue-100'
-                                : 'bg-emerald-50 border-emerald-300 hover:bg-emerald-100'
+                                ? 'bg-blue-50 border-blue-300'
+                                : 'bg-emerald-50 border-emerald-300'
                             }`}
                           >
                             <div className="flex items-center gap-3">
@@ -452,8 +447,34 @@ export default function ConsultationDetailsPage() {
                                 </p>
                               </div>
                             </div>
-                            <PlayCircle className="w-5 h-5" />
-                          </button>
+                            <div className="flex items-center gap-2">
+                              {/* Play Button */}
+                              <button
+                                onClick={() => {
+                                  setSelectedRecording({
+                                    url: recordingUrl,
+                                    title: `${type} Recording ${idx + 1}`
+                                  });
+                                }}
+                                className="flex items-center gap-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm font-medium"
+                              >
+                                <PlayCircle className="w-4 h-4" />
+                                Play
+                              </button>
+                              {/* Open in new tab */}
+                              <a
+                                href={recordingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors text-sm font-medium"
+                                title="Open in new tab"
+                              >
+                                <Download className="w-4 h-4" />
+                                Open
+                              </a>
+                            </div>
+                          </div>
                         );
                       })}
                     </div>

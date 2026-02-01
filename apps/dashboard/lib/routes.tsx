@@ -31,4 +31,6 @@ export const ROUTES = {
     `/consultation/${consultationId}/test/report/tone-decay`,
   REFLEXOMETRY_REPORT: (consultationId: string) =>
     `/consultation/${consultationId}/test/report/reflexometry`,
+  REPORT_PREVIEW_AUDIOMETRY: () =>
+    `/dashboard/report-preview/audiometry`,
 };
