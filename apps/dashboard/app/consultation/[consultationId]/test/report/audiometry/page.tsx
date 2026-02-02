@@ -1248,23 +1248,23 @@ export default function ReportPage() {
             page-break-inside: auto !important;
           }
           
-          /* Header - ensure not cut off at top */
+          /* Header - ensure not cut off at top - Made bigger for print */
           .print-report-container [data-section="header"] {
-            padding-top: 4mm !important;
-            padding-bottom: 0.5mm !important;
+            padding-top: 6mm !important;
+            padding-bottom: 2mm !important;
             margin-top: 0 !important;
             page-break-inside: avoid !important;
             overflow: visible !important;
           }
           
           .print-report-container [data-section="header"] > div {
-            padding: 4px 12px !important;
+            padding: 8px 16px !important;
             min-height: auto !important;
           }
           
-          /* Ensure logo is visible and properly sized */
+          /* Ensure logo is visible and properly sized - Made bigger for print */
           .print-report-container [data-section="header"] img {
-            max-height: 38px !important;
+            max-height: 90px !important;
             width: auto !important;
             height: auto !important;
             object-fit: contain !important;
@@ -1279,27 +1279,29 @@ export default function ReportPage() {
           
           /* Ensure address box is visible - Made bigger for print */
           .print-report-container [data-section="header"] .text-blue-900 {
-            padding: 8px 12px !important;
-            font-size: 10px !important;
-            line-height: 1.3 !important;
+            padding: 16px 20px !important;
+            font-size: 14px !important;
+            line-height: 1.5 !important;
             margin-top: 3px !important;
           }
           
           .print-report-container [data-section="header"] .text-blue-900 p {
-            font-size: 12px !important;
-            margin-bottom: 3px !important;
-            line-height: 1.3 !important;
+            font-size: 20px !important;
+            margin-bottom: 6px !important;
+            line-height: 1.5 !important;
+            font-weight: bold !important;
           }
           
           .print-report-container [data-section="header"] .text-blue-900 div {
-            font-size: 10px !important;
-            margin-bottom: 2px !important;
-            line-height: 1.2 !important;
+            font-size: 16px !important;
+            margin-bottom: 4px !important;
+            line-height: 1.4 !important;
           }
           
           .print-report-container [data-section="header"] .text-blue-900 span {
-            font-size: 10px !important;
-            line-height: 1.2 !important;
+            font-size: 16px !important;
+            line-height: 1.4 !important;
+            font-weight: 600 !important;
           }
           
           /* Title section padding */
@@ -1479,21 +1481,30 @@ export default function ReportPage() {
           font-size: 12px !important;
         }
         
+        /* Logo - Made bigger for PDF export */
+        [data-export-mark="1"] [data-section="header"] img {
+          max-height: 90px !important;
+          width: auto !important;
+          height: auto !important;
+        }
+        
         /* Centre details div - Made bigger for PDF export */
         [data-export-mark="1"] [data-section="header"] .text-blue-900 {
-          padding: 8px 12px !important;
-          font-size: 10px !important;
+          padding: 16px 20px !important;
+          font-size: 14px !important;
         }
         [data-export-mark="1"] [data-section="header"] .text-blue-900 p {
-          font-size: 12px !important;
-          margin-bottom: 3px !important;
+          font-size: 20px !important;
+          margin-bottom: 6px !important;
+          font-weight: bold !important;
         }
         [data-export-mark="1"] [data-section="header"] .text-blue-900 div {
-          font-size: 10px !important;
-          margin-bottom: 2px !important;
+          font-size: 16px !important;
+          margin-bottom: 4px !important;
         }
         [data-export-mark="1"] [data-section="header"] .text-blue-900 span {
-          font-size: 10px !important;
+          font-size: 16px !important;
+          font-weight: 600 !important;
         }
         
         [data-export-mark="1"] .bg-blue-900 {
@@ -1547,34 +1558,34 @@ export default function ReportPage() {
             {/* Header */}
             <div className="relative text-white overflow-hidden" data-section="header">
               <div className="relative flex items-center justify-between p-6 print:p-3 z-10">
-                <div className="flex items-center bg-white p-2 print:p-1 rounded">
+                <div className="flex items-center bg-white p-3 print:p-2 rounded">
                   <Image
                     src="/EARKART LOGO BLUE.webp"
                     alt="earKART Logo"
-                    width={200}
-                    height={250}
-                    className="bg-white print:w-32 print:h-auto"
+                    width={280}
+                    height={350}
+                    className="bg-white print:w-64 print:h-auto"
                   />
                 </div>
 
                 <div className="relative">
                   <div
-                    className="text-blue-900 px-8 py-6 rounded-lg shadow-md"
+                    className="text-blue-900 px-10 py-8 rounded-lg shadow-md"
                     style={{ backgroundColor: '#8bdaef' }}
                   >
                     <div className="text-center">
-                      <p className="font-bold text-base mb-2">{consultationData.centre?.user?.name || "Demo Clinic"}</p>
-                      <div className="flex items-center justify-center mb-1">
-                        <span className="text-sm mr-1">👨‍⚕️</span>
-                        <span className="text-sm">Dr. {consultationData.centre?.entName || "Demo ENT"}</span>
+                      <p className="font-bold text-xl print:text-base mb-3">{consultationData.centre?.user?.name || "Demo Clinic"}</p>
+                      <div className="flex items-center justify-center mb-2">
+                        <span className="text-base print:text-sm mr-2">👨‍⚕️</span>
+                        <span className="text-base print:text-sm font-semibold">Dr. {consultationData.centre?.entName || "Demo ENT"}</span>
                       </div>
-                      <div className="flex items-center justify-center mb-1">
-                        <span className="text-sm mr-1">📞</span>
-                        <span className="text-sm">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
+                      <div className="flex items-center justify-center mb-2">
+                        <span className="text-base print:text-sm mr-2">📞</span>
+                        <span className="text-base print:text-sm font-semibold">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
                       </div>
                       <div className="flex items-center justify-center">
-                        <span className="text-sm mr-1">📍</span>
-                        <span className="text-sm">{consultationData.centre?.address || "Address"}</span>
+                        <span className="text-base print:text-sm mr-2">📍</span>
+                        <span className="text-base print:text-sm font-semibold">{consultationData.centre?.address || "Address"}</span>
                       </div>
                     </div>
                   </div>
