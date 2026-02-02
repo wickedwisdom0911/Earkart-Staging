@@ -1248,6 +1248,28 @@ export default function ReportPage() {
             page-break-inside: auto !important;
           }
           
+          /* Diagnosis section styling - Made bigger for print readability */
+          .print-report-container .diagnosis-section-container {
+            padding: 4mm !important;
+            margin-bottom: 3mm !important;
+          }
+          
+          .print-report-container .diagnosis-section-container > div {
+            gap: 3mm !important;
+          }
+          
+          .print-report-container .diagnosis-section-container .border {
+            padding: 4mm !important;
+            min-height: 20mm !important;
+            font-size: 14px !important;
+            line-height: 1.6 !important;
+          }
+          
+          .print-report-container .diagnosis-section-container div[class*="font-bold"] {
+            font-size: 15px !important;
+            margin-bottom: 2mm !important;
+          }
+          
           /* Header - ensure not cut off at top - Made bigger for print */
           .print-report-container [data-section="header"] {
             padding-top: 6mm !important;
@@ -1535,16 +1557,24 @@ export default function ReportPage() {
         }
 
         [data-export-mark="1"] .diagnosis-section-container {
-           padding-top: 2mm !important;
-           padding-bottom: 2mm !important;
-           margin-bottom: 2mm !important;
+           padding: 4mm !important;
+           margin-bottom: 3mm !important;
+        }
+        
+        [data-export-mark="1"] .diagnosis-section-container > div {
+           gap: 3mm !important;
         }
         
         [data-export-mark="1"] .diagnosis-section-container .border {
-           padding: 2mm !important;
-           min-height: 15mm !important;
-           font-size: 10px !important;
-           line-height: 1.4 !important;
+           padding: 4mm !important;
+           min-height: 20mm !important;
+           font-size: 14px !important;
+           line-height: 1.6 !important;
+        }
+        
+        [data-export-mark="1"] .diagnosis-section-container div[class*="font-bold"] {
+           font-size: 15px !important;
+           margin-bottom: 2mm !important;
         }
       `}</style>
 
@@ -2032,25 +2062,25 @@ export default function ReportPage() {
             </div>
 
             {/* Diagnosis Display for PDF - Only show in print */}
-            <div className="px-6 print:px-2 mb-2 print:mb-1 hidden print:block">
-              <div className="space-y-2 print:space-y-1">
+            <div className="px-6 print:px-4 mb-2 print:mb-2 hidden print:block diagnosis-section-container">
+              <div className="space-y-2 print:space-y-2">
                 <div>
-                  <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Provisional Diagnosis :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">
+                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Provisional Diagnosis :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible">
                     {formData.diagnosisComment || "No diagnosis entered"}
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Suggestive of Diagnosis :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">
+                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Suggestive of Diagnosis :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible">
                     {formData.suggestiveOf || "No suggestions entered"}
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Recommendation :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">
+                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Recommendation :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible">
                     {formData.recommendationComment || "No recommendations entered"}
                   </div>
                 </div>
