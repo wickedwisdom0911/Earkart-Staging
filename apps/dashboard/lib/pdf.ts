@@ -108,23 +108,30 @@ export async function exportElementToPdf(element: HTMLElement, filename: string,
 
   try {
     // Prefer non-foreignObject first (most stable), then fall back to foreignObject
+    // Reduced scale factors to reduce file size while maintaining quality
     let canvas: HTMLCanvasElement;
     try {
-      canvas = await tryCapture({ scale: 2, foreignObjectRendering: false });
+      canvas = await tryCapture({ scale: 1.5, foreignObjectRendering: false });
     } catch (e1) {
       try {
-        canvas = await tryCapture({ scale: 1.5, foreignObjectRendering: false });
+        canvas = await tryCapture({ scale: 1.2, foreignObjectRendering: false });
       } catch (e2) {
         try {
-          canvas = await tryCapture({ scale: 1.5, foreignObjectRendering: true });
-        } catch (e3) {
           canvas = await tryCapture({ scale: 1.2, foreignObjectRendering: true });
+        } catch (e3) {
+          canvas = await tryCapture({ scale: 1.0, foreignObjectRendering: true });
         }
       }
     }
 
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
+    // Use JPEG with compression instead of PNG to reduce file size significantly
+    const imgData = canvas.toDataURL("image/jpeg", 0.85); // 85% quality for good balance
+    const pdf = new jsPDF({ 
+      orientation: "portrait", 
+      unit: "px", 
+      format: "a4",
+      compress: true // Enable PDF compression
+    });
     const pdfW = pdf.internal.pageSize.getWidth();
     const pdfH = pdf.internal.pageSize.getHeight();
 
@@ -140,7 +147,7 @@ export async function exportElementToPdf(element: HTMLElement, filename: string,
         const finalH = drawH * scaleFactor;
         const x = (pdfW - finalW) / 2;
         const y = (pdfH - finalH) / 2;
-        pdf.addImage(imgData, "PNG", x, y, finalW, finalH);
+        pdf.addImage(imgData, "JPEG", x, y, finalW, finalH, undefined, "FAST");
       } else {
         // Center with proportional scaling (original behavior)
         const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
@@ -148,7 +155,7 @@ export async function exportElementToPdf(element: HTMLElement, filename: string,
         const drawH = canvas.height * fitRatio;
         const x = (pdfW - drawW) / 2;
         const y = (pdfH - drawH) / 2;
-        pdf.addImage(imgData, "PNG", x, y, drawW, drawH);
+        pdf.addImage(imgData, "JPEG", x, y, drawW, drawH, undefined, "FAST");
       }
       pdf.save(filename);
       return;
@@ -160,7 +167,7 @@ export async function exportElementToPdf(element: HTMLElement, filename: string,
     // If the content can fit on one page when filling width, use full width (avoid shrink)
     if (scaledHeightWidthFit <= pdfH) {
       const yOffset = (pdfH - scaledHeightWidthFit) / 2;
-      pdf.addImage(imgData, "PNG", 0, yOffset, pdfW, scaledHeightWidthFit);
+      pdf.addImage(imgData, "JPEG", 0, yOffset, pdfW, scaledHeightWidthFit, undefined, "FAST");
     } else {
       // Multi-page slice, always fill width
       const pageHeight = pdfH / widthRatio;
@@ -172,9 +179,9 @@ export async function exportElementToPdf(element: HTMLElement, filename: string,
         pageCanvas.height = Math.min(pageHeight, canvas.height - position);
         if (pageCtx) {
           pageCtx.drawImage(canvas, 0, -position);
-          const pageImg = pageCanvas.toDataURL('image/png');
+          const pageImg = pageCanvas.toDataURL('image/jpeg', 0.85);
           if (position > 0) pdf.addPage();
-          pdf.addImage(pageImg, 'PNG', 0, 0, pdfW, (pageCanvas.height * pdfW) / canvas.width);
+          pdf.addImage(pageImg, 'JPEG', 0, 0, pdfW, (pageCanvas.height * pdfW) / canvas.width, undefined, "FAST");
         }
         position += pageHeight;
       }
@@ -187,10 +194,11 @@ export async function exportElementToPdf(element: HTMLElement, filename: string,
 }
 
 // NEW: Generate a PDF Blob from an element without saving, for sharing purposes
-export async function exportElementToPdfBlob(element: HTMLElement, options?: { singlePage?: boolean; fullPage?: boolean }): Promise<Blob> {
+export async function exportElementToPdfBlob(element: HTMLElement, options?: { singlePage?: boolean; fullPage?: boolean; captureScale?: number }): Promise<Blob> {
   const MARK_ATTR = `data-export-mark`;
   const singlePage = !!options?.singlePage;
   const fullPage = !!options?.fullPage;
+  const preferredScale = options?.captureScale ?? 1.5;
   element.setAttribute(MARK_ATTR, "1");
 
   const width = Math.max(element.scrollWidth, element.clientWidth, element.offsetWidth);
@@ -252,45 +260,50 @@ export async function exportElementToPdfBlob(element: HTMLElement, options?: { s
   try {
     let canvas: HTMLCanvasElement;
     try {
-      canvas = await tryCapture({ scale: 2, foreignObjectRendering: false });
+      canvas = await tryCapture({ scale: preferredScale, foreignObjectRendering: false });
     } catch {
       try {
         canvas = await tryCapture({ scale: 1.5, foreignObjectRendering: false });
       } catch {
         try {
-          canvas = await tryCapture({ scale: 1.5, foreignObjectRendering: true });
+          canvas = await tryCapture({ scale: 1.2, foreignObjectRendering: false });
         } catch {
-          canvas = await tryCapture({ scale: 1.2, foreignObjectRendering: true });
+          try {
+            canvas = await tryCapture({ scale: 1.2, foreignObjectRendering: true });
+          } catch {
+            canvas = await tryCapture({ scale: 1.0, foreignObjectRendering: true });
+          }
         }
       }
     }
 
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
+    // Use JPEG with compression instead of PNG to reduce file size significantly
+    const imgData = canvas.toDataURL("image/jpeg", 0.85); // 85% quality for good balance
+    const pdf = new jsPDF({ 
+      orientation: "portrait", 
+      unit: "px", 
+      format: "a4",
+      compress: true // Enable PDF compression
+    });
     const pdfW = pdf.internal.pageSize.getWidth();
     const pdfH = pdf.internal.pageSize.getHeight();
 
     if (singlePage) {
       if (fullPage) {
-        // Maximize size while maintaining proportions (no distortion)
-        const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
-        const drawW = canvas.width * fitRatio;
-        const drawH = canvas.height * fitRatio;
-        // Center with minimal margins (use 99.5% of available space)
-        const scaleFactor = 0.995;
-        const finalW = drawW * scaleFactor;
-        const finalH = drawH * scaleFactor;
-        const x = (pdfW - finalW) / 2;
-        const y = (pdfH - finalH) / 2;
-        pdf.addImage(imgData, "PNG", x, y, finalW, finalH);
-      } else {
-        // Center with proportional scaling (original behavior)
+        // Fill entire page - scale to fit, centered, no margins
         const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
         const drawW = canvas.width * fitRatio;
         const drawH = canvas.height * fitRatio;
         const x = (pdfW - drawW) / 2;
         const y = (pdfH - drawH) / 2;
-        pdf.addImage(imgData, "PNG", x, y, drawW, drawH);
+        pdf.addImage(imgData, "JPEG", x, y, drawW, drawH, undefined, "FAST");
+      } else {
+        const fitRatio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
+        const drawW = canvas.width * fitRatio;
+        const drawH = canvas.height * fitRatio;
+        const x = (pdfW - drawW) / 2;
+        const y = (pdfH - drawH) / 2;
+        pdf.addImage(imgData, "JPEG", x, y, drawW, drawH, undefined, "FAST");
       }
       return pdf.output("blob");
     }
@@ -300,7 +313,7 @@ export async function exportElementToPdfBlob(element: HTMLElement, options?: { s
 
     if (scaledHeightWidthFit <= pdfH) {
       const yOffset = (pdfH - scaledHeightWidthFit) / 2;
-      pdf.addImage(imgData, "PNG", 0, yOffset, pdfW, scaledHeightWidthFit);
+      pdf.addImage(imgData, "JPEG", 0, yOffset, pdfW, scaledHeightWidthFit, undefined, "FAST");
     } else {
       const pageHeight = pdfH / widthRatio;
       let position = 0;
@@ -311,9 +324,9 @@ export async function exportElementToPdfBlob(element: HTMLElement, options?: { s
         pageCanvas.height = Math.min(pageHeight, canvas.height - position);
         if (pageCtx) {
           pageCtx.drawImage(canvas, 0, -position);
-          const pageImg = pageCanvas.toDataURL('image/png');
+          const pageImg = pageCanvas.toDataURL('image/jpeg', 0.85);
           if (position > 0) pdf.addPage();
-          pdf.addImage(pageImg, 'PNG', 0, 0, pdfW, (pageCanvas.height * pdfW) / canvas.width);
+          pdf.addImage(pageImg, 'JPEG', 0, 0, pdfW, (pageCanvas.height * pdfW) / canvas.width, undefined, "FAST");
         }
         position += pageHeight;
       }

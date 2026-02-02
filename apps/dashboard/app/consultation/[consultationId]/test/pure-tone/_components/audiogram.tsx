@@ -16,7 +16,7 @@ interface PureToneGraphProps {
   onIndexChange: (x: number, y: number) => void;
   width?: number;
   height?: number;
-  axisFontSize ? : number
+  axisFontSize?: number
   // Quick-action hooks
   onRightClickIndex?: (x: number, y: number) => void;
   onDoubleClickIndex?: (x: number, y: number) => void;
@@ -44,7 +44,7 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
   onIndexChange,
   width = 800,
   height = 600,
-   axisFontSize = 12,
+  axisFontSize = 12,
   onRightClickIndex,
   onDoubleClickIndex,
   onAltClickIndex,
@@ -63,12 +63,12 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
     // Create extended frequency array including mid-octaves for positioning
     const extendedFrequencies = xExtended;
     const freqIndex = extendedFrequencies.indexOf(f);
-    
+
     if (freqIndex !== -1) {
       // Uniform spacing equal to vertical 10 dB step height
       return margin.left + freqIndex * cellSize;
     }
-    
+
     // Fallback for unknown frequencies (shouldn't happen in normal use)
     return margin.left;
   }, [cellSize]);
@@ -98,42 +98,42 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
         // AC unmasked: X for Left ear, Circle for Right ear
         base = ear === "L"
           ? (
-              <g>
-                <line x1={x - half} y1={y - half} x2={x + half} y2={y + half} stroke={color} strokeWidth={LINE_THICKNESS} strokeLinecap="round" />
-                <line x1={x - half} y1={y + half} x2={x + half} y2={y - half} stroke={color} strokeWidth={LINE_THICKNESS} strokeLinecap="round" />
-              </g>
-            )
+            <g>
+              <line x1={x - half} y1={y - half} x2={x + half} y2={y + half} stroke={color} strokeWidth={LINE_THICKNESS} strokeLinecap="round" />
+              <line x1={x - half} y1={y + half} x2={x + half} y2={y - half} stroke={color} strokeWidth={LINE_THICKNESS} strokeLinecap="round" />
+            </g>
+          )
           : <circle cx={x} cy={y} r={half} fill="none" stroke={color}
-              strokeWidth={LINE_THICKNESS} />;
+            strokeWidth={LINE_THICKNESS} />;
       } else {
-        // AC masked: upward triangle for Left ear, square for Right ear (ASHA standard)
-        base = ear === "L"
+        // AC masked: upward triangle for Right ear, square for Left ear
+        base = ear === "R"
           ? <polygon points={`
-              ${x-half},${y+half}
-              ${x},${y-half}
-              ${x+half},${y+half}
+              ${x - half},${y + half}
+              ${x},${y - half}
+              ${x + half},${y + half}
             `} fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />
-          : <rect x={x-half} y={y-half} width={SYMBOL_SIZE} height={SYMBOL_SIZE} 
-              fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />;
+          : <rect x={x - half} y={y - half} width={SYMBOL_SIZE} height={SYMBOL_SIZE}
+            fill="none" stroke={color} strokeWidth={LINE_THICKNESS} />;
       }
     }
 
     // Bone conduction symbols (ASHA 1990)
     if (mode === "BC") {
-      const sym = (!masking ? (ear==="L" ? ">" : "<") : (ear==="L" ? "]" : "["));
+      const sym = (!masking ? (ear === "L" ? ">" : "<") : (ear === "L" ? "]" : "["));
       base = <text x={x} y={y} fontSize={SYMBOL_SIZE} fill={color}
         textAnchor="middle" dominantBaseline="middle">{sym}</text>;
     }
 
     // No-response overlay with diagonal arrows based on ear (ASHA 1990)
     if (noResponse === 1) {
-  const Icon = ear === "L" ? ArrowDownRight : ArrowDownLeft;
+      const Icon = ear === "L" ? ArrowDownRight : ArrowDownLeft;
       return (
         <g key={`symbol-${x}-${y}`}>
           {base}
           <g transform={`translate(${x - 10}, ${y + 10})`}>
-            <Icon stroke={color} strokeWidth={2} size={20} fill="none" />          
-</g>
+            <Icon stroke={color} strokeWidth={2} size={20} fill="none" />
+          </g>
         </g>
       );
     }
@@ -144,17 +144,17 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
 
   const grid = useMemo(() => {
     const gridElements: React.ReactNode[] = [];
-    
+
     // Use 10 dB intervals for more square-like cells
     const hearingLevels10dB = HEARING_LEVELS.filter(level => level % 10 === 0);
     const mainFrequencies = [125, 250, 500, 1000, 2000, 4000, 8000];
     const midFrequencies = [750, 1500, 3000, 6000];
-    
+
     // Create vertical lines for main frequencies (solid, dark)
     mainFrequencies.forEach(freq => {
       const x = xScale(freq);
       const isImportantFreq = freq === 1000 || freq === 2000 || freq === 4000 || freq === 8000;
-      
+
       gridElements.push(
         <line
           key={`main-freq-line-${freq}`}
@@ -167,29 +167,29 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
         />
       );
     });
-        
+
     // Create vertical lines for mid frequencies (dashed, lighter)
     midFrequencies.forEach(freq => {
       const x = xScale(freq);
-        
+
       gridElements.push(
-          <line 
+        <line
           key={`mid-freq-line-${freq}`}
-            x1={x} 
-            y1={margin.top}
-            x2={x} 
-            y2={height - margin.bottom}
-            stroke={COLORS.midOctave} 
+          x1={x}
+          y1={margin.top}
+          x2={x}
+          y2={height - margin.bottom}
+          stroke={COLORS.midOctave}
           strokeWidth={1.5}
           strokeDasharray="4,2"
         />
       );
     });
-    
+
     // Create horizontal lines for 10 dB intervals (solid, dark)
     hearingLevels10dB.forEach(level => {
       const y = yScale(level);
-      
+
       gridElements.push(
         <line
           key={`main-level-line-${level}`}
@@ -199,10 +199,10 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
           y2={y}
           stroke={COLORS.grid}
           strokeWidth={1}
-          />
-        );
+        />
+      );
     });
-    
+
     return gridElements;
   }, [xScale, yScale, height, svgW]);
 
@@ -226,25 +226,25 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
       );
     });
   }, [yScale, svgW]);
-  
+
   const axes = useMemo(() => {
     const axisElements: React.ReactNode[] = [];
     const extendedFrequencies = xExtended;
     const midFrequencies = [750, 1500, 3000, 6000];
-    
+
     // Frequency labels (x-axis)
     extendedFrequencies.forEach(f => {
       const x = xScale(f);
       const isMidFreq = midFrequencies.includes(f);
       const isImportantFreq = f === 1000 || f === 2000 || f === 4000 || f === 8000;
-      const label = f >= 1000 ? `${f/1000}K` : `${f}`;
-      
+      const label = f >= 1000 ? `${f / 1000}K` : `${f}`;
+
       axisElements.push(
-        <text 
-          key={`xf${f}`} 
-          x={x} 
+        <text
+          key={`xf${f}`}
+          x={x}
           y={height - margin.bottom + 20}
-          textAnchor="middle" 
+          textAnchor="middle"
           fill={isMidFreq ? "#666666" : COLORS.text}
           fontSize={isImportantFreq ? axisFontSize + 1 : (isMidFreq ? axisFontSize - 1 : axisFontSize)}
           fontWeight={isImportantFreq ? "800" : (isMidFreq ? "normal" : "500")}
@@ -253,20 +253,20 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
         </text>
       );
     });
-    
+
     // Hearing level labels (y-axis) - show both 10dB and 5dB levels
     HEARING_LEVELS.forEach(h => {
       const y = yScale(h);
       const is10dB = h % 10 === 0;
       const is5dB = h % 5 === 0 && !is10dB;
-      
+
       if (is10dB || is5dB) {
         axisElements.push(
-          <text 
-            key={`yh${h}`} 
-            x={margin.left - 10} 
+          <text
+            key={`yh${h}`}
+            x={margin.left - 10}
             y={y}
-            textAnchor="end" 
+            textAnchor="end"
             dominantBaseline="middle"
             fill={is5dB ? "#666666" : COLORS.text}
             fontSize={is5dB ? axisFontSize - 1 : axisFontSize}
@@ -277,7 +277,7 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
         );
       }
     });
-    
+
     return axisElements;
   }, [xScale, yScale, height, axisFontSize]);
 
@@ -297,10 +297,10 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
   // Connecting lines for audiogram symbols
   const connectingLines = useMemo(() => {
     const lines: React.ReactNode[] = [];
-    
+
     // Group markings by ear and mode
     const groups: { [key: string]: ResultMarking[] } = {};
-    
+
     resultMarkings
       .filter(m => m.noResponse === 0) // Only connect symbols with responses
       .forEach(marking => {
@@ -308,26 +308,26 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
         if (!groups[key]) groups[key] = [];
         groups[key].push(marking);
       });
-    
+
     // Create lines for each group
     Object.entries(groups).forEach(([key, markings]) => {
       if (markings.length < 2) return; // Need at least 2 points to draw a line
-      
+
       // Sort by frequency for proper line connection
       const sortedMarkings = markings.sort((a, b) => a.x - b.x);
-      
+
       for (let i = 0; i < sortedMarkings.length - 1; i++) {
         const current = sortedMarkings[i];
         const next = sortedMarkings[i + 1];
-        
+
         const x1 = xScale(current.x);
         const y1 = yScale(current.y);
         const x2 = xScale(next.x);
         const y2 = yScale(next.y);
-        
+
         const color = current.ear === "L" ? COLORS.leftEar : COLORS.rightEar;
         const strokeDasharray = current.mode === "BC" ? "5,5" : "none";
-        
+
         lines.push(
           <line
             key={`line-${key}-${i}`}
@@ -343,25 +343,25 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
         );
       }
     });
-    
+
     return lines;
   }, [resultMarkings, xScale, yScale]);
 
-  const symbols = useMemo(() => resultMarkings.map((m,i) => {
+  const symbols = useMemo(() => resultMarkings.map((m, i) => {
     const px = xScale(m.x), py = yScale(m.y);
-    return <g key={i}>{renderSymbol(px,py,m.ear,m.mode,m.masking,m.noResponse)}</g>;
+    return <g key={i}>{renderSymbol(px, py, m.ear, m.mode, m.masking, m.noResponse)}</g>;
   }), [resultMarkings, renderSymbol, xScale, yScale]);
 
   const computeNearestIndices = useCallback((svgEl: SVGSVGElement, clientX: number, clientY: number) => {
     const rect = svgEl.getBoundingClientRect();
     const cx = clientX - rect.left, cy = clientY - rect.top;
     let bi = 0, bd = Infinity;
-    FREQUENCIES.forEach((f,i) => {
+    FREQUENCIES.forEach((f, i) => {
       const d = Math.abs(cx - xScale(f));
       if (d < bd) { bd = d; bi = i; }
     });
     let bj = 0; bd = Infinity;
-    HEARING_LEVELS.forEach((h,i) => {
+    HEARING_LEVELS.forEach((h, i) => {
       const d = Math.abs(cy - yScale(h));
       if (d < bd) { bd = d; bj = i; }
     });
@@ -372,12 +372,12 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
     const rect = e.currentTarget.getBoundingClientRect();
     const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
     let bi = 0, bd = Infinity;
-    FREQUENCIES.forEach((f,i) => {
+    FREQUENCIES.forEach((f, i) => {
       const d = Math.abs(cx - xScale(f));
       if (d < bd) { bd = d; bi = i; }
     });
     let bj = 0; bd = Infinity;
-    HEARING_LEVELS.forEach((h,i) => {
+    HEARING_LEVELS.forEach((h, i) => {
       const d = Math.abs(cy - yScale(h));
       if (d < bd) { bd = d; bj = i; }
     });
