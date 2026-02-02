@@ -360,24 +360,7 @@ const AudiogramChart: React.FC<{
             );
           })}
 
-          {/* Frequency labels: bottom (mid-octaves) */}
-          {midFrequencies.map((freq) => {
-            const label = freq >= 1000 ? `${freq / 1000}K` : freq;
-            const xPos = margin.left + getFrequencyPosition(freq);
-            return (
-              <text
-                key={`freq-bottom-${freq}`}
-                x={xPos}
-                y={height + margin.top + 35}
-                textAnchor="middle"
-                fontSize="14"
-                fill="#666666"
-                fontWeight="normal"
-              >
-                {label}
-              </text>
-            );
-          })}
+          {/* Frequency labels: bottom (mid-octaves) - REMOVED per user request */}
 
           {/* dB level labels - show both 10dB and 5dB levels */}
           {dbLevels
@@ -416,16 +399,7 @@ const AudiogramChart: React.FC<{
             Hearing Level (dB HL)
           </text>
 
-          <text
-            x={chartWidth / 2 + margin.left}
-            y={height + margin.top + 35}
-            textAnchor="middle"
-            fontSize="14"
-            fill={COLORS.text}
-            fontWeight="bold"
-          >
-            Frequency (Hz)
-          </text>
+          {/* Frequency (Hz) label at bottom - REMOVED per user request */}
 
           {/* Connecting lines (must be drawn before symbols) */}
           {generateConnectingLines()}
@@ -677,19 +651,94 @@ export default function ReportPage() {
     return currentText + '\n' + newSelection;
   };
 
+  // Storage key for diagnosis data
+  const diagnosisStorageKey = `audiometry-diagnosis-${consultationId}`;
+
+  // Load diagnosis data from localStorage on mount
+  React.useEffect(() => {
+    if (consultationId && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(diagnosisStorageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setFormData(prev => ({
+            ...prev,
+            diagnosisComment: parsed.diagnosisComment || "",
+            recommendationComment: parsed.recommendationComment || "",
+          }));
+        }
+      } catch (e) {
+        console.error("Failed to load diagnosis from localStorage:", e);
+      }
+    }
+  }, [consultationId, diagnosisStorageKey]);
+
   // Update form data when consultation data is loaded
   React.useEffect(() => {
     if (consultationData?.audiometry) {
-      setFormData({
+      // Try to parse notes field for separate comment fields
+      let parsedNotes: any = null;
+      if (consultationData.audiometry.notes) {
+        try {
+          parsedNotes = JSON.parse(consultationData.audiometry.notes);
+        } catch (e) {
+          // If notes is not JSON, ignore it
+        }
+      }
+
+      // Extract suggestion and recommendation, handling cases where comments are combined
+      let loadedSuggestion = consultationData.audiometry.suggestion || "";
+      let loadedRecommendation = consultationData.audiometry.recommendation || "";
+      let loadedDiagnosisComment = "";
+      let loadedRecommendationComment = "";
+
+      // If we have parsed notes, use those (preferred)
+      if (parsedNotes) {
+        loadedSuggestion = parsedNotes.suggestiveOf || loadedSuggestion;
+        loadedDiagnosisComment = parsedNotes.diagnosisComment || "";
+        loadedRecommendation = parsedNotes.recommendation || loadedRecommendation;
+        loadedRecommendationComment = parsedNotes.recommendationComment || "";
+      } else {
+        // Try to extract comments if they were combined with suggestion/recommendation
+        // Format: "suggestion\n\ncomment" or just "comment"
+        if (loadedSuggestion.includes('\n\n')) {
+          const parts = loadedSuggestion.split('\n\n');
+          loadedSuggestion = parts[0];
+          loadedDiagnosisComment = parts.slice(1).join('\n\n');
+        }
+        if (loadedRecommendation.includes('\n\n')) {
+          const parts = loadedRecommendation.split('\n\n');
+          loadedRecommendation = parts[0];
+          loadedRecommendationComment = parts.slice(1).join('\n\n');
+        }
+      }
+
+      setFormData(prev => ({
+        ...prev,
         rightEarDiagnosis: "",
         leftEarDiagnosis: "",
-        diagnosisComment: "",
-        suggestiveOf: consultationData.audiometry.suggestion || "",
-        recommendation: consultationData.audiometry.recommendation || "",
-        recommendationComment: ""
-      });
+        suggestiveOf: loadedSuggestion || prev.suggestiveOf || "",
+        recommendation: loadedRecommendation || prev.recommendation || "",
+        // Use loaded comments, fallback to localStorage, then empty string
+        diagnosisComment: loadedDiagnosisComment || prev.diagnosisComment || "",
+        recommendationComment: loadedRecommendationComment || prev.recommendationComment || ""
+      }));
     }
   }, [consultationData]);
+
+  // Save diagnosis comments to localStorage whenever they change
+  React.useEffect(() => {
+    if (consultationId && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(diagnosisStorageKey, JSON.stringify({
+          diagnosisComment: formData.diagnosisComment,
+          recommendationComment: formData.recommendationComment,
+        }));
+      } catch (e) {
+        console.error("Failed to save diagnosis to localStorage:", e);
+      }
+    }
+  }, [formData.diagnosisComment, formData.recommendationComment, consultationId, diagnosisStorageKey]);
 
   // Listen for end:consultation socket event
   useEffect(() => {
@@ -891,16 +940,53 @@ export default function ReportPage() {
     }
 
     try {
+      // Combine comments with suggestion/recommendation for backend storage
+      const suggestionWithComment = formData.suggestiveOf 
+        ? (formData.diagnosisComment 
+            ? `${formData.suggestiveOf}\n\n${formData.diagnosisComment}` 
+            : formData.suggestiveOf)
+        : formData.diagnosisComment || "";
+      
+      const recommendationWithComment = formData.recommendation
+        ? (formData.recommendationComment
+            ? `${formData.recommendation}\n\n${formData.recommendationComment}`
+            : formData.recommendation)
+        : formData.recommendationComment || "";
+
       await updateConsultationMutation.mutateAsync({
         ...consultationData,
         audiometry: {
           ...consultationData.audiometry,
-          suggestion: formData.suggestiveOf,
-          recommendation: formData.recommendation,
+          suggestion: suggestionWithComment,
+          recommendation: recommendationWithComment,
+          // Also store raw values in notes for easier parsing
+          notes: JSON.stringify({
+            suggestiveOf: formData.suggestiveOf,
+            diagnosisComment: formData.diagnosisComment,
+            recommendation: formData.recommendation,
+            recommendationComment: formData.recommendationComment,
+          }),
         },
       });
+
+      // Also save to localStorage as backup
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(diagnosisStorageKey, JSON.stringify({
+            diagnosisComment: formData.diagnosisComment,
+            recommendationComment: formData.recommendationComment,
+            suggestiveOf: formData.suggestiveOf,
+            recommendation: formData.recommendation,
+          }));
+        } catch (e) {
+          console.error("Failed to save to localStorage:", e);
+        }
+      }
+
+      toast.success("Diagnosis saved successfully");
     } catch (error) {
       console.error("Failed to update consultation:", error);
+      toast.error("Failed to save diagnosis");
     }
   };
 
@@ -1398,7 +1484,7 @@ export default function ReportPage() {
 
                 <div className="relative">
                   <div
-                    className="text-blue-900 px-6 py-4 rounded-lg shadow-md"
+                    className="text-blue-900 px-8 py-6 rounded-lg shadow-md"
                     style={{ backgroundColor: '#8bdaef' }}
                   >
                     <div className="text-center">
