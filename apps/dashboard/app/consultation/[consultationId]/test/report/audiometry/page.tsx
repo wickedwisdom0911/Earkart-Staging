@@ -1382,6 +1382,33 @@ export default function ReportPage() {
             visibility: visible !important;
           }
           
+          /* PTA and Symbols sections - Made bigger for print */
+          .print-report-container .pta-symbols-container .bg-blue-900 {
+            padding: 4mm !important;
+          }
+          
+          .print-report-container .pta-symbols-container .bg-blue-900 h3 {
+            font-size: 14px !important;
+            margin-bottom: 2mm !important;
+          }
+          
+          .print-report-container .pta-symbols-container .bg-blue-900 div {
+            font-size: 11px !important;
+            margin-bottom: 1mm !important;
+          }
+          
+          .print-report-container .pta-symbols-container .bg-white.border {
+            padding: 4mm !important;
+          }
+          
+          .print-report-container .pta-symbols-container .bg-white.border .grid {
+            font-size: 12px !important;
+          }
+          
+          .print-report-container .pta-symbols-container .bg-white.border > div {
+            font-size: 12px !important;
+          }
+          
           /* ... existing styles ... */
 
           .no-print {
@@ -1425,6 +1452,33 @@ export default function ReportPage() {
           display: block !important;
         }
         
+        /* PTA and Symbols sections - Made bigger for PDF export */
+        [data-export-mark="1"] .pta-symbols-container .bg-blue-900 {
+          padding: 4mm !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container .bg-blue-900 h3 {
+          font-size: 14px !important;
+          margin-bottom: 2mm !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container .bg-blue-900 div {
+          font-size: 11px !important;
+          margin-bottom: 1mm !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container .bg-white.border {
+          padding: 4mm !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container .bg-white.border .grid {
+          font-size: 12px !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container .bg-white.border > div {
+          font-size: 12px !important;
+        }
+        
         /* Centre details div - Made bigger for PDF export */
         [data-export-mark="1"] [data-section="header"] .text-blue-900 {
           padding: 8px 12px !important;
@@ -1443,26 +1497,30 @@ export default function ReportPage() {
         }
         
         [data-export-mark="1"] .bg-blue-900 {
-           padding: 2mm !important;
+           padding: 4mm !important;
         }
         
         [data-export-mark="1"] .bg-blue-900 h3 {
+           font-size: 14px !important;
+           margin-bottom: 2mm !important;
+        }
+        
+        [data-export-mark="1"] .bg-blue-900 div {
            font-size: 11px !important;
            margin-bottom: 1mm !important;
         }
         
-        [data-export-mark="1"] .bg-blue-900 div {
-           font-size: 9px !important;
-           margin-bottom: 0.5mm !important;
+        [data-export-mark="1"] .bg-white.border {
+           padding: 4mm !important;
         }
         
-        [data-export-mark="1"] .bg-white.border {
-           padding: 2mm !important;
+        [data-export-mark="1"] .bg-white.border .grid {
+           font-size: 12px !important;
         }
         
         [data-export-mark="1"] .bg-white.border .p-2 {
-           padding: 1.5mm !important;
-           font-size: 9px !important;
+           padding: 2.5mm !important;
+           font-size: 11px !important;
         }
 
         [data-export-mark="1"] .diagnosis-section-container {
@@ -1688,28 +1746,28 @@ export default function ReportPage() {
               <div className="flex gap-2 print:gap-1 bg-white">
                 {/* PTA Section */}
                 <div className="flex-1">
-                  <div className="bg-blue-900 text-white p-2.5 print:p-1 text-center">
-                    <h3 className="text-xl print:text-xs font-bold">PTA (dB HL)</h3>
-                    <div className="text-[10px] print:text-[7px] opacity-80">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
-                    <div className="text-[10px] print:text-[7px] opacity-70">*Includes no-response values</div>
+                  <div className="bg-blue-900 text-white p-4 print:p-2.5 text-center">
+                    <h3 className="text-2xl print:text-sm font-bold">PTA (dB HL)</h3>
+                    <div className="text-sm print:text-[9px] opacity-80 mt-1">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
+                    <div className="text-sm print:text-[9px] opacity-70">*Includes no-response values</div>
                   </div>
-                  <div className="bg-white border border-gray-300 p-2.5 print:p-1">
-                    <div className="grid grid-cols-3 gap-0 text-[9px] print:text-[7px]">
-                      <div className="text-center font-bold border border-gray-400 p-1.5 print:p-1 bg-gray-100 text-gray-800">Test</div>
-                      <div className="text-center font-bold border border-gray-400 p-1.5 print:p-1 bg-gray-100 text-gray-800">Right</div>
-                      <div className="text-center font-bold border border-gray-400 p-1.5 print:p-1 bg-gray-100 text-gray-800">Left</div>
-                      <div className="font-bold border border-gray-400 p-1.5 print:p-1 text-center bg-gray-100 text-gray-800">AC</div>
-                      <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
+                  <div className="bg-white border border-gray-300 p-4 print:p-2.5">
+                    <div className="grid grid-cols-3 gap-0 text-sm print:text-[10px]">
+                      <div className="text-center font-bold border border-gray-400 p-2.5 print:p-1.5 bg-gray-100 text-gray-800">Test</div>
+                      <div className="text-center font-bold border border-gray-400 p-2.5 print:p-1.5 bg-gray-100 text-gray-800">Right</div>
+                      <div className="text-center font-bold border border-gray-400 p-2.5 print:p-1.5 bg-gray-100 text-gray-800">Left</div>
+                      <div className="font-bold border border-gray-400 p-2.5 print:p-1.5 text-center bg-gray-100 text-gray-800">AC</div>
+                      <div className="border border-gray-400 p-2.5 print:p-1.5 text-center font-semibold text-gray-800 text-base print:text-sm">
                         {acAverage.rightEar ? `${Math.round(acAverage.rightEar)}` : "—"}
                       </div>
-                      <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
+                      <div className="border border-gray-400 p-2.5 print:p-1.5 text-center font-semibold text-gray-800 text-base print:text-sm">
                         {acAverage.leftEar ? `${Math.round(acAverage.leftEar)}` : "—"}
                       </div>
-                      <div className="font-bold border border-gray-400 p-1.5 print:p-1 text-center bg-gray-100 text-gray-800">BC</div>
-                      <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
+                      <div className="font-bold border border-gray-400 p-2.5 print:p-1.5 text-center bg-gray-100 text-gray-800">BC</div>
+                      <div className="border border-gray-400 p-2.5 print:p-1.5 text-center font-semibold text-gray-800 text-base print:text-sm">
                         {bcAverage.rightEar ? `${Math.round(bcAverage.rightEar)}` : "—"}
                       </div>
-                      <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
+                      <div className="border border-gray-400 p-2.5 print:p-1.5 text-center font-semibold text-gray-800 text-base print:text-sm">
                         {bcAverage.leftEar ? `${Math.round(bcAverage.leftEar)}` : "—"}
                       </div>
                     </div>
@@ -1718,73 +1776,73 @@ export default function ReportPage() {
 
                 {/* Symbols Section */}
                 <div className="flex-1">
-                  <div className="bg-blue-900 text-white p-2.5 print:p-1 text-center">
-                    <h3 className="text-xl print:text-xs font-bold">Symbols (ASHA Standards)</h3>
+                  <div className="bg-blue-900 text-white p-4 print:p-2.5 text-center">
+                    <h3 className="text-2xl print:text-sm font-bold">Symbols (ASHA Standards)</h3>
                   </div>
-                  <div className="bg-white border border-gray-300 p-2.5 print:p-1">
-                    <div className="grid grid-cols-4 gap-2 print:gap-1 text-xs print:text-[8px]">
+                  <div className="bg-white border border-gray-300 p-4 print:p-2.5">
+                    <div className="grid grid-cols-4 gap-3 print:gap-2 text-sm print:text-[10px]">
                       {/* Air Conduction Unmasked */}
                       <div className="text-center">
-                        <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">AC Unmasked</div>
-                        <div className="flex flex-col space-y-1">
+                        <div className="font-bold mb-2 text-gray-800 text-sm print:text-[10px]">AC Unmasked</div>
+                        <div className="flex flex-col space-y-1.5">
                           <div className="flex items-center justify-center">
-                            <span className="text-red-500 text-base print:text-sm">○</span>
-                            <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">R</span>
+                            <span className="text-red-500 text-xl print:text-lg">○</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">R</span>
                           </div>
                           <div className="flex items-center justify-center">
-                            <span className="text-blue-500 text-base print:text-sm font-bold">×</span>
-                            <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">L</span>
+                            <span className="text-blue-500 text-xl print:text-lg font-bold">×</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">L</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Air Conduction Masked */}
                       <div className="text-center">
-                        <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">AC Masked</div>
-                        <div className="flex flex-col space-y-1">
+                        <div className="font-bold mb-2 text-gray-800 text-sm print:text-[10px]">AC Masked</div>
+                        <div className="flex flex-col space-y-1.5">
                           <div className="flex items-center justify-center">
-                            <span className="text-red-500 text-base print:text-sm">□</span>
-                            <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">R</span>
+                            <span className="text-red-500 text-xl print:text-lg">□</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">R</span>
                           </div>
                           <div className="flex items-center justify-center">
-                            <span className="text-blue-500 text-base print:text-sm">△</span>
-                            <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">L</span>
+                            <span className="text-blue-500 text-xl print:text-lg">△</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">L</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Bone Conduction */}
                       <div className="text-center">
-                        <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">Bone Cond.</div>
-                        <div className="flex flex-col space-y-0.5">
-                          <div className="text-[8px] print:text-[6px] font-semibold text-gray-600">Unmasked:</div>
+                        <div className="font-bold mb-2 text-gray-800 text-sm print:text-[10px]">Bone Cond.</div>
+                        <div className="flex flex-col space-y-1">
+                          <div className="text-xs print:text-[9px] font-semibold text-gray-600">Unmasked:</div>
                           <div className="flex items-center justify-center space-x-1">
-                            <span className="text-red-500 text-sm print:text-xs font-bold">&lt;</span>
-                            <span className="text-[8px] print:text-[6px] text-gray-700">R</span>
-                            <span className="text-blue-500 text-sm print:text-xs font-bold">&gt;</span>
-                            <span className="text-[8px] print:text-[6px] text-gray-700">L</span>
+                            <span className="text-red-500 text-base print:text-sm font-bold">&lt;</span>
+                            <span className="text-xs print:text-[9px] text-gray-700">R</span>
+                            <span className="text-blue-500 text-base print:text-sm font-bold">&gt;</span>
+                            <span className="text-xs print:text-[9px] text-gray-700">L</span>
                           </div>
-                          <div className="text-[8px] print:text-[6px] font-semibold text-gray-600">Masked:</div>
+                          <div className="text-xs print:text-[9px] font-semibold text-gray-600 mt-1">Masked:</div>
                           <div className="flex items-center justify-center space-x-1">
-                            <span className="text-red-500 text-sm print:text-xs font-bold">[</span>
-                            <span className="text-[8px] print:text-[6px] text-gray-700">R</span>
-                            <span className="text-blue-500 text-sm print:text-xs font-bold">]</span>
-                            <span className="text-[8px] print:text-[6px] text-gray-700">L</span>
+                            <span className="text-red-500 text-base print:text-sm font-bold">[</span>
+                            <span className="text-xs print:text-[9px] text-gray-700">R</span>
+                            <span className="text-blue-500 text-base print:text-sm font-bold">]</span>
+                            <span className="text-xs print:text-[9px] text-gray-700">L</span>
                           </div>
                         </div>
                       </div>
 
                       {/* No Response */}
                       <div className="text-center">
-                        <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">No Response</div>
-                        <div className="flex flex-col space-y-1">
+                        <div className="font-bold mb-2 text-gray-800 text-sm print:text-[10px]">No Response</div>
+                        <div className="flex flex-col space-y-1.5">
                           <div className="flex items-center justify-center">
-                            <span className="text-red-500 text-base print:text-sm">↙</span>
-                            <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">R</span>
+                            <span className="text-red-500 text-xl print:text-lg">↙</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">R</span>
                           </div>
                           <div className="flex items-center justify-center">
-                            <span className="text-blue-500 text-base print:text-sm">↘</span>
-                            <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">L</span>
+                            <span className="text-blue-500 text-xl print:text-lg">↘</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">L</span>
                           </div>
                         </div>
                       </div>
