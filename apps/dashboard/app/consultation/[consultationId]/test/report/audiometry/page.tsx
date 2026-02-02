@@ -1277,29 +1277,29 @@ export default function ReportPage() {
             align-items: center !important;
           }
           
-          /* Ensure address box is visible */
+          /* Ensure address box is visible - Made bigger for print */
           .print-report-container [data-section="header"] .text-blue-900 {
-            padding: 2px 4px !important;
-            font-size: 7px !important;
-            line-height: 1.0 !important;
+            padding: 8px 12px !important;
+            font-size: 10px !important;
+            line-height: 1.3 !important;
             margin-top: 3px !important;
           }
           
           .print-report-container [data-section="header"] .text-blue-900 p {
-            font-size: 8px !important;
-            margin-bottom: 0.5px !important;
-            line-height: 1.0 !important;
+            font-size: 12px !important;
+            margin-bottom: 3px !important;
+            line-height: 1.3 !important;
           }
           
           .print-report-container [data-section="header"] .text-blue-900 div {
-            font-size: 6px !important;
-            margin-bottom: 0px !important;
-            line-height: 0.9 !important;
+            font-size: 10px !important;
+            margin-bottom: 2px !important;
+            line-height: 1.2 !important;
           }
           
           .print-report-container [data-section="header"] .text-blue-900 span {
-            font-size: 6px !important;
-            line-height: 0.9 !important;
+            font-size: 10px !important;
+            line-height: 1.2 !important;
           }
           
           /* Title section padding */
@@ -1423,6 +1423,23 @@ export default function ReportPage() {
           margin-bottom: 3mm !important;
           padding-top: 10mm !important;
           display: block !important;
+        }
+        
+        /* Centre details div - Made bigger for PDF export */
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 {
+          padding: 8px 12px !important;
+          font-size: 10px !important;
+        }
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 p {
+          font-size: 12px !important;
+          margin-bottom: 3px !important;
+        }
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 div {
+          font-size: 10px !important;
+          margin-bottom: 2px !important;
+        }
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 span {
+          font-size: 10px !important;
         }
         
         [data-export-mark="1"] .bg-blue-900 {
