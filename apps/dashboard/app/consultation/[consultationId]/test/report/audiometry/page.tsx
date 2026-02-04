@@ -211,21 +211,21 @@ const AudiogramChart: React.FC<{
           </text>
         );
       } else {
-        // Masked AC: Square for Right ear, Triangle for Left ear (MATCHES SYMBOL SECTION)
+        // Masked AC: Triangle for Right ear, Square for Left ear (MATCHES SYMBOL SECTION)
         base = result.ear === "R" ? (
-          <rect
-            x={x - size}
-            y={y - size}
-            width={size * 2}
-            height={size * 2}
+          <polygon
+            points={`${x},${y - size} ${x - size},${y + size} ${x + size},${y + size}`}
             fill="none"
             stroke={color}
             strokeWidth={2}
             key={`${result.x}-${result.y}-${result.ear}`}
           />
         ) : (
-          <polygon
-            points={`${x},${y - size} ${x - size},${y + size} ${x + size},${y + size}`}
+          <rect
+            x={x - size}
+            y={y - size}
+            width={size * 2}
+            height={size * 2}
             fill="none"
             stroke={color}
             strokeWidth={2}
@@ -1842,11 +1842,11 @@ export default function ReportPage() {
                         <div className="font-bold mb-2 text-gray-800 text-sm print:text-[10px]">AC Masked</div>
                         <div className="flex flex-col space-y-1.5">
                           <div className="flex items-center justify-center">
-                            <span className="text-red-500 text-xl print:text-lg">□</span>
+                            <span className="text-red-500 text-xl print:text-lg">△</span>
                             <span className="text-sm print:text-[10px] text-gray-700 ml-1">R</span>
                           </div>
                           <div className="flex items-center justify-center">
-                            <span className="text-blue-500 text-xl print:text-lg">△</span>
+                            <span className="text-blue-500 text-xl print:text-lg">□</span>
                             <span className="text-sm print:text-[10px] text-gray-700 ml-1">L</span>
                           </div>
                         </div>

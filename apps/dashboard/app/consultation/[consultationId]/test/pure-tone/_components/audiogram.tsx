@@ -106,7 +106,7 @@ const PureToneGraph: React.FC<PureToneGraphProps> = ({
           : <circle cx={x} cy={y} r={half} fill="none" stroke={color}
             strokeWidth={LINE_THICKNESS} />;
       } else {
-        // AC masked: upward triangle for Right ear, square for Left ear
+        // AC masked: Triangle for Right ear, Square for Left ear (matches report)
         base = ear === "R"
           ? <polygon points={`
               ${x - half},${y + half}
