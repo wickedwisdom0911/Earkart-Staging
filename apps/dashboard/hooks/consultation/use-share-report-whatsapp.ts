@@ -74,7 +74,11 @@ export function useShareReportWhatsApp({
         throw new Error('Report element not available');
       }
       
-      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true, fullPage: true });
+      const blob = await exportElementToPdfBlob(reportRef.current, {
+        singlePage: true,
+        fullPage: true,
+        captureScale: reportType === ReportType.AUDIOMETRY ? 2 : 1.5,
+      });
       const fileName = `${reportType.toLowerCase()}-report-${patientName.replace(/\s+/g, '-')}.pdf`;
       const file = new File([blob], fileName, { type: "application/pdf" });
       

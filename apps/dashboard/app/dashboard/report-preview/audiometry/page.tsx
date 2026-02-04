@@ -4,6 +4,8 @@ import { ConsultationModelData } from "@/models/consultation.model";
 import { Ear, SessionStatus } from "@/models/enums";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import ReportTopActions from "@/components/ui/ReportTopActions";
 import { exportElementToPdfBlob } from "@/lib/pdf";
 import Image from "next/image";
@@ -35,7 +37,7 @@ const AudiogramChart: React.FC<{
   const mainFrequencies = [125, 250, 500, 1000, 2000, 4000, 8000];
   const midFrequencies = [750, 1500, 3000, 6000];
   const dbLevels = Array.from({ length: 27 }, (_, i) => (i - 2) * 5);
-  
+
   const gridSize = 32;
   const stepsPerOctave = 2;
   const minFreq = mainFrequencies[0];
@@ -44,13 +46,13 @@ const AudiogramChart: React.FC<{
   const chartWidth = gridSize * totalSteps;
   const height = 14 * gridSize;
   const margin = { top: 40, right: 20, bottom: 50, left: 50 };
-  
+
   const getFrequencyPosition = (freq: number) => {
     const clamped = Math.max(minFreq, Math.min(maxFreq, freq));
     const stepIndex = Math.round(Math.log2(clamped / minFreq) * stepsPerOctave);
     return stepIndex * gridSize;
   };
-  
+
   const COLORS = {
     leftEar: "#0000FF",
     rightEar: "#FF0000",
@@ -59,7 +61,7 @@ const AudiogramChart: React.FC<{
     background: "#FFFFFF",
     text: "#333333",
   };
-  
+
   const getSymbolColor = (ear: string) => ear === "L" ? COLORS.leftEar : COLORS.rightEar;
 
   const dbToYPosition = (db: number) => {
@@ -71,7 +73,7 @@ const AudiogramChart: React.FC<{
   const generateConnectingLines = () => {
     const lines: React.ReactNode[] = [];
     const groups: { [key: string]: TestResult[] } = {};
-    
+
     results
       .filter(r => r.noResponse === 0)
       .forEach(result => {
@@ -79,23 +81,23 @@ const AudiogramChart: React.FC<{
         if (!groups[key]) groups[key] = [];
         groups[key].push(result);
       });
-    
+
     Object.entries(groups).forEach(([key, groupResults]) => {
       if (groupResults.length < 2) return;
       const sortedResults = groupResults.sort((a, b) => a.x - b.x);
-      
+
       for (let i = 0; i < sortedResults.length - 1; i++) {
         const current = sortedResults[i];
         const next = sortedResults[i + 1];
-        
+
         const x1 = margin.left + getFrequencyPosition(current.x);
         const y1 = dbToYPosition(current.y);
         const x2 = margin.left + getFrequencyPosition(next.x);
         const y2 = dbToYPosition(next.y);
-        
+
         const color = getSymbolColor(current.ear);
         const strokeDasharray = current.mode === "BC" ? "3,3" : "none";
-        
+
         lines.push(
           <line
             key={`line-${key}-${i}`}
@@ -111,33 +113,33 @@ const AudiogramChart: React.FC<{
         );
       }
     });
-    
+
     return lines;
   };
-  
+
   const renderSymbol = (result: TestResult, x: number, y: number) => {
     const color = getSymbolColor(result.ear);
     const size = 12;
-    
+
     let base: React.ReactNode = null;
-      
+
     if (result.mode === "AC") {
       if (result.masking === 0) {
         base = result.ear === "R" ? (
-          <circle 
-            cx={x} 
+          <circle
+            cx={x}
             cy={y}
             r={size}
-            fill="none" 
+            fill="none"
             stroke={color}
             strokeWidth={2}
             key={`${result.x}-${result.y}-${result.ear}`}
           />
         ) : (
-          <text 
-            x={x} 
-            y={y} 
-            textAnchor="middle" 
+          <text
+            x={x}
+            y={y}
+            textAnchor="middle"
             dominantBaseline="middle"
             fontSize={size * 2}
             fill={color}
@@ -148,15 +150,8 @@ const AudiogramChart: React.FC<{
           </text>
         );
       } else {
-        base = result.ear === "L" ? (
-          <polygon
-            points={`${x},${y-size} ${x-size},${y+size} ${x+size},${y+size}`}
-            fill="none"
-            stroke={color}
-            strokeWidth={2}
-            key={`${result.x}-${result.y}-${result.ear}`}
-          />
-        ) : (
+        // Masked AC: Square for Right ear, Triangle for Left ear (MATCHES SYMBOL SECTION)
+        base = result.ear === "R" ? (
           <rect
             x={x - size}
             y={y - size}
@@ -167,13 +162,21 @@ const AudiogramChart: React.FC<{
             strokeWidth={2}
             key={`${result.x}-${result.y}-${result.ear}`}
           />
+        ) : (
+          <polygon
+            points={`${x},${y - size} ${x - size},${y + size} ${x + size},${y + size}`}
+            fill="none"
+            stroke={color}
+            strokeWidth={2}
+            key={`${result.x}-${result.y}-${result.ear}`}
+          />
         );
       }
     } else if (result.mode === "BC") {
-      const symbol = result.masking === 0 ? 
-        (result.ear === "L" ? ">" : "<") : 
+      const symbol = result.masking === 0 ?
+        (result.ear === "L" ? ">" : "<") :
         (result.ear === "L" ? "]" : "[");
-      
+
       base = (
         <text
           x={x}
@@ -189,7 +192,7 @@ const AudiogramChart: React.FC<{
         </text>
       );
     }
-    
+
     if (result.noResponse === 1) {
       const Icon = result.ear === "L" ? ArrowDownRight : ArrowDownLeft;
       return (
@@ -201,7 +204,7 @@ const AudiogramChart: React.FC<{
         </g>
       );
     }
-    
+
     return <g key={`${result.x}-${result.y}-${result.ear}`}>{base}</g>;
   };
 
@@ -222,7 +225,7 @@ const AudiogramChart: React.FC<{
               strokeWidth={i % 2 === 0 ? 1.5 : 0.5}
             />
           ))}
-          
+
           {mainFrequencies.map((freq) => {
             const xPos = margin.left + getFrequencyPosition(freq);
             return (
@@ -237,7 +240,7 @@ const AudiogramChart: React.FC<{
               />
             );
           })}
-          
+
           {midFrequencies.map((freq) => {
             const xPos = margin.left + getFrequencyPosition(freq);
             return (
@@ -253,7 +256,7 @@ const AudiogramChart: React.FC<{
               />
             );
           })}
-          
+
           {dbLevels
             .filter(level => level % 10 !== 0 && level % 5 === 0)
             .map(level => {
@@ -271,10 +274,10 @@ const AudiogramChart: React.FC<{
                 />
               );
             })}
-          
+
           {/* Frequency labels */}
           {mainFrequencies.map((freq) => {
-            const label = freq >= 1000 ? `${freq/1000}K` : freq;
+            const label = freq >= 1000 ? `${freq / 1000}K` : freq;
             const xPos = margin.left + getFrequencyPosition(freq);
             return (
               <text
@@ -313,7 +316,7 @@ const AudiogramChart: React.FC<{
                 </text>
               );
             })}
-          
+
           {/* Axis labels */}
           <text
             x={margin.left - 35}
@@ -327,7 +330,7 @@ const AudiogramChart: React.FC<{
           >
             Hearing Level (dB HL)
           </text>
-          
+
           <text
             x={chartWidth / 2 + margin.left}
             y={height + margin.top + 35}
@@ -338,9 +341,9 @@ const AudiogramChart: React.FC<{
           >
             Frequency (Hz)
           </text>
-          
+
           {generateConnectingLines()}
-          
+
           {results.map((result) => {
             const x = margin.left + getFrequencyPosition(result.x);
             const y = dbToYPosition(result.y);
@@ -354,7 +357,7 @@ const AudiogramChart: React.FC<{
 
 export default function ReportPreviewPage() {
   const reportRef = useRef<HTMLDivElement>(null);
-  
+
   // Create demo consultation data with sample audiometry results
   const getDemoConsultationData = (): ConsultationModelData => {
     const now = new Date().toISOString();
@@ -411,19 +414,19 @@ export default function ReportPreviewPage() {
       },
     } as ConsultationModelData;
   };
-  
+
   const consultationData = getDemoConsultationData();
-  
+
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
-    
+
     try {
       // Temporarily remove height restrictions for PDF capture
       const container = reportRef.current;
       const parent = container.parentElement;
       const originalContainerStyle = container.style.cssText;
       const originalParentStyle = parent?.style.cssText || '';
-      
+
       container.style.maxHeight = 'none';
       container.style.height = 'auto';
       container.style.overflow = 'visible';
@@ -432,16 +435,18 @@ export default function ReportPreviewPage() {
         parent.style.height = 'auto';
         parent.style.overflow = 'visible';
       }
-      
+
       const blob = await exportElementToPdfBlob(reportRef.current, {
-        // filename not used by blob function
+        singlePage: true,
+        fullPage: true,
+        captureScale: 2
       });
       // Restore original styles
       container.style.cssText = originalContainerStyle;
       if (parent) {
         parent.style.cssText = originalParentStyle;
       }
-      
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -455,18 +460,48 @@ export default function ReportPreviewPage() {
     }
   };
 
+  // Referred by editable state
+  const [referredBy, setReferredBy] = useState<string>("");
+  const [isEditingReferredBy, setIsEditingReferredBy] = useState(false);
+
+  useEffect(() => {
+    // Initialize referredBy from localStorage or consultation data
+    const storedReferredBy = localStorage.getItem(`referred-by-preview`);
+    if (storedReferredBy) {
+      setReferredBy(storedReferredBy);
+    } else if (consultationData?.centre?.entName) {
+      setReferredBy(consultationData.centre.entName);
+    }
+  }, [consultationData]);
+
+  const handleReferredBySave = () => {
+    localStorage.setItem(`referred-by-preview`, referredBy);
+    setIsEditingReferredBy(false);
+    toast.success("Referral name updated for preview");
+  };
+
+  const handleReferredByCancel = () => {
+    const storedReferredBy = localStorage.getItem(`referred-by-preview`);
+    if (storedReferredBy) {
+      setReferredBy(storedReferredBy);
+    } else if (consultationData?.centre?.entName) {
+      setReferredBy(consultationData.centre.entName);
+    }
+    setIsEditingReferredBy(false);
+  };
+
   // Calculate PTA
   const calculatePTA = (results: TestResult[], mode: "AC" | "BC") => {
     const standardFrequencies = [500, 1000, 2000, 4000];
     const modeResults = results.filter(r => r.mode === mode);
-    
+
     const thresholds = standardFrequencies
       .map(freq => {
         const result = modeResults.find(r => r.x === freq);
         return result ? result.y : undefined;
       })
       .filter(threshold => threshold !== undefined) as number[];
-    
+
     if (thresholds.length === 0) return null;
     if (thresholds.length >= 4) {
       return thresholds.slice(0, 4).reduce((sum, threshold) => sum + threshold, 0) / 4;
@@ -530,6 +565,13 @@ export default function ReportPreviewPage() {
             size: A4;
             margin: 10mm 3mm 2mm 3mm;
           }
+        
+        /* PDF DOWNLOAD: Must be outside @media print - html2canvas ignores print rules */
+        [data-export-mark="1"] .audiogram-chart-wrapper svg {
+          transform: scale(2.2) !important;
+          transform-origin: top center !important;
+          margin: 5mm 0 !important;
+        }
         
         @media print {
           * {
@@ -815,35 +857,93 @@ export default function ReportPreviewPage() {
             margin-bottom: 0 !important;
             gap: 2px !important;
           }
+
+          /* FORCE PRINT STYLES FOR PDF GENERATION (html2canvas ignores media print) */
+          [data-export-mark="1"] .audiogram-chart-wrapper svg {
+            margin-top: 10mm !important;
+            margin-bottom: 10mm !important;
+            transform: scale(1.5) !important;
+            transform-origin: center !important;
+          }
+
+          [data-export-mark="1"] .audiogram-chart-wrapper h3 {
+            margin-bottom: 10mm !important;
+            margin-top: 8mm !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+          }
+
+          [data-export-mark="1"] .pta-symbols-container {
+            margin-top: 15mm !important;
+            margin-bottom: 3mm !important;
+            padding-top: 10mm !important;
+            display: block !important;
+          }
+          
+          [data-export-mark="1"] .bg-blue-900 {
+             padding: 2mm !important;
+          }
+          
+          [data-export-mark="1"] .bg-blue-900 h3 {
+             font-size: 11px !important;
+             margin-bottom: 1mm !important;
+          }
+          
+          [data-export-mark="1"] .bg-blue-900 div {
+             font-size: 9px !important;
+             margin-bottom: 0.5mm !important;
+          }
+          
+          [data-export-mark="1"] .bg-white.border {
+             padding: 2mm !important;
+          }
+          
+          [data-export-mark="1"] .bg-white.border .p-2 {
+             padding: 1.5mm !important;
+             font-size: 9px !important;
+          }
+
+          [data-export-mark="1"] .print-report-container > div > div:nth-child(2) > div:nth-child(5) {
+             padding-top: 2mm !important;
+             padding-bottom: 2mm !important;
+             margin-bottom: 2mm !important;
+          }
+          
+          [data-export-mark="1"] .print-report-container > div > div:nth-child(2) > div:nth-child(5) .border {
+             padding: 2mm !important;
+             min-height: 15mm !important;
+             font-size: 10px !important;
+             line-height: 1.4 !important;
+          }
           
           .no-print {
             display: none !important;
           }
         }
       `}</style>
-      
+
       <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
         <div className="w-[1100px] h-[calc(100vh-2rem)] print:h-auto bg-white shadow-lg overflow-hidden print:overflow-visible print-report-container flex flex-col print:block">
           <div className="no-print flex-shrink-0">
-            <ReportTopActions onDownload={handleDownloadPDF} onShare={() => {}} />
+            <ReportTopActions onDownload={handleDownloadPDF} onShare={() => { }} />
           </div>
-          
+
           <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto flex-1 print:max-h-none print:overflow-visible print:flex-none print:h-auto pb-8" style={{ fontFamily: 'Arial, sans-serif' }}>
             {/* Header */}
             <div className="relative text-white overflow-hidden" data-section="header">
               <div className="relative flex items-center justify-between p-6 print:p-3 z-10">
                 <div className="flex items-center bg-white p-2 print:p-1 rounded">
                   <Image
-                    src="/EARKART LOGO BLUE.webp" 
-                    alt="earKART Logo" 
-                    width={200} 
+                    src="/EARKART LOGO BLUE.webp"
+                    alt="earKART Logo"
+                    width={200}
                     height={250}
                     className="bg-white print:w-32 print:h-auto"
                   />
                 </div>
-                
+
                 <div className="relative">
-                  <div 
+                  <div
                     className="text-blue-900 px-6 py-4 rounded-lg shadow-md"
                     style={{ backgroundColor: '#8bdaef' }}
                   >
@@ -920,9 +1020,41 @@ export default function ReportPreviewPage() {
                 </div>
                 <div className="col-span-6 flex items-center">
                   <span className="font-medium mr-1 print:mr-0.5">Referred by :</span>
-                  <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
-                    {consultationData.centre?.entName || ""}
-                  </span>
+                  {isEditingReferredBy ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        type="text"
+                        value={referredBy}
+                        onChange={(e) => setReferredBy(e.target.value)}
+                        className="border-b border-dotted border-gray-400 flex-1 pb-1 h-auto px-0 text-sm"
+                        autoFocus
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleReferredBySave}
+                        className="h-6 px-2 text-xs"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleReferredByCancel}
+                        className="h-6 px-2 text-xs"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <span
+                      className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0 cursor-pointer hover:bg-gray-50"
+                      onClick={() => setIsEditingReferredBy(true)}
+                      title="Click to edit referral"
+                    >
+                      {referredBy || consultationData.centre?.entName || ""}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -964,17 +1096,17 @@ export default function ReportPreviewPage() {
                       <div className="text-center font-bold border border-gray-400 p-1.5 print:p-1 bg-gray-100 text-gray-800">Left</div>
                       <div className="font-bold border border-gray-400 p-1.5 print:p-1 text-center bg-gray-100 text-gray-800">AC</div>
                       <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
-                        {acAverage.rightEar !== null ? `${acAverage.rightEar}` : "—"}
+                        {acAverage.rightEar ? `${Math.round(acAverage.rightEar)}` : "—"}
                       </div>
                       <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
-                        {acAverage.leftEar !== null ? `${acAverage.leftEar}` : "—"}
+                        {acAverage.leftEar ? `${Math.round(acAverage.leftEar)}` : "—"}
                       </div>
                       <div className="font-bold border border-gray-400 p-1.5 print:p-1 text-center bg-gray-100 text-gray-800">BC</div>
                       <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
-                        {bcAverage.rightEar !== null ? `${bcAverage.rightEar}` : "—"}
+                        {bcAverage.rightEar ? `${Math.round(bcAverage.rightEar)}` : "—"}
                       </div>
                       <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
-                        {bcAverage.leftEar !== null ? `${bcAverage.leftEar}` : "—"}
+                        {bcAverage.leftEar ? `${Math.round(bcAverage.leftEar)}` : "—"}
                       </div>
                     </div>
                   </div>
@@ -1001,7 +1133,7 @@ export default function ReportPreviewPage() {
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* Air Conduction Masked */}
                       <div className="text-center">
                         <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">AC Masked</div>
@@ -1016,7 +1148,7 @@ export default function ReportPreviewPage() {
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* Bone Conduction */}
                       <div className="text-center">
                         <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">Bone Cond.</div>
@@ -1037,7 +1169,7 @@ export default function ReportPreviewPage() {
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* No Response */}
                       <div className="text-center">
                         <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">No Response</div>
@@ -1067,14 +1199,14 @@ export default function ReportPreviewPage() {
                     Demo diagnosis text
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Suggestive of Diagnosis :</div>
                   <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">
                     Demo suggestive diagnosis
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Recommendation :</div>
                   <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">

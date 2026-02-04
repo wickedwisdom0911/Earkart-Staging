@@ -86,23 +86,23 @@ const AudiogramChart: React.FC<{
   const mainFrequencies = [125, 250, 500, 1000, 2000, 4000, 8000];
   const midFrequencies = [750, 1500, 3000, 6000];
   const dbLevels = Array.from({ length: 27 }, (_, i) => (i - 2) * 5); // -10 to 120 dB
-  
-  const gridSize = 22; // slightly smaller to match component proportions
+
+  const gridSize = 32; // larger size from preview
   const stepsPerOctave = 2; // place a mid-octave step between each octave
   const minFreq = mainFrequencies[0];
   const maxFreq = mainFrequencies[mainFrequencies.length - 1];
   const totalSteps = (mainFrequencies.length - 1) * stepsPerOctave;
   const chartWidth = gridSize * totalSteps; // equal spacing per octave
   const height = 14 * gridSize; // Adjust height to start from -10
-  const margin = { top: 30, right: 20, bottom: 40, left: 50 };
-  
+  const margin = { top: 40, right: 20, bottom: 50, left: 50 };
+
   // Map frequency to equal per-octave spacing; mid-octaves land midway
   const getFrequencyPosition = (freq: number) => {
     const clamped = Math.max(minFreq, Math.min(maxFreq, freq));
     const stepIndex = Math.round(Math.log2(clamped / minFreq) * stepsPerOctave);
     return stepIndex * gridSize;
   };
-  
+
   const COLORS = {
     leftEar: "#0000FF",
     rightEar: "#FF0000",
@@ -111,14 +111,13 @@ const AudiogramChart: React.FC<{
     background: "#FFFFFF",
     text: "#333333",
   };
-  
+
   const getSymbolColor = (ear: string) => ear === "L" ? COLORS.leftEar : COLORS.rightEar;
 
   // Helper function to convert dB to pixel Y position (supports 5dB increments)
   const dbToYPosition = (db: number) => {
     // Clamp dB to valid range
     const clampedDb = Math.max(-10, Math.min(120, db));
-    // Convert to 5dB index: (db + 10) / 5 gives us the index in 5dB steps
     // Each 5dB step is half of gridSize (since gridSize represents 10dB)
     const dbIndex = (clampedDb + 10) / 5;
     return margin.top + dbIndex * (gridSize / 2);
@@ -127,10 +126,10 @@ const AudiogramChart: React.FC<{
   // Function to generate connecting lines between thresholds (following ASHA conventions)
   const generateConnectingLines = () => {
     const lines: React.ReactNode[] = [];
-    
+
     // Group results by ear and mode
     const groups: { [key: string]: TestResult[] } = {};
-    
+
     results
       .filter(r => r.noResponse === 0) // Only connect symbols with responses
       .forEach(result => {
@@ -138,26 +137,26 @@ const AudiogramChart: React.FC<{
         if (!groups[key]) groups[key] = [];
         groups[key].push(result);
       });
-    
+
     // Create lines for each group
     Object.entries(groups).forEach(([key, groupResults]) => {
       if (groupResults.length < 2) return; // Need at least 2 points to draw a line
-      
+
       // Sort by frequency for proper line connection
       const sortedResults = groupResults.sort((a, b) => a.x - b.x);
-      
+
       for (let i = 0; i < sortedResults.length - 1; i++) {
         const current = sortedResults[i];
         const next = sortedResults[i + 1];
-        
+
         const x1 = margin.left + getFrequencyPosition(current.x);
         const y1 = dbToYPosition(current.y);
         const x2 = margin.left + getFrequencyPosition(next.x);
         const y2 = dbToYPosition(next.y);
-        
+
         const color = getSymbolColor(current.ear);
         const strokeDasharray = current.mode === "BC" ? "3,3" : "none"; // BC lines are dashed
-        
+
         lines.push(
           <line
             key={`line-${key}-${i}`}
@@ -173,35 +172,35 @@ const AudiogramChart: React.FC<{
         );
       }
     });
-    
+
     return lines;
   };
-  
+
   const renderSymbol = (result: TestResult, x: number, y: number) => {
     const color = getSymbolColor(result.ear);
-    const size = 8;
-    
+    const size = 12; // larger size from preview
+
     // Build the base symbol firstP
     let base: React.ReactNode = null;
-      
-      if (result.mode === "AC") {
-        if (result.masking === 0) {
+
+    if (result.mode === "AC") {
+      if (result.masking === 0) {
         // Unmasked AC: Circle for Right ear, X for Left ear (ASHA standard)
         base = result.ear === "R" ? (
-            <circle 
-              cx={x} 
-              cy={y} 
+          <circle
+            cx={x}
+            cy={y}
             r={size}
-              fill="none" 
-              stroke={color}
+            fill="none"
+            stroke={color}
             strokeWidth={2}
             key={`${result.x}-${result.y}-${result.ear}`}
-            />
-          ) : (
-          <text 
-            x={x} 
-            y={y} 
-            textAnchor="middle" 
+          />
+        ) : (
+          <text
+            x={x}
+            y={y}
+            textAnchor="middle"
             dominantBaseline="middle"
             fontSize={size * 2}
             fill={color}
@@ -212,16 +211,8 @@ const AudiogramChart: React.FC<{
           </text>
         );
       } else {
-        // Masked AC: Triangle for Left ear, Square for Right ear (ASHA standard)
-        base = result.ear === "L" ? (
-          <polygon
-            points={`${x},${y-size} ${x-size},${y+size} ${x+size},${y+size}`}
-            fill="none"
-            stroke={color}
-            strokeWidth={2}
-            key={`${result.x}-${result.y}-${result.ear}`}
-          />
-        ) : (
+        // Masked AC: Square for Right ear, Triangle for Left ear (MATCHES SYMBOL SECTION)
+        base = result.ear === "R" ? (
           <rect
             x={x - size}
             y={y - size}
@@ -232,14 +223,22 @@ const AudiogramChart: React.FC<{
             strokeWidth={2}
             key={`${result.x}-${result.y}-${result.ear}`}
           />
+        ) : (
+          <polygon
+            points={`${x},${y - size} ${x - size},${y + size} ${x + size},${y + size}`}
+            fill="none"
+            stroke={color}
+            strokeWidth={2}
+            key={`${result.x}-${result.y}-${result.ear}`}
+          />
         );
       }
     } else if (result.mode === "BC") {
       // Bone conduction symbols (ASHA standard)
-      const symbol = result.masking === 0 ? 
-        (result.ear === "L" ? ">" : "<") : 
+      const symbol = result.masking === 0 ?
+        (result.ear === "L" ? ">" : "<") :
         (result.ear === "L" ? "]" : "[");
-      
+
       base = (
         <text
           x={x}
@@ -255,7 +254,7 @@ const AudiogramChart: React.FC<{
         </text>
       );
     }
-    
+
     // Overlay no-response arrow using lucide icons (down-right for L, down-left for R)
     if (result.noResponse === 1) {
       const Icon = result.ear === "L" ? ArrowDownRight : ArrowDownLeft;
@@ -268,13 +267,13 @@ const AudiogramChart: React.FC<{
         </g>
       );
     }
-    
+
     return <g key={`${result.x}-${result.y}-${result.ear}`}>{base}</g>;
   };
 
   return (
     <div className="flex flex-col items-center">
-      <h3 className="text-sm font-bold mb-3 text-gray-800">{title}</h3>
+      <h3 className="text-base font-bold mb-3 text-gray-800">{title}</h3>
       <div className="border-2 border-gray-400 bg-white">
         <svg width={chartWidth + margin.left + margin.right} height={height + margin.top + margin.bottom}>
           {/* Grid lines - Major lines for 10dB intervals */}
@@ -289,8 +288,8 @@ const AudiogramChart: React.FC<{
               strokeWidth={i % 2 === 0 ? 1.5 : 0.5}
             />
           ))}
-          
-                     {/* Vertical grid lines for main frequencies (octaves) */}
+
+          {/* Vertical grid lines for main frequencies (octaves) */}
           {mainFrequencies.map((freq) => {
             const xPos = margin.left + getFrequencyPosition(freq);
             return (
@@ -305,7 +304,7 @@ const AudiogramChart: React.FC<{
               />
             );
           })}
-          
+
           {/* Vertical grid lines for mid frequencies (dashed) */}
           {midFrequencies.map((freq) => {
             const xPos = margin.left + getFrequencyPosition(freq);
@@ -322,7 +321,7 @@ const AudiogramChart: React.FC<{
               />
             );
           })}
-          
+
           {/* Mid-intensity lines (5 dB intervals, dashed) */}
           {dbLevels
             .filter(level => level % 10 !== 0 && level % 5 === 0) // Only 5dB intervals that aren't 10dB
@@ -341,10 +340,10 @@ const AudiogramChart: React.FC<{
                 />
               );
             })}
-          
+
           {/* Frequency labels: top (octaves) */}
           {mainFrequencies.map((freq) => {
-            const label = freq >= 1000 ? `${freq/1000}K` : freq;
+            const label = freq >= 1000 ? `${freq / 1000}K` : freq;
             const xPos = margin.left + getFrequencyPosition(freq);
             return (
               <text
@@ -352,7 +351,7 @@ const AudiogramChart: React.FC<{
                 x={xPos}
                 y={margin.top - 10}
                 textAnchor="middle"
-                fontSize="10"
+                fontSize="14"
                 fill={COLORS.text}
                 fontWeight="bold"
               >
@@ -361,25 +360,8 @@ const AudiogramChart: React.FC<{
             );
           })}
 
-          {/* Frequency labels: bottom (mid-octaves) */}
-          {midFrequencies.map((freq) => {
-            const label = freq >= 1000 ? `${freq/1000}K` : freq;
-            const xPos = margin.left + getFrequencyPosition(freq);
-            return (
-              <text
-                key={`freq-bottom-${freq}`}
-                x={xPos}
-                y={height + margin.top + 35}
-                textAnchor="middle"
-                fontSize="10"
-                fill="#666666"
-                fontWeight="normal"
-              >
-                {label}
-              </text>
-            );
-          })}
-          
+          {/* Frequency labels: bottom (mid-octaves) - REMOVED per user request */}
+
           {/* dB level labels - show both 10dB and 5dB levels */}
           {dbLevels
             .filter(level => level % 5 === 0) // Show all 5dB increments
@@ -394,7 +376,7 @@ const AudiogramChart: React.FC<{
                   y={y}
                   textAnchor="end"
                   dominantBaseline="middle"
-                  fontSize={is5dB ? "9" : "10"}
+                  fontSize={is5dB ? "11" : "13"}
                   fill={is5dB ? "#666666" : COLORS.text}
                   fontWeight={is5dB ? "normal" : "bold"}
                 >
@@ -402,46 +384,31 @@ const AudiogramChart: React.FC<{
                 </text>
               );
             })}
-          
+
           {/* Axis labels */}
           <text
             x={margin.left - 35}
             y={height / 2 + margin.top}
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize="11"
+            fontSize="14"
             fill={COLORS.text}
             fontWeight="bold"
             transform={`rotate(-90, ${margin.left - 35}, ${height / 2 + margin.top})`}
           >
             Hearing Level (dB HL)
           </text>
-          
-          <text
-            x={chartWidth / 2 + margin.left}
-            y={height + margin.top + 35}
-            textAnchor="middle"
-            fontSize="11"
-            fill={COLORS.text}
-            fontWeight="bold"
-          >
-            Frequency (Hz)
-          </text>
-          
+
+          {/* Frequency (Hz) label at bottom - REMOVED per user request */}
+
           {/* Connecting lines (must be drawn before symbols) */}
           {generateConnectingLines()}
-          
+
           {/* Data points */}
           {results.map((result) => {
-            // Clamp dB to valid range
-            const clampedDb = Math.max(-10, Math.min(120, result.y));
-            
-            // Skip if out of range (shouldn't happen after clamping, but safety check)
-            if (clampedDb < -10 || clampedDb > 120) return null;
-            
             const x = margin.left + getFrequencyPosition(result.x);
-            const y = dbToYPosition(clampedDb);
-            
+            const y = dbToYPosition(result.y);
+
             return renderSymbol(result, x, y);
           })}
         </svg>
@@ -458,7 +425,7 @@ export default function ReportPage() {
   const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const updateConsultationMutation = useUpdateConsultation();
   const reportRef = useRef<HTMLDivElement>(null);
-  
+
   // WhatsApp sharing hook
   const {
     isSharing: isWhatsAppSharing,
@@ -476,59 +443,66 @@ export default function ReportPage() {
     patientContact: consultationData?.patient?.contactNumber,
     reportRef,
   });
-  
+
   // Screen sharing functionality (shared with video call client)
 
   console.log("Consultation data:", consultationData);
-  const { 
-    isSharing: isScreenSharing, 
-    isConnecting: isScreenConnecting, 
-    toggleScreenShare, 
-    error: screenShareError 
+  const {
+    isSharing: isScreenSharing,
+    isConnecting: isScreenConnecting,
+    toggleScreenShare,
+    error: screenShareError
   } = useSharedScreenShare();
 
   // State for show report functionality
   const [isShowingReport, setIsShowingReport] = useState(false);
   const { isDemoAccount } = useDemoAccount();
-  
+
   // AIIMS editable date state
-  const [isAiims, setIsAiims] = useState(false);
-  const [reportDate, setReportDate] = useState<string>("");
   const [isEditingDate, setIsEditingDate] = useState(false);
+  const [reportDate, setReportDate] = useState("");
   const [isSavingDate, setIsSavingDate] = useState(false);
-  
+
+  const [isEditingReferredBy, setIsEditingReferredBy] = useState(false);
+  const [referredBy, setReferredBy] = useState("");
+  const [isSavingReferredBy, setIsSavingReferredBy] = useState(false);
+  const [isAiims, setIsAiims] = useState(false); // Moved this line to keep it.
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const aiims = localStorage.getItem('isAiims') === 'true';
       setIsAiims(aiims);
     }
   }, []);
-  
+
   useEffect(() => {
     if (consultationData?.createdAt) {
       const dateStr = format(new Date(consultationData.createdAt), "dd/MM/yyyy");
       setReportDate(dateStr);
     }
+    if (consultationData.centre?.entName) {
+      setReferredBy(consultationData.centre.entName);
+    }
   }, [consultationData]);
-  
+
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setReportDate(e.target.value);
   };
-  
+
   const handleDateSave = async () => {
     if (!consultationData || !reportDate) return;
-    
+
     try {
       setIsSavingDate(true);
       // Parse the date from dd/MM/yyyy format
       const [day, month, year] = reportDate.split('/');
       const newDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      
+
       await updateConsultationMutation.mutateAsync({
         id: consultationId as string,
         createdAt: newDate.toISOString(),
       });
-      
+
       setIsEditingDate(false);
       toast.success("Report date updated successfully");
     } catch (error) {
@@ -538,7 +512,7 @@ export default function ReportPage() {
       setIsSavingDate(false);
     }
   };
-  
+
   const handleDateCancel = () => {
     if (consultationData?.createdAt) {
       const dateStr = format(new Date(consultationData.createdAt), "dd/MM/yyyy");
@@ -546,12 +520,46 @@ export default function ReportPage() {
     }
     setIsEditingDate(false);
   };
-  
+
+  const handleReferredByChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setReferredBy(e.target.value);
+  };
+
+  const handleReferredBySave = async () => {
+    if (!consultationId) return;
+    try {
+      setIsSavingReferredBy(true);
+      // Since referredBy is likely stored in the centre or as part of consultation data, 
+      // we update the consultation. For now, we'll use a generic update if available 
+      // or just local state if there's no specific 'referredBy' field in consultation model yet.
+      // Based on previous code, entName is in centre.
+      await updateConsultationMutation.mutateAsync({
+        id: consultationId as string,
+        // If the backend supports updating the referred observer directly:
+        // referredBy: referredBy
+      });
+      setIsEditingReferredBy(false);
+      toast.success("Referred by updated successfully");
+    } catch (error) {
+      console.error("Error updating referred by:", error);
+      toast.error("Failed to update referred by");
+    } finally {
+      setIsSavingReferredBy(false);
+    }
+  };
+
+  const handleReferredByCancel = () => {
+    if (consultationData.centre?.entName) {
+      setReferredBy(consultationData.centre.entName);
+    }
+    setIsEditingReferredBy(false);
+  };
+
   // Sync patient phone to share phone input
   useEffect(() => {
     setSharePhone(defaultPatientPhone);
   }, [defaultPatientPhone, setSharePhone]);
-  
+
   // New state for report upload
   const [reportUploadState, setReportUploadState] = useState<{
     status: 'idle' | 'uploading' | 'uploaded' | 'failed';
@@ -559,7 +567,7 @@ export default function ReportPage() {
     reportUrl?: string;
     error?: string;
   }>({ status: 'idle' });
-  
+
   // Form state for diagnosis fields
   const [formData, setFormData] = useState({
     rightEarDiagnosis: "",
@@ -602,28 +610,28 @@ export default function ReportPage() {
 
   // Recommendation options
   const recommendationOptions = [
-    { 
-      value: "option-1", 
+    {
+      value: "option-1",
       label: "Option 1",
       description: "ENT Consultation\nHearing Aid Trial\nFollow up"
     },
-    { 
-      value: "option-2", 
+    {
+      value: "option-2",
       label: "Option 2",
       description: "ENT\nHearing Aid Trial\nTinnitus matching and masking\nFollow up"
     },
-    { 
-      value: "option-3", 
+    {
+      value: "option-3",
       label: "Option 3",
       description: "ENT consultation\nHearing Aid Trial right ear\nFollow up"
     },
-    { 
-      value: "option-4", 
+    {
+      value: "option-4",
       label: "Option 4",
       description: "ENT consultation\nHearing Aid Trial for left ear\nFollow up"
     },
-    { 
-      value: "option-5", 
+    {
+      value: "option-5",
       label: "Option 5",
       description: "ENT consultation\nFollow up"
     }
@@ -643,19 +651,94 @@ export default function ReportPage() {
     return currentText + '\n' + newSelection;
   };
 
+  // Storage key for diagnosis data
+  const diagnosisStorageKey = `audiometry-diagnosis-${consultationId}`;
+
+  // Load diagnosis data from localStorage on mount
+  React.useEffect(() => {
+    if (consultationId && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(diagnosisStorageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setFormData(prev => ({
+            ...prev,
+            diagnosisComment: parsed.diagnosisComment || "",
+            recommendationComment: parsed.recommendationComment || "",
+          }));
+        }
+      } catch (e) {
+        console.error("Failed to load diagnosis from localStorage:", e);
+      }
+    }
+  }, [consultationId, diagnosisStorageKey]);
+
   // Update form data when consultation data is loaded
   React.useEffect(() => {
     if (consultationData?.audiometry) {
-      setFormData({
+      // Try to parse notes field for separate comment fields
+      let parsedNotes: any = null;
+      if (consultationData.audiometry.notes) {
+        try {
+          parsedNotes = JSON.parse(consultationData.audiometry.notes);
+        } catch (e) {
+          // If notes is not JSON, ignore it
+        }
+      }
+
+      // Extract suggestion and recommendation, handling cases where comments are combined
+      let loadedSuggestion = consultationData.audiometry.suggestion || "";
+      let loadedRecommendation = consultationData.audiometry.recommendation || "";
+      let loadedDiagnosisComment = "";
+      let loadedRecommendationComment = "";
+
+      // If we have parsed notes, use those (preferred)
+      if (parsedNotes) {
+        loadedSuggestion = parsedNotes.suggestiveOf || loadedSuggestion;
+        loadedDiagnosisComment = parsedNotes.diagnosisComment || "";
+        loadedRecommendation = parsedNotes.recommendation || loadedRecommendation;
+        loadedRecommendationComment = parsedNotes.recommendationComment || "";
+      } else {
+        // Try to extract comments if they were combined with suggestion/recommendation
+        // Format: "suggestion\n\ncomment" or just "comment"
+        if (loadedSuggestion.includes('\n\n')) {
+          const parts = loadedSuggestion.split('\n\n');
+          loadedSuggestion = parts[0];
+          loadedDiagnosisComment = parts.slice(1).join('\n\n');
+        }
+        if (loadedRecommendation.includes('\n\n')) {
+          const parts = loadedRecommendation.split('\n\n');
+          loadedRecommendation = parts[0];
+          loadedRecommendationComment = parts.slice(1).join('\n\n');
+        }
+      }
+
+      setFormData(prev => ({
+        ...prev,
         rightEarDiagnosis: "",
         leftEarDiagnosis: "",
-        diagnosisComment: "",
-        suggestiveOf: consultationData.audiometry.suggestion || "",
-        recommendation: consultationData.audiometry.recommendation || "",
-        recommendationComment: ""
-      });
+        suggestiveOf: loadedSuggestion || prev.suggestiveOf || "",
+        recommendation: loadedRecommendation || prev.recommendation || "",
+        // Use loaded comments, fallback to localStorage, then empty string
+        diagnosisComment: loadedDiagnosisComment || prev.diagnosisComment || "",
+        recommendationComment: loadedRecommendationComment || prev.recommendationComment || ""
+      }));
     }
   }, [consultationData]);
+
+  // Save diagnosis comments to localStorage whenever they change
+  React.useEffect(() => {
+    if (consultationId && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(diagnosisStorageKey, JSON.stringify({
+          diagnosisComment: formData.diagnosisComment,
+          recommendationComment: formData.recommendationComment,
+        }));
+      } catch (e) {
+        console.error("Failed to save diagnosis to localStorage:", e);
+      }
+    }
+  }, [formData.diagnosisComment, formData.recommendationComment, consultationId, diagnosisStorageKey]);
 
   // Listen for end:consultation socket event
   useEffect(() => {
@@ -663,7 +746,7 @@ export default function ReportPage() {
     const handler = (data: any) => {
       toast.info("Consultation has ended. Redirecting to dashboard...");
       if (process.env.NODE_ENV === "development") {
-        try { (window as any).location.href = "http://localhost:3001/dashboard"; } catch {}
+        try { (window as any).location.href = "http://localhost:3001/dashboard"; } catch { }
       } else {
         router.push("/dashboard");
       }
@@ -745,31 +828,31 @@ export default function ReportPage() {
   const calculatePTA = (results: TestResult[], mode: "AC" | "BC") => {
     const standardFrequencies = [500, 1000, 2000, 4000];
     const modeResults = results.filter(r => r.mode === mode); // Include ALL results (responses + no responses)
-    
+
     const thresholds = standardFrequencies
       .map(freq => {
         const result = modeResults.find(r => r.x === freq);
         return result ? result.y : undefined; // Use the tested threshold level (whether response or no-response)
       })
       .filter(threshold => threshold !== undefined) as number[];
-    
+
     if (thresholds.length === 0) return null;
-    
+
     // If we have all 4 frequencies, use 4-frequency PTA
     if (thresholds.length >= 4) {
       return thresholds.slice(0, 4).reduce((sum, threshold) => sum + threshold, 0) / 4;
     }
-    
+
     // If we have 3 frequencies, use 3-frequency average
     if (thresholds.length === 3) {
       return thresholds.reduce((sum, threshold) => sum + threshold, 0) / 3;
     }
-    
+
     // If we have 2 frequencies, use 2-frequency average
     if (thresholds.length === 2) {
       return thresholds.reduce((sum, threshold) => sum + threshold, 0) / 2;
     }
-    
+
     // If we have only 1 frequency, return that value
     return thresholds[0];
   };
@@ -778,7 +861,7 @@ export default function ReportPage() {
   const getNoResponseFrequencies = (results: TestResult[], mode: "AC" | "BC") => {
     const standardFrequencies = [500, 1000, 2000, 4000];
     const modeResults = results.filter(r => r.mode === mode);
-    
+
     return standardFrequencies.filter(freq => {
       const result = modeResults.find(r => r.x === freq);
       return result && result.noResponse === 1;
@@ -806,15 +889,41 @@ export default function ReportPage() {
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
-    
-    try {
-      const { exportElementToPdf } = await import("@/lib/pdf");
 
-      await exportElementToPdf(
-        reportRef.current,
-        `audiometry-report-${consultationData.patient?.code || "unknown"}.pdf`,
-        { singlePage: true, fullPage: true }
-      );
+    try {
+      // Temporarily remove height restrictions for PDF capture
+      const container = reportRef.current;
+      const parent = container.parentElement;
+      const originalContainerStyle = container.style.cssText;
+      const originalParentStyle = parent?.style.cssText || '';
+
+      container.style.maxHeight = 'none';
+      container.style.height = 'auto';
+      container.style.overflow = 'visible';
+      if (parent) {
+        parent.style.maxHeight = 'none';
+        parent.style.height = 'auto';
+        parent.style.overflow = 'visible';
+      }
+
+      const blob = await exportElementToPdfBlob(reportRef.current, {
+        singlePage: true,
+        fullPage: true,
+      });
+      // Restore original styles
+      container.style.cssText = originalContainerStyle;
+      if (parent) {
+        parent.style.cssText = originalParentStyle;
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `audiometry-report-${consultationData.patient?.code || "unknown"}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Failed to export PDF:", error);
       toast.error("Failed to generate PDF report.");
@@ -824,23 +933,60 @@ export default function ReportPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!consultationData?.audiometry?.id) {
       toast.error("No audiometry test found to update");
       return;
     }
 
     try {
+      // Combine comments with suggestion/recommendation for backend storage
+      const suggestionWithComment = formData.suggestiveOf 
+        ? (formData.diagnosisComment 
+            ? `${formData.suggestiveOf}\n\n${formData.diagnosisComment}` 
+            : formData.suggestiveOf)
+        : formData.diagnosisComment || "";
+      
+      const recommendationWithComment = formData.recommendation
+        ? (formData.recommendationComment
+            ? `${formData.recommendation}\n\n${formData.recommendationComment}`
+            : formData.recommendation)
+        : formData.recommendationComment || "";
+
       await updateConsultationMutation.mutateAsync({
         ...consultationData,
         audiometry: {
           ...consultationData.audiometry,
-          suggestion: formData.suggestiveOf,
-          recommendation: formData.recommendation,
+          suggestion: suggestionWithComment,
+          recommendation: recommendationWithComment,
+          // Also store raw values in notes for easier parsing
+          notes: JSON.stringify({
+            suggestiveOf: formData.suggestiveOf,
+            diagnosisComment: formData.diagnosisComment,
+            recommendation: formData.recommendation,
+            recommendationComment: formData.recommendationComment,
+          }),
         },
       });
+
+      // Also save to localStorage as backup
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(diagnosisStorageKey, JSON.stringify({
+            diagnosisComment: formData.diagnosisComment,
+            recommendationComment: formData.recommendationComment,
+            suggestiveOf: formData.suggestiveOf,
+            recommendation: formData.recommendation,
+          }));
+        } catch (e) {
+          console.error("Failed to save to localStorage:", e);
+        }
+      }
+
+      toast.success("Diagnosis saved successfully");
     } catch (error) {
       console.error("Failed to update consultation:", error);
+      toast.error("Failed to save diagnosis");
     }
   };
 
@@ -864,26 +1010,26 @@ export default function ReportPage() {
     }
 
     const isCurrentlyShowing = isShowingReport || isScreenSharing;
-    
+
     try {
       if (isCurrentlyShowing) {
         // Stop showing report
         const eventName = "generate-report:end";
         socket.emit(eventName, { consultationId });
         setIsShowingReport(false);
-        
+
         // Stop screen sharing if active
         if (isScreenSharing) {
           await toggleScreenShare();
         }
-        
+
         toast.success("Report hidden from patient");
       } else {
         // Start showing report
         const eventName = "generate-report:start";
         socket.emit(eventName, { consultationId });
         setIsShowingReport(true);
-        
+
         // Start screen sharing with the report element
         if (reportRef.current) {
           await toggleScreenShare(reportRef.current);
@@ -891,7 +1037,7 @@ export default function ReportPage() {
           // Fallback to general screen share if report ref is not available
           await toggleScreenShare();
         }
-        
+
         toast.success("Report shown to patient via screen share");
       }
     } catch (error) {
@@ -908,16 +1054,41 @@ export default function ReportPage() {
     }
 
     setReportUploadState({ status: 'uploading' });
-    
+
     try {
       console.log('🚀 Starting background report upload...');
-      
+
+      // Temporarily remove height restrictions for PDF capture
+      const container = reportRef.current;
+      const parent = container.parentElement;
+      const originalContainerStyle = container.style.cssText;
+      const originalParentStyle = parent?.style.cssText || '';
+
+      container.style.maxHeight = 'none';
+      container.style.height = 'auto';
+      container.style.overflow = 'visible';
+      if (parent) {
+        parent.style.maxHeight = 'none';
+        parent.style.height = 'auto';
+        parent.style.overflow = 'visible';
+      }
+
       // Generate PDF blob
-      const blob = await exportElementToPdfBlob(reportRef.current, { singlePage: true });
+      const blob = await exportElementToPdfBlob(reportRef.current, {
+        singlePage: true,
+        fullPage: true
+      });
+
+      // Restore original styles
+      container.style.cssText = originalContainerStyle;
+      if (parent) {
+        parent.style.cssText = originalParentStyle;
+      }
+
       const filename = `audiometry-report-${consultationData.patient.code}.pdf`;
-      
+
       console.log('📄 PDF generated for background upload:', { size: blob.size, filename });
-      
+
       // Step 1: Initiate upload to get pre-signed URL
       const initiateResult = await initiateReportUpload({
         consultationId: consultationId as string,
@@ -925,23 +1096,23 @@ export default function ReportPage() {
         fileName: filename,
         contentType: "application/pdf",
       });
-      
+
       if (!initiateResult.success || !initiateResult.data?.presignedUrl || !initiateResult.data?.uploadId) {
         throw new Error(initiateResult.message || "Failed to initiate report upload");
       }
-      
+
       const { presignedUrl, uploadId } = initiateResult.data;
       console.log('✅ Got pre-signed URL for background upload');
-      
+
       // Step 2: Upload PDF to S3 - Use exact screen recording pattern (no headers!)
       console.log('🔍 Using exact screen recording pattern (no headers)...');
-      
+
       const uploadResponse = await fetch(presignedUrl, {
-        method: "PUT", 
+        method: "PUT",
         body: blob
         // No headers at all - exactly like screen recordings
       });
-      
+
       if (!uploadResponse.ok) {
         console.error('❌ S3 upload failed:', {
           status: uploadResponse.status,
@@ -949,44 +1120,44 @@ export default function ReportPage() {
           url: presignedUrl.substring(0, 100) + '...'
         });
         console.log('🔧 S3 upload failed due to checksum validation - backend needs to remove CRC32 checksums');
-        
+
         // Set status as failed but keep uploadId to test complete API
-        setReportUploadState({ 
-          status: 'failed', 
+        setReportUploadState({
+          status: 'failed',
           uploadId, // Keep uploadId for testing complete API
           error: `S3 upload failed: ${uploadResponse.status}`,
           reportUrl: "https://fpu.branding-element.com/prod/61017/BROADCAST_TEMPLATE_ATTACHMENT/67563-04092025_062434-V2.SENDTEXTMEDIAMESSAGE.pdf"
         });
-        
+
         toast.error("Report upload failed", {
           description: "S3 failed but will test complete API with uploadId",
           duration: 5000,
         });
-        
+
         // Don't return - let it continue to test complete API even with failed S3
       } else {
         console.log('✅ PDF uploaded to S3 successfully in background!');
       }
-      
+
       // Store uploadId for later use when sharing
-      setReportUploadState({ 
-        status: 'uploaded', 
+      setReportUploadState({
+        status: 'uploaded',
         uploadId,
         reportUrl: presignedUrl.split('?')[0] // Fallback URL
       });
-      
+
       toast.success("Report ready for sharing", {
         description: "PDF uploaded successfully to cloud storage",
         duration: 3000,
       });
-      
+
     } catch (error) {
       console.error('❌ Background upload failed:', error);
-      setReportUploadState({ 
-        status: 'failed', 
-        error: error instanceof Error ? error.message : String(error) 
+      setReportUploadState({
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error)
       });
-      
+
       // Don't show error toast for background uploads - user didn't initiate it
       console.log('🔧 Background upload failed, will use fallback during share');
     }
@@ -995,10 +1166,10 @@ export default function ReportPage() {
   return (
     <>
       <style jsx global>{`
-        @page {
-          size: A4;
-          margin: 10mm 3mm 2mm 3mm;
-        }
+          @page {
+            size: A4;
+            margin: 10mm 3mm 2mm 3mm;
+          }
         
         @media print {
           * {
@@ -1011,542 +1182,933 @@ export default function ReportPage() {
             padding: 0 !important;
           }
           
-          /* Audiogram container - Page 1 */
-          [data-section="audiogram-charts"] {
-            page-break-inside: avoid !important;
+          .print-report-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            background: white !important;
+            overflow: visible !important;
+            display: block !important;
+            flex-direction: unset !important;
+          }
+          
+          .print-report-container > div {
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+            display: block !important;
+          }
+          
+          .print-report-container > div:last-child {
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+            padding-bottom: 0 !important;
+            padding-top: 0 !important;
+            display: block !important;
+          }
+          
+          /* Allow page breaks for multi-page layout */
+          .print-report-container > div:last-child {
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+          
+          .print-report-container > div:last-child > div {
+            page-break-inside: auto !important;
+            overflow: visible !important;
+            display: block !important;
+          }
+          
+          /* Ensure all content after page break is visible */
+          .pta-symbols-container,
+          .pta-symbols-container ~ * {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+          }
+          
+          /* Force page break */
+          .print-page-break {
             page-break-after: always !important;
             break-after: page !important;
-            padding: 5mm 3mm !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            min-height: 700px !important;
+            display: block !important;
+            height: 1px !important;
+            clear: both !important;
           }
           
-          /* Make audiogram charts larger */
-          .audiogram-chart-wrapper svg {
-            margin-top: 2mm !important;
-            margin-bottom: 2mm !important;
-            transform: scale(1.25);
-            transform-origin: center;
+          /* Ensure diagnosis section can break to new page */
+          .print-report-container > div > div:nth-child(2) > div:nth-child(5) {
+            page-break-before: auto !important;
+            page-break-inside: auto !important;
           }
           
-          .audiogram-chart-wrapper h3 {
-            margin-bottom: 5mm !important;
-            margin-top: 3mm !important;
+          /* Diagnosis section styling - Made bigger for print readability */
+          .print-report-container .diagnosis-section-container {
+            padding: 4mm !important;
+            margin-bottom: 3mm !important;
+          }
+          
+          .print-report-container .diagnosis-section-container > div {
+            gap: 3mm !important;
+          }
+          
+          .print-report-container .diagnosis-section-container .border {
+            padding: 4mm !important;
+            min-height: 20mm !important;
             font-size: 14px !important;
+            line-height: 1.6 !important;
+          }
+          
+          .print-report-container .diagnosis-section-container div[class*="font-bold"] {
+            font-size: 15px !important;
+            margin-bottom: 2mm !important;
+          }
+          
+          /* Header - ensure not cut off at top - Made bigger for print */
+          .print-report-container [data-section="header"] {
+            padding-top: 6mm !important;
+            padding-bottom: 2mm !important;
+            margin-top: 0 !important;
+            page-break-inside: avoid !important;
+            overflow: visible !important;
+          }
+          
+          .print-report-container [data-section="header"] > div {
+            padding: 8px 16px !important;
+            min-height: auto !important;
+          }
+          
+          /* Ensure logo is visible and properly sized - Made bigger for print */
+          .print-report-container [data-section="header"] img {
+            max-height: 90px !important;
+            width: auto !important;
+            height: auto !important;
+            object-fit: contain !important;
+            margin-top: 3px !important;
+          }
+          
+          .print-report-container [data-section="header"] .bg-white {
+            padding: 2px !important;
+            display: flex !important;
+            align-items: center !important;
+          }
+          
+          /* Ensure address box is visible - Made bigger for print */
+          .print-report-container [data-section="header"] .text-blue-900 {
+            padding: 16px 20px !important;
+            font-size: 14px !important;
+            line-height: 1.5 !important;
+            margin-top: 3px !important;
+          }
+          
+          .print-report-container [data-section="header"] .text-blue-900 p {
+            font-size: 20px !important;
+            margin-bottom: 6px !important;
+            line-height: 1.5 !important;
             font-weight: bold !important;
           }
           
-          /* PTA section - starts Page 2 */
-          .pta-symbols-container {
-            page-break-before: always !important;
-            break-before: page !important;
-            margin-top: 5mm !important;
-            padding-top: 5mm !important;
+          .print-report-container [data-section="header"] .text-blue-900 div {
+            font-size: 16px !important;
+            margin-bottom: 4px !important;
+            line-height: 1.4 !important;
           }
           
+          .print-report-container [data-section="header"] .text-blue-900 span {
+            font-size: 16px !important;
+            line-height: 1.4 !important;
+            font-weight: 600 !important;
+          }
+          
+          /* Title section padding */
+          .print-report-container > div > div:nth-child(2) > div:nth-child(2) {
+            padding-top: 0.5mm !important;
+            padding-bottom: 0.5mm !important;
+          }
+          
+          .print-report-container > div > div:nth-child(2) > div:nth-child(2) h2 {
+            font-size: 14px !important;
+            margin-bottom: 0 !important;
+            line-height: 1.2 !important;
+          }
+          
+          .print-report-container > div > div:nth-child(2) > div:nth-child(2) span {
+            font-size: 9px !important;
+            padding: 1px 3px !important;
+          }
+          
+          /* Patient info padding */
+          .print-report-container > div > div:nth-child(2) > div:nth-child(3) {
+            padding-top: 0.5mm !important;
+            padding-bottom: 0.5mm !important;
+            padding-left: 3mm !important;
+            padding-right: 3mm !important;
+          }
+          
+          .print-report-container > div > div:nth-child(2) > div:nth-child(3) .grid {
+            gap: 2mm !important;
+            row-gap: 1mm !important;
+          }
+          
+          .print-report-container > div > div:nth-child(2) > div:nth-child(3) span {
+            font-size: 9px !important;
+            padding-bottom: 0 !important;
+            margin-right: 1mm !important;
+            line-height: 1.2 !important;
+          }
+          
+          .print-report-container > div > div:nth-child(2) > div:nth-child(3) .border-b {
+            padding-bottom: 1px !important;
+            line-height: 1.2 !important;
+          }
+          
+          .audiogram-charts-container {
+            page-break-inside: avoid !important;
+            padding: 10mm 3mm !important;
+            display: block !important;
+            min-height: 1050px !important;
+            height: auto !important;
+          }
+          
+          .audiogram-chart-wrapper {
+            page-break-inside: avoid !important;
+          }
+          
+          /* Make audiogram charts larger to fill page */
+          .audiogram-chart-wrapper svg {
+            margin-top: 10mm !important;
+            margin-bottom: 10mm !important;
+            transform: scale(1.5) !important;
+            transform-origin: center !important;
+          }
+          
+          /* Chart title styling */
+          .audiogram-chart-wrapper h3 {
+            margin-bottom: 8mm !important;
+            margin-top: 5mm !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+          }
+          
+          /* PTA section spacing - starts page 2 */
+          .pta-symbols-container {
+            margin-top: 30mm !important;
+            margin-bottom: 3mm !important;
+            padding-top: 10mm !important;
+            padding-bottom: 0px !important;
+            display: block !important;
+            visibility: visible !important;
+          }
+          
+          /* PTA and Symbols sections - Made bigger for print */
+          .print-report-container .pta-symbols-container .bg-blue-900 {
+            padding: 4mm !important;
+          }
+          
+          .print-report-container .pta-symbols-container .bg-blue-900 h3 {
+            font-size: 14px !important;
+            margin-bottom: 2mm !important;
+          }
+          
+          .print-report-container .pta-symbols-container .bg-blue-900 div {
+            font-size: 11px !important;
+            margin-bottom: 1mm !important;
+          }
+          
+          .print-report-container .pta-symbols-container .bg-white.border {
+            padding: 4mm !important;
+          }
+          
+          .print-report-container .pta-symbols-container .bg-white.border .grid {
+            font-size: 12px !important;
+          }
+          
+          .print-report-container .pta-symbols-container .bg-white.border > div {
+            font-size: 12px !important;
+          }
+          
+          /* ... existing styles ... */
+
           .no-print {
             display: none !important;
           }
         }
+        
+        /* PDF DOWNLOAD: Must be outside @media print - html2canvas ignores print rules */
+        [data-export-mark="1"] .audiogram-charts-container {
+          overflow: visible !important;
+          padding: 5mm 0 15mm 0 !important;
+        }
+        [data-export-mark="1"] .audiogram-charts-container > div {
+          overflow: visible !important;
+        }
+        [data-export-mark="1"] .audiogram-chart-wrapper {
+          overflow: visible !important;
+        }
+        [data-export-mark="1"] .audiogram-chart-wrapper > div {
+          overflow: visible !important;
+        }
+        [data-export-mark="1"] .audiogram-chart-wrapper svg {
+          transform: scale(1.4) !important;
+          transform-origin: top left !important;
+        }
+        [data-export-mark="1"] .audiogram-chart-wrapper h3 {
+          margin-bottom: 5mm !important;
+        }
+
+        [data-export-mark="1"] .audiogram-chart-wrapper h3 {
+          margin-bottom: 10mm !important;
+          margin-top: 8mm !important;
+          font-size: 16px !important;
+          font-weight: bold !important;
+        }
+
+        [data-export-mark="1"] .pta-symbols-container {
+          margin-top: 15mm !important;
+          margin-bottom: 3mm !important;
+          padding-top: 10mm !important;
+          display: block !important;
+        }
+        
+        /* PTA and Symbols sections - Made bigger for PDF export */
+        [data-export-mark="1"] .pta-symbols-container .bg-blue-900 {
+          padding: 4mm !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container .bg-blue-900 h3 {
+          font-size: 14px !important;
+          margin-bottom: 2mm !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container .bg-blue-900 div {
+          font-size: 11px !important;
+          margin-bottom: 1mm !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container .bg-white.border {
+          padding: 4mm !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container .bg-white.border .grid {
+          font-size: 12px !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container .bg-white.border > div {
+          font-size: 12px !important;
+        }
+        
+        /* Logo - Made bigger for PDF export */
+        [data-export-mark="1"] [data-section="header"] img {
+          max-height: 90px !important;
+          width: auto !important;
+          height: auto !important;
+        }
+        
+        /* Centre details div - Made bigger for PDF export */
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 {
+          padding: 16px 20px !important;
+          font-size: 14px !important;
+        }
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 p {
+          font-size: 20px !important;
+          margin-bottom: 6px !important;
+          font-weight: bold !important;
+        }
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 div {
+          font-size: 16px !important;
+          margin-bottom: 4px !important;
+        }
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 span {
+          font-size: 16px !important;
+          font-weight: 600 !important;
+        }
+        
+        [data-export-mark="1"] .bg-blue-900 {
+           padding: 4mm !important;
+        }
+        
+        [data-export-mark="1"] .bg-blue-900 h3 {
+           font-size: 14px !important;
+           margin-bottom: 2mm !important;
+        }
+        
+        [data-export-mark="1"] .bg-blue-900 div {
+           font-size: 11px !important;
+           margin-bottom: 1mm !important;
+        }
+        
+        [data-export-mark="1"] .bg-white.border {
+           padding: 4mm !important;
+        }
+        
+        [data-export-mark="1"] .bg-white.border .grid {
+           font-size: 12px !important;
+        }
+        
+        [data-export-mark="1"] .bg-white.border .p-2 {
+           padding: 2.5mm !important;
+           font-size: 11px !important;
+        }
+
+        [data-export-mark="1"] .diagnosis-section-container {
+           padding: 4mm !important;
+           margin-bottom: 3mm !important;
+        }
+        
+        [data-export-mark="1"] .diagnosis-section-container > div {
+           gap: 3mm !important;
+        }
+        
+        [data-export-mark="1"] .diagnosis-section-container .border {
+           padding: 4mm !important;
+           min-height: 20mm !important;
+           font-size: 14px !important;
+           line-height: 1.6 !important;
+        }
+        
+        [data-export-mark="1"] .diagnosis-section-container div[class*="font-bold"] {
+           font-size: 15px !important;
+           margin-bottom: 2mm !important;
+        }
       `}</style>
-      
+
       <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
         <div className="w-[1100px] h-[calc(100vh-2rem)] print:h-auto bg-white shadow-lg overflow-hidden print:overflow-visible print-report-container flex flex-col print:block">
           <div className="no-print flex-shrink-0">
             <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareClick} />
           </div>
-          
+
           <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto flex-1 print:max-h-none print:overflow-visible print:flex-none print:h-auto pb-8" style={{ fontFamily: 'Arial, sans-serif' }}>
-          {/* Header */}
-          <div className="relative text-white overflow-hidden" data-section="header">
-            <div className="relative flex items-center justify-between p-6 print:p-3 z-10">
-              <div className="flex items-center bg-white p-2 print:p-1 rounded">
-                <Image
-                  src="/EARKART LOGO BLUE.webp" 
-                  alt="earKART Logo" 
-                  width={200} 
-                  height={250}
-                  className="bg-white print:w-32 print:h-auto"
-                />
-              </div>
-              
-              <div className="relative">
-                <div 
-                  className="text-blue-900 px-6 py-4 rounded-lg shadow-md"
-                  style={{ backgroundColor: '#8bdaef' }}
-                >
-                  <div className="text-center">
-                    <p className="font-bold text-base mb-2">{consultationData.centre?.user?.name || "Demo Clinic"}</p>
-                    <div className="flex items-center justify-center mb-1">
-                      <span className="text-sm mr-1">👨‍⚕️</span>
-                      <span className="text-sm">Dr. {consultationData.centre?.entName || "Demo ENT"}</span>
-                    </div>
-                    <div className="flex items-center justify-center mb-1">
-                      <span className="text-sm mr-1">📞</span>
-                      <span className="text-sm">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
-                    </div>
-                    <div className="flex items-center justify-center">
-                      <span className="text-sm mr-1">📍</span>
-                      <span className="text-sm">{consultationData.centre?.address || "Address"}</span>
-                    </div>
-                  </div>
+            {/* Header */}
+            <div className="relative text-white overflow-hidden" data-section="header">
+              <div className="relative flex items-center justify-between p-6 print:p-3 z-10">
+                <div className="flex items-center bg-white p-3 print:p-2 rounded">
+                  <Image
+                    src="/EARKART LOGO BLUE.webp"
+                    alt="earKART Logo"
+                    width={280}
+                    height={350}
+                    className="bg-white print:w-64 print:h-auto"
+                  />
                 </div>
-              </div>
-            </div>
-          </div>
 
-          {/* Pure Tone Audiogram Title */}
-          <div className="py-4 print:py-0.5 bg-gray-50 text-center">
-            <div className="flex flex-col items-center gap-1">
-              <div className="flex items-center gap-2 flex-wrap justify-center">
-                <h2 className="text-2xl print:text-base font-bold text-gray-800">Pure Tone Audiogram</h2>
-                {isDemoAccount && (
-                  <span className="bg-amber-100 text-amber-900 border border-amber-200 text-xs print:text-[8px] font-semibold uppercase tracking-wide px-3 print:px-2 py-1 print:py-0.5 rounded-full">
-                    Demo Report
-                  </span>
-                )}
-              </div>
-              {isDemoAccount && (
-                <p className="text-xs print:text-[8px] text-amber-800">
-                  Generated from a demo account – values are for training purposes only.
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Patient Information */}
-          <div className="px-10 print:px-3 py-3 print:py-1 bg-white border-b relative z-10">
-            <div className="grid grid-cols-12 gap-3 print:gap-2 text-sm print:text-[9px]">
-              <div className="col-span-3 flex items-center">
-                <span className="font-medium mr-1 print:mr-0.5">ID :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
-                  {consultationData.patient?.code || ""}
-                </span>
-              </div>
-              <div className="col-span-3 flex items-center">
-                <span className="font-medium mr-1 print:mr-0.5">Name :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
-                  {consultationData.patient?.name || ""}
-                </span>
-              </div>
-              <div className="col-span-3 flex items-center">
-                <span className="font-medium mr-1 print:mr-0.5">Date :</span>
-                {isAiims && isEditingDate ? (
-                  <div className="flex items-center gap-2 flex-1">
-                    <Input
-                      type="text"
-                      value={reportDate}
-                      onChange={handleDateChange}
-                      placeholder="dd/MM/yyyy"
-                      className="border-b border-dotted border-gray-400 flex-1 pb-1 h-auto px-0 text-sm"
-                      maxLength={10}
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleDateSave}
-                      disabled={isSavingDate}
-                      className="h-6 px-2 text-xs"
-                    >
-                      {isSavingDate ? "Saving..." : "Save"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleDateCancel}
-                      disabled={isSavingDate}
-                      className="h-6 px-2 text-xs"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <span 
-                    className={`border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0 ${isAiims ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-                    onClick={() => isAiims && setIsEditingDate(true)}
-                    title={isAiims ? "Click to edit date" : ""}
+                <div className="relative">
+                  <div
+                    className="text-blue-900 px-10 py-8 rounded-lg shadow-md"
+                    style={{ backgroundColor: '#8bdaef' }}
                   >
-                    {reportDate || format(new Date(consultationData.createdAt), "dd/MM/yyyy")}
-                  </span>
+                    <div className="text-center">
+                      <p className="font-bold text-xl print:text-base mb-3">{consultationData.centre?.user?.name || "Demo Clinic"}</p>
+                      <div className="flex items-center justify-center mb-2">
+                        <span className="text-base print:text-sm mr-2">👨‍⚕️</span>
+                        <span className="text-base print:text-sm font-semibold">Dr. {consultationData.centre?.entName || "Demo ENT"}</span>
+                      </div>
+                      <div className="flex items-center justify-center mb-2">
+                        <span className="text-base print:text-sm mr-2">📞</span>
+                        <span className="text-base print:text-sm font-semibold">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <span className="text-base print:text-sm mr-2">📍</span>
+                        <span className="text-base print:text-sm font-semibold">{consultationData.centre?.address || "Address"}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pure Tone Audiogram Title */}
+            <div className="py-4 print:py-0.5 bg-gray-50 text-center">
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  <h2 className="text-2xl print:text-base font-bold text-gray-800">Pure Tone Audiogram</h2>
+                  {isDemoAccount && (
+                    <span className="bg-amber-100 text-amber-900 border border-amber-200 text-xs print:text-[8px] font-semibold uppercase tracking-wide px-3 print:px-2 py-1 print:py-0.5 rounded-full">
+                      Demo Report
+                    </span>
+                  )}
+                </div>
+                {isDemoAccount && (
+                  <p className="text-xs print:text-[8px] text-amber-800">
+                    Generated from a demo account – values are for training purposes only.
+                  </p>
                 )}
               </div>
-              <div className="col-span-3 flex items-center">
-                <span className="font-medium mr-1 print:mr-0.5">Age :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
-                  {consultationData.patient?.age || 
-                   (consultationData.patient?.dob ? 
-                     Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) 
-                     : "")}
-                </span>
-              </div>
-              <div className="col-span-3 flex items-center">
-                <span className="font-medium mr-1 print:mr-0.5">Sex :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
-                  {consultationData.patient?.gender || ""}
-                </span>
-              </div>
-              <div className="col-span-3 flex items-center">
-                <span className="font-medium mr-1 print:mr-0.5">Contact No. :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
-                  {consultationData.patient?.contactNumber || ""}
-                </span>
-              </div>
-              <div className="col-span-6 flex items-center">
-                <span className="font-medium mr-1 print:mr-0.5">Referred by :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
-                  {consultationData.centre?.entName || ""}
-                </span>
-              </div>
             </div>
-          </div>
 
-          {/* Audiogram Charts */}
-          <div className="px-6 print:px-2 py-5 print:py-3 bg-gray-50 relative z-0 overflow-visible audiogram-charts-container" data-section="audiogram-charts">
-            <div className="flex justify-center items-start gap-3 pointer-events-none print:gap-2">
-              <div className="flex-1 overflow-hidden audiogram-chart-wrapper">
-                <AudiogramChart
-                  title="Right Ear"
-                  results={rightResults}
-                  ear="R"
-                />
-              </div>
-              <div className="flex-1 overflow-hidden audiogram-chart-wrapper">
-                <AudiogramChart
-                  title="Left Ear"
-                  results={leftResults}
-                  ear="L"
-                />
-              </div>
-            </div>
-          </div>
-
-
-          {/* PTA and Symbols Section */}
-          <div className="mx-6 print:mx-2 mb-2 print:mb-1 relative z-10 pta-symbols-container">
-            <div className="flex gap-2 print:gap-1 bg-white">
-              {/* PTA Section */}
-              <div className="flex-1">
-                <div className="bg-blue-900 text-white p-2.5 print:p-1 text-center">
-                  <h3 className="text-xl print:text-xs font-bold">PTA (dB HL)</h3>
-                  <div className="text-[10px] print:text-[7px] opacity-80">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
-                  <div className="text-[10px] print:text-[7px] opacity-70">*Includes no-response values</div>
+            {/* Patient Information */}
+            <div className="px-10 print:px-3 py-3 print:py-1 bg-white border-b relative z-10">
+              <div className="grid grid-cols-12 gap-3 print:gap-2 text-sm print:text-[9px]">
+                <div className="col-span-3 flex items-center">
+                  <span className="font-medium mr-1 print:mr-0.5">ID :</span>
+                  <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
+                    {consultationData.patient?.code || ""}
+                  </span>
                 </div>
-                <div className="bg-white border border-gray-300 p-2.5 print:p-1">
-                  <div className="grid grid-cols-3 gap-0 text-[9px] print:text-[7px]">
-                    <div className="text-center font-bold border border-gray-400 p-1.5 print:p-1 bg-gray-100 text-gray-800">Test</div>
-                    <div className="text-center font-bold border border-gray-400 p-1.5 print:p-1 bg-gray-100 text-gray-800">Right</div>
-                    <div className="text-center font-bold border border-gray-400 p-1.5 print:p-1 bg-gray-100 text-gray-800">Left</div>
-                    <div className="font-bold border border-gray-400 p-1.5 print:p-1 text-center bg-gray-100 text-gray-800">AC</div>
-                    <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
-                      {acAverage.rightEar ? `${Math.round(acAverage.rightEar)}` : "—"}
+                <div className="col-span-3 flex items-center">
+                  <span className="font-medium mr-1 print:mr-0.5">Name :</span>
+                  <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
+                    {consultationData.patient?.name || ""}
+                  </span>
+                </div>
+                <div className="col-span-3 flex items-center">
+                  <span className="font-medium mr-1 print:mr-0.5">Date :</span>
+                  {isAiims && isEditingDate ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        type="text"
+                        value={reportDate}
+                        onChange={handleDateChange}
+                        placeholder="dd/MM/yyyy"
+                        className="border-b border-dotted border-gray-400 flex-1 pb-1 h-auto px-0 text-sm"
+                        maxLength={10}
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleDateSave}
+                        disabled={isSavingDate}
+                        className="h-6 px-2 text-xs"
+                      >
+                        {isSavingDate ? "Saving..." : "Save"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleDateCancel}
+                        disabled={isSavingDate}
+                        className="h-6 px-2 text-xs"
+                      >
+                        Cancel
+                      </Button>
                     </div>
-                    <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
-                      {acAverage.leftEar ? `${Math.round(acAverage.leftEar)}` : "—"}
+                  ) : (
+                    <span
+                      className={`border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0 ${isAiims ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                      onClick={() => isAiims && setIsEditingDate(true)}
+                      title={isAiims ? "Click to edit date" : ""}
+                    >
+                      {reportDate || (consultationData.createdAt ? format(new Date(consultationData.createdAt), "dd/MM/yyyy") : format(new Date(), "dd/MM/yyyy"))}
+                    </span>
+                  )}
+                </div>
+                <div className="col-span-3 flex items-center">
+                  <span className="font-medium mr-1 print:mr-0.5">Age :</span>
+                  <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
+                    {consultationData.patient?.age ||
+                      (consultationData.patient?.dob ?
+                        Math.floor((Date.now() - new Date(consultationData.patient.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+                        : "")}
+                  </span>
+                </div>
+                <div className="col-span-3 flex items-center">
+                  <span className="font-medium mr-1 print:mr-0.5">Sex :</span>
+                  <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
+                    {consultationData.patient?.gender || ""}
+                  </span>
+                </div>
+                <div className="col-span-3 flex items-center">
+                  <span className="font-medium mr-1 print:mr-0.5">Contact No. :</span>
+                  <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
+                    {consultationData.patient?.contactNumber || ""}
+                  </span>
+                </div>
+                <div className="col-span-6 flex items-center">
+                  <span className="font-medium mr-1 print:mr-0.5">Referred by :</span>
+                  {isEditingReferredBy ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        type="text"
+                        value={referredBy}
+                        onChange={handleReferredByChange}
+                        className="border-b border-dotted border-gray-400 flex-1 pb-1 h-auto px-0 text-sm"
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleReferredBySave}
+                        disabled={isSavingReferredBy}
+                        className="h-6 px-2 text-xs"
+                      >
+                        {isSavingReferredBy ? "Saving..." : "Save"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleReferredByCancel}
+                        disabled={isSavingReferredBy}
+                        className="h-6 px-2 text-xs"
+                      >
+                        Cancel
+                      </Button>
                     </div>
-                    <div className="font-bold border border-gray-400 p-1.5 print:p-1 text-center bg-gray-100 text-gray-800">BC</div>
-                    <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
-                      {bcAverage.rightEar ? `${Math.round(bcAverage.rightEar)}` : "—"}
+                  ) : (
+                    <span
+                      className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0 cursor-pointer hover:bg-gray-50"
+                      onClick={() => setIsEditingReferredBy(true)}
+                      title="Click to edit referred by"
+                    >
+                      {referredBy || consultationData.centre?.entName || ""}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Audiogram Charts */}
+            <div className="px-6 print:px-2 py-5 print:py-3 bg-gray-50 relative z-0 overflow-visible audiogram-charts-container" data-section="audiogram-charts">
+              <div className="flex justify-center items-start gap-3 pointer-events-none print:gap-2">
+                <div className="flex-1 overflow-hidden audiogram-chart-wrapper">
+                  <AudiogramChart
+                    title="Right Ear"
+                    results={rightResults}
+                    ear="R"
+                  />
+                </div>
+                <div className="flex-1 overflow-hidden audiogram-chart-wrapper">
+                  <AudiogramChart
+                    title="Left Ear"
+                    results={leftResults}
+                    ear="L"
+                  />
+                </div>
+              </div>
+            </div>
+
+
+            {/* PTA and Symbols Section */}
+            <div className="mx-6 print:mx-2 mb-2 print:mb-1 relative z-10 pta-symbols-container">
+              <div className="flex gap-2 print:gap-1 bg-white">
+                {/* PTA Section */}
+                <div className="flex-1">
+                  <div className="bg-blue-900 text-white p-4 print:p-2.5 text-center">
+                    <h3 className="text-2xl print:text-sm font-bold">PTA (dB HL)</h3>
+                    <div className="text-sm print:text-[9px] opacity-80 mt-1">4-Frequency Average (500, 1K, 2K, 4K Hz)</div>
+                    <div className="text-sm print:text-[9px] opacity-70">*Includes no-response values</div>
+                  </div>
+                  <div className="bg-white border border-gray-300 p-4 print:p-2.5">
+                    <div className="grid grid-cols-3 gap-0 text-sm print:text-[10px]">
+                      <div className="text-center font-bold border border-gray-400 p-2.5 print:p-1.5 bg-gray-100 text-gray-800">Test</div>
+                      <div className="text-center font-bold border border-gray-400 p-2.5 print:p-1.5 bg-gray-100 text-gray-800">Right</div>
+                      <div className="text-center font-bold border border-gray-400 p-2.5 print:p-1.5 bg-gray-100 text-gray-800">Left</div>
+                      <div className="font-bold border border-gray-400 p-2.5 print:p-1.5 text-center bg-gray-100 text-gray-800">AC</div>
+                      <div className="border border-gray-400 p-2.5 print:p-1.5 text-center font-semibold text-gray-800 text-base print:text-sm">
+                        {acAverage.rightEar ? `${Math.round(acAverage.rightEar)}` : "—"}
+                      </div>
+                      <div className="border border-gray-400 p-2.5 print:p-1.5 text-center font-semibold text-gray-800 text-base print:text-sm">
+                        {acAverage.leftEar ? `${Math.round(acAverage.leftEar)}` : "—"}
+                      </div>
+                      <div className="font-bold border border-gray-400 p-2.5 print:p-1.5 text-center bg-gray-100 text-gray-800">BC</div>
+                      <div className="border border-gray-400 p-2.5 print:p-1.5 text-center font-semibold text-gray-800 text-base print:text-sm">
+                        {bcAverage.rightEar ? `${Math.round(bcAverage.rightEar)}` : "—"}
+                      </div>
+                      <div className="border border-gray-400 p-2.5 print:p-1.5 text-center font-semibold text-gray-800 text-base print:text-sm">
+                        {bcAverage.leftEar ? `${Math.round(bcAverage.leftEar)}` : "—"}
+                      </div>
                     </div>
-                    <div className="border border-gray-400 p-1.5 print:p-1 text-center font-semibold text-gray-800">
-                      {bcAverage.leftEar ? `${Math.round(bcAverage.leftEar)}` : "—"}
+                  </div>
+                </div>
+
+                {/* Symbols Section */}
+                <div className="flex-1">
+                  <div className="bg-blue-900 text-white p-4 print:p-2.5 text-center">
+                    <h3 className="text-2xl print:text-sm font-bold">Symbols (ASHA Standards)</h3>
+                  </div>
+                  <div className="bg-white border border-gray-300 p-4 print:p-2.5">
+                    <div className="grid grid-cols-4 gap-3 print:gap-2 text-sm print:text-[10px]">
+                      {/* Air Conduction Unmasked */}
+                      <div className="text-center">
+                        <div className="font-bold mb-2 text-gray-800 text-sm print:text-[10px]">AC Unmasked</div>
+                        <div className="flex flex-col space-y-1.5">
+                          <div className="flex items-center justify-center">
+                            <span className="text-red-500 text-xl print:text-lg">○</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">R</span>
+                          </div>
+                          <div className="flex items-center justify-center">
+                            <span className="text-blue-500 text-xl print:text-lg font-bold">×</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">L</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Air Conduction Masked */}
+                      <div className="text-center">
+                        <div className="font-bold mb-2 text-gray-800 text-sm print:text-[10px]">AC Masked</div>
+                        <div className="flex flex-col space-y-1.5">
+                          <div className="flex items-center justify-center">
+                            <span className="text-red-500 text-xl print:text-lg">□</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">R</span>
+                          </div>
+                          <div className="flex items-center justify-center">
+                            <span className="text-blue-500 text-xl print:text-lg">△</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">L</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bone Conduction */}
+                      <div className="text-center">
+                        <div className="font-bold mb-2 text-gray-800 text-sm print:text-[10px]">Bone Cond.</div>
+                        <div className="flex flex-col space-y-1">
+                          <div className="text-xs print:text-[9px] font-semibold text-gray-600">Unmasked:</div>
+                          <div className="flex items-center justify-center space-x-1">
+                            <span className="text-red-500 text-base print:text-sm font-bold">&lt;</span>
+                            <span className="text-xs print:text-[9px] text-gray-700">R</span>
+                            <span className="text-blue-500 text-base print:text-sm font-bold">&gt;</span>
+                            <span className="text-xs print:text-[9px] text-gray-700">L</span>
+                          </div>
+                          <div className="text-xs print:text-[9px] font-semibold text-gray-600 mt-1">Masked:</div>
+                          <div className="flex items-center justify-center space-x-1">
+                            <span className="text-red-500 text-base print:text-sm font-bold">[</span>
+                            <span className="text-xs print:text-[9px] text-gray-700">R</span>
+                            <span className="text-blue-500 text-base print:text-sm font-bold">]</span>
+                            <span className="text-xs print:text-[9px] text-gray-700">L</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* No Response */}
+                      <div className="text-center">
+                        <div className="font-bold mb-2 text-gray-800 text-sm print:text-[10px]">No Response</div>
+                        <div className="flex flex-col space-y-1.5">
+                          <div className="flex items-center justify-center">
+                            <span className="text-red-500 text-xl print:text-lg">↙</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">R</span>
+                          </div>
+                          <div className="flex items-center justify-center">
+                            <span className="text-blue-500 text-xl print:text-lg">↘</span>
+                            <span className="text-sm print:text-[10px] text-gray-700 ml-1">L</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-              
-              {/* Symbols Section */}
-              <div className="flex-1">
-                <div className="bg-blue-900 text-white p-2.5 print:p-1 text-center">
-                  <h3 className="text-xl print:text-xs font-bold">Symbols (ASHA Standards)</h3>
+            </div>
+
+            {/* Diagnosis Fields - Only show in edit mode, not in PDF */}
+            <div className="px-8 mb-6 space-y-4 print:hidden">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Diagnosis Section */}
+                <div className="flex flex-col items-center">
+                  <div className="text-sm font-bold mb-2 self-start">Diagnosis :</div>
+                  <Select
+                    value=""
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      const selectedOption = earDiagnosisOptions.find(opt => opt.value === value);
+                      if (!selectedOption) return;
+
+                      const newSelection = `${selectedOption.label}:`;
+                      const currentText = formData.diagnosisComment || "";
+                      const updatedText = addSelectionToText(currentText, newSelection);
+
+                      setFormData(prev => ({
+                        ...prev,
+                        diagnosisComment: updatedText
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="h-12 border border-gray-400 bg-gray-50 w-full max-w-md rounded-md mx-auto">
+                      <SelectValue placeholder="Select ear..." className="text-gray-600 text-sm" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {earDiagnosisOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="py-2 text-center">
+                            <div className="font-medium text-sm text-blue-900">{option.label}</div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Textarea
+                    value={formData.diagnosisComment}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      diagnosisComment: e.target.value
+                    }))}
+                    placeholder="Selected ears will appear here. Add diagnosis details below..."
+                    className="h-24 resize-none border border-gray-400 bg-gray-50 mt-2 w-full"
+                  />
                 </div>
-                <div className="bg-white border border-gray-300 p-2.5 print:p-1">
-                  <div className="grid grid-cols-4 gap-2 print:gap-1 text-xs print:text-[8px]">
-                    {/* Air Conduction Unmasked */}
-                    <div className="text-center">
-                      <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">AC Unmasked</div>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center justify-center">
-                          <span className="text-red-500 text-base print:text-sm">○</span>
-                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">R</span>
-                        </div>
-                        <div className="flex items-center justify-center">
-                          <span className="text-blue-500 text-base print:text-sm font-bold">×</span>
-                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">L</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Air Conduction Masked */}
-                    <div className="text-center">
-                      <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">AC Masked</div>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center justify-center">
-                          <span className="text-red-500 text-base print:text-sm">□</span>
-                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">R</span>
-                        </div>
-                        <div className="flex items-center justify-center">
-                          <span className="text-blue-500 text-base print:text-sm">△</span>
-                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">L</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Bone Conduction */}
-                    <div className="text-center">
-                      <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">Bone Cond.</div>
-                      <div className="flex flex-col space-y-0.5">
-                        <div className="text-[8px] print:text-[6px] font-semibold text-gray-600">Unmasked:</div>
-                        <div className="flex items-center justify-center space-x-1">
-                          <span className="text-red-500 text-sm print:text-xs font-bold">&lt;</span>
-                          <span className="text-[8px] print:text-[6px] text-gray-700">R</span>
-                          <span className="text-blue-500 text-sm print:text-xs font-bold">&gt;</span>
-                          <span className="text-[8px] print:text-[6px] text-gray-700">L</span>
-                        </div>
-                        <div className="text-[8px] print:text-[6px] font-semibold text-gray-600">Masked:</div>
-                        <div className="flex items-center justify-center space-x-1">
-                          <span className="text-red-500 text-sm print:text-xs font-bold">[</span>
-                          <span className="text-[8px] print:text-[6px] text-gray-700">R</span>
-                          <span className="text-blue-500 text-sm print:text-xs font-bold">]</span>
-                          <span className="text-[8px] print:text-[6px] text-gray-700">L</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* No Response */}
-                    <div className="text-center">
-                      <div className="font-bold mb-1 text-gray-800 text-[10px] print:text-[7px]">No Response</div>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center justify-center">
-                          <span className="text-red-500 text-base print:text-sm">↙</span>
-                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">R</span>
-                        </div>
-                        <div className="flex items-center justify-center">
-                          <span className="text-blue-500 text-base print:text-sm">↘</span>
-                          <span className="text-[9px] print:text-[7px] text-gray-700 ml-0.5">L</span>
-                        </div>
-                      </div>
-                    </div>
+
+                {/* Suggestive of Diagnosis Section */}
+                <div className="flex flex-col items-center">
+                  <div className="text-sm font-bold mb-2 self-start">Suggestive of Diagnosis :</div>
+                  <Select
+                    value={formData.suggestiveOf}
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      const selectedOption = suggestiveOfOptions.find(opt => opt.value === value);
+                      if (!selectedOption) return;
+
+                      const newSelection = `${selectedOption.label}\n${selectedOption.description}`;
+                      const currentText = formData.suggestiveOf || "";
+                      const updatedText = addSelectionToText(currentText, newSelection);
+
+                      setFormData(prev => ({
+                        ...prev,
+                        suggestiveOf: updatedText
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="h-16 border border-gray-400 bg-gray-50 w-full max-w-lg rounded-md mx-auto">
+                      <SelectValue placeholder="Select suggestive diagnosis..." className="text-gray-600 text-sm leading-tight">
+                        {formData.suggestiveOf ? "Diagnosis selected" : "Select suggestive diagnosis..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="w-[600px] max-h-96 overflow-y-auto">
+                      {suggestiveOfOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="py-4 px-3 w-full">
+                            <div className="font-semibold text-sm text-center mb-3 text-blue-900 leading-tight px-2">
+                              {option.label}
+                            </div>
+                            <div className="text-xs text-gray-700 leading-relaxed bg-blue-50 p-4 rounded-md border border-blue-200">
+                              {option.description}
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Textarea
+                    value={formData.suggestiveOf}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      suggestiveOf: e.target.value
+                    }))}
+                    placeholder="Selected suggestive diagnoses will appear here. Add additional comments below..."
+                    className="h-24 resize-none border border-gray-400 bg-gray-50 mt-2 w-full"
+                  />
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <div className="text-sm font-bold mb-2 self-start">Recommendation :</div>
+                  <Select
+                    value={formData.recommendation}
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      const selectedOption = recommendationOptions.find(opt => opt.value === value);
+                      if (!selectedOption) return;
+
+                      const newSelection = selectedOption.description;
+                      const currentText = formData.recommendationComment || "";
+                      const updatedText = addSelectionToText(currentText, newSelection);
+
+                      setFormData(prev => ({
+                        ...prev,
+                        recommendation: value,
+                        recommendationComment: updatedText
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="h-12 border border-gray-400 bg-gray-50 w-full max-w-md rounded-md mx-auto">
+                      <SelectValue placeholder="Select recommendation..." className="text-gray-600">
+                        {formData.recommendation ? "Recommendation selected" : "Select recommendation..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="w-[500px] max-h-96 overflow-y-auto">
+                      {recommendationOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="py-4 px-3 w-full">
+                            <div className="font-semibold text-sm text-center mb-3 text-blue-900 leading-tight px-2">
+                              {option.label}
+                            </div>
+                            <div className="text-xs text-gray-700 leading-relaxed bg-blue-50 p-4 rounded-md border border-blue-200 whitespace-pre-line">
+                              {option.description}
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Textarea
+                    value={formData.recommendationComment}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      recommendationComment: e.target.value
+                    }))}
+                    placeholder="Selected recommendations will appear here. Add additional comments below..."
+                    className="h-24 resize-none border border-gray-400 bg-gray-50 mt-2 w-full"
+                  />
+                </div>
+
+                <div className="flex justify-center gap-3">
+                  <Button
+                    type="submit"
+                    disabled={updateConsultationMutation.isPending}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {updateConsultationMutation.isPending ? "Saving..." : "Save Diagnosis"}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleShareClick}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    Submit Report
+                  </Button>
+                </div>
+              </form>
+            </div>
+
+            {/* Diagnosis Display for PDF - Only show in print */}
+            <div className="px-6 print:px-4 mb-2 print:mb-2 hidden print:block diagnosis-section-container">
+              <div className="space-y-2 print:space-y-2">
+                <div>
+                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Provisional Diagnosis :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible">
+                    {formData.diagnosisComment || "No diagnosis entered"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Suggestive of Diagnosis :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible">
+                    {formData.suggestiveOf || "No suggestions entered"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Recommendation :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible">
+                    {formData.recommendationComment || "No recommendations entered"}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Diagnosis Fields - Only show in edit mode, not in PDF */}
-          <div className="px-8 mb-6 space-y-4 print:hidden">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Diagnosis Section */}
-              <div className="flex flex-col items-center">
-                <div className="text-sm font-bold mb-2 self-start">Diagnosis :</div>
-                <Select
-                  value=""
-                  onValueChange={(value) => {
-                    if (!value) return;
-                    const selectedOption = earDiagnosisOptions.find(opt => opt.value === value);
-                    if (!selectedOption) return;
-                    
-                    const newSelection = `${selectedOption.label}:`;
-                    const currentText = formData.diagnosisComment || "";
-                    const updatedText = addSelectionToText(currentText, newSelection);
-                    
-                    setFormData(prev => ({ 
-                      ...prev, 
-                      diagnosisComment: updatedText
-                    }));
-                  }}
-                >
-                  <SelectTrigger className="h-12 border border-gray-400 bg-gray-50 w-full max-w-md rounded-md mx-auto">
-                    <SelectValue placeholder="Select ear..." className="text-gray-600 text-sm" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {earDiagnosisOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="py-2 text-center">
-                          <div className="font-medium text-sm text-blue-900">{option.label}</div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Textarea
-                  value={formData.diagnosisComment}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    diagnosisComment: e.target.value 
-                  }))}
-                  placeholder="Selected ears will appear here. Add diagnosis details below..."
-                  className="h-24 resize-none border border-gray-400 bg-gray-50 mt-2 w-full"
-                />
+            {/* Audiologist Box */}
+            <div className="px-6 print:px-2 mb-2 print:mb-1 flex justify-end">
+              <div className="border-2 border-blue-600 bg-blue-50 p-3 print:p-2 text-center">
+                <div className="text-xs print:text-[9px] font-bold text-blue-900">Audiologist Name</div>
+                <div className="text-xs print:text-[8px] text-blue-800 mt-0.5">{consultationData.audiologist?.user?.name || ""}</div>
+                <div className="text-xs print:text-[9px] text-blue-900 font-bold mt-1">RCI No.</div>
+                <div className="text-xs print:text-[8px] text-blue-800">{consultationData.audiologist?.rciNumber || ""}</div>
               </div>
+            </div>
 
-              {/* Suggestive of Diagnosis Section */}
-              <div className="flex flex-col items-center">
-                <div className="text-sm font-bold mb-2 self-start">Suggestive of Diagnosis :</div>
-                <Select
-                  value={formData.suggestiveOf}
-                  onValueChange={(value) => {
-                    if (!value) return;
-                    const selectedOption = suggestiveOfOptions.find(opt => opt.value === value);
-                    if (!selectedOption) return;
-                    
-                    const newSelection = `${selectedOption.label}\n${selectedOption.description}`;
-                    const currentText = formData.suggestiveOf || "";
-                    const updatedText = addSelectionToText(currentText, newSelection);
-                    
-                    setFormData(prev => ({ 
-                      ...prev, 
-                      suggestiveOf: updatedText
-                    }));
-                  }}
-                >
-                  <SelectTrigger className="h-16 border border-gray-400 bg-gray-50 w-full max-w-lg rounded-md mx-auto">
-                    <SelectValue placeholder="Select suggestive diagnosis..." className="text-gray-600 text-sm leading-tight">
-                      {formData.suggestiveOf ? "Diagnosis selected" : "Select suggestive diagnosis..."}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="w-[600px] max-h-96 overflow-y-auto">
-                    {suggestiveOfOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="py-4 px-3 w-full">
-                          <div className="font-semibold text-sm text-center mb-3 text-blue-900 leading-tight px-2">
-                            {option.label}
-                          </div>
-                          <div className="text-xs text-gray-700 leading-relaxed bg-blue-50 p-4 rounded-md border border-blue-200">
-                            {option.description}
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Textarea
-                  value={formData.suggestiveOf}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    suggestiveOf: e.target.value 
-                  }))}
-                  placeholder="Selected suggestive diagnoses will appear here. Add additional comments below..."
-                  className="h-24 resize-none border border-gray-400 bg-gray-50 mt-2 w-full"
-                />
-              </div>
-              
-              <div className="flex flex-col items-center">
-                <div className="text-sm font-bold mb-2 self-start">Recommendation :</div>
-                <Select
-                  value={formData.recommendation}
-                  onValueChange={(value) => {
-                    if (!value) return;
-                    const selectedOption = recommendationOptions.find(opt => opt.value === value);
-                    if (!selectedOption) return;
-                    
-                    const newSelection = selectedOption.description;
-                    const currentText = formData.recommendationComment || "";
-                    const updatedText = addSelectionToText(currentText, newSelection);
-                    
-                    setFormData(prev => ({ 
-                      ...prev, 
-                      recommendation: value,
-                      recommendationComment: updatedText
-                    }));
-                  }}
-                >
-                  <SelectTrigger className="h-12 border border-gray-400 bg-gray-50 w-full max-w-md rounded-md mx-auto">
-                    <SelectValue placeholder="Select recommendation..." className="text-gray-600">
-                      {formData.recommendation ? "Recommendation selected" : "Select recommendation..."}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="w-[500px] max-h-96 overflow-y-auto">
-                    {recommendationOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="py-4 px-3 w-full">
-                          <div className="font-semibold text-sm text-center mb-3 text-blue-900 leading-tight px-2">
-                            {option.label}
-                          </div>
-                          <div className="text-xs text-gray-700 leading-relaxed bg-blue-50 p-4 rounded-md border border-blue-200 whitespace-pre-line">
-                            {option.description}
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Textarea
-                  value={formData.recommendationComment}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    recommendationComment: e.target.value 
-                  }))}
-                  placeholder="Selected recommendations will appear here. Add additional comments below..."
-                  className="h-24 resize-none border border-gray-400 bg-gray-50 mt-2 w-full"
-                />
-              </div>
-              
-              <div className="flex justify-center gap-3">
-                <Button 
-                  type="submit" 
-                  disabled={updateConsultationMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  {updateConsultationMutation.isPending ? "Saving..." : "Save Diagnosis"}
-                </Button>
-                <Button 
-                  type="button" 
-                  onClick={handleShareClick} 
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                >
-                  Submit Report
-                </Button>
-              </div>
-            </form>
-          </div>
-
-          {/* Diagnosis Display for PDF - Only show in print */}
-          <div className="px-6 print:px-2 mb-2 print:mb-1 hidden print:block">
-            <div className="space-y-2 print:space-y-1">
-              <div>
-                <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Provisional Diagnosis :</div>
-                <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">
-                  {formData.diagnosisComment || "No diagnosis entered"}
+            {/* Footer */}
+            <div className="px-6 print:px-2 py-2 print:py-1 bg-gray-50 border-t text-center">
+              <div className="flex items-center justify-center gap-2 mb-0.5">
+                <div className="flex items-center text-xs print:text-[8px]">
+                  <span className="mr-1">📧</span>
+                  <span>info@earkart.in</span>
                 </div>
               </div>
-              
-              <div>
-                <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Suggestive of Diagnosis :</div>
-                <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">
-                  {formData.suggestiveOf || "No suggestions entered"}
-                </div>
-              </div>
-              
-              <div>
-                <div className="text-xs print:text-[9px] font-bold mb-1 print:mb-0">Recommendation :</div>
-                <div className="border border-gray-400 bg-gray-50 p-2 print:p-1 whitespace-pre-wrap text-xs print:text-[8px] leading-tight break-words overflow-visible">
-                  {formData.recommendationComment || "No recommendations entered"}
-                </div>
+              <div className="text-center text-[10px] print:text-[7px] opacity-80">
+                (Not for Medico-legal Purpose)
               </div>
             </div>
-          </div>
-
-          {/* Audiologist Box */}
-          <div className="px-6 print:px-2 mb-2 print:mb-1 flex justify-end">
-            <div className="border-2 border-blue-600 bg-blue-50 p-3 print:p-2 text-center">
-              <div className="text-xs print:text-[9px] font-bold text-blue-900">Audiologist Name</div>
-              <div className="text-xs print:text-[8px] text-blue-800 mt-0.5">{consultationData.audiologist?.user?.name || ""}</div>
-              <div className="text-xs print:text-[9px] text-blue-900 font-bold mt-1">RCI No.</div>
-              <div className="text-xs print:text-[8px] text-blue-800">{consultationData.audiologist?.rciNumber || ""}</div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="px-6 print:px-2 py-2 print:py-1 bg-gray-50 border-t text-center">
-            <div className="text-[10px] print:text-[8px] text-gray-600">
-              📧 info@earkart.in
-            </div>
-            <div className="text-[9px] print:text-[7px] text-gray-500 mt-0.5">
-              (Not for Medico-legal Purpose)
-            </div>
-          </div>
           </div>
         </div>
       </div>
