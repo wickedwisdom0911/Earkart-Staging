@@ -11,7 +11,7 @@ import React, {
 } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useGetUser } from "@/hooks/auth/use-get-user";
-import { ConsultationModelData } from "@/models/consultation.model";
+import { ConsultationModelData, extractConsultations } from "@/models/consultation.model";
 import { SessionStatus, Role } from "@/models/enums";
 import { toast } from "sonner";
 import { usePathname } from "next/navigation";
@@ -61,12 +61,10 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   // Check if user is an audiologist
   const isAudiologist = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
   
-  // Only fetch consultations if user is authenticated and is an audiologist
-  // This prevents calling the API on login page or for non-audiologists
-  // refetchInterval: 5000 keeps data fresh so periodic alert validation works with up-to-date data
+  // Fetch consultations with auto-refetch every 3s for real-time alert validation
   const { data: consultations, refetch: refetchConsultations } = useGetAllConsultations({
     enabled: !!user?.token && isAudiologist,
-    refetchInterval: 5000, // Auto-refetch every 5s to detect audiologist joins without socket events
+    refetchInterval: 3000,
   });
   
   const [alerts, setAlerts] = useState<ConsultationNeedsAttentionAlert[]>([]);
@@ -79,13 +77,10 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   const isOnConsultationRoute = pathname?.includes('/consultation/');
 
   // Check if current audiologist is in a call (real-time status)
-  // This uses WebSocket to track real-time call status - updates automatically
   const { isInCall: checkAudiologistInCall, statuses } = useAudiologistStatus();
   const currentUserIsInCall = user?.id ? checkAudiologistInCall(user.id) : false;
 
   // === REFS to avoid stale closures in socket event handlers ===
-  // Socket handlers are registered once and capture closures at registration time.
-  // These refs ensure handlers always read the LATEST values without re-registration.
   const isOnConsultationRouteRef = useRef(isOnConsultationRoute);
   const currentUserIsInCallRef = useRef(currentUserIsInCall);
   
@@ -93,19 +88,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   useEffect(() => { isOnConsultationRouteRef.current = isOnConsultationRoute; }, [isOnConsultationRoute]);
   useEffect(() => { currentUserIsInCallRef.current = currentUserIsInCall; }, [currentUserIsInCall]);
   
-  // Log status changes for debugging
-  useEffect(() => {
-    if (user?.id) {
-      const isInCall = checkAudiologistInCall(user.id);
-      console.log("📞 [ALERT] Current user call status changed:", {
-        userId: user.id,
-        isInCall,
-        statusesCount: statuses.size
-      });
-    }
-  }, [user?.id, checkAudiologistInCall, statuses]);
-
-  // Ref for tracking previous audiologist statuses (used for status-watching effect below)
+  // Ref for tracking previous audiologist statuses
   const prevStatusesRef = useRef<Map<string, { isInCall: boolean; consultationId: string | null }>>(new Map());
 
   // Initialize audio
@@ -115,75 +98,65 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       audioRef.current.volume = 0.7;
       audioRef.current.preload = "auto";
       
-      // Handle audio load success
       audioRef.current.oncanplaythrough = () => {
-        if (process.env.NODE_ENV === "development") {
-        console.log("Notification sound loaded successfully");
-        }
         setAudioInitialized(true);
       };
       
-      // Handle audio load errors gracefully
       audioRef.current.onerror = (error) => {
         console.error("Could not load notification sound:", error);
-        console.warn("Please ensure notification-sound.mp3 exists in the public folder.");
       };
-
-      // Audio will be initialized when first alert triggers
     }
-  }, []); // Only run once on mount
+  }, []);
 
   // Function to start continuous notification sound
-  const startContinuousSound = async () => {
+  const startContinuousSound = useCallback(async () => {
     if (!audioRef.current) return;
 
     // Stop any existing sound loop
-    stopContinuousSound();
+    if (audioIntervalRef.current) {
+      clearInterval(audioIntervalRef.current);
+      audioIntervalRef.current = null;
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
 
     try {
-      // Reset audio to beginning
       audioRef.current.currentTime = 0;
-      
-      // Play the sound
       await audioRef.current.play();
-      console.log("Started continuous notification sound");
+      console.log("🔔 Started notification sound");
 
-      // Set up interval to replay sound every 3 seconds
       audioIntervalRef.current = setInterval(async () => {
         if (audioRef.current) {
           try {
             audioRef.current.currentTime = 0;
             await audioRef.current.play();
-            console.log("Replaying notification sound");
           } catch (error) {
-            console.warn("Failed to replay notification sound:", error);
+            // ignore
           }
         }
-              }, 1000); // Replay every 1 second
+      }, 1000);
 
     } catch (error) {
-      console.warn("Failed to start continuous notification sound:", error);
+      console.warn("Failed to start notification sound:", error);
       
-      // If autoplay is blocked, try to initialize audio again
-      if (!audioInitialized) {
+      if (!audioInitialized && audioRef.current) {
         try {
           await audioRef.current.play();
           audioRef.current.pause();
           audioRef.current.currentTime = 0;
           setAudioInitialized(true);
           
-          // Try to play again
           await audioRef.current.play();
-          console.log("Started continuous notification sound after initialization");
           
-          // Set up interval
           audioIntervalRef.current = setInterval(async () => {
             if (audioRef.current) {
               try {
                 audioRef.current.currentTime = 0;
                 await audioRef.current.play();
               } catch (error) {
-                console.warn("Failed to replay notification sound:", error);
+                // ignore
               }
             }
           }, 1000);
@@ -193,147 +166,49 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
         }
       }
     }
-  };
+  }, [audioInitialized]);
 
   // Function to stop continuous notification sound
-  const stopContinuousSound = () => {
+  const stopContinuousSound = useCallback(() => {
     if (audioIntervalRef.current) {
       clearInterval(audioIntervalRef.current);
       audioIntervalRef.current = null;
-      console.log("Stopped continuous notification sound");
     }
     
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
-  };
-
-  // Function to play notification sound (legacy function for testing)
-  const playNotificationSound = async () => {
-    await startContinuousSound();
-  };
-
-  // Manage continuous sound based on active alerts
-  // This effect handles:
-  // 1. When new consultation arrives → starts sound (if user not in call)
-  // 2. When audiologist joins/enters consultation route → stops sound immediately
-  // 3. When audiologist ends call → restarts sound (if alerts still active)
-  // 4. When all consultations resolved → stops sound
-  // IMPORTANT: Sound should ONLY play for audiologists NOT currently in a call
-  useEffect(() => {
-    const activeCount = alerts.filter((alert) => alert.isActive).length;
-    
-    if (activeCount === 0) {
-      // No active alerts → stop sound
-      stopContinuousSound();
-    } else {
-      // There are active alerts → decide whether to play sound
-      // Sound should play ONLY if:
-      // 1. Audiologist is NOT on a consultation route
-      // 2. Current audiologist is NOT in a call (real-time status check)
-      // This ensures when a new consultation arrives, sound comes to all audiologists EXCEPT the one in call
-      const shouldPlaySound = !isOnConsultationRoute && !currentUserIsInCall;
-      
-      if (!audioIntervalRef.current && shouldPlaySound) {
-        // Start sound if not already playing and conditions are met
-        // Only audiologists NOT in a call will hear the notification
-        console.log("🔔 Starting notification sound - active alerts:", activeCount, "user in call:", currentUserIsInCall, "on consultation route:", isOnConsultationRoute);
-        startContinuousSound();
-      } else if ((isOnConsultationRoute || currentUserIsInCall) && audioIntervalRef.current) {
-        // Stop sound immediately if audiologist enters consultation route OR joins a call
-        // This ensures audiologist in call does NOT hear notifications
-        console.log("🛑 Stopping notification sound - audiologist is on consultation route or in call (should not hear notifications)");
-        stopContinuousSound();
-      }
-    }
-  }, [alerts, isOnConsultationRoute, currentUserIsInCall]);
-
-  // Cleanup audio interval on unmount
-  useEffect(() => {
-    return () => {
-      stopContinuousSound();
-    };
+    console.log("🛑 Stopped notification sound");
   }, []);
 
-  // Add page visibility and focus listeners to restart sound when returning to page
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && isAudiologist && !isOnConsultationRoute && !currentUserIsInCall) {
-        const activeCount = alerts.filter((alert) => alert.isActive).length;
-        if (activeCount > 0 && !audioIntervalRef.current) {
-          console.log("Page became visible with active alerts - restarting sound");
-          startContinuousSound();
-        }
-      }
-    };
+  // ================================================================
+  // CORE: Resolve all alerts and stop sound immediately
+  // This is the single function that STOPS everything.
+  // ================================================================
+  const resolveAllAlerts = useCallback(() => {
+    console.log("🛑 [RESOLVE-ALL] Resolving ALL active alerts and stopping sound");
+    setAlerts((prev) => prev.map((a) => ({ ...a, isActive: false })));
+    setNotifiedConsultations(new Set());
+    stopContinuousSound();
+  }, [stopContinuousSound]);
 
-    const handleFocus = () => {
-      if (isAudiologist && !isOnConsultationRoute && !currentUserIsInCall) {
-        const activeCount = alerts.filter((alert) => alert.isActive).length;
-        if (activeCount > 0 && !audioIntervalRef.current) {
-          console.log("Window focused with active alerts - restarting sound");
-          startContinuousSound();
-        }
-      }
-    };
-
-    if (typeof window !== "undefined") {
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      window.addEventListener('focus', handleFocus);
-    }
-
-    return () => {
-      if (typeof window !== "undefined") {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        window.removeEventListener('focus', handleFocus);
-      }
-    };
-  }, [alerts, isAudiologist, isOnConsultationRoute, currentUserIsInCall]);
-
-  // Function to check if consultation needs attention
-  const checkConsultationNeedsAttention = useCallback((consultation: ConsultationModelData) => {
-    if (!isAudiologist) return false;
-
-    // Check if consultation is already in progress, completed, or cancelled - no longer needs attention
-    if (
-      consultation.status === SessionStatus.IN_PROGRESS ||
-      consultation.status === SessionStatus.COMPLETED ||
-      consultation.status === SessionStatus.CANCELLED
-    ) {
-      return false;
-    }
-
-    // Check if audiologist is assigned
-    const needsAttention = !consultation.audiologist; // No audiologist assigned
-
-    return needsAttention;
-  }, [isAudiologist]);
-
-  // Resolve an alert for a given consultation and stop sound if no alerts remain
+  // Resolve a single consultation's alert
   const resolveConsultationAlert = useCallback((consultationId: string) => {
     console.log(`🛑 [RESOLVE] Resolving alert for consultation: ${consultationId}`);
     
     setAlerts((prev) => {
-      // Check if this consultation even has an active alert
       const hasActiveAlert = prev.some((a) => a.consultationId === consultationId && a.isActive);
-      if (!hasActiveAlert) {
-        console.log(`🛑 [RESOLVE] No active alert for consultation ${consultationId}, skipping`);
-        return prev;
-      }
+      if (!hasActiveAlert) return prev;
       
       const updated = prev.map((alert) =>
         alert.consultationId === consultationId ? { ...alert, isActive: false } : alert
       );
       
-      // Count remaining active alerts AFTER this one is resolved
       const remainingActive = updated.filter((a) => a.isActive).length;
-      
       if (remainingActive === 0) {
-        console.log("🛑 [RESOLVE] No active alerts remaining — stopping notification sound immediately");
+        console.log("🛑 [RESOLVE] No active alerts remaining — stopping sound");
         stopContinuousSound();
-      } else {
-        console.log(`🛑 [RESOLVE] ${remainingActive} active alert(s) still remaining`);
       }
       
       return updated;
@@ -344,58 +219,124 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       next.delete(consultationId);
       return next;
     });
+  }, [stopContinuousSound]);
+
+  // ================================================================
+  // SOUND MANAGEMENT: Single effect that decides play/stop
+  // ================================================================
+  useEffect(() => {
+    const activeCount = alerts.filter((a) => a.isActive).length;
+    
+    if (activeCount === 0) {
+      stopContinuousSound();
+      return;
+    }
+    
+    // Sound plays ONLY if: has active alerts AND not on consultation route AND not in a call
+    const shouldPlay = activeCount > 0 && !isOnConsultationRoute && !currentUserIsInCall;
+    
+    if (shouldPlay && !audioIntervalRef.current) {
+      console.log("🔔 Starting sound - active:", activeCount, "inCall:", currentUserIsInCall, "onRoute:", isOnConsultationRoute);
+      startContinuousSound();
+    } else if (!shouldPlay && audioIntervalRef.current) {
+      console.log("🛑 Stopping sound - inCall:", currentUserIsInCall, "onRoute:", isOnConsultationRoute);
+      stopContinuousSound();
+    }
+  }, [alerts, isOnConsultationRoute, currentUserIsInCall, startContinuousSound, stopContinuousSound]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (audioIntervalRef.current) {
+        clearInterval(audioIntervalRef.current);
+        audioIntervalRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    };
   }, []);
 
-  const createAttentionAlert = useCallback((consultation: ConsultationModelData) => {
-    // Use functional updates to access current state without dependencies
-    setNotifiedConsultations((prevNotified) => {
-      // Don't create duplicate alerts for the same consultation
-      if (prevNotified.has(consultation.id)) {
-        console.log(`Skipping duplicate alert for consultation: ${consultation.id}`);
-        return prevNotified;
+  // ================================================================
+  // BUG FIX #1: When current user navigates TO a consultation, extract
+  // the consultation ID from the URL and RESOLVE that specific alert.
+  // When they come BACK to dashboard, validate all alerts immediately.
+  // ================================================================
+  const prevPathnameRef = useRef(pathname);
+  
+  useEffect(() => {
+    const prev = prevPathnameRef.current;
+    prevPathnameRef.current = pathname;
+    
+    if (!isAudiologist) return;
+    
+    const nowOnConsultation = pathname?.includes('/consultation/');
+    const wasOnConsultation = prev?.includes('/consultation/');
+    
+    if (nowOnConsultation && !wasOnConsultation) {
+      // Just navigated TO a consultation — resolve the alert for this consultation
+      const match = pathname?.match(/\/consultation\/([^\/]+)/);
+      if (match?.[1]) {
+        const consultationId = match[1];
+        console.log(`📍 [NAV] Navigated to consultation ${consultationId} — resolving alert`);
+        resolveConsultationAlert(consultationId);
       }
+      // Also stop all sound immediately
+      stopContinuousSound();
+    }
+    
+    if (!nowOnConsultation && wasOnConsultation) {
+      // Just returned FROM a consultation to dashboard — force re-validate immediately
+      console.log("📍 [NAV] Returned to dashboard — force revalidating all alerts");
+      refetchConsultations();
+    }
+  }, [pathname, isAudiologist, resolveConsultationAlert, stopContinuousSound, refetchConsultations]);
+
+  // Function to check if consultation needs attention
+  const checkConsultationNeedsAttention = useCallback((consultation: ConsultationModelData) => {
+    if (!isAudiologist) return false;
+
+    if (
+      consultation.status === SessionStatus.IN_PROGRESS ||
+      consultation.status === SessionStatus.COMPLETED ||
+      consultation.status === SessionStatus.CANCELLED
+    ) {
+      return false;
+    }
+
+    return !consultation.audiologist;
+  }, [isAudiologist]);
+
+  const createAttentionAlert = useCallback((consultation: ConsultationModelData) => {
+    setNotifiedConsultations((prevNotified) => {
+      if (prevNotified.has(consultation.id)) return prevNotified;
 
       setAlerts((prevAlerts) => {
-        // Check if there's already an active alert for this consultation
         const existingAlert = prevAlerts.find(
           alert => alert.consultationId === consultation.id && alert.isActive
         );
-        
-        if (existingAlert) {
-          console.log(`Active alert already exists for consultation: ${consultation.id}`);
-          return prevAlerts;
-        }
-
-        const reason = "NO_AUDIOLOGIST";
+        if (existingAlert) return prevAlerts;
 
         const newAlert: ConsultationNeedsAttentionAlert = {
-          id: `${consultation.id}-${Date.now()}-${reason}`,
+          id: `${consultation.id}-${Date.now()}-NO_AUDIOLOGIST`,
           consultationId: consultation.id,
           patientName: consultation.patient?.name || "Unknown Patient",
           centreName: consultation.centre?.user?.name || "Unknown Centre",
-          reason,
+          reason: "NO_AUDIOLOGIST",
           timestamp: new Date(),
           isActive: true,
         };
 
-        console.log(`Creating new alert for consultation: ${consultation.id}, reason: ${reason}, patient: ${newAlert.patientName}`);
+        console.log(`🔔 Creating alert for consultation: ${consultation.id}, patient: ${newAlert.patientName}`);
 
-        // Play audio alert immediately when consultation needs attention
-        // IMPORTANT: Read from REFS (not closure) to get latest real-time values
-        // This fixes stale closure bug where socket handlers would read outdated values
-        const onConsultationRoute = isOnConsultationRouteRef.current;
-        const userInCall = currentUserIsInCallRef.current;
+        // Play sound if not on consultation route and not in call
+        const onRoute = isOnConsultationRouteRef.current;
+        const inCall = currentUserIsInCallRef.current;
         
-        if (!onConsultationRoute && !userInCall) {
-          console.log("🔔 Playing notification sound for new alert - consultation:", consultation.id, "user in call:", userInCall);
-          playNotificationSound();
-        } else {
-          if (onConsultationRoute) {
-            console.log("⏭️ Skipping notification sound - audiologist is on consultation route");
-          }
-          if (userInCall) {
-            console.log("⏭️ Skipping notification sound - audiologist is currently in a call (should not hear notifications)");
-          }
+        if (!onRoute && !inCall) {
+          console.log("🔔 Playing notification for new alert");
+          // Sound will be started by the sound management effect
         }
 
         return [newAlert, ...prevAlerts];
@@ -403,45 +344,41 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
 
       return new Set([...prevNotified, consultation.id]);
     });
-  }, []); // Stable callback - reads latest values from refs
+  }, []);
 
   // === Callback refs for socket handlers ===
-  // Socket handlers are registered once (when socket/isAudiologist change).
-  // These refs ensure handlers always call the LATEST version of callbacks
-  // without needing to re-register socket event listeners.
   const createAttentionAlertRef = useRef(createAttentionAlert);
   const resolveConsultationAlertRef = useRef(resolveConsultationAlert);
+  const resolveAllAlertsRef = useRef(resolveAllAlerts);
   const checkNeedsAttentionRef = useRef(checkConsultationNeedsAttention);
   
   useEffect(() => { createAttentionAlertRef.current = createAttentionAlert; }, [createAttentionAlert]);
   useEffect(() => { resolveConsultationAlertRef.current = resolveConsultationAlert; }, [resolveConsultationAlert]);
+  useEffect(() => { resolveAllAlertsRef.current = resolveAllAlerts; }, [resolveAllAlerts]);
   useEffect(() => { checkNeedsAttentionRef.current = checkConsultationNeedsAttention; }, [checkConsultationNeedsAttention]);
 
-  // === CRITICAL: Watch audiologist statuses to resolve alerts in REAL-TIME ===
-  // The /audiologist-status WebSocket is GLOBAL (broadcast to ALL audiologists).
-  // When ANY audiologist joins a call, their status updates to isInCall=true with a consultationId.
-  // We use this to immediately resolve the alert for that consultation.
-  // This is the PRIMARY mechanism for stopping notifications without refresh, because
-  // other socket events (audiologist_joined_consultation, consultation_updated) are often
-  // only emitted within the consultation room and don't reach audiologists on the dashboard.
+  // ================================================================
+  // BUG FIX #2: Watch audiologist status WebSocket (GLOBAL broadcast).
+  // When ANY audiologist joins a call, resolve that consultation's alert.
+  // ================================================================
   useEffect(() => {
     if (!isAudiologist || statuses.size === 0) return;
 
-    // Compare with previous statuses to detect who just joined a call
     statuses.forEach((status, audiologistId) => {
       const prev = prevStatusesRef.current.get(audiologistId);
       const justJoinedCall = status.isInCall && (!prev || !prev.isInCall);
       
-      if (justJoinedCall && status.consultationId) {
-        console.log(`📞 [ALERT] Audiologist ${audiologistId} just joined call for consultation: ${status.consultationId} — resolving alert NOW`);
-        resolveConsultationAlertRef.current(status.consultationId);
-        
-        // Also force refetch consultations to get fresh data for periodic validation
+      if (justJoinedCall) {
+        if (status.consultationId) {
+          console.log(`📞 [STATUS] Audiologist ${audiologistId} joined call for ${status.consultationId} — resolving alert`);
+          resolveConsultationAlertRef.current(status.consultationId);
+        }
+        // Even without consultationId, force refetch to pick up the change
         refetchConsultations();
       }
     });
 
-    // Update previous statuses snapshot
+    // Update snapshot
     const snapshot = new Map<string, { isInCall: boolean; consultationId: string | null }>();
     statuses.forEach((status, audiologistId) => {
       snapshot.set(audiologistId, { isInCall: status.isInCall, consultationId: status.consultationId });
@@ -449,77 +386,52 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
     prevStatusesRef.current = snapshot;
   }, [statuses, isAudiologist, refetchConsultations]);
 
-  // Socket event listeners for consultation updates
-  // IMPORTANT: Handlers use REFS to always call latest callback versions.
-  // This prevents stale closures where handlers would use outdated state.
+  // ================================================================
+  // Socket event listeners
+  // ================================================================
   useEffect(() => {
     if (!socket || !isAudiologist) return;
 
     const handleNewConsultation = (data: ConsultationModelData) => {
-      console.log("🔔 [ALERT] New consultation received:", data.id, "status:", data.status);
+      console.log("🔔 [SOCKET] New consultation:", data.id);
       if (checkNeedsAttentionRef.current(data)) {
         createAttentionAlertRef.current(data);
       }
     };
 
     const handleConsultationUpdate = (data: ConsultationModelData) => {
-      console.log("📢 [ALERT] Consultation updated:", data.id, "status:", data.status, "audiologist:", data.audiologist?.id);
-      
+      console.log("📢 [SOCKET] Consultation updated:", data.id, "status:", data.status);
       if (checkNeedsAttentionRef.current(data)) {
         createAttentionAlertRef.current(data);
       } else {
-        // Consultation no longer needs attention - resolve alert and stop sound immediately
-        console.log("🛑 [ALERT] Consultation no longer needs attention, resolving:", data.id);
         resolveConsultationAlertRef.current(data.id);
       }
     };
 
-    // Handle when any user joins a room (another audiologist answered the call)
     const handleUserJoined = (data: any) => {
-      console.log("👤 [ALERT] User joined room:", data);
-      if (data?.roomId || data?.consultationId) {
-        const consultationId = data.roomId || data.consultationId;
-        console.log("🛑 [ALERT] Resolving alert for consultation due to user join:", consultationId);
-        resolveConsultationAlertRef.current(consultationId);
-      }
+      console.log("👤 [SOCKET] User joined:", data);
+      const id = data?.roomId || data?.consultationId;
+      if (id) resolveConsultationAlertRef.current(id);
     };
 
-    // Handle audiologist joined event specifically
     const handleAudiologistJoined = (data: any) => {
-      console.log("👨‍⚕️ [ALERT] Audiologist joined consultation:", data);
-      const consultationId = data?.consultationId || data?.roomId || data;
-      if (consultationId) {
-        console.log("🛑 [ALERT] Resolving alert due to audiologist join:", consultationId);
-        resolveConsultationAlertRef.current(typeof consultationId === 'string' ? consultationId : consultationId.toString());
-      }
+      console.log("👨‍⚕️ [SOCKET] Audiologist joined:", data);
+      const id = data?.consultationId || data?.roomId || data;
+      if (id) resolveConsultationAlertRef.current(typeof id === 'string' ? id : String(id));
     };
 
-    // Handle audiologist_joined_consultation event (real-time broadcast)
-    // This event is broadcasted to ALL audiologists when ANY audiologist joins a consultation
-    // This ensures that when someone joins, ALL other audiologists stop hearing notifications for that consultation
-    // NO REFRESH NEEDED - this resolves in real-time via socket
-    const handleAudiologistJoinedConsultation = (data: ConsultationModelData | { consultation: ConsultationModelData }) => {
-      console.log("📢 [ALERT] Audiologist joined consultation (real-time broadcast):", data);
-      // Handle all possible event formats
-      const consultation = (data as any).consultation || data as ConsultationModelData;
-      
-      if (consultation?.id) {
-        console.log("🛑 [ALERT] Resolving alert immediately (real-time) for consultation:", consultation.id);
-        resolveConsultationAlertRef.current(consultation.id);
-      }
+    const handleAudiologistJoinedConsultation = (data: any) => {
+      console.log("📢 [SOCKET] Audiologist joined consultation (broadcast):", data);
+      const consultation = data?.consultation || data;
+      if (consultation?.id) resolveConsultationAlertRef.current(consultation.id);
     };
 
-    // Handle consultation ended event (when consultation is completed or cancelled)
-    const handleConsultationEnded = (data: { consultationId: string } | ConsultationModelData) => {
-      console.log("🏁 [ALERT] Consultation ended:", data);
-      const consultationId = (data as any).consultationId || (data as ConsultationModelData).id;
-      if (consultationId) {
-        console.log("🛑 [ALERT] Resolving alert for ended consultation:", consultationId);
-        resolveConsultationAlertRef.current(consultationId);
-      }
+    const handleConsultationEnded = (data: any) => {
+      console.log("🏁 [SOCKET] Consultation ended:", data);
+      const id = data?.consultationId || data?.id;
+      if (id) resolveConsultationAlertRef.current(id);
     };
 
-    // Listen to socket events
     socket.on("new_consultation", handleNewConsultation);
     socket.on("consultation_updated", handleConsultationUpdate);
     socket.on("user_joined", handleUserJoined);
@@ -528,7 +440,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
     socket.on("consultation_ended", handleConsultationEnded);
     socket.on("end:consultation", handleConsultationEnded);
 
-    console.log("🔌 [ALERT] Socket event listeners registered for notification alerts");
+    console.log("🔌 [ALERT] Socket event listeners registered");
 
     return () => {
       socket.off("new_consultation", handleNewConsultation);
@@ -538,11 +450,12 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       socket.off("audiologist_joined_consultation", handleAudiologistJoinedConsultation);
       socket.off("consultation_ended", handleConsultationEnded);
       socket.off("end:consultation", handleConsultationEnded);
-      console.log("🔌 [ALERT] Socket event listeners cleaned up");
     };
-  }, [socket, isAudiologist]); // Stable - handlers use refs for latest callbacks
+  }, [socket, isAudiologist]);
 
-  // NEW: Listen for CustomEvent when consultations are displayed and need attention
+  // ================================================================
+  // CustomEvent listeners
+  // ================================================================
   useEffect(() => {
     if (!isAudiologist) return;
 
@@ -554,19 +467,28 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
     };
 
     const handleClearNotificationCache = () => {
-      console.log("Clearing notification cache to allow re-checking consultations");
       setNotifiedConsultations(new Set());
     };
 
     const handleStopContinuousSound = () => {
-      console.log("Received stop continuous sound event");
+      console.log("🛑 [EVENT] stopContinuousSound received");
       stopContinuousSound();
+    };
+
+    // NEW: Custom event to resolve a specific consultation alert
+    const handleResolveConsultationAlert = (event: CustomEvent) => {
+      const consultationId = event.detail?.consultationId;
+      if (consultationId) {
+        console.log("🛑 [EVENT] resolveConsultationAlert received for:", consultationId);
+        resolveConsultationAlertRef.current(consultationId);
+      }
     };
 
     if (typeof window !== "undefined") {
       window.addEventListener('consultationNeedsAttention', handleConsultationNeedsAttention as EventListener);
       window.addEventListener('stopContinuousSound', handleStopContinuousSound);
       window.addEventListener('clearNotificationCache', handleClearNotificationCache);
+      window.addEventListener('resolveConsultationAlert', handleResolveConsultationAlert as EventListener);
     }
 
     return () => {
@@ -574,12 +496,12 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
         window.removeEventListener('consultationNeedsAttention', handleConsultationNeedsAttention as EventListener);
         window.removeEventListener('stopContinuousSound', handleStopContinuousSound);
         window.removeEventListener('clearNotificationCache', handleClearNotificationCache);
+        window.removeEventListener('resolveConsultationAlert', handleResolveConsultationAlert as EventListener);
       }
     };
-  }, [isAudiologist]); // Removed notifiedConsultations to prevent frequent re-registration
+  }, [isAudiologist, stopContinuousSound]);
 
   const dismissAlert = (alertId: string) => {
-    console.log(`Dismissing alert: ${alertId}`);
     setAlerts((prev) =>
       prev.map((alert) =>
         alert.id === alertId ? { ...alert, isActive: false } : alert
@@ -588,29 +510,8 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   };
 
   const dismissAllAlerts = () => {
-    console.log("Dismissing all alerts");
-    setAlerts((prev) =>
-      prev.map((alert) => ({ ...alert, isActive: false }))
-    );
+    resolveAllAlerts();
   };
-
-
-
-  // Test function to manually play notification sound (for debugging)
-  const testNotificationSound = async () => {
-    console.log("Testing notification sound...");
-    await playNotificationSound();
-  };
-
-  // Expose test function to window for manual testing (development only)
-  useEffect(() => {
-    if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
-      (window as any).testNotificationSound = testNotificationSound;
-      console.log("Test function exposed: window.testNotificationSound()");
-    }
-  }, []);
-
-
 
   // Auto-dismiss alerts after 10 minutes
   useEffect(() => {
@@ -623,105 +524,88 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
             : alert
         )
       );
-    }, 60000); // Check every minute
+    }, 60000);
 
     return () => clearInterval(interval);
   }, []);
 
-  // Clear notified consultations list periodically to allow re-notification if status changes
+  // ================================================================
+  // BUG FIX #3: Validate active alerts against ACTUAL consultation data.
+  // Uses extractConsultations() to handle BOTH array and paginated responses.
+  // This was broken before because Array.isArray(consultations.data)
+  // returned false for paginated responses like { data: [...], total, ... }
+  // ================================================================
   useEffect(() => {
-    const interval = setInterval(() => {
-      console.log("Clearing notified consultations cache to allow re-notifications");
-      setNotifiedConsultations(new Set());
-    }, 30 * 60 * 1000); // Clear every 30 minutes
+    if (!isAudiologist || !consultations?.data) return;
 
-    return () => clearInterval(interval);
-  }, []);
-
-  // Periodically validate active alerts against current consultation data
-  // This ensures that if socket events are missed, alerts are still resolved in real-time
-  // Stops notification sound when no consultations are pending - no refresh needed
-  useEffect(() => {
-    if (!isAudiologist || !consultations?.data || !Array.isArray(consultations.data)) return;
+    // Use extractConsultations to handle both array and paginated response formats
+    const consultationsList = extractConsultations(consultations.data as any);
+    if (consultationsList.length === 0) return;
 
     const validateActiveAlerts = () => {
-      // Get current alerts state at the time of validation
       setAlerts((currentAlerts) => {
-        const activeAlerts = currentAlerts.filter((alert) => alert.isActive);
+        const activeAlerts = currentAlerts.filter((a) => a.isActive);
         if (activeAlerts.length === 0) return currentAlerts;
 
-        console.log("🔍 Validating active alerts against current consultation data...", {
-          activeAlertsCount: activeAlerts.length,
-          totalConsultations: consultations.data.length
+        console.log("🔍 [VALIDATE] Checking alerts against consultation data...", {
+          active: activeAlerts.length,
+          consultations: consultationsList.length
         });
         
-        // Create a map of current consultations by ID
         const consultationsMap = new Map<string, ConsultationModelData>();
-        consultations.data.forEach((c) => {
+        consultationsList.forEach((c: ConsultationModelData) => {
           consultationsMap.set(c.id, c);
         });
 
-        // Check each active alert and collect IDs that need to be resolved
-        const consultationsToResolve: string[] = [];
+        const toResolve: string[] = [];
         
         activeAlerts.forEach((alert) => {
           const consultation = consultationsMap.get(alert.consultationId);
           
           if (!consultation) {
-            // Consultation no longer exists - resolve alert
-            console.log(`🛑 Consultation ${alert.consultationId} no longer exists - resolving alert`);
-            consultationsToResolve.push(alert.consultationId);
+            console.log(`🛑 [VALIDATE] Consultation ${alert.consultationId} gone — resolving`);
+            toResolve.push(alert.consultationId);
           } else if (!checkConsultationNeedsAttention(consultation)) {
-            // Consultation no longer needs attention (has audiologist, is completed, etc.)
-            console.log(`🛑 Consultation ${alert.consultationId} no longer needs attention - resolving alert`, {
-              status: consultation.status,
-              hasAudiologist: !!consultation.audiologist,
-              audiologistName: consultation.audiologist?.user?.name
-            });
-            consultationsToResolve.push(alert.consultationId);
+            console.log(`🛑 [VALIDATE] Consultation ${alert.consultationId} resolved — status: ${consultation.status}, audiologist: ${!!consultation.audiologist}`);
+            toResolve.push(alert.consultationId);
           }
         });
 
-        // Update alerts to mark resolved ones as inactive
-        if (consultationsToResolve.length > 0) {
+        if (toResolve.length > 0) {
           const updatedAlerts = currentAlerts.map((alert) =>
-            consultationsToResolve.includes(alert.consultationId)
+            toResolve.includes(alert.consultationId)
               ? { ...alert, isActive: false }
               : alert
           );
           
-          // Check if this was the last active alert - stop sound if no more pending consultations
-          const remainingActive = updatedAlerts.filter((a) => a.isActive);
-          if (remainingActive.length === 0) {
-            console.log("🛑 All alerts resolved - stopping notification sound (no pending consultations)");
+          const remaining = updatedAlerts.filter((a) => a.isActive).length;
+          if (remaining === 0) {
+            console.log("🛑 [VALIDATE] All alerts resolved — stopping sound");
             stopContinuousSound();
           }
           
-          // Also remove from notified consultations
           setNotifiedConsultations((prev) => {
             const next = new Set(prev);
-            consultationsToResolve.forEach((id) => next.delete(id));
+            toResolve.forEach((id) => next.delete(id));
             return next;
           });
           
-          console.log(`✅ Alert validation complete - resolved ${consultationsToResolve.length} alert(s)`);
+          console.log(`✅ [VALIDATE] Resolved ${toResolve.length} alert(s), ${remaining} remaining`);
           return updatedAlerts;
-        } else {
-          console.log("✅ Alert validation complete - all alerts are still valid");
-          return currentAlerts;
         }
+        
+        return currentAlerts;
       });
     };
 
-    // Validate immediately when consultations data changes (real-time updates)
+    // Validate immediately when consultation data changes
     validateActiveAlerts();
 
-    // Also validate periodically (every 3 seconds) to catch missed socket events
-    // This ensures sound stops even if socket events are missed - no refresh needed
+    // Also validate every 3 seconds as a safety net
     const interval = setInterval(validateActiveAlerts, 3000);
 
     return () => clearInterval(interval);
-  }, [consultations, isAudiologist]);
+  }, [consultations, isAudiologist, checkConsultationNeedsAttention, stopContinuousSound]);
 
   const activeAlertsCount = alerts.filter((alert) => alert.isActive).length;
 
