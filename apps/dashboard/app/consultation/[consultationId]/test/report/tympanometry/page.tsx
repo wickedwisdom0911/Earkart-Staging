@@ -728,6 +728,7 @@ export default function TympanometryReportPage() {
     <>
       <style>{`
         /* ===== PRINT STYLES (@media print) ===== */
+        /* Goal: print output should match on-screen appearance exactly */
         @media print {
           /* Logo */
           [data-section="header"] img {
@@ -736,85 +737,90 @@ export default function TympanometryReportPage() {
             height: auto !important;
           }
           
-          /* Centre details */
+          /* Centre details - match on-screen: text-base (16px) clinic name, text-sm (14px) details */
           [data-section="header"] .text-blue-900 {
             padding: 16px 20px !important;
-            font-size: 14px !important;
           }
           [data-section="header"] .text-blue-900 p {
-            font-size: 20px !important;
+            font-size: 16px !important;
             margin-bottom: 6px !important;
             font-weight: bold !important;
           }
           [data-section="header"] .text-blue-900 div {
-            font-size: 16px !important;
+            font-size: 14px !important;
             margin-bottom: 4px !important;
           }
           [data-section="header"] .text-blue-900 span {
-            font-size: 16px !important;
-            font-weight: 600 !important;
+            font-size: 14px !important;
           }
           
-          /* Patient info */
+          /* Patient info - match on-screen: text-base (16px) */
           .patient-info-section {
-            font-size: 13px !important;
+            font-size: 16px !important;
           }
           .patient-info-section .font-medium {
-            font-size: 13px !important;
-            font-weight: 600 !important;
+            font-size: 16px !important;
+            font-weight: 500 !important;
+          }
+          .patient-info-section span {
+            font-size: 16px !important;
           }
           
-          /* Investigation table header */
-          .bg-blue-900 {
-            padding: 4mm !important;
-          }
-          .bg-blue-900 h3 {
-            font-size: 14px !important;
-            margin-bottom: 2mm !important;
+          /* Title */
+          .report-title h2 {
+            font-size: 20px !important;
           }
           
-          /* Investigation table cells */
-          .grid.grid-cols-4 > div {
-            font-size: 13px !important;
-            padding: 2mm !important;
+          /* Investigation table header - match on-screen: text-base (16px) */
+          .investigation-table .bg-blue-900 {
+            padding: 12px !important;
+          }
+          .investigation-table .bg-blue-900 h3 {
+            font-size: 16px !important;
           }
           
-          /* Diagnosis section */
+          /* Investigation table cells - match on-screen: text-base (16px) */
+          .investigation-table .grid.grid-cols-4 > div {
+            font-size: 16px !important;
+            padding: 8px !important;
+          }
+          
+          /* Diagnosis section - match on-screen form: text-sm (14px) labels, text-sm content */
           .diagnosis-section-container {
-            padding: 4mm !important;
+            padding: 0 !important;
             margin-bottom: 3mm !important;
           }
           .diagnosis-section-container > div {
             gap: 3mm !important;
           }
           .diagnosis-section-container .border {
-            padding: 4mm !important;
+            padding: 8px !important;
             min-height: 20mm !important;
             font-size: 14px !important;
             line-height: 1.6 !important;
           }
           .diagnosis-section-container div[class*="font-bold"] {
-            font-size: 15px !important;
-            margin-bottom: 2mm !important;
+            font-size: 14px !important;
+            margin-bottom: 4px !important;
           }
           
-          /* Comments section */
+          /* Comments section - match on-screen form: text-sm (14px) */
           .comments-print-section {
-            padding: 4mm !important;
+            padding: 12px !important;
             min-height: 20mm !important;
           }
           .comments-print-section .font-bold {
-            font-size: 15px !important;
-            margin-bottom: 2mm !important;
+            font-size: 14px !important;
+            margin-bottom: 4px !important;
           }
           .comments-print-section .whitespace-pre-wrap {
             font-size: 14px !important;
             line-height: 1.6 !important;
           }
           
-          /* Audiologist box */
+          /* Audiologist box - match on-screen */
           .audiologist-box {
-            padding: 4mm !important;
+            padding: 12px !important;
           }
           .audiologist-box .font-bold {
             font-size: 14px !important;
@@ -823,103 +829,109 @@ export default function TympanometryReportPage() {
             font-size: 12px !important;
           }
           
-          /* Footer */
-          .report-footer {
-            font-size: 13px !important;
+          /* Footer - match on-screen */
+          .report-footer .text-sm {
+            font-size: 14px !important;
           }
           .report-footer .text-xs {
-            font-size: 11px !important;
+            font-size: 12px !important;
           }
         }
         
         /* ===== PDF EXPORT STYLES (html2canvas ignores @media print) ===== */
+        /* Same sizes as @media print so PDF download matches print exactly */
         
-        /* Logo - Made bigger for PDF export */
+        /* Logo */
         [data-export-mark="1"] [data-section="header"] img {
           max-height: 90px !important;
           width: auto !important;
           height: auto !important;
         }
         
-        /* Centre details - Made bigger for PDF export */
+        /* Centre details - match on-screen */
         [data-export-mark="1"] [data-section="header"] .text-blue-900 {
           padding: 16px 20px !important;
-          font-size: 14px !important;
         }
         [data-export-mark="1"] [data-section="header"] .text-blue-900 p {
-          font-size: 20px !important;
+          font-size: 16px !important;
           margin-bottom: 6px !important;
           font-weight: bold !important;
         }
         [data-export-mark="1"] [data-section="header"] .text-blue-900 div {
-          font-size: 16px !important;
+          font-size: 14px !important;
           margin-bottom: 4px !important;
         }
         [data-export-mark="1"] [data-section="header"] .text-blue-900 span {
-          font-size: 16px !important;
-          font-weight: 600 !important;
+          font-size: 14px !important;
         }
         
-        /* Patient info */
+        /* Patient info - match on-screen: text-base (16px) */
         [data-export-mark="1"] .patient-info-section {
-          font-size: 13px !important;
+          font-size: 16px !important;
         }
         [data-export-mark="1"] .patient-info-section .font-medium {
-          font-size: 13px !important;
-          font-weight: 600 !important;
+          font-size: 16px !important;
+          font-weight: 500 !important;
+        }
+        [data-export-mark="1"] .patient-info-section span {
+          font-size: 16px !important;
         }
         
-        /* Investigation table header */
-        [data-export-mark="1"] .bg-blue-900 {
-          padding: 4mm !important;
-        }
-        [data-export-mark="1"] .bg-blue-900 h3 {
-          font-size: 14px !important;
-          margin-bottom: 2mm !important;
+        /* Title */
+        [data-export-mark="1"] .report-title h2 {
+          font-size: 20px !important;
         }
         
-        /* Investigation table cells */
-        [data-export-mark="1"] .grid.grid-cols-4 > div {
-          font-size: 13px !important;
-          padding: 2mm !important;
+        /* Investigation table header - match on-screen: text-base (16px) */
+        [data-export-mark="1"] .investigation-table .bg-blue-900 {
+          padding: 12px !important;
+        }
+        [data-export-mark="1"] .investigation-table .bg-blue-900 h3 {
+          font-size: 16px !important;
         }
         
-        /* Diagnosis section */
+        /* Investigation table cells - match on-screen: text-base (16px) */
+        [data-export-mark="1"] .investigation-table .grid.grid-cols-4 > div {
+          font-size: 16px !important;
+          padding: 8px !important;
+        }
+        
+        /* Diagnosis section - match on-screen form: text-sm (14px) */
         [data-export-mark="1"] .diagnosis-section-container {
-          padding: 4mm !important;
+          padding: 0 !important;
           margin-bottom: 3mm !important;
         }
         [data-export-mark="1"] .diagnosis-section-container > div {
           gap: 3mm !important;
         }
         [data-export-mark="1"] .diagnosis-section-container .border {
-          padding: 4mm !important;
+          padding: 8px !important;
           min-height: 20mm !important;
           font-size: 14px !important;
           line-height: 1.6 !important;
         }
         [data-export-mark="1"] .diagnosis-section-container div[class*="font-bold"] {
-          font-size: 15px !important;
-          margin-bottom: 2mm !important;
+          font-size: 14px !important;
+          margin-bottom: 4px !important;
         }
         
-        /* Comments section */
+        /* Comments section - match on-screen form: text-sm (14px) */
         [data-export-mark="1"] .comments-print-section {
-          padding: 4mm !important;
+          padding: 12px !important;
           min-height: 20mm !important;
         }
         [data-export-mark="1"] .comments-print-section .font-bold {
-          font-size: 15px !important;
-          margin-bottom: 2mm !important;
+          font-size: 14px !important;
+          margin-bottom: 4px !important;
         }
         [data-export-mark="1"] .comments-print-section .whitespace-pre-wrap {
           font-size: 14px !important;
           line-height: 1.6 !important;
         }
         
-        /* Audiologist box */
+        /* Audiologist box - match on-screen */
         [data-export-mark="1"] .audiologist-box {
-          padding: 4mm !important;
+          padding: 12px !important;
         }
         [data-export-mark="1"] .audiologist-box .font-bold {
           font-size: 14px !important;
@@ -928,12 +940,12 @@ export default function TympanometryReportPage() {
           font-size: 12px !important;
         }
         
-        /* Footer */
-        [data-export-mark="1"] .report-footer {
-          font-size: 13px !important;
+        /* Footer - match on-screen */
+        [data-export-mark="1"] .report-footer .text-sm {
+          font-size: 14px !important;
         }
         [data-export-mark="1"] .report-footer .text-xs {
-          font-size: 11px !important;
+          font-size: 12px !important;
         }
       `}</style>
       <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
@@ -970,13 +982,13 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Title */}
-          <div className="text-center py-3 print:py-2 bg-gray-50">
-            <h2 className="text-xl print:text-lg font-bold text-gray-800">Impedance Audiometry</h2>
+          <div className="text-center py-3 bg-gray-50 report-title">
+            <h2 className="text-xl font-bold text-gray-800">Impedance Audiometry</h2>
           </div>
 
             {/* Patient Information */}
-          <div className="px-8 py-3 print:py-2 bg-white border-b patient-info-section">
-            <div className="grid grid-cols-12 gap-4 text-base print:text-sm">
+          <div className="px-8 py-3 bg-white border-b patient-info-section">
+            <div className="grid grid-cols-12 gap-4 text-base">
               <div className="col-span-3 flex items-center">
                 <span className="font-medium mr-2">ID :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.code || ""}</span>
@@ -1028,7 +1040,7 @@ export default function TympanometryReportPage() {
                 </div>
                 </div>
 
-            <div className="grid grid-cols-12 gap-4 text-base print:text-sm mt-2 print:mt-1">
+            <div className="grid grid-cols-12 gap-4 text-base mt-2">
               <div className="col-span-7 flex items-center">
                 <span className="font-medium mr-2">Address :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.address || ""}</span>
@@ -1048,7 +1060,7 @@ export default function TympanometryReportPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-base print:text-sm mt-2 print:mt-1">
+            <div className="grid grid-cols-2 gap-4 text-base mt-2">
               <div className="flex items-center">
                 <span className="font-medium mr-2">Contact No. :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.contactNumber || ""}</span>
@@ -1199,16 +1211,16 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Investigation: Impedance */}
-          <div className="mx-8 mb-4 print:mb-3 relative z-10">
+          <div className="mx-8 mb-4 relative z-10 investigation-table">
             <div className="bg-white border border-gray-300">
-              <div className="bg-blue-900 text-white p-3 print:p-2 text-center">
-                <h3 className="text-base print:text-sm font-bold">Investigation : Impedance</h3>
+              <div className="bg-blue-900 text-white p-3 text-center">
+                <h3 className="text-base font-bold">Investigation : Impedance</h3>
               </div>
-              <div className="grid grid-cols-4 text-base print:text-sm">
-                <div className="text-center font-bold border border-gray-400 p-2 print:p-1.5 bg-gray-100 text-gray-800">Test</div>
-                <div className="text-center font-bold border border-gray-400 p-2 print:p-1.5 bg-gray-100 text-gray-800">SI Units</div>
-                <div className="text-center font-bold border border-gray-400 p-2 print:p-1.5 bg-gray-100 text-gray-800">Lt</div>
-                <div className="text-center font-bold border border-gray-400 p-2 print:p-1.5 bg-gray-100 text-gray-800">Rt</div>
+              <div className="grid grid-cols-4 text-base">
+                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Test</div>
+                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">SI Units</div>
+                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Lt</div>
+                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Rt</div>
 
                 {(() => {
                   const left = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
@@ -1232,10 +1244,10 @@ export default function TympanometryReportPage() {
                     
                     return (
                       <>
-                        <div className="font-semibold border border-gray-400 p-2 print:p-1.5 text-gray-800 text-base print:text-sm">{label}</div>
-                        <div className="border border-gray-400 p-2 print:p-1.5 text-center text-gray-800 text-base print:text-sm">{units}</div>
-                        <div className="border border-gray-400 p-2 print:p-1.5 text-center text-gray-800 text-base print:text-sm">{l ? (label === 'Tympanogram' ? getLeftTympType() : formatter ? formatter(getComplianceValue(l)) : '—') : (label === 'Tympanogram' && leftTympType ? getLeftTympType() : '—')}</div>
-                        <div className="border border-gray-400 p-2 print:p-1.5 text-center text-gray-800 text-base print:text-sm">{r ? (label === 'Tympanogram' ? getRightTympType() : formatter ? formatter(getComplianceValue(r)) : '—') : (label === 'Tympanogram' && rightTympType ? getRightTympType() : '—')}</div>
+                        <div className="font-semibold border border-gray-400 p-2 text-gray-800 text-base">{label}</div>
+                        <div className="border border-gray-400 p-2 text-center text-gray-800 text-base">{units}</div>
+                        <div className="border border-gray-400 p-2 text-center text-gray-800 text-base">{l ? (label === 'Tympanogram' ? getLeftTympType() : formatter ? formatter(getComplianceValue(l)) : '—') : (label === 'Tympanogram' && leftTympType ? getLeftTympType() : '—')}</div>
+                        <div className="border border-gray-400 p-2 text-center text-gray-800 text-base">{r ? (label === 'Tympanogram' ? getRightTympType() : formatter ? formatter(getComplianceValue(r)) : '—') : (label === 'Tympanogram' && rightTympType ? getRightTympType() : '—')}</div>
                       </>
                     );
                   };
@@ -1296,24 +1308,24 @@ export default function TympanometryReportPage() {
             
             {/* Print/PDF Display for Diagnosis and Recommendation */}
             <div className="hidden print:block diagnosis-section-container">
-              <div className="space-y-2 print:space-y-2">
+              <div className="space-y-2">
                 <div>
-                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Provisional Diagnosis :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
+                  <div className="text-sm font-bold mb-1">Provisional Diagnosis :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
                     {diagnosisComment || "No diagnosis entered"}
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Suggestive of Diagnosis :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
+                  <div className="text-sm font-bold mb-1">Suggestive of Diagnosis :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
                     {suggestiveOf || "No suggestions entered"}
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Recommendation :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
+                  <div className="text-sm font-bold mb-1">Recommendation :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
                     {recommendationComment || "No recommendations entered"}
                   </div>
                 </div>
@@ -1337,19 +1349,19 @@ export default function TympanometryReportPage() {
                 </Button>
               </div>
             </form>
-            <div className="hidden print:block border border-gray-300 p-3 print:p-2 min-h-[60px] mt-0 comments-print-section">
-              <div className="text-sm print:text-sm font-bold mb-1 print:mb-1">Comments :</div>
-              <div className="whitespace-pre-wrap text-sm print:text-sm leading-relaxed break-words overflow-visible">{comments || "No comments entered"}</div>
+            <div className="hidden print:block border border-gray-300 p-3 min-h-[60px] mt-0 comments-print-section">
+              <div className="text-sm font-bold mb-1">Comments :</div>
+              <div className="whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible">{comments || "No comments entered"}</div>
             </div>
           </div>
 
           {/* Audiologist Box */}
-          <div className="px-8 mb-4 print:mb-2 flex justify-end">
-            <div className="border-2 border-blue-600 bg-blue-50 p-3 print:p-2 text-center audiologist-box">
-              <div className="text-sm print:text-sm font-bold text-blue-900">Audiologist Name</div>
-              <div className="text-xs print:text-xs text-blue-800 mt-1">{consultationData.audiologist?.user?.name || ""}</div>
-              <div className="text-xs print:text-xs text-blue-900 font-bold mt-2 print:mt-1">RCI No.</div>
-              <div className="text-xs print:text-xs text-blue-800">{consultationData.audiologist?.rciNumber || ""}</div>
+          <div className="px-8 mb-4 flex justify-end">
+            <div className="border-2 border-blue-600 bg-blue-50 p-3 text-center audiologist-box">
+              <div className="text-sm font-bold text-blue-900">Audiologist Name</div>
+              <div className="text-xs text-blue-800 mt-1">{consultationData.audiologist?.user?.name || ""}</div>
+              <div className="text-xs text-blue-900 font-bold mt-2">RCI No.</div>
+              <div className="text-xs text-blue-800">{consultationData.audiologist?.rciNumber || ""}</div>
             </div>
           </div>
 
