@@ -754,16 +754,19 @@ export default function TympanometryReportPage() {
             font-size: 14px !important;
           }
           
-          /* Patient info - match on-screen: text-base (16px) */
+          /* Patient info - larger fonts for print */
           .patient-info-section {
-            font-size: 16px !important;
+            font-size: 18px !important;
           }
           .patient-info-section .font-medium {
-            font-size: 16px !important;
+            font-size: 18px !important;
             font-weight: 500 !important;
           }
           .patient-info-section span {
-            font-size: 16px !important;
+            font-size: 18px !important;
+          }
+          .patient-info-section * {
+            font-size: 18px !important;
           }
           
           /* Title */
@@ -771,51 +774,66 @@ export default function TympanometryReportPage() {
             font-size: 20px !important;
           }
           
-          /* Investigation table header - match on-screen: text-base (16px) */
+          /* Investigation table header - larger fonts for print */
           .investigation-table .bg-blue-900 {
             padding: 12px !important;
           }
           .investigation-table .bg-blue-900 h3 {
-            font-size: 16px !important;
+            font-size: 18px !important;
           }
           
-          /* Investigation table cells - match on-screen: text-base (16px) */
+          /* Investigation table cells - larger fonts for print */
           .investigation-table .grid.grid-cols-4 > div {
-            font-size: 16px !important;
+            font-size: 18px !important;
             padding: 8px !important;
           }
           
-          /* Diagnosis section - match on-screen form: text-sm (14px) labels, text-sm content */
+          /* Reduce spacing between graphs and investigation table */
+          .tympanogram-charts-section {
+            padding-bottom: 4px !important;
+            margin-bottom: 0 !important;
+          }
+          .investigation-table {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+          }
+          
+          /* Diagnosis section - larger fonts for print */
           .diagnosis-section-container {
             padding: 0 !important;
-            margin-bottom: 3mm !important;
+            margin-bottom: 2mm !important;
           }
           .diagnosis-section-container > div {
-            gap: 3mm !important;
+            gap: 2mm !important;
           }
           .diagnosis-section-container .border {
             padding: 8px !important;
-            min-height: 20mm !important;
-            font-size: 14px !important;
-            line-height: 1.6 !important;
+            min-height: 15mm !important;
+            font-size: 16px !important;
+            line-height: 1.5 !important;
           }
           .diagnosis-section-container div[class*="font-bold"] {
-            font-size: 14px !important;
-            margin-bottom: 4px !important;
+            font-size: 16px !important;
+            margin-bottom: 3px !important;
+            font-weight: bold !important;
+          }
+          .diagnosis-section-container * {
+            font-size: 16px !important;
           }
           
-          /* Comments section - match on-screen form: text-sm (14px) */
+          /* Comments section - larger fonts for print */
           .comments-print-section {
             padding: 12px !important;
-            min-height: 20mm !important;
+            min-height: 15mm !important;
           }
           .comments-print-section .font-bold {
-            font-size: 14px !important;
-            margin-bottom: 4px !important;
+            font-size: 16px !important;
+            margin-bottom: 3px !important;
+            font-weight: bold !important;
           }
           .comments-print-section .whitespace-pre-wrap {
-            font-size: 14px !important;
-            line-height: 1.6 !important;
+            font-size: 16px !important;
+            line-height: 1.5 !important;
           }
           
           /* Audiologist box - match on-screen */
@@ -865,16 +883,19 @@ export default function TympanometryReportPage() {
           font-size: 14px !important;
         }
         
-        /* Patient info - match on-screen: text-base (16px) */
+        /* Patient info - larger fonts for PDF */
         [data-export-mark="1"] .patient-info-section {
-          font-size: 16px !important;
+          font-size: 18px !important;
         }
         [data-export-mark="1"] .patient-info-section .font-medium {
-          font-size: 16px !important;
+          font-size: 18px !important;
           font-weight: 500 !important;
         }
         [data-export-mark="1"] .patient-info-section span {
-          font-size: 16px !important;
+          font-size: 18px !important;
+        }
+        [data-export-mark="1"] .patient-info-section * {
+          font-size: 18px !important;
         }
         
         /* Title */
@@ -882,51 +903,66 @@ export default function TympanometryReportPage() {
           font-size: 20px !important;
         }
         
-        /* Investigation table header - match on-screen: text-base (16px) */
+        /* Investigation table header - larger fonts for PDF */
         [data-export-mark="1"] .investigation-table .bg-blue-900 {
           padding: 12px !important;
         }
         [data-export-mark="1"] .investigation-table .bg-blue-900 h3 {
-          font-size: 16px !important;
+          font-size: 18px !important;
         }
         
-        /* Investigation table cells - match on-screen: text-base (16px) */
+        /* Investigation table cells - larger fonts for PDF */
         [data-export-mark="1"] .investigation-table .grid.grid-cols-4 > div {
-          font-size: 16px !important;
+          font-size: 18px !important;
           padding: 8px !important;
         }
         
-        /* Diagnosis section - match on-screen form: text-sm (14px) */
+        /* Reduce spacing between graphs and investigation table */
+        [data-export-mark="1"] .tympanogram-charts-section {
+          padding-bottom: 4px !important;
+          margin-bottom: 0 !important;
+        }
+        [data-export-mark="1"] .investigation-table {
+          margin-top: 0 !important;
+          padding-top: 0 !important;
+        }
+        
+        /* Diagnosis section - larger fonts for PDF */
         [data-export-mark="1"] .diagnosis-section-container {
           padding: 0 !important;
-          margin-bottom: 3mm !important;
+          margin-bottom: 2mm !important;
         }
         [data-export-mark="1"] .diagnosis-section-container > div {
-          gap: 3mm !important;
+          gap: 2mm !important;
         }
         [data-export-mark="1"] .diagnosis-section-container .border {
           padding: 8px !important;
-          min-height: 20mm !important;
-          font-size: 14px !important;
-          line-height: 1.6 !important;
+          min-height: 15mm !important;
+          font-size: 16px !important;
+          line-height: 1.5 !important;
         }
         [data-export-mark="1"] .diagnosis-section-container div[class*="font-bold"] {
-          font-size: 14px !important;
-          margin-bottom: 4px !important;
+          font-size: 16px !important;
+          margin-bottom: 3px !important;
+          font-weight: bold !important;
+        }
+        [data-export-mark="1"] .diagnosis-section-container * {
+          font-size: 16px !important;
         }
         
-        /* Comments section - match on-screen form: text-sm (14px) */
+        /* Comments section - larger fonts for PDF */
         [data-export-mark="1"] .comments-print-section {
           padding: 12px !important;
-          min-height: 20mm !important;
+          min-height: 15mm !important;
         }
         [data-export-mark="1"] .comments-print-section .font-bold {
-          font-size: 14px !important;
-          margin-bottom: 4px !important;
+          font-size: 16px !important;
+          margin-bottom: 3px !important;
+          font-weight: bold !important;
         }
         [data-export-mark="1"] .comments-print-section .whitespace-pre-wrap {
-          font-size: 14px !important;
-          line-height: 1.6 !important;
+          font-size: 16px !important;
+          line-height: 1.5 !important;
         }
         
         /* Audiologist box - match on-screen */
@@ -1073,7 +1109,7 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Tympanogram Charts */}
-          <div className="px-8 py-4 print:py-3 bg-gray-50 relative z-0">
+          <div className="px-8 py-4 bg-gray-50 relative z-0 tympanogram-charts-section">
             {(() => {
               const leftReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
               const rightReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
@@ -1211,7 +1247,7 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Investigation: Impedance */}
-          <div className="mx-8 mb-4 relative z-10 investigation-table">
+          <div className="mx-8 mb-4 print:mb-0 relative z-10 investigation-table">
             <div className="bg-white border border-gray-300">
               <div className="bg-blue-900 text-white p-3 text-center">
                 <h3 className="text-base font-bold">Investigation : Impedance</h3>

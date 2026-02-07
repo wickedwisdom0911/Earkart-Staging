@@ -1248,26 +1248,31 @@ export default function ReportPage() {
             page-break-inside: auto !important;
           }
           
-          /* Diagnosis section styling - Made bigger for print readability */
+          /* Diagnosis section styling - larger fonts for print */
           .print-report-container .diagnosis-section-container {
-            padding: 4mm !important;
-            margin-bottom: 3mm !important;
+            padding: 0 !important;
+            margin-bottom: 2mm !important;
           }
           
           .print-report-container .diagnosis-section-container > div {
-            gap: 3mm !important;
+            gap: 2mm !important;
           }
           
           .print-report-container .diagnosis-section-container .border {
-            padding: 4mm !important;
-            min-height: 20mm !important;
-            font-size: 14px !important;
-            line-height: 1.6 !important;
+            padding: 8px !important;
+            min-height: 15mm !important;
+            font-size: 16px !important;
+            line-height: 1.5 !important;
           }
           
           .print-report-container .diagnosis-section-container div[class*="font-bold"] {
-            font-size: 15px !important;
-            margin-bottom: 2mm !important;
+            font-size: 16px !important;
+            margin-bottom: 3px !important;
+            font-weight: bold !important;
+          }
+          
+          .print-report-container .diagnosis-section-container * {
+            font-size: 16px !important;
           }
           
           /* Header - ensure not cut off at top - Made bigger for print */
@@ -1343,7 +1348,7 @@ export default function ReportPage() {
             padding: 1px 3px !important;
           }
           
-          /* Patient info padding */
+          /* Patient info padding - larger fonts */
           .print-report-container > div > div:nth-child(2) > div:nth-child(3) {
             padding-top: 0.5mm !important;
             padding-bottom: 0.5mm !important;
@@ -1357,23 +1362,57 @@ export default function ReportPage() {
           }
           
           .print-report-container > div > div:nth-child(2) > div:nth-child(3) span {
-            font-size: 9px !important;
+            font-size: 18px !important;
             padding-bottom: 0 !important;
             margin-right: 1mm !important;
-            line-height: 1.2 !important;
+            line-height: 1.3 !important;
           }
           
           .print-report-container > div > div:nth-child(2) > div:nth-child(3) .border-b {
             padding-bottom: 1px !important;
-            line-height: 1.2 !important;
+            line-height: 1.3 !important;
+          }
+          
+          .print-report-container > div > div:nth-child(2) > div:nth-child(3) * {
+            font-size: 18px !important;
+          }
+          
+          /* Patient info section - direct class targeting */
+          .print-report-container .patient-info-section {
+            padding-top: 0.5mm !important;
+            padding-bottom: 0.5mm !important;
+            padding-left: 3mm !important;
+            padding-right: 3mm !important;
+          }
+          
+          .print-report-container .patient-info-section .grid {
+            gap: 2mm !important;
+            row-gap: 1mm !important;
+          }
+          
+          .print-report-container .patient-info-section span {
+            font-size: 18px !important;
+            padding-bottom: 0 !important;
+            margin-right: 1mm !important;
+            line-height: 1.3 !important;
+          }
+          
+          .print-report-container .patient-info-section .border-b {
+            padding-bottom: 1px !important;
+            line-height: 1.3 !important;
+          }
+          
+          .print-report-container .patient-info-section * {
+            font-size: 18px !important;
           }
           
           .audiogram-charts-container {
             page-break-inside: avoid !important;
-            padding: 10mm 3mm !important;
+            padding: 10mm 3mm 4px 3mm !important;
             display: block !important;
             min-height: 1050px !important;
             height: auto !important;
+            margin-bottom: 0 !important;
           }
           
           .audiogram-chart-wrapper {
@@ -1396,28 +1435,34 @@ export default function ReportPage() {
             font-weight: bold !important;
           }
           
-          /* PTA section spacing - starts page 2 */
+          /* PTA section spacing - minimal spacing between charts and symbols */
           .pta-symbols-container {
-            margin-top: 30mm !important;
+            margin-top: 0 !important;
             margin-bottom: 3mm !important;
-            padding-top: 10mm !important;
+            padding-top: 4px !important;
             padding-bottom: 0px !important;
             display: block !important;
             visibility: visible !important;
           }
           
-          /* PTA and Symbols sections - Made bigger for print */
+          /* Reduce spacing after audiogram charts */
+          .audiogram-charts-container {
+            padding-bottom: 4px !important;
+            margin-bottom: 0 !important;
+          }
+          
+          /* PTA and Symbols sections - larger fonts for print */
           .print-report-container .pta-symbols-container .bg-blue-900 {
             padding: 4mm !important;
           }
           
           .print-report-container .pta-symbols-container .bg-blue-900 h3 {
-            font-size: 14px !important;
+            font-size: 18px !important;
             margin-bottom: 2mm !important;
           }
           
           .print-report-container .pta-symbols-container .bg-blue-900 div {
-            font-size: 11px !important;
+            font-size: 18px !important;
             margin-bottom: 1mm !important;
           }
           
@@ -1426,11 +1471,15 @@ export default function ReportPage() {
           }
           
           .print-report-container .pta-symbols-container .bg-white.border .grid {
-            font-size: 12px !important;
+            font-size: 18px !important;
           }
           
           .print-report-container .pta-symbols-container .bg-white.border > div {
-            font-size: 12px !important;
+            font-size: 18px !important;
+          }
+          
+          .print-report-container .pta-symbols-container * {
+            font-size: 18px !important;
           }
           
           /* ... existing styles ... */
@@ -1443,7 +1492,8 @@ export default function ReportPage() {
         /* PDF DOWNLOAD: Must be outside @media print - html2canvas ignores print rules */
         [data-export-mark="1"] .audiogram-charts-container {
           overflow: visible !important;
-          padding: 5mm 0 15mm 0 !important;
+          padding: 5mm 0 4px 0 !important;
+          margin-bottom: 0 !important;
         }
         [data-export-mark="1"] .audiogram-charts-container > div {
           overflow: visible !important;
@@ -1470,24 +1520,30 @@ export default function ReportPage() {
         }
 
         [data-export-mark="1"] .pta-symbols-container {
-          margin-top: 15mm !important;
+          margin-top: 0 !important;
           margin-bottom: 3mm !important;
-          padding-top: 10mm !important;
+          padding-top: 4px !important;
           display: block !important;
         }
         
-        /* PTA and Symbols sections - Made bigger for PDF export */
+        /* Reduce spacing after audiogram charts */
+        [data-export-mark="1"] .audiogram-charts-container {
+          padding-bottom: 4px !important;
+          margin-bottom: 0 !important;
+        }
+        
+        /* PTA and Symbols sections - larger fonts for PDF export */
         [data-export-mark="1"] .pta-symbols-container .bg-blue-900 {
           padding: 4mm !important;
         }
         
         [data-export-mark="1"] .pta-symbols-container .bg-blue-900 h3 {
-          font-size: 14px !important;
+          font-size: 18px !important;
           margin-bottom: 2mm !important;
         }
         
         [data-export-mark="1"] .pta-symbols-container .bg-blue-900 div {
-          font-size: 11px !important;
+          font-size: 18px !important;
           margin-bottom: 1mm !important;
         }
         
@@ -1496,11 +1552,15 @@ export default function ReportPage() {
         }
         
         [data-export-mark="1"] .pta-symbols-container .bg-white.border .grid {
-          font-size: 12px !important;
+          font-size: 18px !important;
         }
         
         [data-export-mark="1"] .pta-symbols-container .bg-white.border > div {
-          font-size: 12px !important;
+          font-size: 18px !important;
+        }
+        
+        [data-export-mark="1"] .pta-symbols-container * {
+          font-size: 18px !important;
         }
         
         /* Logo - Made bigger for PDF export */
@@ -1556,25 +1616,42 @@ export default function ReportPage() {
            font-size: 11px !important;
         }
 
+        /* Patient info - larger fonts for PDF */
+        [data-export-mark="1"] .patient-info-section {
+          font-size: 18px !important;
+        }
+        [data-export-mark="1"] .patient-info-section * {
+          font-size: 18px !important;
+        }
+        [data-export-mark="1"] .patient-info-section span {
+          font-size: 18px !important;
+          line-height: 1.3 !important;
+        }
+        
         [data-export-mark="1"] .diagnosis-section-container {
-           padding: 4mm !important;
-           margin-bottom: 3mm !important;
+           padding: 0 !important;
+           margin-bottom: 2mm !important;
         }
         
         [data-export-mark="1"] .diagnosis-section-container > div {
-           gap: 3mm !important;
+           gap: 2mm !important;
         }
         
         [data-export-mark="1"] .diagnosis-section-container .border {
-           padding: 4mm !important;
-           min-height: 20mm !important;
-           font-size: 14px !important;
-           line-height: 1.6 !important;
+           padding: 8px !important;
+           min-height: 15mm !important;
+           font-size: 16px !important;
+           line-height: 1.5 !important;
         }
         
         [data-export-mark="1"] .diagnosis-section-container div[class*="font-bold"] {
-           font-size: 15px !important;
-           margin-bottom: 2mm !important;
+           font-size: 16px !important;
+           margin-bottom: 3px !important;
+           font-weight: bold !important;
+        }
+        
+        [data-export-mark="1"] .diagnosis-section-container * {
+           font-size: 16px !important;
         }
       `}</style>
 
@@ -1643,8 +1720,8 @@ export default function ReportPage() {
             </div>
 
             {/* Patient Information */}
-            <div className="px-10 print:px-3 py-3 print:py-1 bg-white border-b relative z-10">
-              <div className="grid grid-cols-12 gap-3 print:gap-2 text-sm print:text-[9px]">
+            <div className="px-10 print:px-3 py-3 print:py-1 bg-white border-b relative z-10 patient-info-section">
+              <div className="grid grid-cols-12 gap-3 print:gap-2 text-sm">
                 <div className="col-span-3 flex items-center">
                   <span className="font-medium mr-1 print:mr-0.5">ID :</span>
                   <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
