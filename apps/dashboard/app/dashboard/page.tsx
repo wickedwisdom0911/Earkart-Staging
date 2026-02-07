@@ -86,9 +86,27 @@ export default function DashboardPage() {
       
       setAllConsulations(activeConsultations);
       
-      // NOTE: Alert creation is handled by the PatientAlertProvider via socket events
-      // and its own polling validation. Do NOT dispatch consultationNeedsAttention or
-      // clearNotificationCache here — it causes alerts to be re-created after resolution.
+      // Notify PatientAlertProvider about consultations that need attention.
+      // The alert provider's notifiedConsultations dedup set prevents duplicates AND
+      // prevents re-creation of resolved alerts (resolved IDs stay in the set).
+      // IMPORTANT: Do NOT dispatch clearNotificationCache — that wipes the dedup set
+      // and causes resolved alerts to be re-created.
+      if (user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST) {
+        consultationsArray.forEach((consultation: ConsultationModelData) => {
+          const needsAttention = 
+            (!consultation.audiologist) &&
+            (!(consultation as any).audiologistId) &&
+            consultation.status !== SessionStatus.IN_PROGRESS &&
+            consultation.status !== SessionStatus.COMPLETED &&
+            consultation.status !== SessionStatus.CANCELLED;
+          
+          if (needsAttention) {
+            window.dispatchEvent(new CustomEvent('consultationNeedsAttention', {
+              detail: consultation
+            }));
+          }
+        });
+      }
     }
   }, [consultations, user?.role]);
 
