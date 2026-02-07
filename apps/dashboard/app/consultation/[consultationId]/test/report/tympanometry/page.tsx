@@ -727,75 +727,213 @@ export default function TympanometryReportPage() {
   return (
     <>
       <style>{`
-        /* Print styles - larger fonts and reduced spacing */
+        /* ===== PRINT STYLES (@media print) ===== */
         @media print {
-          .diagnosis-section-container {
-            padding: 2mm !important;
+          /* Logo */
+          [data-section="header"] img {
+            max-height: 90px !important;
+            width: auto !important;
+            height: auto !important;
+          }
+          
+          /* Centre details */
+          [data-section="header"] .text-blue-900 {
+            padding: 16px 20px !important;
+            font-size: 14px !important;
+          }
+          [data-section="header"] .text-blue-900 p {
+            font-size: 20px !important;
+            margin-bottom: 6px !important;
+            font-weight: bold !important;
+          }
+          [data-section="header"] .text-blue-900 div {
+            font-size: 16px !important;
+            margin-bottom: 4px !important;
+          }
+          [data-section="header"] .text-blue-900 span {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+          }
+          
+          /* Patient info */
+          .patient-info-section {
+            font-size: 13px !important;
+          }
+          .patient-info-section .font-medium {
+            font-size: 13px !important;
+            font-weight: 600 !important;
+          }
+          
+          /* Investigation table header */
+          .bg-blue-900 {
+            padding: 4mm !important;
+          }
+          .bg-blue-900 h3 {
+            font-size: 14px !important;
             margin-bottom: 2mm !important;
           }
           
-          .diagnosis-section-container > div {
-            gap: 2mm !important;
-          }
-          
-          .diagnosis-section-container .border {
-            padding: 2mm !important;
-            min-height: 15mm !important;
-            font-size: 12px !important;
-            line-height: 1.5 !important;
-          }
-          
-          .diagnosis-section-container div[class*="font-bold"] {
+          /* Investigation table cells */
+          .grid.grid-cols-4 > div {
             font-size: 13px !important;
-            margin-bottom: 1mm !important;
+            padding: 2mm !important;
           }
           
-          /* Investigation table - larger fonts */
-          .bg-blue-900 h3 {
+          /* Diagnosis section */
+          .diagnosis-section-container {
+            padding: 4mm !important;
+            margin-bottom: 3mm !important;
+          }
+          .diagnosis-section-container > div {
+            gap: 3mm !important;
+          }
+          .diagnosis-section-container .border {
+            padding: 4mm !important;
+            min-height: 20mm !important;
+            font-size: 14px !important;
+            line-height: 1.6 !important;
+          }
+          .diagnosis-section-container div[class*="font-bold"] {
+            font-size: 15px !important;
+            margin-bottom: 2mm !important;
+          }
+          
+          /* Comments section */
+          .comments-print-section {
+            padding: 4mm !important;
+            min-height: 20mm !important;
+          }
+          .comments-print-section .font-bold {
+            font-size: 15px !important;
+            margin-bottom: 2mm !important;
+          }
+          .comments-print-section .whitespace-pre-wrap {
+            font-size: 14px !important;
+            line-height: 1.6 !important;
+          }
+          
+          /* Audiologist box */
+          .audiologist-box {
+            padding: 4mm !important;
+          }
+          .audiologist-box .font-bold {
             font-size: 14px !important;
           }
-          
-          .grid.grid-cols-4 > div {
+          .audiologist-box .text-xs {
             font-size: 12px !important;
-            padding: 1.5mm !important;
+          }
+          
+          /* Footer */
+          .report-footer {
+            font-size: 13px !important;
+          }
+          .report-footer .text-xs {
+            font-size: 11px !important;
           }
         }
         
-        /* PDF Export styles - html2canvas ignores @media print */
-        [data-export-mark="1"] .diagnosis-section-container {
-          padding: 2mm !important;
+        /* ===== PDF EXPORT STYLES (html2canvas ignores @media print) ===== */
+        
+        /* Logo - Made bigger for PDF export */
+        [data-export-mark="1"] [data-section="header"] img {
+          max-height: 90px !important;
+          width: auto !important;
+          height: auto !important;
+        }
+        
+        /* Centre details - Made bigger for PDF export */
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 {
+          padding: 16px 20px !important;
+          font-size: 14px !important;
+        }
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 p {
+          font-size: 20px !important;
+          margin-bottom: 6px !important;
+          font-weight: bold !important;
+        }
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 div {
+          font-size: 16px !important;
+          margin-bottom: 4px !important;
+        }
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 span {
+          font-size: 16px !important;
+          font-weight: 600 !important;
+        }
+        
+        /* Patient info */
+        [data-export-mark="1"] .patient-info-section {
+          font-size: 13px !important;
+        }
+        [data-export-mark="1"] .patient-info-section .font-medium {
+          font-size: 13px !important;
+          font-weight: 600 !important;
+        }
+        
+        /* Investigation table header */
+        [data-export-mark="1"] .bg-blue-900 {
+          padding: 4mm !important;
+        }
+        [data-export-mark="1"] .bg-blue-900 h3 {
+          font-size: 14px !important;
           margin-bottom: 2mm !important;
         }
         
-        [data-export-mark="1"] .diagnosis-section-container > div {
-          gap: 2mm !important;
-        }
-        
-        [data-export-mark="1"] .diagnosis-section-container .border {
-          padding: 2mm !important;
-          min-height: 15mm !important;
-          font-size: 12px !important;
-          line-height: 1.5 !important;
-        }
-        
-        [data-export-mark="1"] .diagnosis-section-container div[class*="font-bold"] {
+        /* Investigation table cells */
+        [data-export-mark="1"] .grid.grid-cols-4 > div {
           font-size: 13px !important;
-          margin-bottom: 1mm !important;
+          padding: 2mm !important;
         }
         
-        [data-export-mark="1"] .bg-blue-900 h3 {
+        /* Diagnosis section */
+        [data-export-mark="1"] .diagnosis-section-container {
+          padding: 4mm !important;
+          margin-bottom: 3mm !important;
+        }
+        [data-export-mark="1"] .diagnosis-section-container > div {
+          gap: 3mm !important;
+        }
+        [data-export-mark="1"] .diagnosis-section-container .border {
+          padding: 4mm !important;
+          min-height: 20mm !important;
+          font-size: 14px !important;
+          line-height: 1.6 !important;
+        }
+        [data-export-mark="1"] .diagnosis-section-container div[class*="font-bold"] {
+          font-size: 15px !important;
+          margin-bottom: 2mm !important;
+        }
+        
+        /* Comments section */
+        [data-export-mark="1"] .comments-print-section {
+          padding: 4mm !important;
+          min-height: 20mm !important;
+        }
+        [data-export-mark="1"] .comments-print-section .font-bold {
+          font-size: 15px !important;
+          margin-bottom: 2mm !important;
+        }
+        [data-export-mark="1"] .comments-print-section .whitespace-pre-wrap {
+          font-size: 14px !important;
+          line-height: 1.6 !important;
+        }
+        
+        /* Audiologist box */
+        [data-export-mark="1"] .audiologist-box {
+          padding: 4mm !important;
+        }
+        [data-export-mark="1"] .audiologist-box .font-bold {
           font-size: 14px !important;
         }
-        
-        [data-export-mark="1"] .grid.grid-cols-4 > div {
+        [data-export-mark="1"] .audiologist-box .text-xs {
           font-size: 12px !important;
-          padding: 1.5mm !important;
         }
         
-        [data-export-mark="1"] .border.border-gray-300 {
-          padding: 2mm !important;
-          min-height: 15mm !important;
-          font-size: 12px !important;
+        /* Footer */
+        [data-export-mark="1"] .report-footer {
+          font-size: 13px !important;
+        }
+        [data-export-mark="1"] .report-footer .text-xs {
+          font-size: 11px !important;
         }
       `}</style>
       <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
@@ -804,7 +942,7 @@ export default function TympanometryReportPage() {
 
         <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
-          <div className="relative text-white overflow-hidden">
+          <div className="relative text-white overflow-hidden" data-section="header">
             <div className="relative flex items-center justify-between p-6 z-10">
               <div className="flex items-center bg-white p-2 rounded">
                 <Image src="/EARKART LOGO BLUE.webp" alt="earKART Logo" width={200} height={250} className="bg-white" />
@@ -837,7 +975,7 @@ export default function TympanometryReportPage() {
           </div>
 
             {/* Patient Information */}
-          <div className="px-8 py-3 print:py-2 bg-white border-b">
+          <div className="px-8 py-3 print:py-2 bg-white border-b patient-info-section">
             <div className="grid grid-cols-12 gap-4 text-base print:text-sm">
               <div className="col-span-3 flex items-center">
                 <span className="font-medium mr-2">ID :</span>
@@ -1161,21 +1299,21 @@ export default function TympanometryReportPage() {
               <div className="space-y-2 print:space-y-2">
                 <div>
                   <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Provisional Diagnosis :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-2 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
                     {diagnosisComment || "No diagnosis entered"}
                   </div>
                 </div>
 
                 <div>
                   <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Suggestive of Diagnosis :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-2 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
                     {suggestiveOf || "No suggestions entered"}
                   </div>
                 </div>
 
                 <div>
                   <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Recommendation :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-2 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-3 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
                     {recommendationComment || "No recommendations entered"}
                   </div>
                 </div>
@@ -1199,7 +1337,7 @@ export default function TympanometryReportPage() {
                 </Button>
               </div>
             </form>
-            <div className="hidden print:block border border-gray-300 p-3 print:p-2 min-h-[60px] mt-0">
+            <div className="hidden print:block border border-gray-300 p-3 print:p-2 min-h-[60px] mt-0 comments-print-section">
               <div className="text-sm print:text-sm font-bold mb-1 print:mb-1">Comments :</div>
               <div className="whitespace-pre-wrap text-sm print:text-sm leading-relaxed break-words overflow-visible">{comments || "No comments entered"}</div>
             </div>
@@ -1207,7 +1345,7 @@ export default function TympanometryReportPage() {
 
           {/* Audiologist Box */}
           <div className="px-8 mb-4 print:mb-2 flex justify-end">
-            <div className="border-2 border-blue-600 bg-blue-50 p-3 print:p-2 text-center">
+            <div className="border-2 border-blue-600 bg-blue-50 p-3 print:p-2 text-center audiologist-box">
               <div className="text-sm print:text-sm font-bold text-blue-900">Audiologist Name</div>
               <div className="text-xs print:text-xs text-blue-800 mt-1">{consultationData.audiologist?.user?.name || ""}</div>
               <div className="text-xs print:text-xs text-blue-900 font-bold mt-2 print:mt-1">RCI No.</div>
@@ -1216,7 +1354,7 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Footer */}
-          <div className="bg-blue-900 text-white p-4">
+          <div className="bg-blue-900 text-white p-4 report-footer">
             <div className="flex justify-center items-center space-x-8 text-sm">
               <div className="flex items-center"><span className="mr-2">📞</span><span>{consultationData.centre?.contactNumber || "+91 9289097578"}</span></div>
               <div className="flex items-center"><span className="mr-2">🌐</span><span>www.earkart.in</span></div>
