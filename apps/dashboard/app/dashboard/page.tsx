@@ -86,34 +86,9 @@ export default function DashboardPage() {
       
       setAllConsulations(activeConsultations);
       
-      // Recording details are now included in the consultation response
-      
-      // NEW: Check and notify for consultations that need attention when they're displayed
-      if (user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST) {
-        // Clear notification cache to allow re-checking of consultations
-        const clearCacheEvent = new CustomEvent('clearNotificationCache');
-        window.dispatchEvent(clearCacheEvent);
-        
-        // Small delay to ensure cache is cleared before checking consultations
-        setTimeout(() => {
-          consultationsArray.forEach((consultation: ConsultationModelData) => {
-            // Check if consultation needs attention (no audiologist assigned) AND not in progress/completed/cancelled
-            const needsAttention = 
-              (!consultation.audiologist) &&
-              consultation.status !== SessionStatus.IN_PROGRESS && // NOT in progress (being handled)
-              consultation.status !== SessionStatus.COMPLETED && // NOT completed  
-              consultation.status !== SessionStatus.CANCELLED; // NOT cancelled
-            
-            if (needsAttention) {
-              // Create a notification for this consultation
-              const event = new CustomEvent('consultationNeedsAttention', {
-                detail: consultation
-              });
-              window.dispatchEvent(event);
-            }
-          });
-        }, 100);
-      }
+      // NOTE: Alert creation is handled by the PatientAlertProvider via socket events
+      // and its own polling validation. Do NOT dispatch consultationNeedsAttention or
+      // clearNotificationCache here — it causes alerts to be re-created after resolution.
     }
   }, [consultations, user?.role]);
 

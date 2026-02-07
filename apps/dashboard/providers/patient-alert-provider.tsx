@@ -189,11 +189,13 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   const resolveAllAlerts = useCallback(() => {
     console.log("🛑 [RESOLVE-ALL] Resolving ALL active alerts and stopping sound");
     setAlerts((prev) => prev.map((a) => ({ ...a, isActive: false })));
-    setNotifiedConsultations(new Set());
+    // Do NOT clear notifiedConsultations — prevents re-creation of resolved alerts
     stopContinuousSound();
   }, [stopContinuousSound]);
 
-  // Resolve a single consultation's alert
+  // Resolve a single consultation's alert.
+  // IMPORTANT: Do NOT remove from notifiedConsultations — keep it there so the
+  // alert is never re-created for the same consultation.
   const resolveConsultationAlert = useCallback((consultationId: string) => {
     console.log(`🛑 [RESOLVE] Resolving alert for consultation: ${consultationId}`);
     
@@ -213,12 +215,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
       
       return updated;
     });
-    
-    setNotifiedConsultations((prev) => {
-      const next = new Set(prev);
-      next.delete(consultationId);
-      return next;
-    });
+    // Do NOT remove from notifiedConsultations — prevents alert re-creation
   }, [stopContinuousSound]);
 
   // ================================================================
@@ -297,15 +294,21 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   const checkConsultationNeedsAttention = useCallback((consultation: ConsultationModelData) => {
     if (!isAudiologist) return false;
 
+    const status = consultation.status?.toUpperCase();
     if (
-      consultation.status === SessionStatus.IN_PROGRESS ||
-      consultation.status === SessionStatus.COMPLETED ||
-      consultation.status === SessionStatus.CANCELLED
+      status === SessionStatus.IN_PROGRESS ||
+      status === SessionStatus.COMPLETED ||
+      status === SessionStatus.CANCELLED
     ) {
       return false;
     }
 
-    return !consultation.audiologist;
+    // Check both audiologist (populated object) and audiologistId (foreign key)
+    if (consultation.audiologist || (consultation as any).audiologistId) {
+      return false;
+    }
+
+    return true;
   }, [isAudiologist]);
 
   const createAttentionAlert = useCallback((consultation: ConsultationModelData) => {
@@ -467,7 +470,8 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
     };
 
     const handleClearNotificationCache = () => {
-      setNotifiedConsultations(new Set());
+      // No-op: never clear the notified set — prevents re-creation of resolved alerts
+      console.log("⚠️ [EVENT] clearNotificationCache received — IGNORED to prevent alert re-creation");
     };
 
     const handleStopContinuousSound = () => {
