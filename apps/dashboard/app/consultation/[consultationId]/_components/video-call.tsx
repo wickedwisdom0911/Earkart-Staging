@@ -370,21 +370,33 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         showOtoscopyOnly,
       });
       
-      // Subscribe immediately when user publishes
-      try {
-        await client.subscribe(user, mediaType);
-        console.log(`🔬 [VIDEO-CALL] ✅ Subscribed to ${mediaType} from user ${user.uid}`);
-        
-        if (mediaType === "video" && showOtoscopyOnly) {
-          console.log(`🔬 [VIDEO-CALL] ✅ Otoscopy VIDEO stream subscribed!`);
-          console.log(`🔬 [VIDEO-CALL] Video track after subscribe:`, {
-            hasTrack: !!user.videoTrack,
-            isPlaying: user.videoTrack?.isPlaying,
-            trackId: user.videoTrack?.getTrackId(),
-          });
+      // Subscribe with retry logic to handle race conditions that cause black screen
+      let retries = 0;
+      const maxRetries = 3;
+      while (retries <= maxRetries) {
+        try {
+          await client.subscribe(user, mediaType);
+          console.log(`🔬 [VIDEO-CALL] ✅ Subscribed to ${mediaType} from user ${user.uid}`);
+          
+          if (mediaType === "video" && showOtoscopyOnly) {
+            console.log(`🔬 [VIDEO-CALL] ✅ Otoscopy VIDEO stream subscribed!`);
+            console.log(`🔬 [VIDEO-CALL] Video track after subscribe:`, {
+              hasTrack: !!user.videoTrack,
+              isPlaying: user.videoTrack?.isPlaying,
+              trackId: user.videoTrack?.getTrackId(),
+            });
+          }
+          break; // Success - exit retry loop
+        } catch (error) {
+          retries++;
+          if (retries <= maxRetries) {
+            const delay = 1000 * retries;
+            console.warn(`🔬 [VIDEO-CALL] ⚠️ Retry ${retries}/${maxRetries} for ${mediaType} subscription to user ${user.uid} in ${delay}ms`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            console.error(`🔬 [VIDEO-CALL] ❌ Failed to subscribe to ${mediaType} from user ${user.uid} after ${maxRetries} retries:`, error);
+          }
         }
-      } catch (error) {
-        console.error(`🔬 [VIDEO-CALL] ❌ Failed to subscribe to ${mediaType} from user ${user.uid}:`, error);
       }
       console.log(`🔬 [VIDEO-CALL] ============================================`);
     };
@@ -474,25 +486,93 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
     quickSubscribe();
   }, [client, isConnected, remoteUsers, showOtoscopyOnly]);
 
-  // Manually play video tracks as fallback (in case RemoteUser doesn't auto-play)
+  // Manually play video tracks as fallback with retries (fixes intermittent black screen)
   useEffect(() => {
     if (!remoteRef.current || filteredRemoteUsers.length === 0) return;
 
-    const playVideoTracks = async () => {
+    let attemptCount = 0;
+    const maxAttempts = 5;
+    const delays = [500, 1000, 2000, 3000, 5000];
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const tryPlayVideoTracks = () => {
+      if (attemptCount >= maxAttempts) return;
+      
+      let hasUnplayedTrack = false;
       for (const user of filteredRemoteUsers) {
         if (user.videoTrack && !user.videoTrack.isPlaying && remoteRef.current) {
+          hasUnplayedTrack = true;
           try {
             user.videoTrack.play(remoteRef.current);
+            console.log(`🔬 [VIDEO-PLAY] ✅ Played video for user ${user.uid} on attempt ${attemptCount + 1}`);
           } catch (error) {
-            // Silent fail - RemoteUser component handles this
+            console.warn(`🔬 [VIDEO-PLAY] ⚠️ Failed to play video for user ${user.uid} on attempt ${attemptCount + 1}`);
+          }
+        }
+      }
+      
+      // If there are still unplayed tracks, retry with increasing delay
+      if (hasUnplayedTrack && attemptCount < maxAttempts) {
+        const delay = delays[attemptCount] || 5000;
+        attemptCount++;
+        timeoutId = setTimeout(tryPlayVideoTracks, delay);
+      }
+    };
+
+    timeoutId = setTimeout(tryPlayVideoTracks, 500);
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [filteredRemoteUsers]);
+
+  // Periodic video health check - detects and recovers from black screen
+  // Runs every 3 seconds for the first 30 seconds after connection
+  useEffect(() => {
+    if (!client || !isConnected) return;
+
+    let checkCount = 0;
+    const maxChecks = 10; // 10 checks × 3s = 30 seconds of monitoring
+
+    const videoHealthCheck = async () => {
+      checkCount++;
+      if (checkCount > maxChecks) {
+        clearInterval(healthInterval);
+        return;
+      }
+
+      const users = client.remoteUsers || [];
+      for (const user of users) {
+        // Case 1: User published video but we don't have the track yet
+        if (user.hasVideo && !user.videoTrack) {
+          console.log(`🔧 [VIDEO-HEALTH] Check #${checkCount}: User ${user.uid} has video but no track, re-subscribing...`);
+          try {
+            await client.subscribe(user, "video");
+            console.log(`🔧 [VIDEO-HEALTH] ✅ Re-subscribed to video from user ${user.uid}`);
+          } catch (error) {
+            console.warn(`🔧 [VIDEO-HEALTH] ⚠️ Re-subscribe failed for user ${user.uid}, will retry`);
+          }
+        }
+        // Case 2: User published audio but we don't have the track
+        if (user.hasAudio && !user.audioTrack) {
+          try {
+            await client.subscribe(user, "audio");
+          } catch (error) {
+            // Will retry next interval
           }
         }
       }
     };
 
-    const timeout = setTimeout(playVideoTracks, 100);
-    return () => clearTimeout(timeout);
-  }, [filteredRemoteUsers]);
+    // First check after 1.5 seconds
+    const initialTimeout = setTimeout(videoHealthCheck, 1500);
+    // Then check every 3 seconds
+    const healthInterval = setInterval(videoHealthCheck, 3000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(healthInterval);
+    };
+  }, [client, isConnected]);
 
   // Join channel
   useJoin(

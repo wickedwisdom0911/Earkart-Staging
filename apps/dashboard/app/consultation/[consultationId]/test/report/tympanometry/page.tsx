@@ -160,6 +160,48 @@ export default function TympanometryReportPage() {
   const [leftTympType, setLeftTympType] = useState<TympType | "">("");
   const [rightTympType, setRightTympType] = useState<TympType | "">("");
   
+  // Diagnosis and Recommendation state
+  const [diagnosisComment, setDiagnosisComment] = useState<string>("");
+  const [suggestiveOf, setSuggestiveOf] = useState<string>("");
+  const [recommendationComment, setRecommendationComment] = useState<string>("");
+  
+  // Storage key for diagnosis data
+  const diagnosisStorageKey = `tympanometry-diagnosis-${consultationId}`;
+  
+  // Load diagnosis data from localStorage on mount
+  useEffect(() => {
+    if (consultationId && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(diagnosisStorageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setDiagnosisComment(parsed.diagnosisComment || "");
+          setRecommendationComment(parsed.recommendationComment || "");
+          setSuggestiveOf(parsed.suggestiveOf || "");
+        }
+      } catch (e) {
+        console.error("Failed to load diagnosis from localStorage:", e);
+      }
+    }
+  }, [consultationId, diagnosisStorageKey]);
+  
+  // Load diagnosis from consultation data if available
+  useEffect(() => {
+    if (consultationData?.tympanometry?.notes) {
+      try {
+        const notes = JSON.parse(consultationData.tympanometry.notes);
+        if (notes.diagnosisComment) setDiagnosisComment(notes.diagnosisComment);
+        if (notes.recommendationComment) setRecommendationComment(notes.recommendationComment);
+        if (notes.suggestiveOf) setSuggestiveOf(notes.suggestiveOf);
+      } catch {
+        // If notes is not JSON, treat as plain text (backward compatibility)
+        if (typeof consultationData.tympanometry.notes === 'string') {
+          setComments(consultationData.tympanometry.notes);
+        }
+      }
+    }
+  }, [consultationData?.tympanometry?.notes]);
+  
   // AIIMS editable date state
   const [isAiims, setIsAiims] = useState(false);
   const [reportDate, setReportDate] = useState<string>("");
@@ -269,6 +311,53 @@ export default function TympanometryReportPage() {
       toast.error("Failed to save comments");
     }
   };
+
+  const handleSaveDiagnosis = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!consultationData) return;
+    try {
+      // Combine all diagnosis fields into notes as JSON
+      const notesData = JSON.stringify({
+        diagnosisComment,
+        suggestiveOf,
+        recommendationComment,
+        recommendation: recommendationComment, // For backward compatibility
+      });
+      
+      await updateConsultationMutation.mutateAsync({
+        ...consultationData,
+        tympanometry: {
+          ...consultationData.tympanometry!,
+          notes: notesData,
+        },
+      });
+      
+      // Also save to localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(diagnosisStorageKey, JSON.stringify({
+          diagnosisComment,
+          suggestiveOf,
+          recommendationComment,
+        }));
+      }
+      
+      toast.success("Diagnosis and recommendation saved");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save diagnosis");
+    }
+  };
+  
+  // Save diagnosis/recommendation to localStorage whenever they change
+  useEffect(() => {
+    if (consultationId && typeof window !== 'undefined') {
+      localStorage.setItem(diagnosisStorageKey, JSON.stringify({
+        diagnosisComment,
+        suggestiveOf,
+        recommendationComment,
+      }));
+    }
+  }, [diagnosisComment, suggestiveOf, recommendationComment, consultationId, diagnosisStorageKey]);
 
   const handleSaveTympTypes = async () => {
     if (!consultationData?.tympanometry) return;
@@ -636,9 +725,82 @@ export default function TympanometryReportPage() {
   }
 
   return (
-    <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
-      <div className="w-[794px] max-h-[calc(100vh-2rem)] bg-white shadow-lg overflow-hidden">
-        <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
+    <>
+      <style>{`
+        /* Print styles - larger fonts and reduced spacing */
+        @media print {
+          .diagnosis-section-container {
+            padding: 2mm !important;
+            margin-bottom: 2mm !important;
+          }
+          
+          .diagnosis-section-container > div {
+            gap: 2mm !important;
+          }
+          
+          .diagnosis-section-container .border {
+            padding: 2mm !important;
+            min-height: 15mm !important;
+            font-size: 12px !important;
+            line-height: 1.5 !important;
+          }
+          
+          .diagnosis-section-container div[class*="font-bold"] {
+            font-size: 13px !important;
+            margin-bottom: 1mm !important;
+          }
+          
+          /* Investigation table - larger fonts */
+          .bg-blue-900 h3 {
+            font-size: 14px !important;
+          }
+          
+          .grid.grid-cols-4 > div {
+            font-size: 12px !important;
+            padding: 1.5mm !important;
+          }
+        }
+        
+        /* PDF Export styles - html2canvas ignores @media print */
+        [data-export-mark="1"] .diagnosis-section-container {
+          padding: 2mm !important;
+          margin-bottom: 2mm !important;
+        }
+        
+        [data-export-mark="1"] .diagnosis-section-container > div {
+          gap: 2mm !important;
+        }
+        
+        [data-export-mark="1"] .diagnosis-section-container .border {
+          padding: 2mm !important;
+          min-height: 15mm !important;
+          font-size: 12px !important;
+          line-height: 1.5 !important;
+        }
+        
+        [data-export-mark="1"] .diagnosis-section-container div[class*="font-bold"] {
+          font-size: 13px !important;
+          margin-bottom: 1mm !important;
+        }
+        
+        [data-export-mark="1"] .bg-blue-900 h3 {
+          font-size: 14px !important;
+        }
+        
+        [data-export-mark="1"] .grid.grid-cols-4 > div {
+          font-size: 12px !important;
+          padding: 1.5mm !important;
+        }
+        
+        [data-export-mark="1"] .border.border-gray-300 {
+          padding: 2mm !important;
+          min-height: 15mm !important;
+          font-size: 12px !important;
+        }
+      `}</style>
+      <div className="h-screen w-full overflow-hidden flex justify-center items-center bg-gray-100">
+        <div className="w-[794px] max-h-[calc(100vh-2rem)] bg-white shadow-lg overflow-hidden">
+          <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareReport} />
 
         <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
@@ -670,13 +832,13 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Title */}
-          <div className="text-center py-6 bg-gray-50">
-            <h2 className="text-xl font-bold text-gray-800">Impedance Audiometry</h2>
+          <div className="text-center py-3 print:py-2 bg-gray-50">
+            <h2 className="text-xl print:text-lg font-bold text-gray-800">Impedance Audiometry</h2>
           </div>
 
             {/* Patient Information */}
-          <div className="px-8 py-4 bg-white border-b">
-            <div className="grid grid-cols-12 gap-4 text-sm">
+          <div className="px-8 py-3 print:py-2 bg-white border-b">
+            <div className="grid grid-cols-12 gap-4 text-base print:text-sm">
               <div className="col-span-3 flex items-center">
                 <span className="font-medium mr-2">ID :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.code || ""}</span>
@@ -728,7 +890,7 @@ export default function TympanometryReportPage() {
                 </div>
                 </div>
 
-            <div className="grid grid-cols-12 gap-4 text-sm mt-3">
+            <div className="grid grid-cols-12 gap-4 text-base print:text-sm mt-2 print:mt-1">
               <div className="col-span-7 flex items-center">
                 <span className="font-medium mr-2">Address :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.address || ""}</span>
@@ -748,7 +910,7 @@ export default function TympanometryReportPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm mt-3">
+            <div className="grid grid-cols-2 gap-4 text-base print:text-sm mt-2 print:mt-1">
               <div className="flex items-center">
                 <span className="font-medium mr-2">Contact No. :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.contactNumber || ""}</span>
@@ -761,7 +923,7 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Tympanogram Charts */}
-          <div className="px-8 py-6 bg-gray-50 relative z-0">
+          <div className="px-8 py-4 print:py-3 bg-gray-50 relative z-0">
             {(() => {
               const leftReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
               const rightReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
@@ -899,16 +1061,16 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Investigation: Impedance */}
-          <div className="mx-8 mb-6 relative z-10">
+          <div className="mx-8 mb-4 print:mb-3 relative z-10">
             <div className="bg-white border border-gray-300">
-              <div className="bg-blue-900 text-white p-3 text-center">
-                <h3 className="text-sm font-bold">Investigation : Impedance</h3>
+              <div className="bg-blue-900 text-white p-3 print:p-2 text-center">
+                <h3 className="text-base print:text-sm font-bold">Investigation : Impedance</h3>
               </div>
-              <div className="grid grid-cols-4 text-sm">
-                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Test</div>
-                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">SI Units</div>
-                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Lt</div>
-                <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Rt</div>
+              <div className="grid grid-cols-4 text-base print:text-sm">
+                <div className="text-center font-bold border border-gray-400 p-2 print:p-1.5 bg-gray-100 text-gray-800">Test</div>
+                <div className="text-center font-bold border border-gray-400 p-2 print:p-1.5 bg-gray-100 text-gray-800">SI Units</div>
+                <div className="text-center font-bold border border-gray-400 p-2 print:p-1.5 bg-gray-100 text-gray-800">Lt</div>
+                <div className="text-center font-bold border border-gray-400 p-2 print:p-1.5 bg-gray-100 text-gray-800">Rt</div>
 
                 {(() => {
                   const left = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
@@ -932,10 +1094,10 @@ export default function TympanometryReportPage() {
                     
                     return (
                       <>
-                        <div className="font-semibold border border-gray-400 p-2 text-gray-800">{label}</div>
-                        <div className="border border-gray-400 p-2 text-center text-gray-800">{units}</div>
-                        <div className="border border-gray-400 p-2 text-center text-gray-800">{l ? (label === 'Tympanogram' ? getLeftTympType() : formatter ? formatter(getComplianceValue(l)) : '—') : (label === 'Tympanogram' && leftTympType ? getLeftTympType() : '—')}</div>
-                        <div className="border border-gray-400 p-2 text-center text-gray-800">{r ? (label === 'Tympanogram' ? getRightTympType() : formatter ? formatter(getComplianceValue(r)) : '—') : (label === 'Tympanogram' && rightTympType ? getRightTympType() : '—')}</div>
+                        <div className="font-semibold border border-gray-400 p-2 print:p-1.5 text-gray-800 text-base print:text-sm">{label}</div>
+                        <div className="border border-gray-400 p-2 print:p-1.5 text-center text-gray-800 text-base print:text-sm">{units}</div>
+                        <div className="border border-gray-400 p-2 print:p-1.5 text-center text-gray-800 text-base print:text-sm">{l ? (label === 'Tympanogram' ? getLeftTympType() : formatter ? formatter(getComplianceValue(l)) : '—') : (label === 'Tympanogram' && leftTympType ? getLeftTympType() : '—')}</div>
+                        <div className="border border-gray-400 p-2 print:p-1.5 text-center text-gray-800 text-base print:text-sm">{r ? (label === 'Tympanogram' ? getRightTympType() : formatter ? formatter(getComplianceValue(r)) : '—') : (label === 'Tympanogram' && rightTympType ? getRightTympType() : '—')}</div>
                       </>
                     );
                   };
@@ -953,15 +1115,83 @@ export default function TympanometryReportPage() {
             </div>
           </div>
 
+          {/* Diagnosis and Recommendation Section */}
+          <div className="px-8 mb-4 print:mb-2">
+            <form onSubmit={handleSaveDiagnosis} className="space-y-4 print:hidden">
+              <div className="space-y-3">
+                <div>
+                  <div className="text-sm font-bold mb-1">Provisional Diagnosis :</div>
+                  <Textarea
+                    value={diagnosisComment}
+                    onChange={(e) => setDiagnosisComment(e.target.value)}
+                    placeholder="Enter provisional diagnosis..."
+                    className="h-20 resize-none border border-gray-400 bg-gray-50 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-sm font-bold mb-1">Suggestive of Diagnosis :</div>
+                  <Textarea
+                    value={suggestiveOf}
+                    onChange={(e) => setSuggestiveOf(e.target.value)}
+                    placeholder="Enter suggestive diagnosis..."
+                    className="h-20 resize-none border border-gray-400 bg-gray-50 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-sm font-bold mb-1">Recommendation :</div>
+                  <Textarea
+                    value={recommendationComment}
+                    onChange={(e) => setRecommendationComment(e.target.value)}
+                    placeholder="Enter recommendations..."
+                    className="h-20 resize-none border border-gray-400 bg-gray-50 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={updateConsultationMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  {updateConsultationMutation.isPending ? "Saving..." : "Save Diagnosis & Recommendation"}
+                </Button>
+              </div>
+            </form>
+            
+            {/* Print/PDF Display for Diagnosis and Recommendation */}
+            <div className="hidden print:block diagnosis-section-container">
+              <div className="space-y-2 print:space-y-2">
+                <div>
+                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Provisional Diagnosis :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-2 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
+                    {diagnosisComment || "No diagnosis entered"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Suggestive of Diagnosis :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-2 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
+                    {suggestiveOf || "No suggestions entered"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs print:text-sm font-bold mb-1 print:mb-1">Recommendation :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 print:p-2 whitespace-pre-wrap text-xs print:text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
+                    {recommendationComment || "No recommendations entered"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Comments */}
-          <div className="px-8 mb-6">
+          <div className="px-8 mb-4 print:mb-2">
             <form onSubmit={handleSaveComments} className="space-y-3 print:hidden">
               <div className="text-sm font-bold">Comments :</div>
               <Textarea
                 value={comments}
                 onChange={(e) => setComments(e.target.value)}
                 placeholder="Enter comments..."
-                className="h-28 resize-none border border-gray-300 bg-gray-50"
+                className="h-24 resize-none border border-gray-300 bg-gray-50 text-sm"
               />
               <div className="flex justify-end">
                 <Button type="submit" disabled={updateConsultationMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -969,19 +1199,19 @@ export default function TympanometryReportPage() {
                 </Button>
               </div>
             </form>
-            <div className="hidden print:block border border-gray-300 p-4 min-h-[120px] mt-0">
-              <div className="text-sm font-bold mb-2">Comments :</div>
-              <div className="whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible">{comments || "No comments entered"}</div>
+            <div className="hidden print:block border border-gray-300 p-3 print:p-2 min-h-[60px] mt-0">
+              <div className="text-sm print:text-sm font-bold mb-1 print:mb-1">Comments :</div>
+              <div className="whitespace-pre-wrap text-sm print:text-sm leading-relaxed break-words overflow-visible">{comments || "No comments entered"}</div>
             </div>
           </div>
 
           {/* Audiologist Box */}
-          <div className="px-8 mb-6 flex justify-end">
-            <div className="border-2 border-blue-600 bg-blue-50 p-4 text-center">
-              <div className="text-sm font-bold text-blue-900">Audiologist Name</div>
-              <div className="text-xs text-blue-800 mt-1">{consultationData.audiologist?.user?.name || ""}</div>
-              <div className="text-xs text-blue-900 font-bold mt-2">RCI No.</div>
-              <div className="text-xs text-blue-800">{consultationData.audiologist?.rciNumber || ""}</div>
+          <div className="px-8 mb-4 print:mb-2 flex justify-end">
+            <div className="border-2 border-blue-600 bg-blue-50 p-3 print:p-2 text-center">
+              <div className="text-sm print:text-sm font-bold text-blue-900">Audiologist Name</div>
+              <div className="text-xs print:text-xs text-blue-800 mt-1">{consultationData.audiologist?.user?.name || ""}</div>
+              <div className="text-xs print:text-xs text-blue-900 font-bold mt-2 print:mt-1">RCI No.</div>
+              <div className="text-xs print:text-xs text-blue-800">{consultationData.audiologist?.rciNumber || ""}</div>
             </div>
           </div>
 
@@ -1038,6 +1268,7 @@ export default function TympanometryReportPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </>
   );
 }
