@@ -86,33 +86,26 @@ export default function DashboardPage() {
       
       setAllConsulations(activeConsultations);
       
-      // Recording details are now included in the consultation response
-      
-      // NEW: Check and notify for consultations that need attention when they're displayed
+      // Notify PatientAlertProvider about consultations that need attention.
+      // The alert provider's notifiedConsultations dedup set prevents duplicates AND
+      // prevents re-creation of resolved alerts (resolved IDs stay in the set).
+      // IMPORTANT: Do NOT dispatch clearNotificationCache — that wipes the dedup set
+      // and causes resolved alerts to be re-created.
       if (user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST) {
-        // Clear notification cache to allow re-checking of consultations
-        const clearCacheEvent = new CustomEvent('clearNotificationCache');
-        window.dispatchEvent(clearCacheEvent);
-        
-        // Small delay to ensure cache is cleared before checking consultations
-        setTimeout(() => {
-          consultationsArray.forEach((consultation: ConsultationModelData) => {
-            // Check if consultation needs attention (no audiologist assigned) AND not in progress/completed/cancelled
-            const needsAttention = 
-              (!consultation.audiologist) &&
-              consultation.status !== SessionStatus.IN_PROGRESS && // NOT in progress (being handled)
-              consultation.status !== SessionStatus.COMPLETED && // NOT completed  
-              consultation.status !== SessionStatus.CANCELLED; // NOT cancelled
-            
-            if (needsAttention) {
-              // Create a notification for this consultation
-              const event = new CustomEvent('consultationNeedsAttention', {
-                detail: consultation
-              });
-              window.dispatchEvent(event);
-            }
-          });
-        }, 100);
+        consultationsArray.forEach((consultation: ConsultationModelData) => {
+          const needsAttention = 
+            (!consultation.audiologist) &&
+            (!(consultation as any).audiologistId) &&
+            consultation.status !== SessionStatus.IN_PROGRESS &&
+            consultation.status !== SessionStatus.COMPLETED &&
+            consultation.status !== SessionStatus.CANCELLED;
+          
+          if (needsAttention) {
+            window.dispatchEvent(new CustomEvent('consultationNeedsAttention', {
+              detail: consultation
+            }));
+          }
+        });
       }
     }
   }, [consultations, user?.role]);
@@ -199,9 +192,9 @@ export default function DashboardPage() {
         });
       }
 
-      // Stop notification sound if this consultation was causing alerts
-      const stopSoundEvent = new CustomEvent('stopContinuousSound');
-      window.dispatchEvent(stopSoundEvent);
+      // Resolve the alert for this consultation (stops sound if it was the last alert)
+      window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId: consultation.id } }));
+      window.dispatchEvent(new CustomEvent('stopContinuousSound'));
     };
 
     // NEW: Listen for connect/disconnect
@@ -261,9 +254,9 @@ export default function DashboardPage() {
                   console.log("Successfully updated consultation status to IN_PROGRESS");
                   toast.success("Consultation started successfully");
                   
-                  // Stop notification sound when audiologist joins consultation
-                  const stopSoundEvent = new CustomEvent('stopContinuousSound');
-                  window.dispatchEvent(stopSoundEvent);
+                  // Resolve the alert for this consultation
+                  window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
+                  window.dispatchEvent(new CustomEvent('stopContinuousSound'));
                 }
               },
                  onError: async (error: any) => {
@@ -280,8 +273,8 @@ export default function DashboardPage() {
                        if (consultation.audiologist?.userId === user?.id) {
                          // Same audiologist trying to rejoin - allow it
                          console.log("✅ Same audiologist rejoining their own consultation, allowing rejoin");
-                         const stopSoundEvent = new CustomEvent('stopContinuousSound');
-                         window.dispatchEvent(stopSoundEvent);
+                         window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
+                         window.dispatchEvent(new CustomEvent('stopContinuousSound'));
                          setJoiningConsultationId(null);
                          router.push(`/consultation/${consultationId}`);
                          return;
@@ -299,8 +292,8 @@ export default function DashboardPage() {
                     const consultation = consultationsArray.find(c => c.id === consultationId);
                     if (consultation?.audiologist?.userId === user?.id) {
                        console.log("✅ Same audiologist rejoining (from cache), allowing rejoin");
-                       const stopSoundEvent = new CustomEvent('stopContinuousSound');
-                       window.dispatchEvent(stopSoundEvent);
+                       window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
+                       window.dispatchEvent(new CustomEvent('stopContinuousSound'));
                        setJoiningConsultationId(null);
                        router.push(`/consultation/${consultationId}`);
                        return;
@@ -313,16 +306,16 @@ export default function DashboardPage() {
                  }
                  
                  // For other errors, navigate anyway
-                 const stopSoundEvent = new CustomEvent('stopContinuousSound');
-                 window.dispatchEvent(stopSoundEvent);
+                 window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
+                 window.dispatchEvent(new CustomEvent('stopContinuousSound'));
                  setJoiningConsultationId(null);
                  router.push(`/consultation/${consultationId}`);
                },
             });
           } else {
-            // Even if status wasn't PENDING, stop notification sound when joining
-            const stopSoundEvent = new CustomEvent('stopContinuousSound');
-            window.dispatchEvent(stopSoundEvent);
+            // Even if status wasn't PENDING, resolve the alert
+            window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
+            window.dispatchEvent(new CustomEvent('stopContinuousSound'));
           }
           
           // Only navigate if no errors occurred
@@ -342,8 +335,8 @@ export default function DashboardPage() {
                 if (consultation.audiologist?.userId === user?.id) {
                   // Same audiologist trying to rejoin - allow it
                   console.log("✅ Same audiologist rejoining their own consultation, allowing rejoin");
-                  const stopSoundEvent = new CustomEvent('stopContinuousSound');
-                  window.dispatchEvent(stopSoundEvent);
+                  window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
+                  window.dispatchEvent(new CustomEvent('stopContinuousSound'));
                   setJoiningConsultationId(null);
                   router.push(`/consultation/${consultationId}`);
                   return;
@@ -361,8 +354,8 @@ export default function DashboardPage() {
               const consultation = consultationsArray.find(c => c.id === consultationId);
               if (consultation?.audiologist?.userId === user?.id) {
                 console.log("✅ Same audiologist rejoining (from cache), allowing rejoin");
-                const stopSoundEvent = new CustomEvent('stopContinuousSound');
-                window.dispatchEvent(stopSoundEvent);
+                window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
+                window.dispatchEvent(new CustomEvent('stopContinuousSound'));
                 setJoiningConsultationId(null);
                 router.push(`/consultation/${consultationId}`);
                 return;
@@ -375,8 +368,8 @@ export default function DashboardPage() {
           }
           
           // For other errors, navigate anyway
-          const stopSoundEvent = new CustomEvent('stopContinuousSound');
-          window.dispatchEvent(stopSoundEvent);
+          window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
+          window.dispatchEvent(new CustomEvent('stopContinuousSound'));
           setJoiningConsultationId(null);
           router.push(`/consultation/${consultationId}`);
         }

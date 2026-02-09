@@ -3,10 +3,11 @@ import getAllConsultations from "@/actions/consultations/get_all_consultations";
 import { extractConsultations } from "@/models/consultation.model";
 import { ConsultationModelData } from "@/models/consultation.model";
 
-export const useGetAllConsultations = (options?: { enabled?: boolean }) => {
+export const useGetAllConsultations = (options?: { enabled?: boolean; refetchInterval?: number | false }) => {
   return useQuery({
     queryKey: ["consultations"],
     enabled: options?.enabled !== false, // Default to true, but can be disabled
+    refetchInterval: options?.refetchInterval || false, // Optional auto-refetch interval
     queryFn: async () => {
       console.log("🔵 [useGetAllConsultations] Query function called");
       try {
