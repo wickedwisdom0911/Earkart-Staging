@@ -157,8 +157,8 @@ export default function TympanometryReportPage() {
   const [comments, setComments] = useState<string>("");
   const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare, error: screenShareError } = useSharedScreenShare();
   const [isShowingReport, setIsShowingReport] = useState(false);
-  const [leftTympType, setLeftTympType] = useState<TympType | "">("");
-  const [rightTympType, setRightTympType] = useState<TympType | "">("");
+  const [leftTympType, setLeftTympType] = useState<string>("");
+  const [rightTympType, setRightTympType] = useState<string>("");
   
   // Diagnosis and Recommendation state
   const [diagnosisComment, setDiagnosisComment] = useState<string>("");
@@ -267,8 +267,8 @@ export default function TympanometryReportPage() {
     if (consultationData?.tympanometry?.readings) {
       const leftReading = consultationData.tympanometry.readings.find(r => r.ear === Ear.LEFT);
       const rightReading = consultationData.tympanometry.readings.find(r => r.ear === Ear.RIGHT);
-      if (leftReading) setLeftTympType(leftReading.tympType);
-      if (rightReading) setRightTympType(rightReading.tympType);
+      if (leftReading) setLeftTympType(leftReading.tympType?.toString() || "");
+      if (rightReading) setRightTympType(rightReading.tympType?.toString() || "");
     }
   }, [consultationData?.tympanometry?.readings]);
 
@@ -389,11 +389,11 @@ export default function TympanometryReportPage() {
   };
 
   // Handle tymp type change - just update state, don't modify comments
-  const handleTympTypeChange = (ear: 'left' | 'right', tympType: TympType | "") => {
+  const handleTympTypeChange = (ear: 'left' | 'right', value: string) => {
     if (ear === 'left') {
-      setLeftTympType(tympType);
+      setLeftTympType(value);
     } else {
-      setRightTympType(tympType);
+      setRightTympType(value);
     }
   };
 
@@ -708,6 +708,11 @@ export default function TympanometryReportPage() {
     return <div className="p-6">No consultation data found</div>;
 
   const tympanometryData = consultationData.tympanometry;
+  
+  // Check if this is Shriram Hospital
+  const isShriramHospital = consultationData.centre?.user?.email?.toLowerCase() === "bills.shriramhospital@gmail.com" || 
+                             consultationData.centre?.user?.name?.toLowerCase()?.includes("shri ram") || 
+                             consultationData.centre?.user?.name?.toLowerCase()?.includes("shriram");
 
   if (!tympanometryData) {
     return (
@@ -752,7 +757,7 @@ export default function TympanometryReportPage() {
           }
           [data-section="header"] .text-blue-900 span {
             font-size: 14px !important;
-          }
+          }          /* Centre logo styling for print */          [data-section="header"] .text-blue-900 img {            max-height: 100px !important;            width: auto !important;            height: auto !important;            object-fit: contain !important;            margin-bottom: 8px !important;          }
           
           /* Patient info - larger fonts for print */
           .patient-info-section {
@@ -881,7 +886,7 @@ export default function TympanometryReportPage() {
         }
         [data-export-mark="1"] [data-section="header"] .text-blue-900 span {
           font-size: 14px !important;
-        }
+        }          /* Centre logo styling for print */          [data-section="header"] .text-blue-900 img {            max-height: 100px !important;            width: auto !important;            height: auto !important;            object-fit: contain !important;            margin-bottom: 8px !important;          }
         
         /* Patient info - larger fonts for PDF */
         [data-export-mark="1"] .patient-info-section {
@@ -990,12 +995,34 @@ export default function TympanometryReportPage() {
 
         <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
-          <div className="relative text-white overflow-hidden" data-section="header">
-            <div className="relative flex items-center justify-between p-6 z-10">
-              <div className="flex items-center bg-white p-2 rounded">
-                <Image src="/EARKART LOGO BLUE.webp" alt="earKART Logo" width={200} height={250} className="bg-white" />
+          <div className="relative overflow-hidden" data-section="header">
+            {isShriramHospital ? (
+              <div className="p-6">
+                <div className="flex items-center justify-center gap-6 mb-3">
+                  <div className="flex items-center">
+                    <Image src="/logo.webp" alt="earKART Logo" width={140} height={70} className="object-contain" style={{ height: '70px', width: 'auto' }} />
+                  </div>
+                  <div className="flex items-center">
+                    <img
+                      src="/logos/shriram-hospital-logo.webp"
+                      alt="Shriram Hospital Logo"
+                      style={{ height: '100px', width: 'auto', objectFit: 'contain' }}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </div>
+                </div>
+                <div className="text-center text-black">
+                  <p className="font-bold text-base mb-1">{consultationData.centre?.user?.name || "Demo Clinic"}</p>
+                  <p className="font-semibold text-sm text-gray-700 mb-1">Dr. {consultationData.centre?.entName || "Demo ENT"}</p>
+                  <p className="font-semibold text-sm text-gray-700 mb-1">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</p>
+                  <p className="text-sm text-gray-600">{consultationData.centre?.address || "Address"}</p>
+                </div>
               </div>
-              <div className="relative">
+            ) : (
+              <div className="relative flex items-center justify-between p-6 z-10">
+                <div className="flex items-center bg-white p-2 rounded">
+                  <Image src="/logo.webp" alt="earKART Logo" width={200} height={250} className="bg-white" />
+                </div>
                 <div className="text-blue-900 px-6 py-4 rounded-lg shadow-md" style={{ backgroundColor: '#8bdaef' }}>
                   <div className="text-center">
                     <p className="font-bold text-base mb-2">{consultationData.centre?.user?.name || "Demo Clinic"}</p>
@@ -1014,7 +1041,7 @@ export default function TympanometryReportPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Title */}
@@ -1109,7 +1136,7 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Tympanogram Charts */}
-          <div className="px-8 py-4 bg-gray-50 relative z-0 tympanogram-charts-section">
+          <div className="px-8 py-4 bg-gray-50 relative z-0 tympanogram-charts-section hidden">
             {(() => {
               const leftReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
               const rightReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
@@ -1205,33 +1232,25 @@ export default function TympanometryReportPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Left Ear</label>
-                  <select
+                  <Input
+                    type="text"
+                    placeholder="Enter tympanogram type (e.g., Type A, Type B, Custom Type...)"
                     className="w-full p-2 border rounded"
                     value={leftTympType}
-                    onChange={(e) => handleTympTypeChange('left', e.target.value as TympType | "")}
-                  >
-                    <option value="">Select Type (Optional)</option>
-                    <option value={TympType.A}>Type A - Normal</option>
-                    <option value={TympType.As}>Type As - Shallow</option>
-                    <option value={TympType.Ad}>Type Ad - Deep</option>
-                    <option value={TympType.B}>Type B - Flat</option>
-                    <option value={TympType.C}>Type C - Negative Pressure</option>
-                  </select>
+                    onChange={(e) => handleTympTypeChange('left', e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Common types: A, As, Ad, B, C</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Right Ear</label>
-                  <select
+                  <Input
+                    type="text"
+                    placeholder="Enter tympanogram type (e.g., Type A, Type B, Custom Type...)"
                     className="w-full p-2 border rounded"
                     value={rightTympType}
-                    onChange={(e) => handleTympTypeChange('right', e.target.value as TympType | "")}
-                  >
-                    <option value="">Select Type (Optional)</option>
-                    <option value={TympType.A}>Type A - Normal</option>
-                    <option value={TympType.As}>Type As - Shallow</option>
-                    <option value={TympType.Ad}>Type Ad - Deep</option>
-                    <option value={TympType.B}>Type B - Flat</option>
-                    <option value={TympType.C}>Type C - Negative Pressure</option>
-                  </select>
+                    onChange={(e) => handleTympTypeChange('right', e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Common types: A, As, Ad, B, C</p>
                 </div>
               </div>
               <div className="mt-4 flex justify-end">
@@ -1247,7 +1266,7 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Investigation: Impedance */}
-          <div className="mx-8 mb-4 print:mb-0 relative z-10 investigation-table">
+          <div className="mx-8 mb-4 print:mb-0 relative z-10 investigation-table hidden">
             <div className="bg-white border border-gray-300">
               <div className="bg-blue-900 text-white p-3 text-center">
                 <h3 className="text-base font-bold">Investigation : Impedance</h3>
@@ -1275,8 +1294,8 @@ export default function TympanometryReportPage() {
                     };
                     
                     // For Tympanogram row, use the selected tymp types from state (updates immediately on selection)
-                    const getLeftTympType = () => leftTympType || l?.tympType || '—';
-                    const getRightTympType = () => rightTympType || r?.tympType || '—';
+                    const getLeftTympType = () => leftTympType || (l?.tympType ? String(l.tympType) : null) || '—';
+                    const getRightTympType = () => rightTympType || (r?.tympType ? String(r.tympType) : null) || '—';
                     
                     return (
                       <>
@@ -1305,7 +1324,7 @@ export default function TympanometryReportPage() {
           <div className="px-8 mb-4 print:mb-2">
             <form onSubmit={handleSaveDiagnosis} className="space-y-4 print:hidden">
               <div className="space-y-3">
-                <div>
+                <div className="hidden">
                   <div className="text-sm font-bold mb-1">Provisional Diagnosis :</div>
                   <Textarea
                     value={diagnosisComment}
@@ -1315,7 +1334,7 @@ export default function TympanometryReportPage() {
                   />
                 </div>
 
-                <div>
+                <div className="hidden">
                   <div className="text-sm font-bold mb-1">Suggestive of Diagnosis :</div>
                   <Textarea
                     value={suggestiveOf}
@@ -1345,14 +1364,14 @@ export default function TympanometryReportPage() {
             {/* Print/PDF Display for Diagnosis and Recommendation */}
             <div className="hidden print:block diagnosis-section-container">
               <div className="space-y-2">
-                <div>
+                <div className="hidden">
                   <div className="text-sm font-bold mb-1">Provisional Diagnosis :</div>
                   <div className="border border-gray-400 bg-gray-50 p-2 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
                     {diagnosisComment || "No diagnosis entered"}
                   </div>
                 </div>
 
-                <div>
+                <div className="hidden">
                   <div className="text-sm font-bold mb-1">Suggestive of Diagnosis :</div>
                   <div className="border border-gray-400 bg-gray-50 p-2 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
                     {suggestiveOf || "No suggestions entered"}
@@ -1458,3 +1477,7 @@ export default function TympanometryReportPage() {
     </>
   );
 }
+
+
+
+

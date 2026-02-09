@@ -276,7 +276,7 @@ const AudiogramChart: React.FC<{
       <h3 className="text-base font-bold mb-3 text-gray-800">{title}</h3>
       <div className="border-2 border-gray-400 bg-white">
         <svg width={chartWidth + margin.left + margin.right} height={height + margin.top + margin.bottom}>
-          {/* Grid lines - Major lines for 10dB intervals */}
+          {/* Grid lines - Major lines for 10dB intervals (all dark: -10, 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120) */}
           {Array.from({ length: 15 }, (_, i) => (
             <line
               key={`major-h-${i}`}
@@ -284,8 +284,8 @@ const AudiogramChart: React.FC<{
               y1={margin.top + i * gridSize}
               x2={chartWidth + margin.left}
               y2={margin.top + i * gridSize}
-              stroke={i % 2 === 0 ? COLORS.grid : "#E5E5E5"}
-              strokeWidth={i % 2 === 0 ? 1.5 : 0.5}
+              stroke={COLORS.grid}
+              strokeWidth={1.5}
             />
           ))}
 
@@ -425,6 +425,11 @@ export default function ReportPage() {
   const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const updateConsultationMutation = useUpdateConsultation();
   const reportRef = useRef<HTMLDivElement>(null);
+  
+  // Check if this is Shriram Hospital
+  const isShriramHospital = consultationData?.centre?.user?.email?.toLowerCase() === "bills.shriramhospital@gmail.com" || 
+                             consultationData?.centre?.user?.name?.toLowerCase()?.includes("shri ram") || 
+                             consultationData?.centre?.user?.name?.toLowerCase()?.includes("shriram");
 
   // WhatsApp sharing hook
   const {
@@ -1331,6 +1336,15 @@ export default function ReportPage() {
             font-weight: 600 !important;
           }
           
+          /* Centre logo styling for print */
+          .print-report-container [data-section="header"] .text-blue-900 img {
+            max-height: 100px !important;
+            width: auto !important;
+            height: auto !important;
+            object-fit: contain !important;
+            margin-bottom: 8px !important;
+          }
+          
           /* Title section padding */
           .print-report-container > div > div:nth-child(2) > div:nth-child(2) {
             padding-top: 0.5mm !important;
@@ -1589,6 +1603,15 @@ export default function ReportPage() {
           font-weight: 600 !important;
         }
         
+        /* Centre logo styling for PDF export */
+        [data-export-mark="1"] [data-section="header"] .text-blue-900 img {
+          max-height: 100px !important;
+          width: auto !important;
+          height: auto !important;
+          object-fit: contain !important;
+          margin-bottom: 8px !important;
+        }
+        
         [data-export-mark="1"] .bg-blue-900 {
            padding: 4mm !important;
         }
@@ -1663,41 +1686,55 @@ export default function ReportPage() {
 
           <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto flex-1 print:max-h-none print:overflow-visible print:flex-none print:h-auto pb-8" style={{ fontFamily: 'Arial, sans-serif' }}>
             {/* Header */}
-            <div className="relative text-white overflow-hidden" data-section="header">
-              <div className="relative flex items-center justify-between p-6 print:p-3 z-10">
-                <div className="flex items-center bg-white p-3 print:p-2 rounded">
-                  <Image
-                    src="/EARKART LOGO BLUE.webp"
-                    alt="earKART Logo"
-                    width={280}
-                    height={350}
-                    className="bg-white print:w-64 print:h-auto"
-                  />
+            <div className="relative overflow-hidden" data-section="header">
+              {isShriramHospital ? (
+                /* Shriram Hospital: Clean layout with both logos aligned */
+                <div className="p-6 print:p-3">
+                  <div className="flex items-center justify-center gap-8 mb-4">
+                    <div className="flex items-center">
+                      <Image src="/logo.webp" alt="earKART Logo" width={160} height={80} className="object-contain" style={{ height: '110px', width: 'auto' }} />
+                    </div>
+                    <div className="flex items-center">
+                      <img
+                        src="/logos/shriram-hospital-logo.webp"
+                        alt="Shriram Hospital Logo"
+                        style={{ height: '110px', width: 'auto', objectFit: 'contain' }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-center text-black">
+                    <p className="font-bold text-xl print:text-base mb-1">{consultationData.centre?.user?.name || "Demo Clinic"}</p>
+                    <p className="font-semibold text-sm print:text-xs text-gray-700 mb-1">Dr. {consultationData.centre?.entName || "Demo ENT"}</p>
+                    <p className="font-semibold text-sm print:text-xs text-gray-700 mb-1">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</p>
+                    <p className="text-sm print:text-xs text-gray-600">{consultationData.centre?.address || "Address"}</p>
+                  </div>
                 </div>
-
-                <div className="relative">
-                  <div
-                    className="text-blue-900 px-10 py-8 rounded-lg shadow-md"
-                    style={{ backgroundColor: '#8bdaef' }}
-                  >
+              ) : (
+                /* Default layout for other centres */
+                <div className="relative flex items-center justify-between p-6 print:p-3 z-10">
+                  <div className="flex items-center bg-white p-3 print:p-2 rounded">
+                    <Image src="/logo.webp" alt="earKART Logo" width={280} height={350} className="bg-white print:w-64 print:h-auto" />
+                  </div>
+                  <div className="text-blue-900 px-10 py-8 rounded-lg shadow-md" style={{ backgroundColor: '#8bdaef' }}>
                     <div className="text-center">
                       <p className="font-bold text-xl print:text-base mb-3">{consultationData.centre?.user?.name || "Demo Clinic"}</p>
                       <div className="flex items-center justify-center mb-2">
                         <span className="text-base print:text-sm mr-2">👨‍⚕️</span>
-                        <span className="text-base print:text-sm font-semibold">Dr. {consultationData.centre?.entName || "Demo ENT"}</span>
+                        <span className="font-semibold text-base print:text-sm">Dr. {consultationData.centre?.entName || "Demo ENT"}</span>
                       </div>
                       <div className="flex items-center justify-center mb-2">
                         <span className="text-base print:text-sm mr-2">📞</span>
-                        <span className="text-base print:text-sm font-semibold">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
+                        <span className="font-semibold text-base print:text-sm">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
                       </div>
                       <div className="flex items-center justify-center">
                         <span className="text-base print:text-sm mr-2">📍</span>
-                        <span className="text-base print:text-sm font-semibold">{consultationData.centre?.address || "Address"}</span>
+                        <span className="font-semibold text-base print:text-sm">{consultationData.centre?.address || "Address"}</span>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Pure Tone Audiogram Title */}

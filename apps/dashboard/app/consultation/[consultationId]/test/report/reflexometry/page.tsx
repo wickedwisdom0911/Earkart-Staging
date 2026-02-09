@@ -60,6 +60,11 @@ export default function ReflexometryReportPage() {
   const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const reportRef = useRef<HTMLDivElement>(null);
   const updateConsultationMutation = useUpdateConsultation();
+  
+  // Check if this is Shriram Hospital
+  const isShriramHospital = consultationData?.centre?.user?.email?.toLowerCase() === "bills.shriramhospital@gmail.com" || 
+                             consultationData?.centre?.user?.name?.toLowerCase()?.includes("shri ram") || 
+                             consultationData?.centre?.user?.name?.toLowerCase()?.includes("shriram");
   const [comments, setComments] = useState<string>("");
   const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare, error: screenShareError } = useSharedScreenShare();
   const [isShowingReport, setIsShowingReport] = useState(false);
@@ -345,31 +350,35 @@ export default function ReflexometryReportPage() {
 
         <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: 'Arial, sans-serif' }}>
           {/* Header */}
-          <div className="relative text-white overflow-hidden">
-            <div className="relative flex items-center justify-between p-6 z-10">
-              <div className="flex items-center bg-white p-2 rounded">
-                <Image src="/EARKART LOGO BLUE.webp" alt="earKART Logo" width={200} height={250} className="bg-white" />
+          <div className="relative overflow-hidden" data-section="header">
+            {isShriramHospital ? (
+              <div className="p-6">
+                <div className="flex items-center justify-center gap-6 mb-3">
+                  <Image src="/logo.webp" alt="earKART Logo" width={140} height={70} className="object-contain" style={{ height: '100px', width: 'auto' }} />
+                  <img src="/logos/shriram-hospital-logo.webp" alt="Shriram Hospital Logo" style={{ height: '100px', width: 'auto', objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                </div>
+                <div className="text-center text-black">
+                  <p className="font-bold text-sm mb-1">{consultationData.centre?.user?.name || "Clinic Name"}</p>
+                  <p className="font-semibold text-xs text-gray-700 mb-1">Dr. {consultationData.centre?.entName || "ENT Name"}</p>
+                  <p className="font-semibold text-xs text-gray-700 mb-1">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</p>
+                  <p className="text-xs text-gray-600">{consultationData.centre?.address || "Address"}</p>
+                </div>
               </div>
-              <div className="relative">
+            ) : (
+              <div className="relative flex items-center justify-between p-6 z-10">
+                <div className="flex items-center bg-white p-2 rounded">
+                  <Image src="/logo.webp" alt="earKART Logo" width={200} height={250} className="bg-white" />
+                </div>
                 <div className="text-blue-900 px-6 py-4 rounded-lg shadow-md" style={{ backgroundColor: '#8bdaef' }}>
                   <div className="text-center">
                     <p className="font-bold text-sm mb-2">{consultationData.centre?.user?.name || "Clinic Name"}</p>
-                    <div className="flex items-center justify-center mb-1">
-                      <span className="text-xs mr-1">👨‍⚕️</span>
-                      <span className="text-xs">Dr. {consultationData.centre?.entName || "ENT Name"}</span>
-                    </div>
-                    <div className="flex items-center justify-center mb-1">
-                      <span className="text-xs mr-1">📞</span>
-                      <span className="text-xs">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span>
-                    </div>
-                    <div className="flex items-center justify-center">
-                      <span className="text-xs mr-1">📍</span>
-                      <span className="text-xs">{consultationData.centre?.address || "Address"}</span>
-                    </div>
+                    <div className="flex items-center justify-center mb-1"><span className="text-xs mr-1">👨‍⚕️</span><span className="text-xs">Dr. {consultationData.centre?.entName || "ENT Name"}</span></div>
+                    <div className="flex items-center justify-center mb-1"><span className="text-xs mr-1">📞</span><span className="text-xs">{consultationData.centre?.contactNumber || "+91 XXXXXXXXXX"}</span></div>
+                    <div className="flex items-center justify-center"><span className="text-xs mr-1">📍</span><span className="text-xs">{consultationData.centre?.address || "Address"}</span></div>
                   </div>
                 </div>
               </div>
-            </div>
+            )
           </div>
 
           {/* Title */}
@@ -733,5 +742,6 @@ export default function ReflexometryReportPage() {
     </div>
   );
 }
+
 
 

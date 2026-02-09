@@ -213,7 +213,7 @@ const AudiogramChart: React.FC<{
       <h3 className="text-base font-bold mb-3 text-gray-800">{title}</h3>
       <div className="border-2 border-gray-400 bg-white">
         <svg width={chartWidth + margin.left + margin.right} height={height + margin.top + margin.bottom}>
-          {/* Grid lines */}
+          {/* Grid lines - Major lines for 10dB intervals (all dark: -10, 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120) */}
           {Array.from({ length: 15 }, (_, i) => (
             <line
               key={`major-h-${i}`}
@@ -221,8 +221,8 @@ const AudiogramChart: React.FC<{
               y1={margin.top + i * gridSize}
               x2={chartWidth + margin.left}
               y2={margin.top + i * gridSize}
-              stroke={i % 2 === 0 ? COLORS.grid : "#E5E5E5"}
-              strokeWidth={i % 2 === 0 ? 1.5 : 0.5}
+              stroke={COLORS.grid}
+              strokeWidth={1.5}
             />
           ))}
 
