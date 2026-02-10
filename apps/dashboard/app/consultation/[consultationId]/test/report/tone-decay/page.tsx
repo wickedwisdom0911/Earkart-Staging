@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Ear, ToneDecayResult, ReportType } from "@/models/enums";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
@@ -292,7 +292,7 @@ export default function ToneDecayReportPage() {
                   </div>
                 </div>
               </div>
-            )
+            )}
           </div>
 
           {/* Title */}
