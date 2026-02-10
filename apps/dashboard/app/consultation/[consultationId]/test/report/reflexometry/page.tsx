@@ -33,6 +33,37 @@ import {
 
 const FREQUENCIES = [500, 1000, 2000, 4000];
 
+const WaveformGraph: React.FC<{
+  data: { time: number; amplitude: number }[];
+  ear: Ear;
+  mode: "IPSI" | "CONTRA";
+  frequency: number;
+}> = ({ data, ear, mode, frequency }) => {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-20 bg-gray-50 border border-gray-200 rounded flex items-center justify-center">
+        <span className="text-xs text-gray-400">No data</span>
+      </div>
+    );
+  }
+  const amplitudes = data.map(d => d.amplitude);
+  const minAmp = Math.min(...amplitudes);
+  const maxAmp = Math.max(...amplitudes);
+  const padding = (maxAmp - minAmp) * 0.1 || 0.1;
+  const yDomain: [number, number] = [minAmp - padding, maxAmp + padding];
+  const color = ear === Ear.LEFT ? "#3B82F6" : "#EF4444";
+  return (
+    <div className="h-20 bg-white border border-gray-200 rounded">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+          <YAxis domain={yDomain} hide />
+          <Line type="monotone" dataKey="amplitude" stroke={color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
 interface ReflexResponse {
   ear: "LEFT" | "RIGHT";
   earType: number;  // 0 = IPSI, 1 = CONTRA
@@ -226,7 +257,7 @@ export default function ReflexometryReportPage() {
     }
   };
 
-  // Get responses for an ear
+  // Helper functions for data extraction (defined before early returns)
   const getResponsesForEar = (ear: Ear): ReflexResponse[] => {
     const reflexData = (consultationData as any)?.reflexometry;
     if (!reflexData?.responses) return [];
@@ -234,7 +265,6 @@ export default function ReflexometryReportPage() {
     return reflexData.responses.filter((r: ReflexResponse) => r.ear === earStr);
   };
 
-  // Get threshold for specific frequency/mode/ear
   const getThreshold = (ear: Ear, mode: "IPSI" | "CONTRA", freq: number): string => {
     const responses = getResponsesForEar(ear);
     const response = responses.find((r: ReflexResponse) => r.mode === mode && r.frequencyHz === freq);
@@ -243,7 +273,6 @@ export default function ReflexometryReportPage() {
     return `${response.levelDb}`;
   };
 
-  // Get waveform data for specific frequency/mode/ear
   const getWaveformData = (ear: Ear, mode: "IPSI" | "CONTRA", freq: number): { time: number; amplitude: number }[] => {
     const responses = getResponsesForEar(ear);
     const response = responses.find((r: ReflexResponse) => r.mode === mode && r.frequencyHz === freq);
@@ -252,48 +281,6 @@ export default function ReflexometryReportPage() {
       time: index,
       amplitude: amplitude,
     }));
-  };
-
-  // Waveform Graph Component
-  const WaveformGraph: React.FC<{
-    data: { time: number; amplitude: number }[];
-    ear: Ear;
-    mode: "IPSI" | "CONTRA";
-    frequency: number;
-  }> = ({ data, ear, mode, frequency }) => {
-    if (!data || data.length === 0) {
-      return (
-        <div className="h-20 bg-gray-50 border border-gray-200 rounded flex items-center justify-center">
-          <span className="text-xs text-gray-400">No data</span>
-        </div>
-      );
-    }
-
-    const amplitudes = data.map(d => d.amplitude);
-    const minAmp = Math.min(...amplitudes);
-    const maxAmp = Math.max(...amplitudes);
-    const padding = (maxAmp - minAmp) * 0.1 || 0.1;
-    const yDomain: [number, number] = [minAmp - padding, maxAmp + padding];
-
-    const color = ear === Ear.LEFT ? "#3B82F6" : "#EF4444";
-
-    return (
-      <div className="h-20 bg-white border border-gray-200 rounded">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-            <YAxis domain={yDomain} hide />
-            <Line
-              type="monotone"
-              dataKey="amplitude"
-              stroke={color}
-              strokeWidth={1.5}
-              dot={false}
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    );
   };
 
   if (isLoading) return <div className="p-6">Loading report...</div>;
@@ -305,17 +292,6 @@ export default function ReflexometryReportPage() {
     );
   if (!consultationData)
     return <div className="p-6">No consultation data found</div>;
-
-  // Debug: Log consultation data structure
-  useEffect(() => {
-    console.log("[Reflexometry Report] Consultation data:", {
-      hasReflexometry: !!(consultationData as any)?.reflexometry,
-      reflexometry: (consultationData as any)?.reflexometry,
-      reflexometryStatus: (consultationData as any)?.reflexometry?.status,
-      responsesCount: (consultationData as any)?.reflexometry?.responses?.length,
-      allKeys: Object.keys(consultationData || {}),
-    });
-  }, [consultationData]);
 
   const reflexometryData = (consultationData as any)?.reflexometry;
 
@@ -348,14 +324,14 @@ export default function ReflexometryReportPage() {
       <div className="w-[794px] max-h-[calc(100vh-2rem)] bg-white shadow-lg overflow-hidden">
         <ReportTopActions onDownload={handleDownloadPDF} onShare={handleShareClick} />
 
-        <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: 'Arial, sans-serif' }}>
+        <div ref={reportRef} data-report-capture="true" className="bg-white overflow-y-auto max-h-[calc(100vh-8rem)]" style={{ fontFamily: "Arial, sans-serif" }}>
           {/* Header */}
           <div className="relative overflow-hidden" data-section="header">
             {isShriramHospital ? (
               <div className="p-6">
                 <div className="flex items-center justify-center gap-6 mb-3">
-                  <Image src="/logo.webp" alt="earKART Logo" width={140} height={70} className="object-contain" style={{ height: '100px', width: 'auto' }} />
-                  <img src="/logos/shriram-hospital-logo.webp" alt="Shriram Hospital Logo" style={{ height: '100px', width: 'auto', objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  <Image src="/logo.webp" alt="earKART Logo" width={140} height={70} className="object-contain" style={{ height: "100px", width: "auto" }} />
+                  <img src="/logos/shriram-hospital-logo.webp" alt="Shriram Hospital Logo" style={{ height: "100px", width: "auto", objectFit: "contain" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                 </div>
                 <div className="text-center text-black">
                   <p className="font-bold text-sm mb-1">{consultationData.centre?.user?.name || "Clinic Name"}</p>
@@ -378,7 +354,7 @@ export default function ReflexometryReportPage() {
                   </div>
                 </div>
               </div>
-            )
+            )}
           </div>
 
           {/* Title */}
