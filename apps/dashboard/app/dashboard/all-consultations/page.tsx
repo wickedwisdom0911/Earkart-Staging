@@ -22,13 +22,16 @@ import {
   Filter,
   X,
   Loader2,
+  FileSpreadsheet,
 } from "lucide-react";
+import { exportConsultationsToExcel } from "@/lib/export-consultations-excel";
 import { ROUTES } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ConsultationGridSkeleton } from "@/components/ui/consultation-skeleton";
 import { ConsultationEmptyState } from "@/components/ui/consultation-empty-state";
+import { toast } from "sonner";
 
 export default function AllConsultationsPage() {
   const router = useRouter();
@@ -277,6 +280,21 @@ export default function AllConsultationsPage() {
               </div>
             )}
           </div>
+          {filteredConsultations.length > 0 && (
+            <Button
+              variant="outline"
+              className="flex items-center gap-2"
+              onClick={() => {
+                exportConsultationsToExcel(filteredConsultations);
+                toast.success(
+                  `Exported ${filteredConsultations.length} consultation${filteredConsultations.length !== 1 ? "s" : ""} to Excel`
+                );
+              }}
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Export to Excel
+            </Button>
+          )}
         </div>
 
         {/* Filters Card */}

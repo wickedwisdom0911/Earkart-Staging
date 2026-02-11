@@ -13,32 +13,28 @@ export interface GetAllConsultationsParams {
   page?: number;
   limit?: number;
   offset?: number;
+  /** Optional max records to fetch - stops pagination once reached. Use for faster dashboard load. */
+  maxRecords?: number;
 }
 
 export default async function getAllConsultations(
   params?: GetAllConsultationsParams
 ): Promise<ConsultationModel> {
   try {
-    console.log("🔵 [getAllConsultations] Starting...", { params });
-    
     const baseUrl = await getBaseUrl();
     const user = await verifySession();
-    if (!user?.token) {
-      console.error("🔴 [getAllConsultations] No token - Unauthorized");
-      throw new Error("Unauthorized");
-    }
-    console.log("🔵 [getAllConsultations] User authenticated:", user.email);
+    if (!user?.token) throw new Error("Unauthorized");
 
     // Pagination parameters
-    const limit = 100; // Fetch 100 consultations per page
-    let offset = 0;
+    const limit = params?.limit ?? 100; // Fetch 100 consultations per page
+    let offset = params?.offset ?? 0;
+    const maxRecords = params?.maxRecords; // When set, stop after reaching this count
     let hasMore = true;
     const allConsultations: ConsultationModelData[] = [];
 
-    // Fetch all pages
-    while (hasMore) {
+    // Fetch pages (stop early if maxRecords reached)
+    while (hasMore && (!maxRecords || allConsultations.length < maxRecords)) {
       const url = `${baseUrl}consultation/get-all?limit=${limit}&offset=${offset}`;
-      console.log(`🔵 [getAllConsultations] Fetching page: limit=${limit}, offset=${offset}`);
 
       try {
         const response = await apiRequest<ConsultationModel>(
@@ -56,9 +52,9 @@ export default async function getAllConsultations(
         // Handle different response formats
         if (Array.isArray(response.data)) {
           // Direct array response (backward compatibility)
-          allConsultations.push(...response.data);
+          const toAdd = maxRecords ? response.data.slice(0, maxRecords - allConsultations.length) : response.data;
+          allConsultations.push(...toAdd);
           hasMore = false; // No pagination info, assume this is all data
-          console.log(`🔵 [getAllConsultations] Fetched ${response.data.length} consultations (direct array)`);
         } else if (response.data && typeof response.data === 'object' && 'data' in response.data) {
           // Paginated response with nested data
           const paginatedData = response.data as {
@@ -68,10 +64,11 @@ export default async function getAllConsultations(
           
           if (paginatedData.data && Array.isArray(paginatedData.data)) {
             const fetchedCount = paginatedData.data.length;
-            allConsultations.push(...paginatedData.data);
-            hasMore = paginatedData.hasNext || false;
-            
-            console.log(`🔵 [getAllConsultations] Fetched ${fetchedCount} consultations, total so far: ${allConsultations.length}, hasNext: ${hasMore}`);
+            const toAdd = maxRecords
+              ? paginatedData.data.slice(0, maxRecords - allConsultations.length)
+              : paginatedData.data;
+            allConsultations.push(...toAdd);
+            hasMore = paginatedData.hasNext && (!maxRecords || allConsultations.length < maxRecords) || false;
             
             // Move to next page
             if (hasMore) {
@@ -97,7 +94,6 @@ export default async function getAllConsultations(
       }
     }
 
-    console.log(`🔵 [getAllConsultations] Completed! Total consultations fetched: ${allConsultations.length}`);
 
     // Return in the expected format (array for backward compatibility)
     return {

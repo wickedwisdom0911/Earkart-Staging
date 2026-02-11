@@ -3,25 +3,24 @@ import getAllConsultations from "@/actions/consultations/get_all_consultations";
 import { extractConsultations } from "@/models/consultation.model";
 import { ConsultationModelData } from "@/models/consultation.model";
 
-export const useGetAllConsultations = (options?: { enabled?: boolean; refetchInterval?: number | false }) => {
+export const useGetAllConsultations = (options?: {
+  enabled?: boolean;
+  refetchInterval?: number | false;
+  /** Limit fetch to N records for faster initial load (e.g. dashboard uses 100) */
+  maxRecords?: number;
+}) => {
   return useQuery({
-    queryKey: ["consultations"],
+    queryKey: ["consultations", options?.maxRecords],
     enabled: options?.enabled !== false, // Default to true, but can be disabled
     refetchInterval: options?.refetchInterval || false, // Optional auto-refetch interval
     queryFn: async () => {
-      console.log("🔵 [useGetAllConsultations] Query function called");
       try {
-        // Fetch all consultations without pagination (for backward compatibility)
-        // Note: This may return paginated response, but we'll extract all data
-        const result = await getAllConsultations();
-        console.log("🔵 [useGetAllConsultations] Query result:", {
-          hasResult: !!result,
-          success: result?.success,
-          hasData: !!result?.data
+        const result = await getAllConsultations({
+          maxRecords: options?.maxRecords,
         });
         return result;
       } catch (error) {
-        console.error("🔴 [useGetAllConsultations] Query error:", error);
+        console.error("[useGetAllConsultations] Query error:", error);
         throw error; // Re-throw so React Query can handle it
       }
     },
