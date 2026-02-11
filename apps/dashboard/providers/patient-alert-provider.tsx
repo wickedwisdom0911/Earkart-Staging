@@ -65,6 +65,7 @@ export const PatientAlertProvider: React.FC<PatientAlertProviderProps> = ({
   const { data: consultations, refetch: refetchConsultations } = useGetAllConsultations({
     enabled: !!user?.token && isAudiologist,
     refetchInterval: 3000,
+    maxRecords: 100, // Share cache with dashboard for faster loads
   });
   
   const [alerts, setAlerts] = useState<ConsultationNeedsAttentionAlert[]>([]);

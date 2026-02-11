@@ -41,7 +41,7 @@ export default function DashboardPage() {
     ConsultationModelData[]
   >([]);
   const [blinkingIds, setBlinkingIds] = useState<string[]>([]);
-  const { data: consultations, isLoading, isError } = useGetAllConsultations();
+  const { data: consultations, isLoading, isError } = useGetAllConsultations({ maxRecords: 100 });
   const socket = useSocket();
 
 
@@ -61,23 +61,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (consultations?.data) {
       const consultationsArray = extractConsultations(consultations.data);
-      
-      // 🐛 DEBUG: Console log consultations data structure
-      console.log("[CONSULTATIONS] Raw consultations data:", consultationsArray.map(c => ({
-        id: c.id.substring(0, 8),
-        status: c.status,
-        recordings: c.recordings?.map(r => ({
-          id: r.id,
-          fileName: (r as any).fileName,
-          mimeType: (r as any).mimeType,
-          recordingUrl: r.recordingUrl,
-          createdAt: r.createdAt,
-          // 🐛 Show ALL fields to see what's available
-          allFields: Object.keys(r)
-        })),
-        recordingName: (c as any).recordingName,
-        recordingUrl: (c as any).recordingUrl
-      })));
       
       // Filter to show only active consultations (exclude completed and cancelled)
       const activeConsultations = consultationsArray.filter(
@@ -222,16 +205,33 @@ export default function DashboardPage() {
               );
             });
           } else {
-            // Fetch current consultation data
-            const consultationResponse = await getConsultation(consultationId);
-            if (!consultationResponse.success || !consultationResponse.data) {
-              throw new Error("Failed to fetch consultation data");
-            }
-            currentConsultation = consultationResponse.data as ConsultationModelData;
+            // Socket returned string - navigate immediately, fetch + update status in background
+            toast.dismiss(`join-${consultationId}`);
+            window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
+            window.dispatchEvent(new CustomEvent('stopContinuousSound'));
+            setJoiningConsultationId(null);
+            router.push(`/consultation/${consultationId}`);
+            getConsultation(consultationId).then((consultationResponse) => {
+              if (!consultationResponse.success || !consultationResponse.data) return;
+              const raw = consultationResponse.data;
+              const c = (Array.isArray(raw) ? raw[0] : raw) as ConsultationModelData;
+              if (!c) return;
+              if (c.status === SessionStatus.PENDING && c.audiologist?.userId === user?.id) {
+                updateConsultationMutation({
+                  ...c,
+                  status: SessionStatus.IN_PROGRESS,
+                  updatedAt: new Date().toISOString(),
+                }, {
+                  onSuccess: () => toast.success("Consultation started successfully"),
+                });
+              }
+            }).catch(() => { /* ignore - layout will fetch */ });
+            return;
           }
           
           // Additional validation: Check if another audiologist was assigned
           if (currentConsultation.audiologist && currentConsultation.audiologist.userId !== user?.id) {
+            toast.dismiss(`join-${consultationId}`);
             toast.error("This consultation has already been assigned to another audiologist");
             setJoiningConsultationId(null);
             return;
@@ -280,6 +280,7 @@ export default function DashboardPage() {
                          return;
                        } else {
                          // Different audiologist - block and show error
+                         toast.dismiss(`join-${consultationId}`);
                          toast.error("Another audiologist has already joined this consultation");
                          setJoiningConsultationId(null);
                          return;
@@ -298,6 +299,7 @@ export default function DashboardPage() {
                        router.push(`/consultation/${consultationId}`);
                        return;
                      } else {
+                       toast.dismiss(`join-${consultationId}`);
                        toast.error("Another audiologist has already joined this consultation");
                        setJoiningConsultationId(null);
                        return;
@@ -305,11 +307,12 @@ export default function DashboardPage() {
                    }
                  }
                  
-                 // For other errors, navigate anyway
-                 window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
-                 window.dispatchEvent(new CustomEvent('stopContinuousSound'));
-                 setJoiningConsultationId(null);
-                 router.push(`/consultation/${consultationId}`);
+          // For other errors, navigate anyway
+          toast.dismiss(`join-${consultationId}`);
+          window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
+          window.dispatchEvent(new CustomEvent('stopContinuousSound'));
+          setJoiningConsultationId(null);
+          router.push(`/consultation/${consultationId}`);
                },
             });
           } else {
@@ -319,6 +322,7 @@ export default function DashboardPage() {
           }
           
           // Only navigate if no errors occurred
+          toast.dismiss(`join-${consultationId}`);
           setJoiningConsultationId(null);
           router.push(`/consultation/${consultationId}`);
         } catch (error: any) {
@@ -342,6 +346,7 @@ export default function DashboardPage() {
                   return;
                 } else {
                   // Different audiologist - block and show error
+                  toast.dismiss(`join-${consultationId}`);
                   toast.error("Another audiologist has already joined this consultation");
                   setJoiningConsultationId(null);
                   return;
@@ -360,6 +365,7 @@ export default function DashboardPage() {
                 router.push(`/consultation/${consultationId}`);
                 return;
               } else {
+                toast.dismiss(`join-${consultationId}`);
                 toast.error("Another audiologist has already joined this consultation");
                 setJoiningConsultationId(null);
                 return;
@@ -368,6 +374,7 @@ export default function DashboardPage() {
           }
           
           // For other errors, navigate anyway
+          toast.dismiss(`join-${consultationId}`);
           window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId } }));
           window.dispatchEvent(new CustomEvent('stopContinuousSound'));
           setJoiningConsultationId(null);
@@ -378,6 +385,8 @@ export default function DashboardPage() {
 
     const handleJoinError = async (error: unknown) => {
       console.error("Failed to join consultation:", error);
+      const id = joiningConsultationId;
+      if (id) toast.dismiss(`join-${id}`);
       
       // Handle 410 Gone - Consultation already ended (COMPLETED/CANCELLED)
       if (typeof error === 'object' && error !== null) {
@@ -449,6 +458,7 @@ export default function DashboardPage() {
     // Handle generic socket errors (non-409 errors from backend)
     const handleSocketError = async (error: unknown) => {
       console.error("Socket error received:", error);
+      if (joiningConsultationId) toast.dismiss(`join-${joiningConsultationId}`);
       
       // Handle 410 Gone - Consultation already ended (COMPLETED/CANCELLED)
       if (typeof error === 'object' && error !== null) {
@@ -580,26 +590,12 @@ export default function DashboardPage() {
       return;
     }
 
-    // Additional defensive check: Fetch fresh consultation data to ensure status hasn't changed
-    try {
-      const consultationResponse = await getConsultation(consultationId);
-      if (consultationResponse.success && consultationResponse.data) {
-        const freshConsultation = consultationResponse.data as ConsultationModelData;
-        
-        // Check if consultation was completed/cancelled between page load and join attempt
-        if (freshConsultation.status === SessionStatus.COMPLETED || 
-            freshConsultation.status === SessionStatus.CANCELLED) {
-          toast.error("This consultation has already ended");
-          return;
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to fetch fresh consultation data, proceeding with cached data:", error);
-      // Continue with join attempt if fetch fails (backend will block if needed)
-    }
+    // Note: Removed blocking getConsultation pre-check - backend validates on join_consultation.
+    // This was causing ~500ms-2s delay before socket emit. Backend returns 410/409 if invalid.
 
-    // Set loading state
+    // Immediate feedback so user knows join was triggered
     setJoiningConsultationId(consultationId);
+    toast.loading("Joining consultation...", { id: `join-${consultationId}` });
 
     // Emit join request
     socket?.emit("join_consultation", { consultationId });
