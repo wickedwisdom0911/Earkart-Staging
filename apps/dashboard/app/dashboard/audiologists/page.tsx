@@ -30,6 +30,9 @@ export default function Audiologists() {
   const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
   const isAudiologist = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
   
+  // Safely get audiologists array (must be declared before useAudiologistAvailability)
+  const allAudiologists = data?.data?.filter((a): a is AudiologistModelData => a !== null) || [];
+  
   // Availability hook - pass audiologists for initial state (API returns available; WebSocket doesn't)
   const { availability, isConnected } = useAudiologistAvailability(allAudiologists);
   const toggleAvailability = useToggleAudiologistAvailability();
@@ -37,9 +40,6 @@ export default function Audiologists() {
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  
-  // Safely get audiologists array
-  const allAudiologists = data?.data?.filter((a): a is AudiologistModelData => a !== null) || [];
   
   // Apply filters
   const audiologists = useMemo(() => {
