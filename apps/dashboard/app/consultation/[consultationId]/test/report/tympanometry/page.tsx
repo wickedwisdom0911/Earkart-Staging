@@ -1136,7 +1136,7 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Tympanogram Charts */}
-          <div className="px-8 py-4 bg-gray-50 relative z-0 tympanogram-charts-section hidden">
+          <div className="px-8 py-4 bg-gray-50 relative z-0 tympanogram-charts-section">
             {(() => {
               const leftReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
               const rightReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
@@ -1266,7 +1266,7 @@ export default function TympanometryReportPage() {
           </div>
 
           {/* Investigation: Impedance */}
-          <div className="mx-8 mb-4 print:mb-0 relative z-10 investigation-table hidden">
+          <div className="mx-8 mb-4 print:mb-0 relative z-10 investigation-table">
             <div className="bg-white border border-gray-300">
               <div className="bg-blue-900 text-white p-3 text-center">
                 <h3 className="text-base font-bold">Investigation : Impedance</h3>
