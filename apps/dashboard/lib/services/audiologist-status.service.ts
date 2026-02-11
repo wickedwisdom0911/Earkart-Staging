@@ -5,6 +5,13 @@ export interface AudiologistStatus {
   isInCall: boolean; // Whether audiologist is currently in a call
   consultationId: string | null; // ID of current consultation (null if not in call)
   lastUpdated: Date | string; // Timestamp of last status update
+  available?: boolean; // Whether audiologist is available (optional for now)
+}
+
+export interface AudiologistAvailabilityChange {
+  audiologistId: string;
+  available: boolean;
+  timestamp: string;
 }
 
 export class AudiologistStatusService {
@@ -75,6 +82,27 @@ export class AudiologistStatusService {
     this.socket.on("audiologist_status_updated", (status: AudiologistStatus) => {
       console.log("🔄 Status updated for audiologist:", status.audiologistId, status.isInCall ? "→ IN CALL" : "→ AVAILABLE");
       this.statusMap.set(status.audiologistId, status);
+      this.notifyListeners();
+    });
+
+    // Receive availability changes
+    this.socket.on("audiologist_availability_changed", (data: AudiologistAvailabilityChange) => {
+      console.log("🔄 Availability changed for audiologist:", data.audiologistId, data.available ? "→ AVAILABLE" : "→ UNAVAILABLE");
+      // Update the availability in the existing status or create a new entry
+      const existingStatus = this.statusMap.get(data.audiologistId);
+      if (existingStatus) {
+        existingStatus.available = data.available;
+        this.statusMap.set(data.audiologistId, existingStatus);
+      } else {
+        // Create a new status entry if one doesn't exist
+        this.statusMap.set(data.audiologistId, {
+          audiologistId: data.audiologistId,
+          isInCall: false,
+          consultationId: null,
+          lastUpdated: data.timestamp,
+          available: data.available
+        });
+      }
       this.notifyListeners();
     });
 

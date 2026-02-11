@@ -11,6 +11,7 @@ import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consult
 import { extractConsultations } from "@/models/consultation.model";
 import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import { useAudiologistStatus } from "@/hooks/audiologist/use-audiologist-status";
+import { useAudiologistAvailability } from "@/hooks/audiologist/use-audiologist-availability";
 import {
   CheckCircle2,
   Clock,
@@ -52,6 +53,9 @@ export default function AnalyticsPage() {
   
   // Real-time audiologist status from WebSocket
   const { isInCall: checkAudiologistInCall } = useAudiologistStatus();
+  
+  // Real-time audiologist availability - pass audiologists for initial state (API returns available)
+  const { availability } = useAudiologistAvailability(audiologists?.data ?? null);
 
   // Date range filter state
   const [fromDate, setFromDate] = useState<Date | null>(null);
@@ -125,8 +129,9 @@ export default function AnalyticsPage() {
     if (!audiologists?.data || !Array.isArray(audiologists.data)) return [];
 
     return audiologists.data.map((audiologist: any) => {
-      // Use userId as the primary ID since WebSocket sends userId
+      // Use userId for call status (WebSocket uses userId); profile ID for toggle events
       const audiologistId = audiologist.userId || audiologist.id;
+      const profileId = audiologist.id;
       
       // Get filtered consultations for this audiologist
       const filteredConsultationsForAudiologist = filteredConsultations.filter(
@@ -147,6 +152,7 @@ export default function AnalyticsPage() {
       return {
         audiologist,
         audiologistId,
+        profileId,
         name: audiologist.user?.name || audiologist.name || "Unknown",
         email: audiologist.user?.email || audiologist.email || "",
         todayConsultationsCount: filteredConsultationsForAudiologist.length,
@@ -163,7 +169,13 @@ export default function AnalyticsPage() {
   const summaryStats = useMemo(() => {
     const totalAudiologists = audiologistCardsData.length;
     const totalInCall = audiologistCardsData.filter((d) => d.isInCall).length;
-    const totalAvailable = totalAudiologists - totalInCall;
+    
+    // Count audiologists who have manually set themselves as available (real-time via WebSocket)
+    // Backend sends user ID (login/logout) or profile ID (toggle), so check both
+    const totalAvailable = audiologistCardsData.filter((d) => {
+      return availability[d.audiologistId] === true || availability[d.profileId] === true;
+    }).length;
+    
     const totalFilteredConsultations = filteredConsultations.length;
     const totalCompleted = filteredConsultations.filter(
       (c) => c.status === SessionStatus.COMPLETED
@@ -180,7 +192,7 @@ export default function AnalyticsPage() {
       totalCompleted,
       totalInProgress,
     };
-  }, [audiologistCardsData, filteredConsultations]);
+  }, [audiologistCardsData, filteredConsultations, availability]);
 
   return (
     <DashboardBodyWrapper>
@@ -408,14 +420,20 @@ export default function AnalyticsPage() {
                     className={`
                       group relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl
                       ${cardData.isInCall 
-                        ? 'bg-red-50 border-red-300 hover:border-red-400' 
-                        : 'bg-white border-gray-200 hover:border-primary-400'}
+                        ? 'bg-red-50 border-red-300 hover:border-red-400'
+                        : (availability[cardData.audiologistId] === true || availability[cardData.profileId] === true)
+                        ? 'bg-green-50 border-green-300 hover:border-green-400'
+                        : 'bg-white border-gray-200 hover:border-gray-300'}
                     `}
                   >
                     {/* Status Indicator Banner */}
                     <div className={`
                       absolute top-0 left-0 right-0 h-1
-                      ${cardData.isInCall ? 'bg-red-500 animate-pulse' : 'bg-green-500'}
+                      ${cardData.isInCall 
+                        ? 'bg-red-500 animate-pulse' 
+                        : (availability[cardData.audiologistId] === true || availability[cardData.profileId] === true)
+                        ? 'bg-green-500' 
+                        : 'bg-gray-400'}
                     `} />
 
                     <CardContent className="p-3 space-y-2">
@@ -424,8 +442,10 @@ export default function AnalyticsPage() {
                         <div className={`
                           flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md
                           ${cardData.isInCall 
-                            ? 'bg-gradient-to-br from-red-500 to-red-600' 
-                            : 'bg-gradient-to-br from-primary-500 to-primary-600'}
+                            ? 'bg-gradient-to-br from-red-500 to-red-600'
+                            : (availability[cardData.audiologistId] === true || availability[cardData.profileId] === true)
+                            ? 'bg-gradient-to-br from-green-500 to-green-600'
+                            : 'bg-gradient-to-br from-gray-400 to-gray-500'}
                         `}>
                           <Stethoscope className="w-5 h-5 text-white" />
                         </div>
@@ -439,17 +459,22 @@ export default function AnalyticsPage() {
                         </div>
                       </div>
 
-                      {/* Status Badge */}
+                      {/* Status Badge - Shows real-time call status and availability */}
                       <div className="flex justify-center py-1">
                         {cardData.isInCall ? (
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-100 text-red-700 rounded-md border border-red-300 font-bold">
                             <Phone className="w-3 h-3 animate-pulse" />
                             <span className="text-[10px]">IN CALL</span>
                           </div>
-                        ) : (
+                        ) : (availability[cardData.audiologistId] === true || availability[cardData.profileId] === true) ? (
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 rounded-md border border-green-300 font-bold">
-                            <PhoneOff className="w-3 h-3" />
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                             <span className="text-[10px]">AVAILABLE</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-600 rounded-md border border-gray-300 font-medium">
+                            <PhoneOff className="w-3 h-3" />
+                            <span className="text-[10px]">UNAVAILABLE</span>
                           </div>
                         )}
                       </div>

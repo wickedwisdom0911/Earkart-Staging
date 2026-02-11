@@ -2,7 +2,7 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
-import { Plus, Pencil, Trash2, Search, X, Users, UserCheck, UserX, Stethoscope } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, X, Users, UserCheck, UserX, Stethoscope, Power, PowerOff } from "lucide-react";
 import HandleAudiologistDialog from "./_components/handle-audiologist-dialog";
 import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import { AudiologistModelData } from "@/models/audiologist.model";
@@ -20,11 +20,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/Badge";
+import { useAudiologistAvailability } from "@/hooks/audiologist/use-audiologist-availability";
+import useToggleAudiologistAvailability from "@/hooks/audiologist/use-toggle-availability";
+import { toast } from "sonner";
 
 export default function Audiologists() {
   const { data, isLoading, isError } = useGetAllAudiologists();
   const { data: user } = useGetUser();
   const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
+  const isAudiologist = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+  
+  // Availability hook - pass audiologists for initial state (API returns available; WebSocket doesn't)
+  const { availability, isConnected } = useAudiologistAvailability(allAudiologists);
+  const toggleAvailability = useToggleAudiologistAvailability();
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -64,6 +72,28 @@ export default function Audiologists() {
   const clearFilters = () => {
     setSearchQuery("");
     setTypeFilter("all");
+  };
+  
+  // Resolve availability: backend sends user ID (login/logout) or profile ID (toggle), so check both
+  const getAvailability = (a: AudiologistModelData) =>
+    availability[a.user?.id ?? ""] ?? availability[a.id ?? ""] ?? undefined;
+
+  // Handle availability toggle - backend expects audiologist.id (profile ID)
+  const handleToggleAvailability = async (profileId: string, currentAvailability: boolean) => {
+    try {
+      await toggleAvailability.mutateAsync({
+        audiologistId: profileId, // Backend expects audiologist profile ID
+        available: !currentAvailability,
+      });
+      toast.success(
+        !currentAvailability 
+          ? "You are now available for consultations" 
+          : "You are now unavailable for consultations"
+      );
+    } catch (error) {
+      console.error("Failed to toggle availability:", error);
+      toast.error("Failed to update availability");
+    }
   };
   
   return (
@@ -315,13 +345,64 @@ export default function Audiologists() {
                   >
                     {audiologist.isInHouse ? "In-House" : "External"}
                   </span>
+                  
+                  {/* Availability Badge - backend sends user ID (login/logout) or profile ID (toggle) */}
+                  {getAvailability(audiologist) !== undefined && (
+                    <span
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        getAvailability(audiologist)
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                          : "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400"
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        getAvailability(audiologist) ? "bg-emerald-500 animate-pulse" : "bg-gray-400"
+                      }`} />
+                      {getAvailability(audiologist) ? "Available" : "Unavailable"}
+                    </span>
+                  )}
                 </div>
                 
-                {/* Action Button */}
-                <div className="flex pt-3 border-t border-gray-100 dark:border-neutral-800">
+                {/* Action Buttons */}
+                <div className="flex gap-2 pt-3 border-t border-gray-100 dark:border-neutral-800">
+                  {/* Toggle Availability Button - Only for audiologists viewing their own card */}
+                  {audiologist.id && audiologist.user?.id && (isAudiologist && audiologist.user.id === user?.id) && (
+                    <Button
+                      onClick={() => handleToggleAvailability(
+                        audiologist.id || "",
+                        getAvailability(audiologist) || false
+                      )}
+                      disabled={toggleAvailability.isPending || !isConnected}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        getAvailability(audiologist)
+                          ? "bg-gray-500 hover:bg-gray-600 text-white"
+                          : "bg-emerald-500 hover:bg-emerald-600 text-white"
+                      }`}
+                    >
+                      {toggleAvailability.isPending ? (
+                        <span className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Updating...
+                        </span>
+                      ) : getAvailability(audiologist) ? (
+                        <span className="flex items-center gap-1.5">
+                          <PowerOff className="w-4 h-4" />
+                          Set Unavailable
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          <Power className="w-4 h-4" />
+                          Set Available
+                        </span>
+                      )}
+                    </Button>
+                  )}
+                  
                   <Link
                     href={ROUTES.AUDIOLOGIST(audiologist.id || "")}
-                    className="w-full bg-primary-500 hover:bg-primary-600 text-white py-2 rounded-lg text-center text-sm font-medium transition-colors"
+                    className={`${
+                      isAudiologist && audiologist.user?.id === user?.id ? "flex-1" : "w-full"
+                    } bg-primary-500 hover:bg-primary-600 text-white py-2 rounded-lg text-center text-sm font-medium transition-colors`}
                   >
                     View Profile
                   </Link>

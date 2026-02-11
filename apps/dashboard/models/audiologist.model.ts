@@ -21,6 +21,7 @@ export const AudiologistModelDataSchema = z.object({
   reportingDate: z.string(),
   grade: z.string(),
   isInHouse: z.boolean().optional(),
+  available: z.boolean().optional(), // Audiologist availability status
   createdBy: z.string().optional().nullable(),
   updatedBy: z.string().optional().nullable(),
   paymentCycle: z.nativeEnum(PaymentCycle),
