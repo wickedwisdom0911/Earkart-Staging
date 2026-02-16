@@ -29,6 +29,8 @@ import { VideoPlayer } from "@/components/VideoPlayer";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useSocket } from "@/providers/socket-provider";
 import { toast } from "sonner";
+import { useVideoAnalysis } from "@/hooks/consultation/use-video-analysis";
+import { VideoAnalysisDisplay } from "@/components/report/VideoAnalysisDisplay";
 
 export default function ConsultationDetailsPage() {
   const params = useParams();
@@ -43,6 +45,12 @@ export default function ConsultationDetailsPage() {
     url: string;
     title: string;
   } | null>(null);
+
+  const {
+    data: videoAnalysis,
+    isLoading: analysisLoading,
+    error: analysisError,
+  } = useVideoAnalysis(consultationId);
 
   useEffect(() => {
     const fetchConsultation = async () => {
@@ -480,6 +488,30 @@ export default function ConsultationDetailsPage() {
                     </div>
                   );
                 })()}
+              </CardContent>
+            </Card>
+
+            {/* Video Call Analysis */}
+            <Card>
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50">
+                <CardTitle className="flex items-center gap-2 text-blue-700">
+                  <FileText className="w-5 h-5" />
+                  Video Call Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {analysisLoading && (
+                  <p className="text-center py-6 text-gray-500">Loading analysis...</p>
+                )}
+                {analysisError && (
+                  <p className="text-center py-6 text-amber-600">Failed to load analysis</p>
+                )}
+                {!analysisLoading && !videoAnalysis && !analysisError && (
+                  <p className="text-center py-6 text-gray-500">No analysis available for this consultation</p>
+                )}
+                {videoAnalysis && (
+                  <VideoAnalysisDisplay content={videoAnalysis} />
+                )}
               </CardContent>
             </Card>
           </div>

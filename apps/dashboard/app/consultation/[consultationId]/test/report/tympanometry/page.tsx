@@ -161,23 +161,19 @@ export default function TympanometryReportPage() {
   const [rightTympType, setRightTympType] = useState<string>("");
   
   // Diagnosis and Recommendation state
-  const [diagnosisComment, setDiagnosisComment] = useState<string>("");
-  const [suggestiveOf, setSuggestiveOf] = useState<string>("");
   const [recommendationComment, setRecommendationComment] = useState<string>("");
   
   // Storage key for diagnosis data
   const diagnosisStorageKey = `tympanometry-diagnosis-${consultationId}`;
   
-  // Load diagnosis data from localStorage on mount
+  // Load recommendation from localStorage on mount
   useEffect(() => {
     if (consultationId && typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem(diagnosisStorageKey);
         if (stored) {
           const parsed = JSON.parse(stored);
-          setDiagnosisComment(parsed.diagnosisComment || "");
           setRecommendationComment(parsed.recommendationComment || "");
-          setSuggestiveOf(parsed.suggestiveOf || "");
         }
       } catch (e) {
         console.error("Failed to load diagnosis from localStorage:", e);
@@ -185,19 +181,14 @@ export default function TympanometryReportPage() {
     }
   }, [consultationId, diagnosisStorageKey]);
   
-  // Load diagnosis from consultation data if available
+  // Load recommendation from consultation data if available (comments stay empty)
   useEffect(() => {
     if (consultationData?.tympanometry?.notes) {
       try {
         const notes = JSON.parse(consultationData.tympanometry.notes);
-        if (notes.diagnosisComment) setDiagnosisComment(notes.diagnosisComment);
         if (notes.recommendationComment) setRecommendationComment(notes.recommendationComment);
-        if (notes.suggestiveOf) setSuggestiveOf(notes.suggestiveOf);
       } catch {
-        // If notes is not JSON, treat as plain text (backward compatibility)
-        if (typeof consultationData.tympanometry.notes === 'string') {
-          setComments(consultationData.tympanometry.notes);
-        }
+        // If notes is not JSON, do not load into comments - keep comments always empty
       }
     }
   }, [consultationData?.tympanometry?.notes]);
@@ -316,10 +307,7 @@ export default function TympanometryReportPage() {
     e.preventDefault();
     if (!consultationData) return;
     try {
-      // Combine all diagnosis fields into notes as JSON
       const notesData = JSON.stringify({
-        diagnosisComment,
-        suggestiveOf,
         recommendationComment,
         recommendation: recommendationComment, // For backward compatibility
       });
@@ -332,32 +320,27 @@ export default function TympanometryReportPage() {
         },
       });
       
-      // Also save to localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem(diagnosisStorageKey, JSON.stringify({
-          diagnosisComment,
-          suggestiveOf,
           recommendationComment,
         }));
       }
       
-      toast.success("Diagnosis and recommendation saved");
+      toast.success("Recommendation saved");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save diagnosis");
+      toast.error("Failed to save recommendation");
     }
   };
   
-  // Save diagnosis/recommendation to localStorage whenever they change
+  // Save recommendation to localStorage whenever it changes
   useEffect(() => {
     if (consultationId && typeof window !== 'undefined') {
       localStorage.setItem(diagnosisStorageKey, JSON.stringify({
-        diagnosisComment,
-        suggestiveOf,
         recommendationComment,
       }));
     }
-  }, [diagnosisComment, suggestiveOf, recommendationComment, consultationId, diagnosisStorageKey]);
+  }, [recommendationComment, consultationId, diagnosisStorageKey]);
 
   const handleSaveTympTypes = async () => {
     if (!consultationData?.tympanometry) return;
@@ -1068,7 +1051,6 @@ export default function TympanometryReportPage() {
                       type="text"
                       value={reportDate}
                       onChange={handleDateChange}
-                      placeholder="dd/MM/yyyy"
                       className="border-b border-dotted border-gray-400 flex-1 pb-1 h-auto px-0 text-sm"
                       maxLength={10}
                     />
@@ -1234,7 +1216,6 @@ export default function TympanometryReportPage() {
                   <label className="block text-sm font-medium mb-2">Left Ear</label>
                   <Input
                     type="text"
-                    placeholder="Enter tympanogram type (e.g., Type A, Type B, Custom Type...)"
                     className="w-full p-2 border rounded"
                     value={leftTympType}
                     onChange={(e) => handleTympTypeChange('left', e.target.value)}
@@ -1245,7 +1226,6 @@ export default function TympanometryReportPage() {
                   <label className="block text-sm font-medium mb-2">Right Ear</label>
                   <Input
                     type="text"
-                    placeholder="Enter tympanogram type (e.g., Type A, Type B, Custom Type...)"
                     className="w-full p-2 border rounded"
                     value={rightTympType}
                     onChange={(e) => handleTympTypeChange('right', e.target.value)}
@@ -1320,82 +1300,13 @@ export default function TympanometryReportPage() {
             </div>
           </div>
 
-          {/* Diagnosis and Recommendation Section */}
-          <div className="px-8 mb-4 print:mb-2">
-            <form onSubmit={handleSaveDiagnosis} className="space-y-4 print:hidden">
-              <div className="space-y-3">
-                <div className="hidden">
-                  <div className="text-sm font-bold mb-1">Provisional Diagnosis :</div>
-                  <Textarea
-                    value={diagnosisComment}
-                    onChange={(e) => setDiagnosisComment(e.target.value)}
-                    placeholder="Enter provisional diagnosis..."
-                    className="h-20 resize-none border border-gray-400 bg-gray-50 text-sm"
-                  />
-                </div>
-
-                <div className="hidden">
-                  <div className="text-sm font-bold mb-1">Suggestive of Diagnosis :</div>
-                  <Textarea
-                    value={suggestiveOf}
-                    onChange={(e) => setSuggestiveOf(e.target.value)}
-                    placeholder="Enter suggestive diagnosis..."
-                    className="h-20 resize-none border border-gray-400 bg-gray-50 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <div className="text-sm font-bold mb-1">Recommendation :</div>
-                  <Textarea
-                    value={recommendationComment}
-                    onChange={(e) => setRecommendationComment(e.target.value)}
-                    placeholder="Enter recommendations..."
-                    className="h-20 resize-none border border-gray-400 bg-gray-50 text-sm"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button type="submit" disabled={updateConsultationMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
-                  {updateConsultationMutation.isPending ? "Saving..." : "Save Diagnosis & Recommendation"}
-                </Button>
-              </div>
-            </form>
-            
-            {/* Print/PDF Display for Diagnosis and Recommendation */}
-            <div className="hidden print:block diagnosis-section-container">
-              <div className="space-y-2">
-                <div className="hidden">
-                  <div className="text-sm font-bold mb-1">Provisional Diagnosis :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
-                    {diagnosisComment || "No diagnosis entered"}
-                  </div>
-                </div>
-
-                <div className="hidden">
-                  <div className="text-sm font-bold mb-1">Suggestive of Diagnosis :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
-                    {suggestiveOf || "No suggestions entered"}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-sm font-bold mb-1">Recommendation :</div>
-                  <div className="border border-gray-400 bg-gray-50 p-2 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
-                    {recommendationComment || "No recommendations entered"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Comments */}
+          {/* Comments - above Recommendations */}
           <div className="px-8 mb-4 print:mb-2">
             <form onSubmit={handleSaveComments} className="space-y-3 print:hidden">
               <div className="text-sm font-bold">Comments :</div>
               <Textarea
                 value={comments}
                 onChange={(e) => setComments(e.target.value)}
-                placeholder="Enter comments..."
                 className="h-24 resize-none border border-gray-300 bg-gray-50 text-sm"
               />
               <div className="flex justify-end">
@@ -1406,7 +1317,39 @@ export default function TympanometryReportPage() {
             </form>
             <div className="hidden print:block border border-gray-300 p-3 min-h-[60px] mt-0 comments-print-section">
               <div className="text-sm font-bold mb-1">Comments :</div>
-              <div className="whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible">{comments || "No comments entered"}</div>
+              <div className="whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible">{comments || ""}</div>
+            </div>
+          </div>
+
+          {/* Recommendation Section */}
+          <div className="px-8 mb-4 print:mb-2">
+            <form onSubmit={handleSaveDiagnosis} className="space-y-4 print:hidden">
+              <div className="space-y-3">
+                <div>
+                  <div className="text-sm font-bold mb-1">Recommendation :</div>
+                  <Textarea
+                    value={recommendationComment}
+                    onChange={(e) => setRecommendationComment(e.target.value)}
+                    className="h-20 resize-none border border-gray-400 bg-gray-50 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={updateConsultationMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  {updateConsultationMutation.isPending ? "Saving..." : "Save Recommendation"}
+                </Button>
+              </div>
+            </form>
+            
+            <div className="hidden print:block diagnosis-section-container">
+              <div className="space-y-2">
+                <div>
+                  <div className="text-sm font-bold mb-1">Recommendation :</div>
+                  <div className="border border-gray-400 bg-gray-50 p-2 whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible min-h-[20px]">
+                    {recommendationComment || ""}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
