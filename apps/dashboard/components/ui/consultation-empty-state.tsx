@@ -10,12 +10,21 @@ interface ConsultationEmptyStateProps {
   type?: "active" | "all";
   hasFilters?: boolean;
   onClearFilters?: () => void;
+  /** When total > 0 but current page has no results (e.g. audiologist filter) */
+  noResultsOnPage?: boolean;
+  /** Use when page uses infinite scroll instead of pagination */
+  infiniteScroll?: boolean;
+  /** When infinite scroll: false = more to load, true = reached end */
+  hasMoreToLoad?: boolean;
 }
 
 export function ConsultationEmptyState({ 
   type = "all",
   hasFilters = false,
-  onClearFilters
+  onClearFilters,
+  noResultsOnPage = false,
+  infiniteScroll = false,
+  hasMoreToLoad = true,
 }: ConsultationEmptyStateProps) {
   const isActive = type === "active";
 
@@ -39,9 +48,11 @@ export function ConsultationEmptyState({
           <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
             {isActive 
               ? "No Active Consultations" 
-              : hasFilters 
-                ? "No Consultations Found"
-                : "No Consultations Yet"}
+              : noResultsOnPage
+                ? "No Consultations on This Page"
+                : hasFilters 
+                  ? "No Consultations Found"
+                  : "No Consultations Yet"}
           </h3>
           
           <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
@@ -52,6 +63,14 @@ export function ConsultationEmptyState({
                 <span className="text-sm text-gray-500 dark:text-gray-400 mt-2 block">
                   Check the "All Consultations" page to view completed sessions.
                 </span>
+              </>
+            ) : noResultsOnPage ? (
+              <>
+                {infiniteScroll
+                  ? hasMoreToLoad
+                    ? "No consultations assigned to you in the loaded results. Keep scrolling to load more."
+                    : "No consultations assigned to you in the loaded results. You've reached the end."
+                  : "No consultations assigned to you on this page. Try browsing other pages to find your consultations."}
               </>
             ) : hasFilters ? (
               <>
@@ -69,12 +88,12 @@ export function ConsultationEmptyState({
         <div className="flex items-center gap-2 text-primary-300 dark:text-primary-700 mt-4">
           <Calendar className="w-5 h-5" />
           <span className="text-sm font-medium text-primary-600 dark:text-primary-400">
-            {isActive ? "Waiting for new consultations..." : "Start creating consultations"}
+            {isActive ? "Waiting for new consultations..." : noResultsOnPage ? (infiniteScroll ? (hasMoreToLoad ? "Scroll down to load more" : "You've reached the end") : "Use pagination to browse") : "Start creating consultations"}
           </span>
         </div>
 
         {/* Action button for filtered state */}
-        {hasFilters && onClearFilters && (
+        {hasFilters && !noResultsOnPage && onClearFilters && (
           <button
             onClick={onClearFilters}
             className="mt-4 px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors duration-200 flex items-center gap-2 shadow-md hover:shadow-lg"

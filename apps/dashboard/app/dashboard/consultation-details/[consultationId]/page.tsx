@@ -21,7 +21,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/Badge";
-import getConsultation from "@/actions/consultations/get_consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -29,86 +28,42 @@ import { VideoPlayer } from "@/components/VideoPlayer";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useSocket } from "@/providers/socket-provider";
 import { toast } from "sonner";
-import { useVideoAnalysis } from "@/hooks/consultation/use-video-analysis";
-import { VideoAnalysisDisplay } from "@/components/report/VideoAnalysisDisplay";
+import { VideoAnalysisSection } from "@/components/consultation/VideoAnalysisSection";
+import { useGetConsultation, getConsultationFromResponse } from "@/hooks/consultation/use-get-consultation";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function ConsultationDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const consultationId = params.consultationId as string;
   const socket = useSocket();
-  
-  const [consultation, setConsultation] = useState<ConsultationModelData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const { data: response, isLoading: loading, isError: isError, error } = useGetConsultation(consultationId);
+  const consultation = response ? getConsultationFromResponse(response) : null;
+
   const [selectedRecording, setSelectedRecording] = useState<{
     url: string;
     title: string;
   } | null>(null);
 
-  const {
-    data: videoAnalysis,
-    isLoading: analysisLoading,
-    error: analysisError,
-  } = useVideoAnalysis(consultationId);
-
-  useEffect(() => {
-    const fetchConsultation = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await getConsultation(consultationId);
-        console.log("📊 Full API Response:", response);
-        
-        const consultationData = Array.isArray(response.data) 
-          ? response.data[0] 
-          : response.data;
-          
-        console.log("📊 Consultation Data:", consultationData);
-        console.log("👤 Patient Data:", consultationData?.patient);
-        console.log("🔬 Tests:", {
-          audiometry: consultationData?.audiometry,
-          tympanometry: consultationData?.tympanometry,
-          oae: consultationData?.oae,
-          otoscopy: consultationData?.otoscopy
-        });
-        console.log("🎥 Recordings:", consultationData?.recordings);
-        
-        if (!consultationData) {
-          throw new Error("No consultation data found");
-        }
-        
-        setConsultation(consultationData);
-      } catch (err) {
-        console.error("Failed to fetch consultation:", err);
-        setError(err instanceof Error ? err.message : "Failed to load consultation");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (consultationId) {
-      fetchConsultation();
-    }
-  }, [consultationId]);
-
-  // Listen for real-time consultation updates via WebSocket
   useEffect(() => {
     if (!socket || !consultationId) return;
 
     const handleConsultationUpdate = (data: ConsultationModelData) => {
       if (data.id === consultationId) {
-        console.log("📢 Consultation updated in detail view:", data);
-        setConsultation(data);
+        queryClient.setQueryData(["consultation", consultationId], (prev: typeof response) =>
+          prev ? { ...prev, data: data } : prev
+        );
       }
     };
 
-    // Handle real-time broadcast when an audiologist joins any consultation
     const handleAudiologistJoinedConsultation = (data: { consultation: ConsultationModelData; audiologistId: string; timestamp: string }) => {
       const { consultation: updatedConsultation } = data;
       if (updatedConsultation.id === consultationId) {
-        console.log("📢 Audiologist joined this consultation:", updatedConsultation);
-        setConsultation(updatedConsultation);
+        queryClient.setQueryData(["consultation", consultationId], (prev: typeof response) =>
+          prev ? { ...prev, data: updatedConsultation } : prev
+        );
         toast.info("Consultation has been assigned to an audiologist");
       }
     };
@@ -120,7 +75,7 @@ export default function ConsultationDetailsPage() {
       socket.off("consultation_updated", handleConsultationUpdate);
       socket.off("audiologist_joined_consultation", handleAudiologistJoinedConsultation);
     };
-  }, [socket, consultationId]);
+  }, [socket, consultationId, queryClient]);
 
   if (loading) {
     return (
@@ -135,12 +90,13 @@ export default function ConsultationDetailsPage() {
     );
   }
 
-  if (error || !consultation) {
+  const errorMessage = error instanceof Error ? error.message : "Failed to load consultation";
+  if (isError || !consultation) {
     return (
       <DashboardBodyWrapper>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
-            <p className="text-xl text-red-600 mb-2">{error || "Consultation not found"}</p>
+            <p className="text-xl text-red-600 mb-2">{errorMessage || "Consultation not found"}</p>
             <Button onClick={() => router.push("/dashboard")} className="mt-4">
               Back to Dashboard
             </Button>
@@ -491,29 +447,8 @@ export default function ConsultationDetailsPage() {
               </CardContent>
             </Card>
 
-            {/* Video Call Analysis */}
-            <Card>
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50">
-                <CardTitle className="flex items-center gap-2 text-blue-700">
-                  <FileText className="w-5 h-5" />
-                  Video Call Analysis
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                {analysisLoading && (
-                  <p className="text-center py-6 text-gray-500">Loading analysis...</p>
-                )}
-                {analysisError && (
-                  <p className="text-center py-6 text-amber-600">Failed to load analysis</p>
-                )}
-                {!analysisLoading && !videoAnalysis && !analysisError && (
-                  <p className="text-center py-6 text-gray-500">No analysis available for this consultation</p>
-                )}
-                {videoAnalysis && (
-                  <VideoAnalysisDisplay content={videoAnalysis} />
-                )}
-              </CardContent>
-            </Card>
+            {/* Video Call Analysis - lazy-loaded when scrolled into view */}
+            <VideoAnalysisSection consultationId={consultationId} />
           </div>
         </div>
       </div>
