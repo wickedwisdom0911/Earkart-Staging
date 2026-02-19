@@ -13,10 +13,13 @@ import {
   Video,
   Download,
   PlayCircle,
-  ArrowLeft,
   ClipboardList,
   CheckCircle2,
   Circle,
+  Stethoscope,
+  CreditCard,
+  ExternalLink,
+  ArrowLeft,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -97,8 +100,8 @@ export default function ConsultationDetailsPage() {
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <p className="text-xl text-red-600 mb-2">{errorMessage || "Consultation not found"}</p>
-            <Button onClick={() => router.push("/dashboard")} className="mt-4">
-              Back to Dashboard
+            <Button onClick={() => router.push("/dashboard/all-consultations")} className="mt-4">
+              Back to All Consultations
             </Button>
           </div>
         </div>
@@ -121,12 +124,12 @@ export default function ConsultationDetailsPage() {
     <DashboardBodyWrapper>
       <div className="p-6 max-w-7xl mx-auto">
         <Button
-          onClick={() => router.push("/dashboard")}
+          onClick={() => router.push(`/dashboard/all-consultations?scrollTo=${consultationId}`)}
           variant="outline"
           className="mb-6"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
+          Back to All Consultations
         </Button>
 
         <div className="mb-6">
@@ -203,6 +206,47 @@ export default function ConsultationDetailsPage() {
                       </p>
                     </div>
                   </div>
+
+                  {/* Tests Selected */}
+                  {(consultation as any).consultationPricing?.length > 0 && (
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <Stethoscope className="w-5 h-5 text-primary-600" />
+                      <div>
+                        <p className="text-xs text-gray-500">Tests Selected</p>
+                        <p className="font-medium text-sm">
+                          {(consultation as any).consultationPricing
+                            .map((cp: any) => cp?.pricing?.name || cp?.pricing?.description || "—")
+                            .filter(Boolean)
+                            .join(", ") || "—"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment */}
+                  {(() => {
+                    const payments = (consultation as any).Payment ?? (consultation as any).payment;
+                    const payment = Array.isArray(payments) ? payments[0] : null;
+                    if (!payment) return null;
+                    const amount = payment.amount;
+                    const paymentType = payment.paymentType;
+                    return (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <CreditCard className="w-5 h-5 text-primary-600" />
+                        <div>
+                          <p className="text-xs text-gray-500">Payment</p>
+                          <p className="font-medium text-sm">
+                            ₹{amount ?? "—"}
+                            {paymentType && (
+                              <span className="text-gray-500 ml-1">
+                                ({paymentType.replace(/_/g, " ")})
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>
@@ -254,6 +298,69 @@ export default function ConsultationDetailsPage() {
               </CardContent>
             </Card>
 
+            {/* Recordings */}
+            <Card>
+              <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50">
+                <CardTitle className="flex items-center gap-2 text-purple-700">
+                  <Video className="w-5 h-5" />
+                  Recordings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {(() => {
+                  const allRecs: any[] = [];
+                  if (Array.isArray(consultation.recordings)) allRecs.push(...consultation.recordings);
+                  if ((consultation as any)?.recordingUrl) {
+                    allRecs.push({ id: "screen-rec", recordingUrl: (consultation as any).recordingUrl, createdAt: consultation.updatedAt });
+                  }
+                  const recordingName = (consultation as any)?.recordingName;
+                  if (recordingName && process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL) {
+                    const callbackUrl = `${process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL}?name=${encodeURIComponent(recordingName)}`;
+                    allRecs.push({ id: "screen-callback", recordingUrl: normalizePlaybackUrl(callbackUrl) || callbackUrl, createdAt: consultation.updatedAt });
+                  }
+                  const playable = allRecs.filter((r) => !!r.recordingUrl);
+                  if (playable.length === 0) return <p className="text-center py-6 text-gray-500 text-sm">No recordings available</p>;
+                  return (
+                    <div className="space-y-3">
+                      {playable.map((rec, idx) => {
+                        const fileName = (rec as any).fileName || `Recording ${idx + 1}`;
+                        const isScreen = fileName.includes(".webm") || fileName.includes("consultation-") || fileName.includes("session-");
+                        const type = isScreen ? "Screen" : "Video";
+                        const recordingUrl = normalizePlaybackUrl(rec.recordingUrl) || rec.recordingUrl;
+                        return (
+                          <div key={rec.id || idx} className="flex items-center justify-between p-3 bg-gray-50/80 rounded-lg border border-gray-100">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
+                                <PlayCircle className="w-5 h-5 text-violet-600" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-800">{type} Recording {idx + 1}</p>
+                                <p className="text-xs text-gray-500">{safeFormatDate(rec.createdAt)}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setSelectedRecording({ url: recordingUrl, title: `${type} Recording ${idx + 1}` })}
+                                className="flex items-center gap-1 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium transition-colors"
+                              >
+                                <PlayCircle className="w-4 h-4" />
+                                Play
+                              </button>
+                              <a href={recordingUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1 px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors" title="Open in new tab">
+                                <ExternalLink className="w-4 h-4" />
+                                Open
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
             {/* Questionnaire Answers */}
             {consultation.questionnaire && (
               <Card>
@@ -267,80 +374,41 @@ export default function ConsultationDetailsPage() {
                   {(() => {
                     const questionnaire = consultation.questionnaire as any;
                     const answers = questionnaire?.answers || [];
-                    
-                    if (answers.length === 0) {
-                      return <p className="text-center py-8 text-gray-500">No questionnaire responses</p>;
-                    }
-                    
+                    if (answers.length === 0) return <p className="text-center py-8 text-gray-500">No questionnaire responses</p>;
                     return (
                       <div className="space-y-4">
-                        {/* Submitted date */}
                         {questionnaire?.submittedAt && (
                           <div className="text-sm text-gray-500 mb-4 pb-3 border-b">
                             Submitted on {safeFormatDate(questionnaire.submittedAt)}
                           </div>
                         )}
-                        
                         {answers.map((answer: any, idx: number) => {
-                          // Get question text from the question object if available
                           const questionText = answer.question?.text || `Question ${idx + 1}`;
                           const questionType = answer.question?.type;
-                          
-                          // Get the answer value
-                          let answerValue = "";
-                          if (answer.value) {
-                            answerValue = answer.value;
-                          } else if (answer.selectedOptions && answer.selectedOptions.length > 0) {
-                            answerValue = answer.selectedOptions
-                              .map((opt: any) => opt.option?.value || opt.option?.label || opt.value)
-                              .filter(Boolean)
-                              .join(", ");
-                          }
-                          
-                          const hasAnswer = answerValue && answerValue.trim() !== "";
-                          
+                          let answerValue = answer.value || (answer.selectedOptions || [])
+                            .map((opt: any) => opt.option?.value || opt.option?.label || opt.value)
+                            .filter(Boolean)
+                            .join(", ") || "";
+                          const hasAnswer = answerValue.trim() !== "";
                           return (
-                            <div 
-                              key={answer.id || idx} 
-                              className={`p-4 rounded-lg border ${
-                                hasAnswer 
-                                  ? 'bg-green-50 border-green-200' 
-                                  : 'bg-gray-50 border-gray-200'
-                              }`}
-                            >
+                            <div key={answer.id || idx} className={`p-4 rounded-lg border ${hasAnswer ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"}`}>
                               <div className="flex items-start gap-3">
-                                {hasAnswer ? (
-                                  <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                                ) : (
-                                  <Circle className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
-                                )}
+                                {hasAnswer ? <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" /> : <Circle className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />}
                                 <div className="flex-1">
-                                  <p className="font-medium text-gray-800 mb-1">
-                                    {idx + 1}. {questionText}
-                                  </p>
+                                  <p className="font-medium text-gray-800 mb-1">{idx + 1}. {questionText}</p>
                                   {questionType && (
-                                    <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded mb-2 inline-block">
-                                      {questionType.replace(/_/g, ' ')}
-                                    </span>
+                                    <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded mb-2 inline-block">{questionType.replace(/_/g, " ")}</span>
                                   )}
-                                  <p className={`text-sm ${hasAnswer ? 'text-gray-700' : 'text-gray-400 italic'}`}>
-                                    {hasAnswer ? answerValue : "Not answered"}
-                                  </p>
+                                  <p className={`text-sm ${hasAnswer ? "text-gray-700" : "text-gray-400 italic"}`}>{hasAnswer ? answerValue : "Not answered"}</p>
                                 </div>
                               </div>
                             </div>
                           );
                         })}
-                        
-                        {/* Summary */}
                         <div className="mt-4 pt-4 border-t flex items-center justify-between text-sm">
-                          <span className="text-gray-600">
-                            Total Questions: {answers.length}
-                          </span>
+                          <span className="text-gray-600">Total Questions: {answers.length}</span>
                           <span className="text-green-600 font-medium">
-                            Answered: {answers.filter((a: any) => 
-                              a.value || (a.selectedOptions && a.selectedOptions.length > 0)
-                            ).length}
+                            Answered: {answers.filter((a: any) => a.value || (a.selectedOptions && a.selectedOptions.length > 0)).length}
                           </span>
                         </div>
                       </div>
@@ -350,104 +418,7 @@ export default function ConsultationDetailsPage() {
               </Card>
             )}
 
-            {/* Recordings */}
-            <Card>
-              <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50">
-                <CardTitle className="flex items-center gap-2 text-purple-700">
-                  <Video className="w-5 h-5" />
-                  Recordings
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                {(() => {
-                  const allRecs = [];
-                  if (Array.isArray(consultation.recordings)) {
-                    allRecs.push(...consultation.recordings);
-                  }
-                  if ((consultation as any)?.recordingUrl) {
-                    allRecs.push({
-                      id: 'screen-rec',
-                      recordingUrl: (consultation as any).recordingUrl,
-                      createdAt: consultation.updatedAt,
-                    });
-                  }
-                  const recordingName = (consultation as any)?.recordingName;
-                  if (recordingName && process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL) {
-                    const callbackUrl = `${process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL}?name=${encodeURIComponent(recordingName)}`;
-                    allRecs.push({
-                      id: 'screen-callback',
-                      recordingUrl: normalizePlaybackUrl(callbackUrl) || callbackUrl,
-                      createdAt: consultation.updatedAt,
-                    });
-                  }
-                  const playable = allRecs.filter(r => !!r.recordingUrl);
-
-                  if (playable.length === 0) {
-                    return <p className="text-center py-8 text-gray-500">No recordings available</p>;
-                  }
-
-                  return (
-                    <div className="space-y-3">
-                      {playable.map((rec, idx) => {
-                        const fileName = (rec as any).fileName || `Recording ${idx + 1}`;
-                        const isScreen = fileName.includes('.webm') || fileName.includes('consultation-') || fileName.includes('session-');
-                        const type = isScreen ? '🖥️ Screen' : '🎥 Video';
-                        const recordingUrl = normalizePlaybackUrl(rec.recordingUrl) || rec.recordingUrl;
-                        return (
-                          <div
-                            key={rec.id || idx}
-                            className={`w-full flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
-                              isScreen 
-                                ? 'bg-blue-50 border-blue-300'
-                                : 'bg-emerald-50 border-emerald-300'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <PlayCircle className="w-6 h-6" />
-                              <div className="text-left">
-                                <p className="font-semibold">{type} Recording {idx + 1}</p>
-                                <p className="text-xs text-gray-600">
-                                  {safeFormatDate(rec.createdAt)}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {/* Play Button */}
-                              <button
-                                onClick={() => {
-                                  setSelectedRecording({
-                                    url: recordingUrl,
-                                    title: `${type} Recording ${idx + 1}`
-                                  });
-                                }}
-                                className="flex items-center gap-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm font-medium"
-                              >
-                                <PlayCircle className="w-4 h-4" />
-                                Play
-                              </button>
-                              {/* Open in new tab */}
-                              <a
-                                href={recordingUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors text-sm font-medium"
-                                title="Open in new tab"
-                              >
-                                <Download className="w-4 h-4" />
-                                Open
-                              </a>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
-
-            {/* Video Call Analysis - lazy-loaded when scrolled into view */}
+            {/* Video Call Analysis */}
             <VideoAnalysisSection consultationId={consultationId} />
           </div>
         </div>
@@ -464,9 +435,7 @@ export default function ConsultationDetailsPage() {
             </DialogHeader>
             {selectedRecording && (
               <div className="flex-1 flex items-center justify-center bg-black p-4">
-                <VideoPlayer
-                  url={selectedRecording.url}
-                />
+                <VideoPlayer url={selectedRecording.url} />
               </div>
             )}
           </div>

@@ -1,8 +1,8 @@
 "use client";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { Role } from "@/models/enums";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetConsultationsInfinite } from "@/hooks/consultation/use-get-consultations-infinite";
 import {
@@ -24,8 +24,9 @@ import getConsultation from "@/actions/consultations/get_consultation";
 
 const PAGE_SIZE = 20;
 
-export default function AllConsultationsPage() {
+function AllConsultationsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { data: user } = useGetUser();
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export default function AllConsultationsPage() {
 
   const isAudiologist =
     user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+  const isHeadAudiologist = user?.role === Role.HEAD_AUDIOLOGIST;
 
   const {
     consultations: allConsultations,
@@ -52,9 +54,13 @@ export default function AllConsultationsPage() {
   });
 
   // Client-side filter for audiologists and date range
+  // HEAD_AUDIOLOGIST: see all consultations
+  // AUDIOLOGIST: see unassigned (no audiologist) + their own (audiologist.userId === user.id)
   const filteredConsultations = allConsultations.filter((c) => {
-    if (isAudiologist && user?.id && c.audiologist?.userId !== user.id)
-      return false;
+    if (isAudiologist && !isHeadAudiologist && user?.id) {
+      if (c.audiologist?.userId && c.audiologist.userId !== user.id)
+        return false;
+    }
     if (startDate && new Date(c.createdAt || "") < new Date(startDate))
       return false;
     if (endDate) {
@@ -109,6 +115,21 @@ export default function AllConsultationsPage() {
 
   const consultations = filteredConsultations;
   const loadedCount = allConsultations.length;
+
+  // Scroll to consultation when returning from details page
+  const scrollToId = searchParams.get("scrollTo");
+  const hasScrolledRef = useRef(false);
+  useEffect(() => {
+    if (!scrollToId || consultations.length === 0 || hasScrolledRef.current) return;
+    const el = document.getElementById(`consultation-${scrollToId}`);
+    if (el) {
+      hasScrolledRef.current = true;
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      router.replace("/dashboard/all-consultations", { scroll: false });
+    }
+  }, [scrollToId, consultations, router]);
 
   return (
     <DashboardBodyWrapper>
@@ -302,5 +323,13 @@ export default function AllConsultationsPage() {
         )}
       </div>
     </DashboardBodyWrapper>
+  );
+}
+
+export default function AllConsultationsPage() {
+  return (
+    <Suspense fallback={<ConsultationGridSkeleton count={4} />}>
+      <AllConsultationsContent />
+    </Suspense>
   );
 }
