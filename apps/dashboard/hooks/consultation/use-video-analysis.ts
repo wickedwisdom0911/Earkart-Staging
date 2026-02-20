@@ -8,5 +8,6 @@ export function useVideoAnalysis(consultationId: string, options?: { enabled?: b
     queryKey: ["video-analysis", consultationId],
     queryFn: () => getVideoAnalysis(consultationId),
     enabled: !!consultationId && (options?.enabled !== false),
+    staleTime: 5 * 60 * 1000, // 5 min - avoid refetch storms that can freeze the page
   });
 }
