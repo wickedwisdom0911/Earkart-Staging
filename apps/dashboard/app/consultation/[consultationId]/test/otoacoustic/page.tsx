@@ -2,6 +2,7 @@
 import { useSocket } from "@/providers/socket-provider";
 import { useParams, useRouter } from "next/navigation";
 import React, { useState, useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
@@ -273,6 +274,7 @@ export default function OtoacousticPage() {
   const socket = useSocket();
   const router = useRouter();
   const params = useParams();
+  const queryClient = useQueryClient();
   const updateConsultationMutation = useUpdateConsultation();
   const { data: consultation } = useGetConsultation(
     params.consultationId as string
@@ -476,9 +478,9 @@ export default function OtoacousticPage() {
     const existingOae = consultationData.oae || {};
     const existingEarTests = existingOae.earTests || [];
 
-    // Process current ear's frequency responses - FILTER BY SELECTED EAR
+    // Process current ear's frequency responses - FILTER BY SELECTED EAR (strict: must have ear tag)
     const currentEarResponses = frequencyResponses
-      .filter(fr => (!fr.ear || fr.ear === selectedEar) && fr.frequency !== null && fr.responseDb !== null)
+      .filter(fr => fr.ear === selectedEar && fr.frequency !== null && fr.responseDb !== null)
       .map(fr => {
         const freqConfig = frequencies.find(f => f.Frequency === fr.frequency);
         const threshold = freqConfig?.SNR ?? 6;
@@ -550,11 +552,21 @@ export default function OtoacousticPage() {
       updatedAt: new Date().toISOString(),
     };
 
+    // Validate: must have test data for current ear before saving
+    if (currentEarResponses.length === 0) {
+      const earName = selectedEar === "L" ? "Left" : "Right";
+      toast.error(`No test data for ${earName} ear. Please run the test first.`);
+      return;
+    }
+
     console.log("💾 [OAE Save] Saving OAE data:", JSON.stringify(oaeTest, null, 2));
 
     try {
       await updateConsultationMutation.mutateAsync(updatedConsultation);
       console.log("✅ OAE results saved successfully");
+
+      // Invalidate consultation query so next save has fresh data (fixes right ear save after left)
+      queryClient.invalidateQueries({ queryKey: ["consultation", params.consultationId] });
 
       // Preserve localStorage data after test submission
       try {
@@ -591,9 +603,10 @@ export default function OtoacousticPage() {
         setSelectedEar(nextEar);
         setIsTestCompleted(false);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("❌ Failed to save OAE results:", error);
-      toast.error("Failed to save OAE results. Please try again.");
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to save OAE results: ${msg}`);
     }
   }, [
     consultation,
@@ -604,6 +617,8 @@ export default function OtoacousticPage() {
     frequencies,
     testResults,
     minimumSignalThreshold,
+    queryClient,
+    params.consultationId,
   ]);
 
   // Start/Stop OAE test
@@ -630,6 +645,7 @@ export default function OtoacousticPage() {
       if (testType === "DPOAE") {
         socket.emit("start-dpoae", {
           consultationId: params.consultationId,
+          ear: selectedEar === "L" ? "LEFT" : "RIGHT",
           realTimeStatusUpdateDuringExecution,
           timeoutTime: timeoutTime * 1000, // Convert seconds to milliseconds for device
           timeoutAuto,
