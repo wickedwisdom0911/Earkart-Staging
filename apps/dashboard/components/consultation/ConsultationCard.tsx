@@ -78,6 +78,7 @@ export const ConsultationCard = React.memo(function ConsultationCard({
 
   return (
     <div
+      id={`consultation-${consultation.id}`}
       className="group flex flex-col h-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary-200 dark:hover:border-primary-700 cursor-pointer"
       onClick={handleClick}
       onMouseEnter={() => onHover?.(consultation.id)}

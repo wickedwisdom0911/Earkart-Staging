@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useDeferredValue } from "react";
 import { FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useVideoAnalysis } from "@/hooks/consultation/use-video-analysis";
@@ -13,12 +13,16 @@ interface VideoAnalysisSectionProps {
 export function VideoAnalysisSection({ consultationId }: VideoAnalysisSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isInView, setIsInView] = useState(false);
+  const [fetchEnabled, setFetchEnabled] = useState(false);
 
   const {
     data: videoAnalysis,
     isLoading: analysisLoading,
     error: analysisError,
-  } = useVideoAnalysis(consultationId, { enabled: isInView });
+  } = useVideoAnalysis(consultationId, { enabled: fetchEnabled });
+
+  // Defer heavy ReactMarkdown render so it doesn't block the main thread and freeze the page
+  const deferredAnalysis = useDeferredValue(videoAnalysis);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -34,6 +38,13 @@ export function VideoAnalysisSection({ consultationId }: VideoAnalysisSectionPro
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // Defer fetch until after initial paint so the page stays responsive when navigating to "View Details"
+  useEffect(() => {
+    if (!isInView) return;
+    const id = setTimeout(() => setFetchEnabled(true), 150);
+    return () => clearTimeout(id);
+  }, [isInView]);
 
   return (
     <div ref={containerRef}>
@@ -57,8 +68,11 @@ export function VideoAnalysisSection({ consultationId }: VideoAnalysisSectionPro
           {isInView && !analysisLoading && !videoAnalysis && !analysisError && (
             <p className="text-center py-6 text-gray-500">No analysis available</p>
           )}
-          {isInView && videoAnalysis && (
-            <VideoAnalysisDisplay content={videoAnalysis} />
+          {isInView && videoAnalysis && !deferredAnalysis && (
+            <p className="text-center py-6 text-gray-500 animate-pulse">Rendering analysis...</p>
+          )}
+          {isInView && deferredAnalysis && (
+            <VideoAnalysisDisplay content={deferredAnalysis} />
           )}
         </CardContent>
       </Card>

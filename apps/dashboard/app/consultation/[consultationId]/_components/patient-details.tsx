@@ -182,6 +182,48 @@ export default function PatientDetails({
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Tests Selected & Payment - shown when entering consultation */}
+          {consultation && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+              {(consultation as any).consultationPricing?.length > 0 && (
+                <div className="flex items-center gap-3">
+                  <Stethoscope className="w-5 h-5 text-primary-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Tests Selected</p>
+                    <p className="font-medium text-sm">
+                      {(consultation as any).consultationPricing
+                        .map((cp: any) => cp?.pricing?.name || cp?.pricing?.description || "—")
+                        .filter(Boolean)
+                        .join(", ") || "—"}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {(() => {
+                const payments = (consultation as any).Payment ?? (consultation as any).payment;
+                const payment = Array.isArray(payments) ? payments[0] : null;
+                if (!payment) return null;
+                const amount = payment.amount;
+                const paymentType = payment.paymentType;
+                return (
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="w-5 h-5 text-primary-600 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Payment</p>
+                      <p className="font-medium text-sm">
+                        ₹{amount ?? "—"}
+                        {paymentType && (
+                          <span className="text-gray-500 ml-1">
+                            ({paymentType.replace(/_/g, " ")})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
