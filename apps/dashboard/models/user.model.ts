@@ -6,7 +6,8 @@ export const userModelDataSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   name: z.string(),
-  role: z.nativeEnum(Role),
+  // Accept known enum values + any string (backend may return MANAGER, EMPLOYEE, etc.)
+  role: z.union([z.nativeEnum(Role), z.string()]),
   status: z.nativeEnum(StatusEnum),
   gender: z.nativeEnum(Gender),
   dob: z.coerce.date().optional().nullable(),

@@ -16,6 +16,9 @@ export enum Role {
   AUDIOLOGIST = "AUDIOLOGIST",
   PATIENT = "PATIENT",
   CENTRE = "CENTRE",
+  // Backend roles - allow parsing API responses
+  MANAGER = "MANAGER",
+  EMPLOYEE = "EMPLOYEE",
 }
 
 export enum PaymentCycle {
