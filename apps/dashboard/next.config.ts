@@ -9,6 +9,7 @@ try {
 }
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   env: {
     IS_PRODUCTION: process.env.IS_PRODUCTION || "false",
     BASE_API_URL_PROD: process.env.BASE_API_URL_PROD || "http://65.2.163.137:3000/api/v1/",

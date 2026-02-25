@@ -371,6 +371,20 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           console.log(`🔬 [VIDEO-CALL] ✅ Subscribed to ${mediaType} from user ${user.uid}`);
           // Force React re-render so RemoteUser picks up the new track
           setTrackVersion(v => v + 1);
+          // Fix: Subscribe timing - track may attach async. Delayed re-check in case track wasn't ready yet
+          if (mediaType === "video") {
+            [300, 800, 1500].forEach((delayMs) => {
+              setTimeout(() => {
+                const u = client.remoteUsers.find((ru: any) => ru.uid === user.uid);
+                if (u?.hasVideo && (!u.videoTrack || !u.videoTrack.isPlaying)) {
+                  setTrackVersion(v => v + 1);
+                  if (!u.videoTrack) {
+                    client.subscribe(u, "video").then(() => setTrackVersion(v => v + 1)).catch(() => {});
+                  }
+                }
+              }, delayMs);
+            });
+          }
           break; // Success
         } catch (error) {
           retries++;
@@ -479,46 +493,44 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
     quickSubscribe();
   }, [client, isConnected, remoteUsers, showOtoscopyOnly]);
 
-  // Manually play video tracks as fallback with retries (fixes intermittent black screen)
+  // Fix: React render timing - when track becomes available, delayed re-render to catch async updates
+  const prevTrackIdsRef = useRef<string>("");
   useEffect(() => {
-    if (!remoteRef.current || filteredRemoteUsers.length === 0) return;
-
-    let attemptCount = 0;
-    const maxAttempts = 5;
-    const delays = [500, 1000, 2000, 3000, 5000];
-    let timeoutId: NodeJS.Timeout | null = null;
-
-    const tryPlayVideoTracks = () => {
-      if (attemptCount >= maxAttempts) return;
-      
-      let hasUnplayedTrack = false;
-      for (const user of filteredRemoteUsers) {
-        if (user.videoTrack && !user.videoTrack.isPlaying && remoteRef.current) {
-          hasUnplayedTrack = true;
-          try {
-            user.videoTrack.play(remoteRef.current);
-            console.log(`🔬 [VIDEO-PLAY] ✅ Played video for user ${user.uid} on attempt ${attemptCount + 1}`);
-          } catch (error) {
-            console.warn(`🔬 [VIDEO-PLAY] ⚠️ Failed to play video for user ${user.uid} on attempt ${attemptCount + 1}`);
-          }
-        }
-      }
-      
-      // If there are still unplayed tracks, retry with increasing delay
-      if (hasUnplayedTrack && attemptCount < maxAttempts) {
-        const delay = delays[attemptCount] || 5000;
-        attemptCount++;
-        timeoutId = setTimeout(tryPlayVideoTracks, delay);
-      }
-    };
-
-    timeoutId = setTimeout(tryPlayVideoTracks, 500);
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
+    const trackIds = filteredRemoteUsers.map(u => `${u.uid}-${u.videoTrack?.getTrackId?.() ?? "none"}`).join(",");
+    if (trackIds !== prevTrackIdsRef.current) {
+      prevTrackIdsRef.current = trackIds;
+      setTrackVersion(v => v + 1);
+      const id = setTimeout(() => setTrackVersion(v => v + 1), 300);
+      return () => clearTimeout(id);
+    }
   }, [filteredRemoteUsers]);
 
-  // Periodic video health check - detects and recovers from black screen
+  // Fix: DOM not ready - ResizeObserver triggers re-render when container gets dimensions
+  useEffect(() => {
+    const el = remoteRef.current;
+    if (!el || filteredRemoteUsers.length === 0) return;
+    const ro = new ResizeObserver(() => {
+      if (el.offsetWidth > 0 && el.offsetHeight > 0) {
+        setTrackVersion(v => v + 1);
+      }
+    });
+    ro.observe(el);
+    if (el.offsetWidth > 0 && el.offsetHeight > 0) setTrackVersion(v => v + 1);
+    return () => ro.disconnect();
+  }, [filteredRemoteUsers.length]);
+
+  // Fix: Browser visibility - when tab becomes visible, force re-render (helps after tab switch)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && filteredRemoteUsers.length > 0) {
+        setTrackVersion(v => v + 1);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [filteredRemoteUsers.length]);
+
+  // Periodic video health check - ensures we're subscribed and recovers from black screen
   // Phase 1: Aggressive (every 2s for first 30s) — catches initial subscribe failures
   // Phase 2: Steady (every 5s for the rest of the call) — catches mid-call issues
   useEffect(() => {
@@ -580,8 +592,8 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       }
     };
 
-    // Phase 1: Aggressive checks every 2s for first 30s
-    const initialTimeout = setTimeout(videoHealthCheck, 1500);
+    // Phase 1: Aggressive checks every 2s for first 30s (start first check sooner)
+    const initialTimeout = setTimeout(videoHealthCheck, 500);
     const aggressiveInterval = setInterval(videoHealthCheck, 2000);
 
     // Phase 2: After 30s, switch to steady 5s interval (runs for entire call duration)
@@ -791,6 +803,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                     user={user}
                     playVideo={true}
                     playAudio={true}
+                    playsInline={true}
                     style={{ 
                       width: "100%", 
                       height: "100%",
@@ -809,7 +822,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
           // Single user or non-otoscopy mode - full screen
           <div
             ref={remoteRef}
-            className={`w-full h-full bg-gray-900 overflow-hidden ${
+            className={`w-full h-full min-h-[200px] bg-gray-900 overflow-hidden ${
               isFullscreen ? 'rounded-none border-none' : 'rounded-2xl border'
             }`}
           >
@@ -826,6 +839,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                     user={user}
                     playVideo={true}
                     playAudio={true}
+                    playsInline={true}
                     style={{ 
                       width: "100%", 
                       height: "100%",

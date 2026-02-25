@@ -1,0 +1,43 @@
+# Dependencies (explicit patterns for all levels)
+**/node_modules
+**/.pnpm-store
+.pnpm-store
+
+# Build outputs
+**/.next
+**/.turbo
+**/dist
+**/out
+
+# Other apps (we only build dashboard)
+apps/earkart_omni
+
+# Development
+.git
+.gitignore
+.env*.local
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+coverage
+.nyc_output
+*.test.*
+*.spec.*
+
+# Misc
+README.md
+.dockerignore
+Dockerfile
+test-docker.ps1

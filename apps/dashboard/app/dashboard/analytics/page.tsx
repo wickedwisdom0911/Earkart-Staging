@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { format, isToday, isSameDay, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, isSameDay, subDays, startOfDay, endOfDay } from "date-fns";
 import { SessionStatus, Role } from "@/models/enums";
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
@@ -11,528 +11,405 @@ import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consult
 import { extractConsultations } from "@/models/consultation.model";
 import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import { useAudiologistStatus } from "@/hooks/audiologist/use-audiologist-status";
-import { useAudiologistAvailability } from "@/hooks/audiologist/use-audiologist-availability";
 import {
-  CheckCircle2,
-  Clock,
-  PlayCircle,
-  AlertCircle,
-  Stethoscope,
-  Calendar as CalendarIcon,
-  Eye,
-  Phone,
-  PhoneOff,
+  AlertCircle, Stethoscope, Plus, Search,
+  Calendar, Users, PhoneCall, BarChart3, Activity, X,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Filter, XCircle } from "lucide-react";
 
 export default function AnalyticsPage() {
   const router = useRouter();
   const { data: user } = useGetUser();
-
-  const {
-    data: consultations,
-    isLoading,
-    isError,
-    error,
-  } = useGetAllConsultations();
+  const { data: consultations, isLoading, isError, error } = useGetAllConsultations();
   const { data: audiologists } = useGetAllAudiologists();
-
-  // Role checks
-  const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
-  const isHeadAudiologist = user?.role === Role.HEAD_AUDIOLOGIST;
-  const isNormalAudiologist = user?.role === Role.AUDIOLOGIST;
-  const canFilterByAudiologist = isAdmin || isHeadAudiologist;
-  
-  // Real-time audiologist status from WebSocket
   const { isInCall: checkAudiologistInCall } = useAudiologistStatus();
-  
-  // Real-time audiologist availability - pass audiologists for initial state (API returns available)
-  const { availability } = useAudiologistAvailability(audiologists?.data ?? null);
 
-  // Date range filter state
   const [fromDate, setFromDate] = useState<Date | null>(null);
   const [toDate, setToDate] = useState<Date | null>(null);
-  const [fromDateOpen, setFromDateOpen] = useState(false);
-  const [toDateOpen, setToDateOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
   const today = new Date();
   const yesterday = subDays(today, 1);
 
-  // Filter consultations by date range (from/to dates)
-  // Only show consultations that have an audiologist assigned
-  const filteredConsultations = useMemo(() => {
-    if (!consultations?.data || !Array.isArray(consultations.data))
-      return [];
+  const activeQuickFilter = useMemo(() => {
+    if (!fromDate && !toDate) return null;
+    if (fromDate && toDate && isSameDay(fromDate, today) && isSameDay(toDate, today)) return "today";
+    if (fromDate && toDate && isSameDay(fromDate, yesterday) && isSameDay(toDate, yesterday)) return "yesterday";
+    if (fromDate && toDate && isSameDay(fromDate, subDays(today, 7)) && isSameDay(toDate, today)) return "7days";
+    if (fromDate && toDate && isSameDay(fromDate, subDays(today, 30)) && isSameDay(toDate, today)) return "30days";
+    return "custom";
+  }, [fromDate, toDate]);
 
+  const filteredConsultations = useMemo(() => {
+    if (!consultations?.data || !Array.isArray(consultations.data)) return [];
     return consultations.data.filter((c) => {
-      // Only show consultations with audiologist assigned
-      if (!c.audiologist || !c.audiologist.userId) return false;
-      if (!c.createdAt) return false;
-      
-      const consultationDate = new Date(c.createdAt);
-      
-      // If no date filters are set, show all consultations
-      if (!fromDate && !toDate) {
-        return true;
-      }
-      
-      // If only fromDate is set, filter from that date onwards
-      if (fromDate && !toDate) {
-        return consultationDate >= startOfDay(fromDate);
-      }
-      
-      // If only toDate is set, filter up to that date
-      if (!fromDate && toDate) {
-        return consultationDate <= endOfDay(toDate);
-      }
-      
-      // If both dates are set, filter within the range
-      if (fromDate && toDate) {
-        return consultationDate >= startOfDay(fromDate) && consultationDate <= endOfDay(toDate);
-      }
-      
-      return true;
+      if (!c.audiologist?.userId || !c.createdAt) return false;
+      const d = new Date(c.createdAt);
+      if (!fromDate && !toDate) return true;
+      if (fromDate && !toDate) return d >= startOfDay(fromDate);
+      if (!fromDate && toDate) return d <= endOfDay(toDate);
+      return d >= startOfDay(fromDate!) && d <= endOfDay(toDate!);
     });
   }, [consultations, fromDate, toDate]);
 
-  // Group all consultations by audiologist for the details modal
-  // Only include consultations that have an audiologist assigned
   const consultationsByAudiologist = useMemo(() => {
-    if (!consultations?.data) return new Map();
-    
-    const consultationsArray = extractConsultations(consultations.data);
+    if (!consultations?.data) return new Map<string, ConsultationModelData[]>();
+    const arr = extractConsultations(consultations.data);
     const map = new Map<string, ConsultationModelData[]>();
-    
-    consultationsArray.forEach((c) => {
-      // Only include consultations with audiologist assigned
-      const audiologistId = c.audiologist?.userId;
-      if (audiologistId) {
-        if (!map.has(audiologistId)) {
-          map.set(audiologistId, []);
-        }
-        map.get(audiologistId)!.push(c);
+    arr.forEach((c) => {
+      const id = c.audiologist?.userId;
+      if (id) {
+        if (!map.has(id)) map.set(id, []);
+        map.get(id)!.push(c);
       }
     });
-    
     return map;
   }, [consultations]);
 
-  // Get audiologist stats for today
   const audiologistCardsData = useMemo(() => {
     if (!audiologists?.data || !Array.isArray(audiologists.data)) return [];
-
     return audiologists.data.map((audiologist: any) => {
-      // Use userId for call status (WebSocket uses userId); profile ID for toggle events
       const audiologistId = audiologist.userId || audiologist.id;
-      const profileId = audiologist.id;
-      
-      // Get filtered consultations for this audiologist
-      const filteredConsultationsForAudiologist = filteredConsultations.filter(
-        (c) => c.audiologist?.userId === audiologistId
-      );
-
-      // Count by status
-      const completed = filteredConsultationsForAudiologist.filter(
-        (c) => c.status === SessionStatus.COMPLETED
-      ).length;
-      const inProgress = filteredConsultationsForAudiologist.filter(
-        (c) => c.status === SessionStatus.IN_PROGRESS
-      ).length;
-      const pending = filteredConsultationsForAudiologist.filter(
-        (c) => c.status === SessionStatus.PENDING
-      ).length;
-
+      const filtered = filteredConsultations.filter((c) => c.audiologist?.userId === audiologistId);
+      const name = audiologist.user?.name || audiologist.name || "Unknown";
       return {
         audiologist,
         audiologistId,
-        profileId,
-        name: audiologist.user?.name || audiologist.name || "Unknown",
+        name,
         email: audiologist.user?.email || audiologist.email || "",
-        todayConsultationsCount: filteredConsultationsForAudiologist.length,
-        completed,
-        inProgress,
-        pending,
+        initials: name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase(),
+        total: filtered.length,
+        completed: filtered.filter((c) => c.status === SessionStatus.COMPLETED).length,
+        missed: filtered.filter((c) => c.status === SessionStatus.MISSED).length,
+        pending: filtered.filter((c) => c.status === SessionStatus.PENDING).length,
         isInCall: checkAudiologistInCall(audiologistId),
-        allConsultations: consultationsByAudiologist.get(audiologistId) || [],
       };
     });
-  }, [audiologists, filteredConsultations, consultationsByAudiologist, checkAudiologistInCall]);
+  }, [audiologists, filteredConsultations, checkAudiologistInCall]);
 
-  // Calculate summary stats
-  const summaryStats = useMemo(() => {
-    const totalAudiologists = audiologistCardsData.length;
-    const totalInCall = audiologistCardsData.filter((d) => d.isInCall).length;
-    
-    // Count audiologists who have manually set themselves as available (real-time via WebSocket)
-    // Backend sends user ID (login/logout) or profile ID (toggle), so check both
-    const totalAvailable = audiologistCardsData.filter((d) => {
-      return availability[d.audiologistId] === true || availability[d.profileId] === true;
-    }).length;
-    
-    const totalFilteredConsultations = filteredConsultations.length;
-    const totalCompleted = filteredConsultations.filter(
-      (c) => c.status === SessionStatus.COMPLETED
-    ).length;
-    const totalInProgress = filteredConsultations.filter(
-      (c) => c.status === SessionStatus.IN_PROGRESS
-    ).length;
+  const visibleCards = useMemo(() => {
+    if (!searchQuery.trim()) return audiologistCardsData;
+    const q = searchQuery.toLowerCase();
+    return audiologistCardsData.filter(
+      (d) => d.name.toLowerCase().includes(q) || d.email.toLowerCase().includes(q)
+    );
+  }, [audiologistCardsData, searchQuery]);
 
-    return {
-      totalAudiologists,
-      totalInCall,
-      totalAvailable,
-      totalTodayConsultations: totalFilteredConsultations,
-      totalCompleted,
-      totalInProgress,
-    };
-  }, [audiologistCardsData, filteredConsultations, availability]);
+  const summaryStats = useMemo(() => ({
+    totalAudiologists: audiologistCardsData.length,
+    inHouse: audiologistCardsData.filter((d) => d.audiologist?.type === "IN_HOUSE").length,
+    external: audiologistCardsData.filter((d) => d.audiologist?.type === "EXTERNAL").length,
+    active: audiologistCardsData.filter((d) => d.isInCall).length,
+  }), [audiologistCardsData]);
+
+  const quickFilters = [
+    { label: "Today",       key: "today",    onClick: () => { setFromDate(today); setToDate(today); } },
+    { label: "Yesterday",   key: "yesterday",onClick: () => { setFromDate(yesterday); setToDate(yesterday); } },
+    { label: "Last 7 Days", key: "7days",    onClick: () => { setFromDate(subDays(today, 7)); setToDate(today); } },
+    { label: "Last 30 Days",key: "30days",   onClick: () => { setFromDate(subDays(today, 30)); setToDate(today); } },
+  ];
 
   return (
     <DashboardBodyWrapper>
-      <div className="h-screen flex flex-col pb-2 overflow-hidden">
-        {/* Compact Header - Fixed */}
-        <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl p-4 shadow-lg mb-3">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-white/10 backdrop-blur-sm rounded-lg">
-                  <Eye className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-white">Audiologist Monitoring</h1>
-                  <p className="text-primary-100 text-xs">
-                    {format(new Date(), "EEEE, dd/MM/yy • hh:mm a")}
-                  </p>
-                </div>
-              </div>
+      <div className="min-h-screen bg-gray-50/50 p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
 
-              {/* Compact Live Stats */}
-              <div className="flex items-center gap-4">
-              <div className="text-center">
-                <p className="text-primary-100 text-[10px] font-medium uppercase">Total</p>
-                <p className="text-2xl font-bold text-white">{summaryStats.totalAudiologists}</p>
-              </div>
-              <div className="w-px h-10 bg-white/20" />
-              <div className="text-center">
-                <p className="text-primary-100 text-[10px] font-medium uppercase">In Call</p>
-                <p className="text-2xl font-bold text-red-300">{summaryStats.totalInCall}</p>
-              </div>
-              <div className="w-px h-10 bg-white/20" />
-              <div className="text-center">
-                <p className="text-primary-100 text-[10px] font-medium uppercase">Available</p>
-                <p className="text-2xl font-bold text-green-300">{summaryStats.totalAvailable}</p>
-              </div>
-              <div className="w-px h-10 bg-white/20" />
-              <div className="text-center">
-                <p className="text-primary-100 text-[10px] font-medium uppercase">
-                  {(() => {
-                    if (!fromDate && !toDate) return "All Time";
-                    if (fromDate && !toDate) return format(fromDate, "dd/MM/yy");
-                    if (!fromDate && toDate) return format(toDate, "dd/MM/yy");
-                    if (fromDate && toDate) {
-                      if (isSameDay(fromDate, toDate)) return format(fromDate, "dd/MM/yy");
-                      return `${format(fromDate, "dd/MM")}-${format(toDate, "dd/MM")}`;
-                    }
-                    return "All Time";
-                  })()}
-                </p>
-                <p className="text-2xl font-bold text-white">{summaryStats.totalTodayConsultations}</p>
-              </div>
-              </div>
-            </div>
-            
-            {/* Date Range Filter */}
-            <div className="flex flex-col gap-2 pt-2 border-t border-white/20">
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="w-4 h-4 text-white" />
-                <span className="text-sm font-medium text-white">Date Range:</span>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {/* Quick Date Buttons */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setFromDate(today);
-                    setToDate(today);
-                  }}
-                  className={`h-9 bg-white/10 hover:bg-white/20 text-white border-white/30 ${
-                    fromDate && toDate && isSameDay(fromDate, today) && isSameDay(toDate, today)
-                      ? "bg-white/30 border-white/50"
-                      : ""
-                  }`}
-                >
-                  Today
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setFromDate(yesterday);
-                    setToDate(yesterday);
-                  }}
-                  className={`h-9 bg-white/10 hover:bg-white/20 text-white border-white/30 ${
-                    fromDate && toDate && isSameDay(fromDate, yesterday) && isSameDay(toDate, yesterday)
-                      ? "bg-white/30 border-white/50"
-                      : ""
-                  }`}
-                >
-                  Yesterday
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const weekAgo = subDays(today, 7);
-                    setFromDate(weekAgo);
-                    setToDate(today);
-                  }}
-                  className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
-                >
-                  Last 7 Days
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const monthAgo = subDays(today, 30);
-                    setFromDate(monthAgo);
-                    setToDate(today);
-                  }}
-                  className="h-9 bg-white/10 hover:bg-white/20 text-white border-white/30"
-                >
-                  Last 30 Days
-                </Button>
-                
-                {/* From Date - native input for stability */}
-                <input
-                  type="date"
-                  value={fromDate ? format(fromDate, "yyyy-MM-dd") : ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    const date = v ? new Date(v) : null;
-                    setFromDate(date);
-                    if (date && toDate && date > toDate) {
-                      setToDate(date);
-                    }
-                  }}
-                  max={toDate ? format(toDate, "yyyy-MM-dd") : undefined}
-                  className="h-9 rounded-md border border-white/40 bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0"
-                />
-                
-                <span className="text-white text-sm font-medium">to</span>
-                
-                {/* To Date - native input for stability */}
-                <input
-                  type="date"
-                  value={toDate ? format(toDate, "yyyy-MM-dd") : ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    const date = v ? new Date(v) : null;
-                    setToDate(date);
-                    if (date && fromDate && date < fromDate) {
-                      setFromDate(date);
-                    }
-                  }}
-                  min={fromDate ? format(fromDate, "yyyy-MM-dd") : undefined}
-                  className="h-9 rounded-md border border-white/40 bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0"
-                />
-                
-                {(fromDate || toDate) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setFromDate(null);
-                      setToDate(null);
-                    }}
-                    className="h-9 bg-white/20 hover:bg-white/30 text-white border-white/40"
-                  >
-                    <XCircle className="w-3 h-3 mr-1" />
-                    Clear
-                  </Button>
-                )}
-              </div>
-            </div>
+        {/* ── Page Header ── */}
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl lg:text-[28px] font-bold text-gray-900 leading-tight">
+              Audiologist
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+              {format(new Date(), "EEEE, MMMM dd, yyyy")}
+            </p>
+          </div>
+          <button
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm whitespace-nowrap flex-shrink-0"
+            onClick={() => router.push("/audiologists/add")}
+          >
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Add Audiologist</span>
+            <span className="sm:hidden">Add</span>
+          </button>
+        </div>
+
+        {/* ── Summary Stat Cards ──
+            • Mobile  (< sm):  2 columns
+            • Tablet  (sm+):   4 columns
+        */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
+          <StatSummaryCard
+            label="Total Audiologists" value={summaryStats.totalAudiologists}
+            color="text-[#1D7AFC]"
+            icon={<Users className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />}
+          />
+          <StatSummaryCard
+            label="In House" value={summaryStats.inHouse}
+            color="text-[#22C55E]"
+            icon={<PhoneCall className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />}
+          />
+          <StatSummaryCard
+            label="External" value={summaryStats.external}
+            color="text-[#EF4444]"
+            icon={<BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />}
+          />
+          <StatSummaryCard
+            label="Active" value={summaryStats.active}
+            color="text-[#A855F7]"
+            icon={<Activity className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />}
+          />
+        </div>
+
+        {/* ── Search & Filter Bar ──
+            • Mobile:  stacked vertically
+            • sm+:     wraps in one row
+        */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 lg:gap-3">
+
+          {/* Search */}
+          <div className="relative w-full sm:w-52 lg:w-64 flex-shrink-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search audiologist"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 rounded-lg border border-[#E3E8EF] bg-white text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 shadow-sm"
+            />
+          </div>
+
+          {/* Date Range */}
+          <div className="flex items-center gap-1.5 border border-[#E3E8EF] bg-white rounded-lg px-3 py-2 shadow-sm w-full sm:w-auto">
+            <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <input
+              type="date"
+              value={fromDate ? format(fromDate, "yyyy-MM-dd") : ""}
+              onChange={(e) => {
+                const date = e.target.value ? new Date(e.target.value) : null;
+                setFromDate(date);
+                if (date && toDate && date > toDate) setToDate(date);
+              }}
+              max={toDate ? format(toDate, "yyyy-MM-dd") : undefined}
+              className="text-xs text-gray-500 bg-transparent border-none outline-none w-24 sm:w-28"
+            />
+            <span className="text-gray-300 text-xs">–</span>
+            <input
+              type="date"
+              value={toDate ? format(toDate, "yyyy-MM-dd") : ""}
+              onChange={(e) => {
+                const date = e.target.value ? new Date(e.target.value) : null;
+                setToDate(date);
+                if (date && fromDate && date < fromDate) setFromDate(date);
+              }}
+              min={fromDate ? format(fromDate, "yyyy-MM-dd") : undefined}
+              className="text-xs text-gray-500 bg-transparent border-none outline-none w-24 sm:w-28"
+            />
+          </div>
+
+          {/* Quick Filter Pills — horizontally scrollable on mobile */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-hide w-full sm:w-auto">
+            {quickFilters.map((f) => (
+              <button
+                key={f.key}
+                onClick={f.onClick}
+                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium border transition-colors whitespace-nowrap flex-shrink-0 ${
+                  activeQuickFilter === f.key
+                    ? "bg-blue-50 border-blue-300 text-blue-600"
+                    : "bg-white border-[#E3E8EF] text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+            {(fromDate || toDate) && (
+              <button
+                onClick={() => { setFromDate(null); setToDate(null); }}
+                className="p-2 rounded-lg border border-[#E3E8EF] bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors flex-shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Loading State */}
+        {/* ── Result Count ── */}
+        {!isLoading && !isError && (
+          <p className="text-xs sm:text-sm text-gray-500">
+            Showing{" "}
+            <span className="font-semibold text-gray-800">{visibleCards.length}</span>{" "}
+            audiologist
+          </p>
+        )}
+
+        {/* ── Loading ── */}
         {isLoading && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto" />
-              <p className="text-gray-600 font-medium">Loading dashboard data...</p>
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center space-y-3">
+              <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin mx-auto" />
+              <p className="text-sm text-gray-400">Loading dashboard data...</p>
             </div>
           </div>
         )}
 
-        {/* Error State */}
+        {/* ── Error ── */}
         {isError && (
-          <Card className="flex-1 shadow-md border-red-200 bg-red-50">
-            <CardContent className="p-8 flex items-center justify-center">
-              <div className="text-center space-y-3">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-                  <AlertCircle className="w-8 h-8 text-red-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-red-900">
-                  Failed to load data
-                </h3>
-                <p className="text-sm text-red-700">
-                  {error instanceof Error ? error.message : "Please try again later."}
-                </p>
+          <div className="bg-red-50 border border-red-200 rounded-xl p-8 flex items-center justify-center">
+            <div className="text-center space-y-3">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                <AlertCircle className="w-6 h-6 text-red-500" />
               </div>
-            </CardContent>
-          </Card>
+              <p className="text-sm font-medium text-red-800">Failed to load data</p>
+              <p className="text-xs text-red-600">
+                {error instanceof Error ? error.message : "Please try again later."}
+              </p>
+            </div>
+          </div>
         )}
 
-        {/* Compact Cards Grid - No Scroll */}
+        {/* ── Audiologist Cards Grid ──
+            • Mobile  (< sm):   1 column
+            • Tablet  (sm):     2 columns
+            • iPad/MD (md):     3 columns
+            • Mac/LG  (lg):     4 columns
+            • XL      (xl):     5 columns
+        */}
         {!isLoading && !isError && (
-          <>
-            {audiologistCardsData.length === 0 ? (
-              <Card className="flex-1 shadow-md border-gray-200">
-                <CardContent className="flex items-center justify-center h-full">
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Stethoscope className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      No Audiologists Found
-                    </h3>
-                    <p className="text-gray-600">
-                      There are no audiologists in the system.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 overflow-hidden">
-                {audiologistCardsData.map((cardData) => (
-                  <Card
-                    key={cardData.audiologistId}
-                    className={`
-                      group relative overflow-hidden border-2 transition-all duration-300 hover:shadow-xl
-                      ${cardData.isInCall 
-                        ? 'bg-red-50 border-red-300 hover:border-red-400'
-                        : (availability[cardData.audiologistId] === true || availability[cardData.profileId] === true)
-                        ? 'bg-green-50 border-green-300 hover:border-green-400'
-                        : 'bg-white border-gray-200 hover:border-gray-300'}
-                    `}
-                  >
-                    {/* Status Indicator Banner */}
-                    <div className={`
-                      absolute top-0 left-0 right-0 h-1
-                      ${cardData.isInCall 
-                        ? 'bg-red-500 animate-pulse' 
-                        : (availability[cardData.audiologistId] === true || availability[cardData.profileId] === true)
-                        ? 'bg-green-500' 
-                        : 'bg-gray-400'}
-                    `} />
-
-                    <CardContent className="p-3 space-y-2">
-                      {/* Audiologist Info */}
-                      <div className="flex items-start gap-2">
-                        <div className={`
-                          flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md
-                          ${cardData.isInCall 
-                            ? 'bg-gradient-to-br from-red-500 to-red-600'
-                            : (availability[cardData.audiologistId] === true || availability[cardData.profileId] === true)
-                            ? 'bg-gradient-to-br from-green-500 to-green-600'
-                            : 'bg-gradient-to-br from-gray-400 to-gray-500'}
-                        `}>
-                          <Stethoscope className="w-5 h-5 text-white" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-sm font-bold text-gray-900 truncate leading-tight">
-                            {cardData.name}
-                          </h3>
-                          <p className="text-[10px] text-gray-500 truncate">
-                            {cardData.email}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Status Badge - Shows real-time call status and availability */}
-                      <div className="flex justify-center py-1">
-                        {cardData.isInCall ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-100 text-red-700 rounded-md border border-red-300 font-bold">
-                            <Phone className="w-3 h-3 animate-pulse" />
-                            <span className="text-[10px]">IN CALL</span>
-                          </div>
-                        ) : (availability[cardData.audiologistId] === true || availability[cardData.profileId] === true) ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 rounded-md border border-green-300 font-bold">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                            <span className="text-[10px]">AVAILABLE</span>
-                          </div>
-                        ) : (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-600 rounded-md border border-gray-300 font-medium">
-                            <PhoneOff className="w-3 h-3" />
-                            <span className="text-[10px]">UNAVAILABLE</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Stats Grid */}
-                      <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-gray-200">
-                        {/* Today's Total */}
-                        <div className="text-center">
-                          <div className="w-full aspect-square flex flex-col items-center justify-center rounded-lg bg-primary-100 border border-primary-300">
-                            <span className="text-lg font-bold text-primary-700 leading-none">
-                              {cardData.todayConsultationsCount}
-                            </span>
-                          </div>
-                          <p className="text-[9px] text-gray-600 mt-0.5 font-medium">Today</p>
-                        </div>
-
-                        {/* Completed */}
-                        <div className="text-center">
-                          <div className="w-full aspect-square flex flex-col items-center justify-center rounded-lg bg-green-100 border border-green-300">
-                            <span className="text-lg font-bold text-green-700 leading-none">
-                              {cardData.completed}
-                            </span>
-                          </div>
-                          <p className="text-[9px] text-gray-600 mt-0.5 font-medium">Done</p>
-                        </div>
-
-                        {/* In Progress */}
-                        <div className="text-center">
-                          <div className="w-full aspect-square flex flex-col items-center justify-center rounded-lg bg-blue-100 border border-blue-300">
-                            <span className="text-lg font-bold text-blue-700 leading-none">
-                              {cardData.inProgress}
-                            </span>
-                          </div>
-                          <p className="text-[9px] text-gray-600 mt-0.5 font-medium">Active</p>
-                        </div>
-
-                        {/* Pending */}
-                        <div className="text-center">
-                          <div className="w-full aspect-square flex flex-col items-center justify-center rounded-lg bg-yellow-100 border border-yellow-300">
-                            <span className="text-lg font-bold text-yellow-700 leading-none">
-                              {cardData.pending}
-                            </span>
-                          </div>
-                          <p className="text-[9px] text-gray-600 mt-0.5 font-medium">Pending</p>
-                        </div>
-                      </div>
-                    </CardContent>
-
-                    {/* Hover Overlay */}
-                    <div className="absolute inset-0 bg-primary-600/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                  </Card>
-                ))}
+          visibleCards.length === 0 ? (
+            <div className="bg-white border border-[#E3E8EF] rounded-xl p-16 flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Stethoscope className="w-6 h-6 text-gray-400" />
+                </div>
+                <p className="text-sm font-semibold text-gray-700">No Audiologists Found</p>
+                <p className="text-xs text-gray-400 mt-1">Try adjusting your search or filters.</p>
               </div>
-            )}
-          </>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 lg:gap-4">
+              {visibleCards.map((cardData) => (
+                <AudiologistCard key={cardData.audiologistId} cardData={cardData} />
+              ))}
+            </div>
+          )
         )}
 
       </div>
     </DashboardBodyWrapper>
+  );
+}
+
+/* ──────────────────────────────────────────
+   Summary Stat Card (top row)
+────────────────────────────────────────── */
+function StatSummaryCard({
+  label, value, color, icon,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-[#E3E8EF] p-3 sm:p-4 shadow-[0_2px_8px_0_rgba(0,0,0,0.08)]">
+      <div className="flex items-start justify-between mb-2 sm:mb-3 gap-2">
+        <span className="text-xs sm:text-sm text-gray-500 font-medium leading-snug">{label}</span>
+        <span className="flex-shrink-0 mt-0.5">{icon}</span>
+      </div>
+      <p className={`text-xl sm:text-2xl font-bold ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────
+   Audiologist Card
+   Figma: radius 10px, padding 16px, gap 20px
+   shadow: 0 2px 8px rgba(0,0,0,0.08)
+────────────────────────────────────────── */
+function AudiologistCard({ cardData }: { cardData: any }) {
+  const avatarColors = [
+    "bg-blue-100 text-blue-600",
+    "bg-purple-100 text-purple-600",
+    "bg-green-100 text-green-600",
+    "bg-orange-100 text-orange-600",
+    "bg-pink-100 text-pink-600",
+  ];
+  const colorIndex =
+    (cardData.initials.charCodeAt(0) + (cardData.initials.charCodeAt(1) || 0)) %
+    avatarColors.length;
+
+  return (
+    <div
+      className="bg-white rounded-[10px] border border-[#E3E8EF] p-3 sm:p-4 flex flex-col gap-3"
+      style={{ boxShadow: "0 2px 8px 0 rgba(0,0,0,0.08)" }}
+    >
+      {/* Avatar + Name + Email */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div
+          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${avatarColors[colorIndex]}`}
+        >
+          {cardData.initials}
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate leading-tight">
+            {cardData.name}
+          </p>
+          <p className="text-[10px] sm:text-[11px] text-gray-400 truncate">{cardData.email}</p>
+        </div>
+      </div>
+
+      {/* Status Badge */}
+      <div>
+        {cardData.isInCall ? (
+          <span
+            className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium px-2.5 sm:px-3 py-1 rounded-full"
+            style={{ backgroundColor: "rgba(245,159,11,0.15)", color: "#D97706" }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[#F59F0B] flex-shrink-0" />
+            In Call
+          </span>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium px-2.5 sm:px-3 py-1 rounded-full"
+            style={{ backgroundColor: "rgba(76,160,84,0.10)", color: "#4CA054" }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[#4CA054] flex-shrink-0" />
+            Available
+          </span>
+        )}
+      </div>
+
+      {/* Stats Grid — 4 boxes */}
+      <div className="grid grid-cols-4 gap-1 sm:gap-1.5 pt-2 sm:pt-3 border-t border-[#F1F4F8]">
+        <StatItem value={cardData.total}     label="Total"   color="text-[#1D7AFC]" highlight />
+        <StatItem value={cardData.completed} label="Done"    color="text-[#22C55E]" />
+        <StatItem value={cardData.missed}    label="Missed"  color="text-[#EF4444]" />
+        <StatItem value={cardData.pending}   label="Pending" color="text-[#F59F0B]" />
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────
+   Stat Item (inside audiologist card)
+   Figma: grey box, Total has blue border
+────────────────────────────────────────── */
+function StatItem({
+  value, label, color, highlight = false,
+}: {
+  value: number;
+  label: string;
+  color: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`flex flex-col items-center gap-0.5 sm:gap-1 rounded-lg py-1.5 sm:py-2 px-0.5 border ${
+        highlight
+          ? "bg-[#EBF4FF] border-[#1D7AFC]/50"
+          : "bg-[#F8F9FB] border-transparent"
+      }`}
+    >
+      <span className={`text-xs sm:text-sm font-bold leading-none ${color}`}>{value}</span>
+      <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium">{label}</span>
+    </div>
   );
 }
