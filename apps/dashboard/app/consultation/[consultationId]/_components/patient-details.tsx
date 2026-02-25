@@ -28,11 +28,15 @@ import { ROUTES } from "@/lib/routes";
 import { useUpdatePatient } from "@/hooks/consultation/use-update-patient";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Stethoscope, CreditCard } from "lucide-react";
+import type { ConsultationModelData } from "@/models/consultation.model";
 
 export default function PatientDetails({
   patient,
+  consultation,
 }: {
   patient: PatientModelData;
+  consultation?: ConsultationModelData | null;
 }) {
   const router = useRouter();
   const { consultationId } = useParams();
@@ -185,13 +189,13 @@ export default function PatientDetails({
           {/* Tests Selected & Payment - shown when entering consultation */}
           {consultation && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
-              {(consultation as any).consultationPricing?.length > 0 && (
+              {consultation.consultationPricing?.length > 0 && (
                 <div className="flex items-center gap-3">
                   <Stethoscope className="w-5 h-5 text-primary-600 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-gray-500">Tests Selected</p>
                     <p className="font-medium text-sm">
-                      {(consultation as any).consultationPricing
+                      {consultation.consultationPricing
                         .map((cp: any) => cp?.pricing?.name || cp?.pricing?.description || "—")
                         .filter(Boolean)
                         .join(", ") || "—"}
@@ -200,7 +204,7 @@ export default function PatientDetails({
                 </div>
               )}
               {(() => {
-                const payments = (consultation as any).Payment ?? (consultation as any).payment;
+                const payments = (consultation as Record<string, unknown>).Payment ?? (consultation as Record<string, unknown>).payment;
                 const payment = Array.isArray(payments) ? payments[0] : null;
                 if (!payment) return null;
                 const amount = payment.amount;

@@ -16,8 +16,7 @@ const ChatMessageSchema = z.object({
   timestamp: z.coerce.date(),
   editedAt: z.coerce.date().nullable().optional(),
   deletedAt: z.coerce.date().nullable().optional(),
-  // readReceipts would be included if backend sends them
-  // readReceipts: z.array(z.object({ userId: z.string(), readAt: z.coerce.date() })).optional(),
+  
 });
 
 // Messages Response Schema - API returns array directly in data field
