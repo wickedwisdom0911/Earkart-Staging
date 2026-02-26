@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
 import {
@@ -146,28 +146,37 @@ export default function AnalyticsPage() {
     return { totalAudiologists, inHouse, external, active };
   }, [audiologistCardsData]);
 
-  const quickFilters = [
-    {
-      label: "Today",
-      key: "today",
-      onClick: () => { setFromDate(today); setToDate(today); },
-    },
-    {
-      label: "Yesterday",
-      key: "yesterday",
-      onClick: () => { setFromDate(yesterday); setToDate(yesterday); },
-    },
-    {
-      label: "Last 7 Days",
-      key: "7days",
-      onClick: () => { setFromDate(subDays(today, 7)); setToDate(today); },
-    },
-    {
-      label: "Last 30 Days",
-      key: "30days",
-      onClick: () => { setFromDate(subDays(today, 30)); setToDate(today); },
-    },
-  ];
+  const setTodayRange = useCallback(() => {
+    const t = new Date();
+    setFromDate(t);
+    setToDate(t);
+  }, []);
+  const setYesterdayRange = useCallback(() => {
+    const y = subDays(new Date(), 1);
+    setFromDate(y);
+    setToDate(y);
+  }, []);
+  const setLast7Days = useCallback(() => {
+    const t = new Date();
+    setFromDate(subDays(t, 7));
+    setToDate(t);
+  }, []);
+  const setLast30Days = useCallback(() => {
+    const t = new Date();
+    setFromDate(subDays(t, 30));
+    setToDate(t);
+  }, []);
+  const clearDateRange = useCallback(() => {
+    setFromDate(null);
+    setToDate(null);
+  }, []);
+
+  const quickFilters = useMemo(() => [
+    { label: "Today", key: "today", onClick: setTodayRange },
+    { label: "Yesterday", key: "yesterday", onClick: setYesterdayRange },
+    { label: "Last 7 Days", key: "7days", onClick: setLast7Days },
+    { label: "Last 30 Days", key: "30days", onClick: setLast30Days },
+  ], [setTodayRange, setYesterdayRange, setLast7Days, setLast30Days]);
 
   return (
     <DashboardBodyWrapper>
@@ -290,7 +299,7 @@ export default function AnalyticsPage() {
             ))}
             {(fromDate || toDate) && (
               <button
-                onClick={() => { setFromDate(null); setToDate(null); }}
+                onClick={clearDateRange}
                 className="p-2 rounded-lg border border-[#E3E8EF] bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 <X className="w-3.5 h-3.5" />

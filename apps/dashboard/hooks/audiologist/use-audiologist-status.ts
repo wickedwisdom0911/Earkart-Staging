@@ -28,18 +28,26 @@ export const useAudiologistStatus = () => {
 
     // Subscribe to status changes
     const unsubscribe = service.onStatusChange((allStatuses) => {
-      console.log("🔄 Status change received:", allStatuses.length, "statuses");
-      const statusMap = new Map();
+      const statusMap = new Map<string, AudiologistStatus>();
       allStatuses.forEach((status) => {
         statusMap.set(status.audiologistId, status);
-        console.log(`📊 Status for ${status.audiologistId}:`, status.isInCall ? "IN CALL" : "AVAILABLE");
       });
-      setStatuses(statusMap);
+      setStatuses((prev) => {
+        if (prev.size !== statusMap.size) return statusMap;
+        for (const [id, status] of statusMap) {
+          const oldStatus = prev.get(id);
+          if (!oldStatus || oldStatus.isInCall !== status.isInCall) return statusMap;
+        }
+        return prev;
+      });
     });
 
-    // Check connection status periodically
+    // Check connection status periodically (only update when value changes)
     const connectionCheck = setInterval(() => {
-      setIsConnected(service.isConnected());
+      setIsConnected((prev) => {
+        const next = service.isConnected();
+        return prev !== next ? next : prev;
+      });
     }, 5000);
 
     // Cleanup on unmount
