@@ -11,8 +11,9 @@ import {
   endOfDay,
 } from "date-fns";
 import { SessionStatus, Role } from "@/models/enums";
-import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
+import HandleAudiologistDialog from "../audiologists/_components/handle-audiologist-dialog";
+import { Button } from "@/components/ui/button";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import { extractConsultations } from "@/models/consultation.model";
 import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
@@ -31,7 +32,6 @@ import {
 } from "lucide-react";
 
 export default function AnalyticsPage() {
-  const router = useRouter();
   const { data: user } = useGetUser();
 
   const {
@@ -190,13 +190,17 @@ export default function AnalyticsPage() {
               {format(new Date(), "EEEE, MMMM dd, yyyy")}
             </p>
           </div>
-          <button
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
-            onClick={() => router.push("/dashboard/audiologists")}
-          >
-            <Plus className="w-4 h-4" />
-            Add Audiologist
-          </button>
+          <HandleAudiologistDialog
+            trigger={
+              <Button
+                variant="outline"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Plus className="w-4 h-4" />
+                Add Audiologist
+              </Button>
+            }
+          />
         </div>
 
         {/* ── Summary Stat Cards ── */}

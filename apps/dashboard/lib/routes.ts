@@ -4,6 +4,7 @@ export const ROUTES = {
   OVERVIEW: "/dashboard/overview",
   ANALYTICS: "/dashboard/analytics",
   AUDIOLOGISTS: "/dashboard/audiologists",
+  AUDIOLOGIST: (id: string) => `/dashboard/audiologists/${id}`,
   CENTRES: "/dashboard/centres",
   LOCATIONS: "/dashboard/settings/locations",
   LANGUAGES: "/dashboard/settings/languages",

@@ -318,7 +318,7 @@ export default function Audiologists() {
                   )}
                   {audiologist.languages?.length > 0 && (
                     <p className="truncate">
-                      <span className="font-medium">Languages:</span> {audiologist.languages?.map((l) => l.name).join(", ")}
+                      <span className="font-medium">Languages:</span> {audiologist.languages?.map((l) => (l as { name?: string })?.name ?? l).join(", ")}
                     </p>
                   )}
                 </div>
