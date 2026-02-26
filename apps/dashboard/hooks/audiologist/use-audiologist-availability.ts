@@ -24,15 +24,22 @@ export const useAudiologistAvailability = (
     if (!audiologists?.length) return;
     setAvailability((prev) => {
       const next = { ...prev };
+      let changed = false;
       audiologists.forEach((a) => {
         const avail = a.available;
         if (avail !== undefined) {
           const userId = a.userId || a.user?.id;
-          if (userId) next[userId] = avail;
-          if (a.id) next[a.id] = avail;
+          if (userId && next[userId] !== avail) {
+            next[userId] = avail;
+            changed = true;
+          }
+          if (a.id && next[a.id] !== avail) {
+            next[a.id] = avail;
+            changed = true;
+          }
         }
       });
-      return next;
+      return changed ? next : prev;
     });
   }, [audiologists]);
 
@@ -56,18 +63,23 @@ export const useAudiologistAvailability = (
     const unsubscribe = service.onStatusChange((allStatuses: AudiologistStatus[]) => {
       setAvailability((prev) => {
         const next = { ...prev };
+        let changed = false;
         allStatuses.forEach((status) => {
-          if (status.available !== undefined) {
+          if (status.available !== undefined && next[status.audiologistId] !== status.available) {
             next[status.audiologistId] = status.available;
+            changed = true;
           }
         });
-        return next;
+        return changed ? next : prev;
       });
     });
 
-    // Check connection status periodically
+    // Check connection status periodically (only update when value changes)
     const connectionCheck = setInterval(() => {
-      setIsConnected(service.isConnected());
+      setIsConnected((prev) => {
+        const next = service.isConnected();
+        return prev !== next ? next : prev;
+      });
     }, 5000);
 
     // Cleanup on unmount
