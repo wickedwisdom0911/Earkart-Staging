@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { Role } from "@/models/enums";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
+import { startOfDay, endOfDay } from "date-fns";
 import { useGetConsultationsInfinite } from "@/hooks/consultation/use-get-consultations-infinite";
 import {
   User,
@@ -38,6 +39,9 @@ function AllConsultationsContent() {
     user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
   const isHeadAudiologist = user?.role === Role.HEAD_AUDIOLOGIST;
 
+  // HEAD_AUDIOLOGIST: see all (no audiologistId). AUDIOLOGIST: only their own (audiologistId=user.id)
+  const audiologistFilterId = isAudiologist && !isHeadAudiologist && user?.id ? user.id : undefined;
+
   const {
     consultations: allConsultations,
     total,
@@ -51,22 +55,24 @@ function AllConsultationsContent() {
     limit: PAGE_SIZE,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
+    audiologistId: audiologistFilterId,
   });
 
-  // Client-side filter for audiologists and date range
-  // HEAD_AUDIOLOGIST: see all consultations
-  // AUDIOLOGIST: see unassigned (no audiologist) + their own (audiologist.userId === user.id)
+  // Client-side filter fallback (in case backend doesn't support params)
+  // Audiologist (non-head): only show consultations where audiologist.userId === user.id
+  // Date: use startOfDay/endOfDay with T12:00:00 to avoid timezone issues
   const filteredConsultations = allConsultations.filter((c) => {
-    if (isAudiologist && !isHeadAudiologist && user?.id) {
-      if (c.audiologist?.userId && c.audiologist.userId !== user.id)
-        return false;
-    }
-    if (startDate && new Date(c.createdAt || "") < new Date(startDate))
+    if (audiologistFilterId && c.audiologist?.userId && c.audiologist.userId !== audiologistFilterId)
       return false;
+    if (!c.createdAt) return true;
+    const consultationDate = new Date(c.createdAt);
+    if (startDate) {
+      const rangeStart = startOfDay(new Date(startDate + "T12:00:00"));
+      if (consultationDate < rangeStart) return false;
+    }
     if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      if (new Date(c.createdAt || "") > end) return false;
+      const rangeEnd = endOfDay(new Date(endDate + "T12:00:00"));
+      if (consultationDate > rangeEnd) return false;
     }
     return true;
   });
@@ -144,7 +150,7 @@ function AllConsultationsContent() {
                 ? "Browse and filter your past consultation records"
                 : "Browse and filter all consultation records"}
             </p>
-            {isAudiologist && (
+            {isAudiologist && !isHeadAudiologist && (
               <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm">
                 <User className="w-4 h-4" />
                 <span>Showing only your consultations</span>

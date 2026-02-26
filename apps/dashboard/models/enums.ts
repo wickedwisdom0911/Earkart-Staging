@@ -100,6 +100,8 @@ export enum SessionStatus {
   FAILED = "FAILED",
   // Keep CANCELLED for backward compatibility but backend doesn't have it
   CANCELLED = "CANCELLED",
+  // Missed calls - used in audiologist monitoring
+  MISSED = "MISSED",
 }
 
 export enum AnswerType {

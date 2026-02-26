@@ -6,13 +6,15 @@ import { verifySession } from "@/lib/session";
 
 /**
  * Pagination - matches backend API:
- * GET /consultation/get-all?limit=&offset=
+ * GET /consultation/get-all?limit=&offset=&startDate=&endDate=&audiologistId=
  * Response: { data: { data: consultations[], total, hasNext, totalPages } }
  */
 export interface GetConsultationsPageParams {
   page?: number;
   limit?: number;
   audiologistId?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface GetConsultationsPageResult {
@@ -36,7 +38,15 @@ export default async function getConsultationsPage(
   const user = await verifySession();
   if (!user?.token) throw new Error("Unauthorized");
 
-  const url = `${baseUrl}consultation/get-all?limit=${limit}&offset=${offset}`;
+  const searchParams = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  if (params.audiologistId) searchParams.set("audiologistId", params.audiologistId);
+  if (params.startDate) searchParams.set("startDate", params.startDate);
+  if (params.endDate) searchParams.set("endDate", params.endDate);
+
+  const url = `${baseUrl}consultation/get-all?${searchParams.toString()}`;
   const res = await fetch(url, {
     headers: {
       "Content-Type": "application/json",

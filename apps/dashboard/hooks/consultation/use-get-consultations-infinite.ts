@@ -30,6 +30,8 @@ export function useGetConsultationsInfinite(
         page: pageParam,
         limit,
         audiologistId,
+        startDate,
+        endDate,
       });
     },
     getNextPageParam: (lastPage) => {
