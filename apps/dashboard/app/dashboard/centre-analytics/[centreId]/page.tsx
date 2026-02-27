@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { format, isSameDay, isToday, subDays, startOfDay, endOfDay } from "date-fns";
-import { SessionStatus, Role } from "@/models/enums";
+import { SessionStatus, Role, TestStatus } from "@/models/enums";
 import { useParams, useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
@@ -27,6 +27,7 @@ import {
   Stethoscope,
   Eye,
   XCircle,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -177,6 +184,19 @@ export default function CentreDetailPage() {
       (c) => !c.audiologist?.user?.name
     ).length;
 
+    // Test counts - consultations that have each test done (completed or in progress)
+    const hasTestDone = (t: unknown) => {
+      const s = (t as { status?: string })?.status;
+      return s === TestStatus.COMPLETED || s === TestStatus.IN_PROGRESS;
+    };
+    const ptaCount = filteredConsultations.filter((c) => c.audiometry && hasTestDone(c.audiometry)).length;
+    const tympanometryCount = filteredConsultations.filter((c) => c.tympanometry && hasTestDone(c.tympanometry)).length;
+    const oaeCount = filteredConsultations.filter((c) => c.oae && hasTestDone(c.oae)).length;
+    const otoscopyCount = filteredConsultations.filter((c) => c.otoscopy && hasTestDone(c.otoscopy)).length;
+    const etfCount = filteredConsultations.filter((c) => c.etfIntact != null).length;
+    const toneDecayCount = filteredConsultations.filter((c) => c.toneDecay && hasTestDone(c.toneDecay)).length;
+    const reflexometryCount = filteredConsultations.filter((c) => c.reflexometry != null).length;
+
     return {
       total,
       completed,
@@ -184,6 +204,13 @@ export default function CentreDetailPage() {
       pending,
       cancelled,
       missedCalls,
+      ptaCount,
+      tympanometryCount,
+      oaeCount,
+      otoscopyCount,
+      etfCount,
+      toneDecayCount,
+      reflexometryCount,
     };
   }, [filteredConsultations]);
 
@@ -245,6 +272,134 @@ export default function CentreDetailPage() {
     return "All Time";
   };
 
+  // Build export data for a given date range (for this centre only)
+  // When useFilteredConsultations is true, uses filteredConsultations (respects all filters)
+  const buildExportData = (
+    exportFrom: Date | null,
+    exportTo: Date | null,
+    useFilteredConsultations = false
+  ) => {
+    let consults = useFilteredConsultations
+      ? [...filteredConsultations]
+      : [...centreConsultations];
+    if (!useFilteredConsultations && (exportFrom || exportTo)) {
+      consults = consults.filter((c) => {
+        if (!c.createdAt) return false;
+        const d = new Date(c.createdAt);
+        if (!exportFrom && !exportTo) return true;
+        if (exportFrom && !exportTo) return d >= startOfDay(exportFrom);
+        if (!exportFrom && exportTo) return d <= endOfDay(exportTo);
+        return d >= startOfDay(exportFrom!) && d <= endOfDay(exportTo!);
+      });
+    }
+    const hasTestDone = (t: unknown) => {
+      const s = (t as { status?: string })?.status;
+      return s === TestStatus.COMPLETED || s === TestStatus.IN_PROGRESS;
+    };
+    const getTests = (c: ConsultationModelData) => {
+      const tests: string[] = [];
+      if (c.audiometry && hasTestDone(c.audiometry)) tests.push("PTA");
+      if (c.tympanometry && hasTestDone(c.tympanometry)) tests.push("Tympanometry");
+      if (c.oae && hasTestDone(c.oae)) tests.push("OAE");
+      if (c.etfIntact != null) tests.push("ETF");
+      if (c.otoscopy && hasTestDone(c.otoscopy)) tests.push("Otoscopy");
+      if (c.toneDecay && hasTestDone(c.toneDecay)) tests.push("Tone Decay");
+      if (c.reflexometry != null) tests.push("Reflexometry");
+      return tests.join("; ");
+    };
+    return {
+      centreInfo: {
+        name: centreData?.user?.name || centreData?.entName || "Unknown Centre",
+        code: centreData?.code || "N/A",
+        deviceCode: centreData?.device?.code || "N/A",
+        location: centreData?.city?.name || "Unknown",
+        contact: centreData?.contactNumber || "N/A",
+        entName: centreData?.entName || "N/A",
+        assistant: centreData?.assistantName || "N/A",
+      },
+      stats: {
+        total: consults.length,
+        completed: consults.filter((c) => c.status === SessionStatus.COMPLETED).length,
+        inProgress: consults.filter((c) => c.status === SessionStatus.IN_PROGRESS).length,
+        pending: consults.filter((c) => c.status === SessionStatus.PENDING).length,
+        cancelled: consults.filter((c) => c.status === SessionStatus.CANCELLED).length,
+        missedCalls: consults.filter((c) => !c.audiologist?.user?.name).length,
+        pta: consults.filter((c) => c.audiometry && hasTestDone(c.audiometry)).length,
+        tympanometry: consults.filter((c) => c.tympanometry && hasTestDone(c.tympanometry)).length,
+        oae: consults.filter((c) => c.oae && hasTestDone(c.oae)).length,
+        otoscopy: consults.filter((c) => c.otoscopy && hasTestDone(c.otoscopy)).length,
+        etf: consults.filter((c) => c.etfIntact != null).length,
+        toneDecay: consults.filter((c) => c.toneDecay && hasTestDone(c.toneDecay)).length,
+        reflexometry: consults.filter((c) => c.reflexometry != null).length,
+      },
+      consultations: consults.map((c) => ({
+        patient: c.patient?.name || "Unknown",
+        contact: c.patient?.contactNumber || "N/A",
+        audiologist: c.audiologist?.user?.name || "Not Assigned",
+        status: c.status || "N/A",
+        dateTime: c.createdAt ? format(new Date(c.createdAt), "dd MMM yyyy, HH:mm") : "N/A",
+        tests: getTests(c),
+      })),
+    };
+  };
+
+  const handleExportCsv = (
+    exportFrom: Date | null,
+    exportTo: Date | null,
+    label: string,
+    useFilteredConsultations = false
+  ) => {
+    const { centreInfo, stats, consultations } = buildExportData(
+      exportFrom,
+      exportTo,
+      useFilteredConsultations
+    );
+    const centreRows = [
+      ["Centre Name", centreInfo.name],
+      ["Code", centreInfo.code],
+      ["Device Code", centreInfo.deviceCode],
+      ["Location", centreInfo.location],
+      ["Contact", centreInfo.contact],
+      ["ENT Name", centreInfo.entName],
+      ["Assistant", centreInfo.assistant],
+      [],
+      ["Summary (date range)", ""],
+      ["Total Consultations", stats.total],
+      ["Completed", stats.completed],
+      ["In Progress", stats.inProgress],
+      ["Pending", stats.pending],
+      ["Cancelled", stats.cancelled],
+      ["Missed Calls", stats.missedCalls],
+      ["PTA", stats.pta],
+      ["Tympanometry", stats.tympanometry],
+      ["OAE", stats.oae],
+      ["Otoscopy", stats.otoscopy],
+      ["ETF", stats.etf],
+      ["Tone Decay", stats.toneDecay],
+      ["Reflexometry", stats.reflexometry],
+      [],
+      ["Consultations", ""],
+      ["Patient", "Contact", "Audiologist", "Status", "Date & Time", "Tests"],
+      ...consultations.map((c) => [
+        `"${c.patient}"`,
+        `"${c.contact}"`,
+        `"${c.audiologist}"`,
+        `"${c.status}"`,
+        `"${c.dateTime}"`,
+        `"${c.tests}"`,
+      ]),
+    ];
+    const csvContent = centreRows.map((row) => (Array.isArray(row) ? row.join(",") : "")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const safeName = (centreData?.user?.name || centreId).replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-_]/g, "");
+    a.download = `centre-detail-${safeName}-${label}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (consultationsLoading || centreLoading) {
     return (
       <DashboardBodyWrapper>
@@ -281,10 +436,6 @@ export default function CentreDetailPage() {
                     {centreData?.user?.name || centreData?.entName || "Unknown Centre"}
                   </h1>
                   <div className="flex flex-wrap gap-4 text-primary-100">
-                    <span className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      {centreData?.code || "N/A"}
-                    </span>
                     {centreData?.city?.name && (
                       <span className="flex items-center gap-2">
                         <MapPin className="w-4 h-4" />
@@ -306,7 +457,34 @@ export default function CentreDetailPage() {
                   </div>
                 </div>
               </div>
-
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 text-white border-0">
+                    <Download className="w-4 h-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleExportCsv(fromDate, toDate, "current-filters", true)}>
+                        Current filters
+                      </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportCsv(today, today, "today")}>
+                    Today
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportCsv(yesterday, yesterday, "yesterday")}>
+                    Yesterday
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportCsv(subDays(today, 7), today, "last-7-days")}>
+                    Last 7 Days
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportCsv(subDays(today, 30), today, "last-30-days")}>
+                    Last 30 Days
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportCsv(null, null, "all-time")}>
+                    All Time
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -592,6 +770,54 @@ export default function CentreDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Tests Done */}
+        <Card className="mb-6 border-2 border-primary-200 shadow-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-primary-700">
+              <Stethoscope className="w-5 h-5" />
+              Tests Done
+            </CardTitle>
+            <p className="text-sm text-gray-500 font-normal mt-1">
+              Number of consultations for this centre that have each test type
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+              <div className="p-5 rounded-lg bg-blue-50 border border-blue-200">
+                <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">PTA</p>
+                <p className="text-2xl font-bold text-blue-700 mt-1">{stats.ptaCount}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Pure Tone Audiometry</p>
+              </div>
+              <div className="p-5 rounded-lg bg-emerald-50 border border-emerald-200">
+                <p className="text-xs font-medium text-emerald-600 uppercase tracking-wide">Tympanometry</p>
+                <p className="text-2xl font-bold text-emerald-700 mt-1">{stats.tympanometryCount}</p>
+              </div>
+              <div className="p-5 rounded-lg bg-violet-50 border border-violet-200">
+                <p className="text-xs font-medium text-violet-600 uppercase tracking-wide">OAE</p>
+                <p className="text-2xl font-bold text-violet-700 mt-1">{stats.oaeCount}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Otoacoustic Emissions</p>
+              </div>
+              <div className="p-5 rounded-lg bg-amber-50 border border-amber-200">
+                <p className="text-xs font-medium text-amber-600 uppercase tracking-wide">Otoscopy</p>
+                <p className="text-2xl font-bold text-amber-700 mt-1">{stats.otoscopyCount}</p>
+              </div>
+              <div className="p-5 rounded-lg bg-cyan-50 border border-cyan-200">
+                <p className="text-xs font-medium text-cyan-600 uppercase tracking-wide">ETF</p>
+                <p className="text-2xl font-bold text-cyan-700 mt-1">{stats.etfCount}</p>
+                <p className="text-xs text-gray-500 mt-0.5">ETF Intact</p>
+              </div>
+              <div className="p-5 rounded-lg bg-rose-50 border border-rose-200">
+                <p className="text-xs font-medium text-rose-600 uppercase tracking-wide">Tone Decay</p>
+                <p className="text-2xl font-bold text-rose-700 mt-1">{stats.toneDecayCount}</p>
+              </div>
+              <div className="p-5 rounded-lg bg-teal-50 border border-teal-200">
+                <p className="text-xs font-medium text-teal-600 uppercase tracking-wide">Reflexometry</p>
+                <p className="text-2xl font-bold text-teal-700 mt-1">{stats.reflexometryCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Consultations Table */}
         <Card>

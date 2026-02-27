@@ -408,11 +408,7 @@ function AudiologistCard({ cardData }: { cardData: any }) {
           <p className="text-sm font-semibold text-gray-900 break-words leading-tight" title={cardData.name}>
             {cardData.name}
           </p>
-          {cardData.grade && (
-            <p className="text-[11px] text-gray-500 break-words mt-0.5" title={cardData.grade}>
-              {cardData.grade}
-            </p>
-          )}
+         
           <p className="text-[11px] text-gray-400 truncate mt-0.5" title={cardData.email}>{cardData.email}</p>
         </div>
       </div>

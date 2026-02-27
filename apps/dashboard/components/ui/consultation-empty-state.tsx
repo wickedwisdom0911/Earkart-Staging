@@ -74,7 +74,7 @@ export function ConsultationEmptyState({
               </>
             ) : hasFilters ? (
               <>
-                No consultations match your current filters. Try adjusting your date range or clear the filters to see all consultations.
+                No consultations match your current filters. Try adjusting your date range or audiologist, or clear the filters to see all consultations.
               </>
             ) : (
               <>

@@ -6,12 +6,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { startOfDay, endOfDay } from "date-fns";
 import { useGetConsultationsInfinite } from "@/hooks/consultation/use-get-consultations-infinite";
+import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import {
   User,
   Filter,
   X,
   FileSpreadsheet,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { exportConsultationsToExcel } from "@/lib/export-consultations-excel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,14 +41,31 @@ function AllConsultationsContent() {
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [selectedAudiologistId, setSelectedAudiologistId] = useState<string>("");
   const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  const { data: audiologistsData } = useGetAllAudiologists();
+  const audiologists = audiologistsData?.data ?? [];
 
   const isAudiologist =
     user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
   const isHeadAudiologist = user?.role === Role.HEAD_AUDIOLOGIST;
+  const canFilterByAudiologist =
+    user?.role === Role.HEAD_AUDIOLOGIST ||
+    user?.role === Role.ADMIN ||
+    user?.role === Role.SUPER_ADMIN;
 
-  // HEAD_AUDIOLOGIST: see all (no audiologistId). AUDIOLOGIST: only their own (audiologistId=user.id)
-  const audiologistFilterId = isAudiologist && !isHeadAudiologist && user?.id ? user.id : undefined;
+  // Resolve audiologist filter: AUDIOLOGIST uses their profile id (or userId fallback). HEAD/ADMIN use selected.
+  const myAudiologistProfile = user?.id
+    ? audiologists.find((a) => (a.userId ?? a.user?.id) === user.id)
+    : null;
+  const audiologistFilterId = isAudiologist && !isHeadAudiologist && user?.id
+    ? (myAudiologistProfile?.id ?? user.id)
+    : canFilterByAudiologist && selectedAudiologistId
+      ? selectedAudiologistId
+      : undefined;
+  // For admin/head: we pass profile id. For audiologist: we pass userId (backend may accept either)
+  const audiologistFilterIsProfileId = canFilterByAudiologist && !!selectedAudiologistId;
 
   const {
     consultations: allConsultations,
@@ -59,11 +84,13 @@ function AllConsultationsContent() {
   });
 
   // Client-side filter fallback (in case backend doesn't support params)
-  // Audiologist (non-head): only show consultations where audiologist.userId === user.id
-  // Date: use startOfDay/endOfDay with T12:00:00 to avoid timezone issues
+  // Audiologist: match by userId or profile id. Date: startOfDay/endOfDay with T12:00:00
   const filteredConsultations = allConsultations.filter((c) => {
-    if (audiologistFilterId && c.audiologist?.userId && c.audiologist.userId !== audiologistFilterId)
-      return false;
+    if (audiologistFilterId) {
+      const matchByUserId = c.audiologist?.userId === audiologistFilterId;
+      const matchByProfileId = c.audiologistId === audiologistFilterId || c.audiologist?.id === audiologistFilterId;
+      if (!matchByUserId && !matchByProfileId) return false;
+    }
     if (!c.createdAt) return true;
     const consultationDate = new Date(c.createdAt);
     if (startDate) {
@@ -99,6 +126,7 @@ function AllConsultationsContent() {
   const clearFilters = () => {
     setStartDate("");
     setEndDate("");
+    setSelectedAudiologistId("");
   };
 
   // Infinite scroll: load more when loadMoreRef becomes visible
@@ -182,7 +210,7 @@ function AllConsultationsContent() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Start Date
@@ -206,9 +234,40 @@ function AllConsultationsContent() {
                 className="w-full"
               />
             </div>
+
+            {canFilterByAudiologist && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Audiologist
+                </label>
+                <Select
+                  value={selectedAudiologistId || "all"}
+                  onValueChange={(v) => setSelectedAudiologistId(v === "all" ? "" : v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All audiologists" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All audiologists</SelectItem>
+                    {audiologists
+                      .filter((a): a is NonNullable<typeof a> => a != null)
+                      .map((a) => {
+                        const profileId = a.id ?? a.userId ?? a.user?.id;
+                        const name = a.user?.name ?? a.user?.email ?? "Unknown";
+                        if (!profileId) return null;
+                        return (
+                          <SelectItem key={profileId} value={profileId}>
+                            {name}
+                          </SelectItem>
+                        );
+                      })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
-          {(startDate || endDate) && (
+          {(startDate || endDate || selectedAudiologistId) && (
             <div className="mt-4 flex justify-end">
               <Button
                 variant="outline"
@@ -274,7 +333,7 @@ function AllConsultationsContent() {
             {consultations.length === 0 ? (
               <ConsultationEmptyState
                 type="all"
-                hasFilters={!!(startDate || endDate)}
+                hasFilters={!!(startDate || endDate || selectedAudiologistId)}
                 onClearFilters={clearFilters}
                 noResultsOnPage={
                   total > 0 && !(startDate || endDate) && isAudiologist

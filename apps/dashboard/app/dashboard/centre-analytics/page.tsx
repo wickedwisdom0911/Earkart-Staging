@@ -42,6 +42,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableBody,
   TableCell,
@@ -271,6 +277,74 @@ export default function CentreAnalyticsPage() {
       totalETF,
     };
   }, [allCentreTableData]);
+
+  // Build export data for a given date range
+  const buildExportData = (exportFrom: Date | null, exportTo: Date | null) => {
+    if (!consultations?.data || !centres?.data?.data) return [];
+    const consultationsArray = extractConsultations(consultations.data);
+    const filtered = consultationsArray.filter((c) => {
+      if (!c.centre?.id) return false;
+      if (!c.createdAt) return false;
+      const d = new Date(c.createdAt);
+      if (!exportFrom && !exportTo) return true;
+      if (exportFrom && !exportTo) return d >= startOfDay(exportFrom);
+      if (!exportFrom && exportTo) return d <= endOfDay(exportTo);
+      return d >= startOfDay(exportFrom!) && d <= endOfDay(exportTo!);
+    });
+    return centres.data.data.map((centre: any) => {
+      const centreId = centre.id;
+      const centreFiltered = filtered.filter((c) => c.centre?.id === centreId);
+      const allCentreConsultations = consultationsByCentre.get(centreId) || [];
+      const hasTestDone = (t: unknown) => {
+        const s = (t as { status?: string })?.status;
+        return s === TestStatus.COMPLETED || s === TestStatus.IN_PROGRESS;
+      };
+      return {
+        name: centre.user?.name || centre.entName || "Unknown Centre",
+        code: centre.code || "N/A",
+        location: centre.city?.name || "Unknown",
+        contactNumber: centre.contactNumber || "N/A",
+        entName: centre.entName || "N/A",
+        assistantName: centre.assistantName || "N/A",
+        isOurAssistant: centre.isOurAssistant ? "Yes" : "No",
+        deviceCode: centre.device?.code || "N/A",
+        totalConsultations: allCentreConsultations.length,
+        filteredConsultations: centreFiltered.length,
+        completed: centreFiltered.filter((c) => c.status === SessionStatus.COMPLETED).length,
+        inProgress: centreFiltered.filter((c) => c.status === SessionStatus.IN_PROGRESS).length,
+        pending: centreFiltered.filter((c) => c.status === SessionStatus.PENDING).length,
+        failed: centreFiltered.filter((c) => c.status === SessionStatus.FAILED).length,
+        cancelled: centreFiltered.filter((c) => c.status === SessionStatus.CANCELLED).length,
+        ptaCount: centreFiltered.filter((c) => c.audiometry && hasTestDone(c.audiometry)).length,
+        tympanometryCount: centreFiltered.filter((c) => c.tympanometry && hasTestDone(c.tympanometry)).length,
+        oaeCount: centreFiltered.filter((c) => c.oae && hasTestDone(c.oae)).length,
+        etfCount: centreFiltered.filter((c) => c.etfIntact != null).length,
+        toneDecayCount: centreFiltered.filter((c) => c.toneDecay && hasTestDone(c.toneDecay)).length,
+        reflexometryCount: centreFiltered.filter((c) => c.reflexometry != null).length,
+        otoscopyCount: centreFiltered.filter((c) => c.otoscopy && hasTestDone(c.otoscopy)).length,
+      };
+    });
+  };
+
+  const handleExportCsv = (exportFrom: Date | null, exportTo: Date | null, label: string) => {
+    const data = buildExportData(exportFrom, exportTo);
+    const csvContent = [
+      ["Centre Name", "Code", "Location", "Contact", "ENT Name", "Assistant", "Our Assistant", "Device Code", "Total Consultations", "Completed", "In Progress", "Pending", "Failed", "Cancelled", "PTA", "Tympanometry", "OAE", "ETF", "Tone Decay", "Reflexometry", "Otoscopy"].join(","),
+      ...data.map((d) => [
+        `"${d.name}"`, `"${d.code}"`, `"${d.location}"`, `"${d.contactNumber}"`, `"${d.entName}"`, `"${d.assistantName}"`,
+        `"${d.isOurAssistant}"`, `"${d.deviceCode}"`,
+        d.totalConsultations, d.completed, d.inProgress, d.pending, d.failed, d.cancelled,
+        d.ptaCount, d.tympanometryCount, d.oaeCount, d.etfCount, d.toneDecayCount, d.reflexometryCount, d.otoscopyCount,
+      ].join(",")),
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `centre-analytics-${label}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Handle navigation to centre details
   const handleViewCentre = (centreId: string) => {
@@ -575,13 +649,11 @@ export default function CentreAnalyticsPage() {
                 <TableHeader>
                   <TableRow className="bg-gray-50 text-[11px] sm:text-xs">
                     <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Centre Name</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Code</TableHead>
                     <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Location</TableHead>
                     <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Contact</TableHead>
                     <TableHead className="font-bold px-2 py-2 whitespace-nowrap">ENT Name</TableHead>
                     <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Assistant</TableHead>
                     <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Our Assistant</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Device Code</TableHead>
                     <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Total</TableHead>
                     <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Completed</TableHead>
                     <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">In Progress</TableHead>
@@ -601,7 +673,7 @@ export default function CentreAnalyticsPage() {
                 <TableBody>
                   {centreTableData.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={22} className="text-center py-12">
+                      <TableCell colSpan={20} className="text-center py-12">
                         <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                         <p className="text-gray-600 text-lg">No centres found</p>
                       </TableCell>
@@ -618,9 +690,6 @@ export default function CentreAnalyticsPage() {
                       >
                         <TableCell className="font-semibold text-primary-700 px-2 py-2 max-w-[160px] truncate">
                           {data.name}
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 whitespace-nowrap">
-                          {data.code}
                         </TableCell>
                         <TableCell className="text-gray-600 px-2 py-2 max-w-[140px] truncate">
                           {data.location}
@@ -642,9 +711,6 @@ export default function CentreAnalyticsPage() {
                           }`}>
                             {data.isOurAssistant}
                           </span>
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 whitespace-nowrap">
-                          {data.deviceCode}
                         </TableCell>
                         <TableCell className="text-center font-semibold text-blue-700 px-2 py-2">
                           {data.filteredConsultations}
@@ -763,44 +829,36 @@ export default function CentreAnalyticsPage() {
           </div>
         )}
 
-        {/* Export Button */}
+        {/* Export Button with date range options */}
         <div className="mt-4 flex justify-end">
-          <Button
-            variant="outline"
-            onClick={() => {
-              // Export as CSV logic
-              const csvContent = [
-                // Headers
-                [
-                  "Centre Name", "Code", "Location", "Contact", "ENT Name", "Assistant", 
-                  "Our Assistant", "Device Code", "Total Consultations", "Completed", 
-                  "In Progress", "Pending", "Failed", "Cancelled", "PTA", "Tympanometry", 
-                  "OAE", "ETF", "Tone Decay", "Reflexometry", "Otoscopy"
-                ].join(","),
-                // Data rows (export all data, not just paginated)
-                ...allCentreTableData.map(data => [
-                  `"${data.name}"`, `"${data.code}"`, `"${data.location}"`, 
-                  `"${data.contactNumber}"`, `"${data.entName}"`, `"${data.assistantName}"`,
-                  `"${data.isOurAssistant}"`, `"${data.deviceCode}"`,
-                  data.totalConsultations, data.completed, data.inProgress, data.pending,
-                  data.failed, data.cancelled, data.ptaCount, data.tympanometryCount,
-                  data.oaeCount, data.etfCount, data.toneDecayCount, data.reflexometryCount,
-                  data.otoscopyCount
-                ].join(","))
-              ].join("\n");
-
-              const blob = new Blob([csvContent], { type: "text/csv" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `centre-analytics-${format(new Date(), "yyyy-MM-dd")}.csv`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleExportCsv(fromDate, toDate, "current")}>
+                Current filters ({getDateDisplayText()})
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportCsv(today, today, "today")}>
+                Today
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportCsv(yesterday, yesterday, "yesterday")}>
+                Yesterday
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportCsv(subDays(today, 7), today, "last7days")}>
+                Last 7 Days
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportCsv(subDays(today, 30), today, "last30days")}>
+                Last 30 Days
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportCsv(null, null, "all")}>
+                All Time
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </DashboardBodyWrapper>
