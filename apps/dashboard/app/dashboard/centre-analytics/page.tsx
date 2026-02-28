@@ -55,6 +55,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { exportCentreAnalyticsToExcel } from "@/lib/export-centre-analytics-excel";
 
 export default function CentreAnalyticsPage() {
   const router = useRouter();
@@ -326,24 +327,32 @@ export default function CentreAnalyticsPage() {
     });
   };
 
-  const handleExportCsv = (exportFrom: Date | null, exportTo: Date | null, label: string) => {
+  const handleExportExcel = (exportFrom: Date | null, exportTo: Date | null, label: string) => {
     const data = buildExportData(exportFrom, exportTo);
-    const csvContent = [
-      ["Centre Name", "Code", "Location", "Contact", "ENT Name", "Assistant", "Our Assistant", "Device Code", "Total Consultations", "Completed", "In Progress", "Pending", "Failed", "Cancelled", "PTA", "Tympanometry", "OAE", "ETF", "Tone Decay", "Reflexometry", "Otoscopy"].join(","),
-      ...data.map((d) => [
-        `"${d.name}"`, `"${d.code}"`, `"${d.location}"`, `"${d.contactNumber}"`, `"${d.entName}"`, `"${d.assistantName}"`,
-        `"${d.isOurAssistant}"`, `"${d.deviceCode}"`,
-        d.totalConsultations, d.completed, d.inProgress, d.pending, d.failed, d.cancelled,
-        d.ptaCount, d.tympanometryCount, d.oaeCount, d.etfCount, d.toneDecayCount, d.reflexometryCount, d.otoscopyCount,
-      ].join(",")),
-    ].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `centre-analytics-${label}-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const rows = data.map((d) => ({
+      "Centre Name": d.name,
+      Code: d.code,
+      Location: d.location,
+      Contact: d.contactNumber,
+      "ENT Name": d.entName,
+      Assistant: d.assistantName,
+      "Our Assistant": d.isOurAssistant,
+      "Device Code": d.deviceCode,
+      "Total Consultations": d.totalConsultations,
+      Completed: d.completed,
+      "In Progress": d.inProgress,
+      Pending: d.pending,
+      Failed: d.failed,
+      Cancelled: d.cancelled,
+      PTA: d.ptaCount,
+      Tympanometry: d.tympanometryCount,
+      OAE: d.oaeCount,
+      ETF: d.etfCount,
+      "Tone Decay": d.toneDecayCount,
+      Reflexometry: d.reflexometryCount,
+      Otoscopy: d.otoscopyCount,
+    }));
+    exportCentreAnalyticsToExcel(rows, label);
   };
 
   // Handle navigation to centre details
@@ -835,26 +844,26 @@ export default function CentreAnalyticsPage() {
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Download className="w-4 h-4 mr-2" />
-                Export CSV
+                Export Excel
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleExportCsv(fromDate, toDate, "current")}>
+              <DropdownMenuItem onClick={() => handleExportExcel(fromDate, toDate, "current")}>
                 Current filters ({getDateDisplayText()})
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportCsv(today, today, "today")}>
+              <DropdownMenuItem onClick={() => handleExportExcel(today, today, "today")}>
                 Today
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportCsv(yesterday, yesterday, "yesterday")}>
+              <DropdownMenuItem onClick={() => handleExportExcel(yesterday, yesterday, "yesterday")}>
                 Yesterday
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportCsv(subDays(today, 7), today, "last7days")}>
+              <DropdownMenuItem onClick={() => handleExportExcel(subDays(today, 7), today, "last7days")}>
                 Last 7 Days
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportCsv(subDays(today, 30), today, "last30days")}>
+              <DropdownMenuItem onClick={() => handleExportExcel(subDays(today, 30), today, "last30days")}>
                 Last 30 Days
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportCsv(null, null, "all")}>
+              <DropdownMenuItem onClick={() => handleExportExcel(null, null, "all")}>
                 All Time
               </DropdownMenuItem>
             </DropdownMenuContent>
