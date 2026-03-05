@@ -3,11 +3,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { SidebarItem } from "./AppSidebar";
-import { CollapsibleContent, CollapsibleTrigger } from "./collapsible";
-import { Collapsible } from "./collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./collapsible";
 import {
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -15,130 +13,122 @@ import {
   SidebarMenuSubItem,
 } from "./sidebar";
 import { cn } from "@/lib/utils";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 export default function AppSidebarBody({ item }: { item: SidebarItem }) {
   const pathname = usePathname();
-  const router = useRouter();
-  
-  console.log("Rendering sidebar item:", item);
-  
-  // If item has no sub-items, render as a simple link
-  if (!item.subItems) {
+  // For /dashboard (Active Consultations), only match exactly - otherwise it would match all dashboard sub-routes
+  const isActive = item.url
+    ? pathname === item.url ||
+      (item.url !== "/dashboard" && pathname.startsWith(item.url + "/"))
+    : false;
+  const hasSubItems = item.subItems && item.subItems.length > 0;
+  const [open, setOpen] = useState(
+    hasSubItems ? item.subItems!.some((sub) => sub.url && pathname.startsWith(sub.url)) : false
+  );
+
+  if (hasSubItems) {
     return (
-      <SidebarMenu key={item.name}>
-        <SidebarMenuItem>
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full"
-          >
-            <SidebarMenuButton
-              isActive={
-                item.url === "/dashboard"
-                  ? pathname === "/dashboard"
-                  : pathname.startsWith(item.url!)
-              }
-              className={cn(
-                "h-full w-full py-4 cursor-pointer hover:bg-primary-400/90 transition-all duration-200"
-              )}
-              onClick={() => {
-                if (item.url) {
-                  console.log(`Redirecting to: ${item.url}`);
-                  router.push(item.url);
-                }
-              }}
-            >
-              {item.icon}
-              <span className="ml-3 flex-1 flex items-start font-medium">
-                {item.name}
-              </span>
-            </SidebarMenuButton>
-          </motion.div>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    );
-  }
-  
-  // If item has sub-items, render with Collapsible
-  return (
-    <SidebarMenu key={item.name}>
-      <Collapsible className={`group/${item.name}`}>
-        <SidebarMenuItem className="z-50">
+      <SidebarMenuItem>
+        <Collapsible open={open} onOpenChange={setOpen}>
           <CollapsibleTrigger asChild>
-            <Link href={item.url || "#"}>
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full"
+            <SidebarMenuButton
+              className={cn(
+                "flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group",
+                isActive
+                  ? "bg-[#EBF6FD] text-[#40A3DB]"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              )}
+            >
+              {/* Icon */}
+              <span
+                className={cn(
+                  "flex-shrink-0 w-5 h-5 flex items-center justify-center transition-colors",
+                  isActive ? "text-[#40A3DB]" : "text-gray-500 group-hover:text-gray-700"
+                )}
               >
-                <SidebarMenuButton
-                  isActive={
-                    item.url === "/dashboard"
-                      ? pathname === "/dashboard"
-                      : pathname.startsWith(item.url!)
-                  }
-                  className={cn(
-                    "h-full w-full py-4 cursor-pointer  hover:bg-primary-400/90 transition-all duration-200"
-                  )}
-                >
-                  {item.icon}
-                  <span className="ml-3 flex-1 flex items-start font-medium">
-                    {item.name}
-                  </span>
-                </SidebarMenuButton>
-                <SidebarMenuBadge className="top-1/2 translate-y-1/2">
-                  {item.subItems && (
-                    <ChevronDown
-                      className={cn(
-                        "stroke-1 transition-transform duration-300",
-                        "group-[&[data-state=open]]/data-[state=open]:-rotate-180"
-                      )}
-                    />
-                  )}
-                </SidebarMenuBadge>
-              </motion.div>
-            </Link>
+                {item.icon}
+              </span>
+              <span className="flex-1 text-left truncate">{item.name}</span>
+              <ChevronDown
+                className={cn(
+                  "w-4 h-4 flex-shrink-0 transition-transform duration-200 text-gray-400",
+                  open && "rotate-180"
+                )}
+              />
+            </SidebarMenuButton>
           </CollapsibleTrigger>
-          <AnimatePresence>
-            {item.subItems && (
-              <CollapsibleContent>
+
+          <AnimatePresence initial={false}>
+            {open && (
+              <CollapsibleContent forceMount asChild>
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                  className="overflow-hidden"
                 >
-                  {item.subItems.map((subItem: SidebarItem) => (
-                    <SidebarMenuSub key={subItem.name}>
-                      <SidebarMenuSubItem>
-                        <Link href={subItem.url || "#"}>
-                          <motion.div
-                            whileHover={{ x: 4 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <SidebarMenuSubButton
-                              asChild
-                              isActive={pathname.includes(subItem.url!)}
+                  <SidebarMenuSub className="ml-4 mt-1 border-l border-gray-100 pl-3 space-y-0.5">
+                    {item.subItems!.map((sub) => {
+                      const subActive = sub.url ? pathname === sub.url || pathname.startsWith(sub.url + "/") : false;
+                      return (
+                        <SidebarMenuSubItem key={sub.name}>
+                          <SidebarMenuSubButton asChild>
+                            <Link
+                              href={sub.url || "#"}
                               className={cn(
-                                "hover:bg-primary-100 rounded-md transition-all duration-200",
-                                pathname.includes(subItem.url!) &&
-                                  "bg-primary-100 font-medium"
+                                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150",
+                                subActive
+                                  ? "bg-[#EBF6FD] text-[#40A3DB]"
+                                  : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
                               )}
                             >
-                              <span className="ml-2">{subItem.name}</span>
-                            </SidebarMenuSubButton>
-                          </motion.div>
-                        </Link>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  ))}
+                              {sub.icon && (
+                                <span className={cn("w-4 h-4 flex-shrink-0", subActive ? "text-[#40A3DB]" : "text-gray-400")}>
+                                  {sub.icon}
+                                </span>
+                              )}
+                              {sub.name}
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      );
+                    })}
+                  </SidebarMenuSub>
                 </motion.div>
               </CollapsibleContent>
             )}
           </AnimatePresence>
-        </SidebarMenuItem>
-      </Collapsible>
-    </SidebarMenu>
+        </Collapsible>
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild>
+        <Link
+          href={item.url || "#"}
+          className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group",
+            isActive
+              ? "bg-[#EBF6FD] text-[#40A3DB]"
+              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+          )}
+        >
+          <span
+            className={cn(
+              "flex-shrink-0 w-5 h-5 flex items-center justify-center transition-colors",
+              isActive ? "text-[#40A3DB]" : "text-gray-500 group-hover:text-gray-700"
+            )}
+          >
+            {item.icon}
+          </span>
+          <span className="truncate">{item.name}</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }

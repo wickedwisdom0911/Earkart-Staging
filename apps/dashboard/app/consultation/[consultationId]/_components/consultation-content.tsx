@@ -1,11 +1,14 @@
 "use client";
 import React from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { VideoCall } from "./video-call";
 import { useOtoscopy } from "@/providers/otoscopy-provider";
-import { usePathname } from "next/navigation";
 import { useDevice } from "@/providers/device-provider";
 import { ShareScreenButton } from "./share-screen-button";
+import { User, HelpCircle, Link } from "lucide-react";
+import { ROUTES } from "@/lib/routes";
 
+// ── Delayed video call (for otoscopy) ────────────────────────────────────────
 interface DelayedVideoCallProps {
   channel: string;
   patientName: string;
@@ -23,31 +26,48 @@ const DelayedVideoCall: React.FC<DelayedVideoCallProps> = ({
   ...props
 }) => {
   const [shouldRender, setShouldRender] = React.useState(false);
-
   React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setShouldRender(true);
-    }, delay);
-
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setShouldRender(true), delay);
+    return () => clearTimeout(t);
   }, [delay]);
 
   if (!shouldRender) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-white bg-black">
+      <div className="w-full h-full flex items-center justify-center bg-[#232931]">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-lg">Connecting to otoscope stream...</p>
-          <p className="text-sm text-gray-400 mt-2">Please wait while the audiometer camera initializes</p>
+          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-white text-sm">Connecting to otoscope stream…</p>
+          <p className="text-gray-400 text-xs mt-1">Please wait while the audiometer camera initialises</p>
         </div>
       </div>
     );
   }
-
   return <VideoCall {...props} hideLocalUser={hideLocalUser} showOtoscopyOnly={showOtoscopyOnly} />;
 };
 
+// ── Tab definitions ───────────────────────────────────────────────────────────
+const TABS = [
+  {
+    label: "Patients Info",
+    Icon: User,
+    href: (id: string) => `/consultation/${id}`,
+    match: (p: string, id: string) => p === `/consultation/${id}`,
+  },
+  {
+    label: "Questionnaire",
+    Icon: HelpCircle,
+    href: (id: string) => ROUTES.ANSWER_QUESTIONNAIRE(id),
+    match: (p: string) => p?.includes("answer-questionnaire") ?? false,
+  },
+  {
+    label: "Tests",
+    Icon: Link,
+    href: (id: string) => ROUTES.CONSULTATION_TEST_SELECTION(id),
+    match: (p: string) => p?.includes("test-selection") ?? false,
+  },
+] as const;
 
+// ── ConsultationContent ───────────────────────────────────────────────────────
 interface ConsultationContentProps {
   consultationId: string;
   patientName: string;
@@ -61,50 +81,79 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
   children,
   onBeforeLeaveCall,
 }) => {
-  const { isOtoscopyActive, stopOtoscopy } = useOtoscopy();
-  const { deviceState } = useDevice();
   const pathname = usePathname();
-  
-  const isVideoOtoscopyPage = pathname?.includes('/test/video-otoscopy');
-  
+  const router = useRouter();
+  const { isOtoscopyActive } = useOtoscopy();
+  const { deviceState } = useDevice();
   const isCameraOpen = deviceState.r15c.isCameraOpen;
-  
-  // Debug: Log the otoscopy state
-  React.useEffect(() => {
-    if (isOtoscopyActive) {
-      console.log("🔬 [OTOSCOPY] State:", {
-        isOtoscopyActive,
-        isCameraOpen,
-        isVideoOtoscopyPage,
-      });
-    }
-  }, [isOtoscopyActive, isCameraOpen, isVideoOtoscopyPage]);
-  
-  // REMOVED: Fullscreen behavior - otoscopy stream now shows in white panel
-  // Patient video always stays visible and unchanged in left panel
 
-  // Normal layout - always show patient video in left panel (unchanged)
+  React.useEffect(() => {
+    if (isOtoscopyActive) console.log("🔬 [OTOSCOPY] State:", { isOtoscopyActive, isCameraOpen });
+  }, [isOtoscopyActive, isCameraOpen]);
+
   return (
-    <div className="flex gap-2 overflow-hidden h-full w-full relative">
-      {/* Share Screen Button - Fixed at top right */}
-      <div className="absolute top-2 right-2 z-20">
-        <ShareScreenButton />
+    <div className="flex h-full w-full overflow-hidden relative">
+
+      {/* ── Left: dark video panel — Figma spec: 799 x 911 ── */}
+      <div className="flex-none w-[799px] min-h-[800px] bg-[#232931] relative overflow-hidden rounded-[20px]">
+        <VideoCall
+          channel={consultationId}
+          patientName={patientName}
+          isFullscreen={true}
+          onBeforeLeaveCall={onBeforeLeaveCall}
+          hideLocalUser={false}
+          showOtoscopyOnly={false}
+          excludeOtoscopyStream={isOtoscopyActive}
+        />
       </div>
-      
-      {/* Otoscopy indicator when active */}
-   
-      
-      {/* Patient video - always show, exclude otoscopy stream to keep it unchanged */}
-      <VideoCall
-        channel={consultationId}
-        patientName={patientName}
-        isFullscreen={false}
-        onBeforeLeaveCall={onBeforeLeaveCall}
-        hideLocalUser={false}
-        showOtoscopyOnly={false} // Always show patient video, never otoscopy
-        excludeOtoscopyStream={isOtoscopyActive} // Exclude otoscopy stream when active
-      />
-      <main className="flex-1 w-full overflow-y-scroll">{children}</main>
+
+      {/* ── Right: tabbed patient panel ── */}
+      {/*
+        White background, tabs at top, scrollable content below.
+        Tab active state: light mint bg (#e8f8e9 / bg-[#edf7ee]) with slightly
+        darker border-bottom, matching the screenshot's teal-tinted active tab.
+        Inactive tabs: plain text, hover gray.
+        Tab row has a bottom border-b separating it from content.
+      */}
+      <main className="flex-1 flex flex-col overflow-hidden bg-white border-l border-gray-100 relative">
+
+        {/* Share Screen button – absolute inside right panel */}
+        <div className="absolute top-2 right-2 z-20">
+          <ShareScreenButton />
+        </div>
+
+        {/* Tab strip — centered like Figma: active = light green bg, dark green text/icon, green underline */}
+        <div className="flex flex-shrink-0 border-b border-gray-200 bg-white justify-center">
+          {TABS.map(({ label, Icon, href, match }) => {
+            const isActive = match(pathname ?? "", consultationId);
+            return (
+              <button
+                key={label}
+                onClick={() => router.push(href(consultationId))}
+                className={[
+                  "flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 -mb-px transition-colors focus:outline-none whitespace-nowrap",
+                  isActive
+                    ? "border-[#2e7d32] text-[#2e7d32] bg-[#e8f8e9]"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50",
+                ].join(" ")}
+              >
+                <Icon
+                  className={[
+                    "w-4 h-4 flex-shrink-0",
+                    isActive ? "text-[#2e7d32]" : "text-gray-400",
+                  ].join(" ")}
+                />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content area — px/py handled inside each child page */}
+        <div className="flex-1 overflow-y-auto min-h-0 w-full">
+          {children}
+        </div>
+      </main>
     </div>
   );
-}; 
+};

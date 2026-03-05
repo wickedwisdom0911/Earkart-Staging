@@ -6,9 +6,12 @@ export const ROUTES = {
   AUDIOLOGISTS: "/dashboard/audiologists",
   AUDIOLOGIST: (id: string) => `/dashboard/audiologists/${id}`,
   CENTRES: "/dashboard/centres",
+  CENTRE: (centreId: string) => `/dashboard/centres/${centreId}`,
+  EDIT_CENTRE: (centreId: string) => `/dashboard/centres/${centreId}`,
   LOCATIONS: "/dashboard/settings/locations",
   LANGUAGES: "/dashboard/settings/languages",
   DEVICES: "/dashboard/settings/devices",
+  DEVICE: (codeOrId: string) => `/dashboard/settings/devices/${codeOrId || "unknown"}`,
   QUESTIONNAIRE: "/dashboard/settings/questionnaire",
   MDM: "/dashboard/mdm",
   USERS: "/dashboard/users",
@@ -16,4 +19,5 @@ export const ROUTES = {
   APPOINTMENTS: "/dashboard/appointments",
   ALL_CONSULTATIONS: "/dashboard/all-consultations",
   ANSWER_QUESTIONNAIRE: (consultationId: string) => `/consultation/${consultationId}/answer-questionnaire`,
+  CONSULTATION_TEST_SELECTION: (consultationId: string) => `/consultation/${consultationId}/test-selection`,
 };

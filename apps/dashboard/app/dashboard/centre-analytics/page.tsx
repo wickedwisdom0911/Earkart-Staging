@@ -12,35 +12,18 @@ import { extractConsultations } from "@/models/consultation.model";
 import useGetAllCentres from "@/hooks/centre/use-get-all-centres";
 import {
   CheckCircle2,
-  Clock,
-  PlayCircle,
-  AlertCircle,
   Building2,
   Calendar as CalendarIcon,
   Eye,
   Phone,
   Activity,
-  Stethoscope,
   FileText,
   Download,
-  Filter,
-  XCircle,
+  Search,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,14 +31,174 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { exportCentreAnalyticsToExcel } from "@/lib/export-centre-analytics-excel";
+
+// ── Stat Card ──────────────────────────────────────────────────────────────────
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+}: {
+  label: string;
+  value: number;
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+  color: "blue" | "green" | "purple" | "orange" | "red" | "cyan";
+}) {
+  const colors = {
+    blue: { text: "#3b82f6", bg: "#eff6ff", icon: "#3b82f6" },
+    green: { text: "#22c55e", bg: "#f0fdf4", icon: "#22c55e" },
+    purple: { text: "#8b5cf6", bg: "#f5f3ff", icon: "#8b5cf6" },
+    orange: { text: "#f97316", bg: "#fff7ed", icon: "#f97316" },
+    red: { text: "#ef4444", bg: "#fef2f2", icon: "#ef4444" },
+    cyan: { text: "#06b6d4", bg: "#ecfeff", icon: "#06b6d4" },
+  };
+  const c = colors[color] || colors.blue;
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm min-w-[120px] flex-1">
+      <div className="flex items-center justify-center rounded-lg p-2" style={{ background: c.bg }}>
+        <Icon size={16} color={c.icon} />
+      </div>
+      <div>
+        <div className="text-[11px] text-gray-500 mb-0.5">{label}</div>
+        <div className="text-xl font-bold" style={{ color: c.text }}>
+          {value.toLocaleString()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Centre Row (expandable) ─────────────────────────────────────────────────────
+function CentreRow({
+  data,
+  onView,
+}: {
+  data: {
+    centreId: string;
+    name: string;
+    location: string;
+    contactNumber: string;
+    entName: string;
+    assistantName: string;
+    isOurAssistant: string;
+    filteredConsultations: number;
+    completed: number;
+    pending: number;
+    ptaCount: number;
+    tympanometryCount: number;
+    oaeCount: number;
+    etfCount: number;
+    toneDecayCount: number;
+  };
+  onView: (centreId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const s = {
+    total: data.filteredConsultations,
+    completed: data.completed,
+    pending: data.pending,
+    pta: data.ptaCount,
+    tympano: data.tympanometryCount,
+    oae: data.oaeCount,
+    etf: data.etfCount,
+    toneDecay: data.toneDecayCount,
+  };
+
+  return (
+    <div className="rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm">
+      <div
+        className="grid items-center gap-2 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50"
+        style={{
+          gridTemplateColumns: "32px 1fr 1fr 1fr 1fr 1fr 80px 36px",
+          background: expanded ? "#fafafa" : "#fff",
+          borderBottom: expanded ? "1px solid #f3f4f6" : "none",
+        }}
+        onClick={() => onView(data.centreId)}
+      >
+        <div
+          className="text-gray-400 hover:text-gray-600"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(!expanded);
+          }}
+        >
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-400 mb-0.5">Centre Name</div>
+          <div className="text-sm font-semibold text-gray-900 truncate">{data.name}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-400 mb-0.5">Location</div>
+          <div className="text-sm text-gray-700 truncate">{data.location}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-400 mb-0.5">Contact</div>
+          <div className="text-sm text-gray-700">{data.contactNumber}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-400 mb-0.5">ENT Name</div>
+          <div className="text-sm text-gray-700 truncate">{data.entName}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-400 mb-0.5">Assistant</div>
+          <div className="text-sm text-gray-700 truncate">{data.assistantName}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-400 mb-0.5">Our Assistant</div>
+          <span
+            className={`inline-flex items-center rounded-md px-2.5 py-1 text-[11px] font-semibold ${
+              data.isOurAssistant === "Yes" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {data.isOurAssistant}
+          </span>
+        </div>
+        <button
+          type="button"
+          className="flex items-center justify-center p-1.5 rounded-md border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onView(data.centreId);
+          }}
+        >
+          <Eye size={14} className="text-gray-500" />
+        </button>
+      </div>
+      {expanded && (
+        <div
+          className="grid items-center gap-2 px-4 py-2.5 bg-white"
+          style={{ gridTemplateColumns: "32px repeat(8, 1fr)" }}
+        >
+          <div />
+          {[
+            { label: "Total", value: s.total, color: "#3b82f6" },
+            { label: "Completed", value: s.completed, color: "#22c55e" },
+            { label: "Pending", value: s.pending, color: "#f97316" },
+            { label: "PTA", value: s.pta, color: "#f97316" },
+            { label: "Tympano", value: s.tympano, color: "#06b6d4" },
+            { label: "OAE", value: s.oae, color: "#ec4899" },
+            { label: "ETF", value: s.etf, color: "#6366f1" },
+            { label: "Tone Decay", value: s.toneDecay, color: "#a855f7" },
+          ].map(({ label, value, color }) => (
+            <div key={label}>
+              <div className="text-[10px] text-gray-400 mb-1">{label}</div>
+              <div className="text-[15px] font-bold" style={{ color }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CentreAnalyticsPage() {
   const router = useRouter();
@@ -63,11 +206,16 @@ export default function CentreAnalyticsPage() {
 
   const {
     data: consultations,
-    isLoading,
+    isLoading: consultationsLoading,
     isError,
     error,
-  } = useGetAllConsultations();
-  const { data: centres } = useGetAllCentres();
+  } = useGetAllConsultations({
+    staleTime: 60_000, // Cache for 1 min - avoid refetch on every visit
+  });
+  const { data: centres, isLoading: centresLoading } = useGetAllCentres();
+
+  // Progressive loading: show UI when centres are ready, don't block on consultations
+  const isLoading = centresLoading;
 
   // Role checks - only admin and super_admin can access
   const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
@@ -83,10 +231,17 @@ export default function CentreAnalyticsPage() {
   const [toDate, setToDate] = useState<Date | null>(null);
   const today = new Date();
   const yesterday = subDays(today, 1);
-  
-  // Pagination states
-  const [page, setPage] = useState<number>(1);
-  const [limit, setLimit] = useState<number>(10); // Default 10 per page for table view
+
+  // Preset filter label
+  const [activeFilter, setActiveFilter] = useState<string>("All Time");
+  const filters = ["Today", "Yesterday", "Last 7 Days", "Last 30 Days"];
+
+  // Search filter
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
 
   // Filter consultations by date range (from/to dates)
@@ -240,19 +395,32 @@ export default function CentreAnalyticsPage() {
     });
   }, [centres, filteredConsultations, consultationsByCentre]);
   
-  // Pagination calculations for centre table data
-  const totalCentres = allCentreTableData.length;
-  const totalPages = Math.ceil(totalCentres / limit);
+  // Search filter for centres
+  const searchFilteredData = useMemo(() => {
+    if (!searchQuery.trim()) return allCentreTableData;
+    const q = searchQuery.toLowerCase().trim();
+    return allCentreTableData.filter(
+      (d) =>
+        d.name.toLowerCase().includes(q) ||
+        d.location.toLowerCase().includes(q) ||
+        d.entName.toLowerCase().includes(q) ||
+        d.assistantName.toLowerCase().includes(q) ||
+        d.contactNumber.includes(q)
+    );
+  }, [allCentreTableData, searchQuery]);
+
+  // Pagination
+  const totalCentres = searchFilteredData.length;
+  const totalPages = Math.ceil(totalCentres / limit) || 1;
   const startIndex = (page - 1) * limit;
   const endIndex = startIndex + limit;
-  const centreTableData = allCentreTableData.slice(startIndex, endIndex);
-  
-  // Reset to page 1 when date filters change
+  const centreTableData = searchFilteredData.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [fromDate, toDate]);
-  
-  // Pagination helpers
+  }, [fromDate, toDate, searchQuery]);
+
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
@@ -368,9 +536,9 @@ export default function CentreAnalyticsPage() {
 
   if (isLoading) {
     return (
-      <DashboardBodyWrapper>
-        <div className="flex items-center justify-center h-screen">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <DashboardBodyWrapper className="!bg-[#EEF4F9] !gap-0 !p-0 !border-0 !rounded-none">
+        <div className="flex items-center justify-center h-screen bg-[#EEF4F9]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#40A3DB]"></div>
         </div>
       </DashboardBodyWrapper>
     );
@@ -378,8 +546,8 @@ export default function CentreAnalyticsPage() {
 
   if (isError) {
     return (
-      <DashboardBodyWrapper>
-        <div className="p-6">
+      <DashboardBodyWrapper className="!bg-[#EEF4F9] !gap-0 !p-0 !border-0 !rounded-none">
+        <div className="p-6 bg-[#EEF4F9]">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
             Error loading data: {error?.message || "Unknown error"}
           </div>
@@ -402,401 +570,128 @@ export default function CentreAnalyticsPage() {
     return "All Time";
   };
 
-  // Clear date filters
-  const clearDateFilters = () => {
-    setFromDate(null);
-    setToDate(null);
+  const applyDatePreset = (preset: string) => {
+    setActiveFilter(preset);
+    if (preset === "Today") {
+      setFromDate(today);
+      setToDate(today);
+    } else if (preset === "Yesterday") {
+      setFromDate(yesterday);
+      setToDate(yesterday);
+    } else if (preset === "Last 7 Days") {
+      setFromDate(subDays(today, 7));
+      setToDate(today);
+    } else if (preset === "Last 30 Days") {
+      setFromDate(subDays(today, 30));
+      setToDate(today);
+    }
   };
 
   return (
-    <DashboardBodyWrapper>
-      <div className="p-6">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-lg shadow-lg p-6 text-white">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Centre Analytics</h1>
-              <p className="text-primary-100">
-                Performance overview for {getDateDisplayText()}
-              </p>
-            </div>
+    <DashboardBodyWrapper className="!bg-[#EEF4F9] !gap-0 !p-0 !border-0 !rounded-none">
+      <div className="min-h-screen w-full h-full bg-[#EEF4F9] p-6 font-['DM_Sans',_'Segoe_UI',_sans-serif]">
+        <div className="mb-5">
+          <h1 className="text-[26px] font-bold text-gray-900 m-0">Centre Analytics</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Performance overview for {getDateDisplayText()}
+            {consultationsLoading && (
+              <span className="ml-2 text-blue-600 text-xs">(updating stats…)</span>
+            )}
+          </p>
+        </div>
+
+        <div className="flex gap-2.5 mb-5 flex-wrap">
+          <StatCard label="Total Centres" value={summaryStats.totalCentres} icon={Building2} color="blue" />
+          <StatCard label="Active" value={summaryStats.activeCentres} icon={Phone} color="green" />
+          <StatCard label="Total" value={summaryStats.totalConsultations} icon={FileText} color="blue" />
+          <StatCard label="Completed" value={summaryStats.totalCompleted} icon={CheckCircle2} color="purple" />
+          <StatCard label="PTA" value={summaryStats.totalPTA} icon={Activity} color="red" />
+          <StatCard label="Tympano" value={summaryStats.totalTympanometry} icon={Activity} color="red" />
+          <StatCard label="OAE" value={summaryStats.totalOAE} icon={Activity} color="red" />
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg px-4 py-2.5 flex items-center gap-3 mb-4 shadow-sm flex-wrap">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <Search size={15} className="text-gray-400 shrink-0" />
+            <input
+              placeholder="Search centre or assistant"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="border-none outline-none text-sm text-gray-700 bg-transparent w-full"
+            />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <CalendarIcon size={15} className="text-gray-500 shrink-0" />
+            {filters.map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => applyDatePreset(f)}
+                className={`px-3 py-1.5 rounded-md border-none cursor-pointer text-xs font-medium transition-all ${
+                  activeFilter === f ? "bg-blue-600 text-white" : "bg-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveFilter("All Time");
+                setFromDate(null);
+                setToDate(null);
+              }}
+              className={`px-3 py-1.5 rounded-md border-none cursor-pointer text-xs font-medium transition-all ${
+                activeFilter === "All Time" ? "bg-blue-600 text-white" : "bg-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              All Time
+            </button>
           </div>
         </div>
 
-        {/* Date Range Filter Card */}
-        <Card className="mb-6 border-2 border-primary-200 shadow-md">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <CalendarIcon className="w-5 h-5 text-primary-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Select Date Range</h2>
+        <div className="flex flex-col gap-2.5">
+          {centreTableData.length === 0 ? (
+            <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
+              <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600 text-lg">No centres found</p>
             </div>
-            
-            <div className="space-y-4">
-              {/* Quick Date Buttons */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium text-gray-700 mr-2">Quick Select:</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setFromDate(today);
-                    setToDate(today);
-                  }}
-                  className={`${
-                    fromDate && toDate && isSameDay(fromDate, today) && isSameDay(toDate, today)
-                      ? "bg-primary-600 text-white border-primary-600"
-                      : ""
-                  }`}
-                >
-                  Today
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setFromDate(yesterday);
-                    setToDate(yesterday);
-                  }}
-                  className={`${
-                    fromDate && toDate && isSameDay(fromDate, yesterday) && isSameDay(toDate, yesterday)
-                      ? "bg-primary-600 text-white border-primary-600"
-                      : ""
-                  }`}
-                >
-                  Yesterday
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const weekAgo = subDays(today, 7);
-                    setFromDate(weekAgo);
-                    setToDate(today);
-                  }}
-                >
-                  Last 7 Days
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const monthAgo = subDays(today, 30);
-                    setFromDate(monthAgo);
-                    setToDate(today);
-                  }}
-                >
-                  Last 30 Days
-                </Button>
-                {(fromDate || toDate) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={clearDateFilters}
-                    className="text-red-600 border-red-300 hover:bg-red-50"
-                  >
-                    <XCircle className="w-4 h-4 mr-1" />
-                    Clear
-                  </Button>
-                )}
-              </div>
-              
-              {/* Date Range Pickers - Simple Input Alternative */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">From Date</label>
-                  <input
-                    type="date"
-                    value={fromDate ? format(fromDate, "yyyy-MM-dd") : ""}
-                    onChange={(e) => {
-                      const date = e.target.value ? new Date(e.target.value) : null;
-                      setFromDate(date);
-                      if (date && toDate && date > toDate) {
-                        setToDate(date);
-                      }
-                    }}
-                    max={toDate ? format(toDate, "yyyy-MM-dd") : undefined}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">To Date</label>
-                  <input
-                    type="date"
-                    value={toDate ? format(toDate, "yyyy-MM-dd") : ""}
-                    onChange={(e) => {
-                      const date = e.target.value ? new Date(e.target.value) : null;
-                      setToDate(date);
-                      if (date && fromDate && date < fromDate) {
-                        setFromDate(date);
-                      }
-                    }}
-                    min={fromDate ? format(fromDate, "yyyy-MM-dd") : undefined}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-                </div>
-              </div>
-
-              {/* Selected Range Display */}
-              {(fromDate || toDate) && (
-                <div className="mt-4 p-3 bg-primary-50 border border-primary-200 rounded-lg">
-                  <p className="text-sm text-primary-900">
-                    <span className="font-semibold">Showing data for:</span>{" "}
-                    {getDateDisplayText()}
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
-          <Card className="border-primary-200 bg-gradient-to-br from-primary-50 to-white">
-            <CardContent className="p-3">
-              <div className="text-center">
-                <Building2 className="w-5 h-5 text-primary-600 mx-auto mb-1" />
-                <p className="text-xs text-gray-600">Centres</p>
-                <p className="text-xl font-bold text-primary-700">
-                  {summaryStats.totalCentres}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-green-200 bg-gradient-to-br from-green-50 to-white">
-            <CardContent className="p-3">
-              <div className="text-center">
-                <Activity className="w-5 h-5 text-green-600 mx-auto mb-1" />
-                <p className="text-xs text-gray-600">Active</p>
-                <p className="text-xl font-bold text-green-700">
-                  {summaryStats.activeCentres}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white">
-            <CardContent className="p-3">
-              <div className="text-center">
-                <FileText className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-                <p className="text-xs text-gray-600">Total</p>
-                <p className="text-xl font-bold text-blue-700">
-                  {summaryStats.totalConsultations}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-white">
-            <CardContent className="p-3">
-              <div className="text-center">
-                <CheckCircle2 className="w-5 h-5 text-purple-600 mx-auto mb-1" />
-                <p className="text-xs text-gray-600">Completed</p>
-                <p className="text-xl font-bold text-purple-700">
-                  {summaryStats.totalCompleted}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-white">
-            <CardContent className="p-3">
-              <div className="text-center">
-                <Stethoscope className="w-5 h-5 text-orange-600 mx-auto mb-1" />
-                <p className="text-xs text-gray-600">PTA</p>
-                <p className="text-xl font-bold text-orange-700">
-                  {summaryStats.totalPTA}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-cyan-200 bg-gradient-to-br from-cyan-50 to-white">
-            <CardContent className="p-3">
-              <div className="text-center">
-                <Activity className="w-5 h-5 text-cyan-600 mx-auto mb-1" />
-                <p className="text-xs text-gray-600">Tympano</p>
-                <p className="text-xl font-bold text-cyan-700">
-                  {summaryStats.totalTympanometry}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-pink-200 bg-gradient-to-br from-pink-50 to-white">
-            <CardContent className="p-3">
-              <div className="text-center">
-                <Activity className="w-5 h-5 text-pink-600 mx-auto mb-1" />
-                <p className="text-xs text-gray-600">OAE</p>
-                <p className="text-xl font-bold text-pink-700">
-                  {summaryStats.totalOAE}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50 to-white">
-            <CardContent className="p-3">
-              <div className="text-center">
-                <Activity className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
-                <p className="text-xs text-gray-600">ETF</p>
-                <p className="text-xl font-bold text-indigo-700">
-                  {summaryStats.totalETF}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          ) : (
+            centreTableData.map((data) => (
+              <CentreRow
+                key={data.centreId}
+                data={{
+                  centreId: data.centreId,
+                  name: data.name,
+                  location: data.location,
+                  contactNumber: data.contactNumber,
+                  entName: data.entName,
+                  assistantName: data.assistantName,
+                  isOurAssistant: data.isOurAssistant,
+                  filteredConsultations: data.filteredConsultations,
+                  completed: data.completed,
+                  pending: data.pending,
+                  ptaCount: data.ptaCount,
+                  tympanometryCount: data.tympanometryCount,
+                  oaeCount: data.oaeCount,
+                  etfCount: data.etfCount,
+                  toneDecayCount: data.toneDecayCount,
+                }}
+                onView={handleViewCentre}
+              />
+            ))
+          )}
         </div>
 
-        {/* Centres Table */}
-        <Card className="shadow-lg">
-          <CardContent className="p-0">
-            {/* Make table scrollable and a bit more compact so more fits on screen */}
-            <div className="overflow-x-auto max-h-[70vh]">
-              <Table className="text-xs sm:text-sm">
-                <TableHeader>
-                  <TableRow className="bg-gray-50 text-[11px] sm:text-xs">
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Centre Name</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Location</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Contact</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">ENT Name</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Assistant</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Our Assistant</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Total</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Completed</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">In Progress</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Pending</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Failed</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 whitespace-nowrap">Cancelled</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-orange-50 whitespace-nowrap">PTA</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-cyan-50 whitespace-nowrap">Tympano</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-pink-50 whitespace-nowrap">OAE</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-indigo-50 whitespace-nowrap">ETF</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-purple-50 whitespace-nowrap">Tone Decay</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-emerald-50 whitespace-nowrap">Reflex</TableHead>
-                    <TableHead className="font-bold text-center px-2 py-2 bg-amber-50 whitespace-nowrap">Otoscopy</TableHead>
-                    <TableHead className="font-bold px-2 py-2 whitespace-nowrap">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {centreTableData.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={20} className="text-center py-12">
-                        <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-600 text-lg">No centres found</p>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    centreTableData.map((data) => (
-                      <TableRow 
-                        key={data.centreId}
-                        className="hover:bg-gray-50 cursor-pointer transition-colors text-[11px] sm:text-xs"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleViewCentre(data.centreId);
-                        }}
-                      >
-                        <TableCell className="font-semibold text-primary-700 px-2 py-2 max-w-[160px] truncate">
-                          {data.name}
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 max-w-[140px] truncate">
-                          {data.location}
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 whitespace-nowrap">
-                          {data.contactNumber}
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 max-w-[160px] truncate">
-                          {data.entName}
-                        </TableCell>
-                        <TableCell className="text-gray-600 px-2 py-2 max-w-[160px] truncate">
-                          {data.assistantName}
-                        </TableCell>
-                        <TableCell className="px-2 py-2">
-                          <span className={`px-2 py-1 rounded text-[10px] font-medium ${
-                            data.isOurAssistant === "Yes" 
-                              ? "bg-green-100 text-green-700" 
-                              : "bg-gray-100 text-gray-700"
-                          }`}>
-                            {data.isOurAssistant}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-blue-700 px-2 py-2">
-                          {data.filteredConsultations}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-green-700 px-2 py-2">
-                          {data.completed}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-amber-700 px-2 py-2">
-                          {data.inProgress}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-orange-700 px-2 py-2">
-                          {data.pending}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-red-700 px-2 py-2">
-                          {data.failed}
-                        </TableCell>
-                        <TableCell className="text-center font-semibold text-gray-700 px-2 py-2">
-                          {data.cancelled}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-orange-700 bg-orange-50 px-2 py-2">
-                          {data.ptaCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-cyan-700 bg-cyan-50 px-2 py-2">
-                          {data.tympanometryCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-pink-700 bg-pink-50 px-2 py-2">
-                          {data.oaeCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-indigo-700 bg-indigo-50 px-2 py-2">
-                          {data.etfCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-purple-700 bg-purple-50 px-2 py-2">
-                          {data.toneDecayCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-emerald-700 bg-emerald-50 px-2 py-2">
-                          {data.reflexometryCount}
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-amber-700 bg-amber-50 px-2 py-2">
-                          {data.otoscopyCount}
-                        </TableCell>
-                        <TableCell className="px-2 py-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewCentre(data.centreId);
-                            }}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t">
+        {/* Pagination */}
+        {totalCentres > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t border-gray-200">
             <div className="text-sm text-gray-600">
-              {totalCentres > 0 ? (
-                <span>
-                  Showing {startIndex + 1}–
-                  {Math.min(endIndex, totalCentres)} of {totalCentres} centres
-                </span>
-              ) : (
-                <span>Showing 0 of 0 centres</span>
-              )}
+              Showing {startIndex + 1}–{Math.min(endIndex, totalCentres)} of {totalCentres} centres
             </div>
             <div className="flex items-center gap-2">
-              <Select 
-                value={String(limit)} 
+              <Select
+                value={String(limit)}
                 onValueChange={(v) => {
                   const next = parseInt(v, 10);
                   const clamped = Number.isNaN(next) ? 10 : Math.min(50, Math.max(5, next));
@@ -814,10 +709,10 @@ export default function CentreAnalyticsPage() {
                 </SelectContent>
               </Select>
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={!canPrev} 
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canPrev}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
                   Prev
@@ -825,10 +720,10 @@ export default function CentreAnalyticsPage() {
                 <span className="text-sm text-gray-700 min-w-[80px] text-center">
                   Page {page} / {totalPages}
                 </span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={!canNext} 
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canNext}
                   onClick={() => setPage((p) => p + 1)}
                 >
                   Next
@@ -838,7 +733,6 @@ export default function CentreAnalyticsPage() {
           </div>
         )}
 
-        {/* Export Button with date range options */}
         <div className="mt-4 flex justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -873,4 +767,3 @@ export default function CentreAnalyticsPage() {
     </DashboardBodyWrapper>
   );
 }
-""

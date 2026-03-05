@@ -1,16 +1,15 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { format, isSameDay, isToday, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { SessionStatus, Role, TestStatus } from "@/models/enums";
 import { useParams, useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import { extractConsultations } from "@/models/consultation.model";
 import useGetCentre from "@/hooks/centre/use-get-centre";
-import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import {
   ArrowLeft,
   Building2,
@@ -22,22 +21,25 @@ import {
   Phone,
   MapPin,
   User,
-  Filter,
   PhoneOff,
   Stethoscope,
-  Eye,
-  XCircle,
+  Search,
+  ChevronRight,
   Download,
+  ChevronLeft,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/Badge";
-import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Select,
   SelectContent,
@@ -45,21 +47,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { exportCentreDetailToExcel } from "@/lib/export-centre-detail-excel";
+
+const PAGE_SIZE = 10;
+
+type DateFilter = "all" | "today" | "7days" | "30days" | "custom";
 
 export default function CentreDetailPage() {
   const params = useParams();
@@ -71,16 +63,14 @@ export default function CentreDetailPage() {
     data: consultations,
     isLoading: consultationsLoading,
   } = useGetAllConsultations();
-  
+
   const {
     data: centre,
     isLoading: centreLoading,
   } = useGetCentre(centreId);
 
-  // Role checks - only admin and super_admin can access
   const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
 
-  // Redirect if not admin
   if (!isAdmin && user) {
     router.push("/dashboard");
     return null;
@@ -89,33 +79,28 @@ export default function CentreDetailPage() {
   // Filter states
   const [fromDate, setFromDate] = useState<Date | null>(null);
   const [toDate, setToDate] = useState<Date | null>(null);
+  const [activeDateFilter, setActiveDateFilter] = useState<DateFilter>("30days");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedAudiologistId, setSelectedAudiologistId] = useState<string>("");
   const [showMissedCallsOnly, setShowMissedCallsOnly] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const today = new Date();
   const yesterday = subDays(today, 1);
 
-  const { data: audiologists } = useGetAllAudiologists();
-
-  // Get centre data
   const centreData = useMemo(() => {
     if (!centre?.data) return null;
     return centre.data;
   }, [centre]);
 
-  // Filter consultations for this centre
   const centreConsultations = useMemo(() => {
     if (!consultations?.data) return [];
-
     const consultationsArray = extractConsultations(consultations.data);
-    return consultationsArray.filter(
-      (c) => c.centre?.id === centreId
-    );
+    return consultationsArray.filter((c) => c.centre?.id === centreId);
   }, [consultations, centreId]);
 
-  // Get unique audiologists from consultations
   const availableAudiologists = useMemo(() => {
     const audiologistMap = new Map<string, { id: string; name: string }>();
-    centreConsultations.forEach(c => {
+    centreConsultations.forEach((c) => {
       const audiologistId = c.audiologist?.userId;
       const audiologistName = c.audiologist?.user?.name || "Unassigned";
       if (audiologistId && !audiologistMap.has(audiologistId)) {
@@ -125,67 +110,81 @@ export default function CentreDetailPage() {
     return Array.from(audiologistMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [centreConsultations]);
 
-  // Filter consultations by date range, audiologist, and missed calls
+  const getDateRangeForFilter = (filter: DateFilter): { from: Date | null; to: Date | null } => {
+    switch (filter) {
+      case "today":
+        return { from: today, to: today };
+      case "7days":
+        return { from: subDays(today, 7), to: today };
+      case "30days":
+        return { from: subDays(today, 30), to: today };
+      case "custom":
+        return { from: fromDate, to: toDate };
+      default:
+        return { from: null, to: null };
+    }
+  };
+
   const filteredConsultations = useMemo(() => {
     let filtered = [...centreConsultations];
 
-    // Filter by date range
-    if (fromDate || toDate) {
+    const { from, to } = getDateRangeForFilter(activeDateFilter);
+
+    if (from || to) {
       filtered = filtered.filter((c) => {
         if (!c.createdAt) return false;
         const consultationDate = new Date(c.createdAt);
-        
-        if (fromDate && !toDate) {
-          return consultationDate >= startOfDay(fromDate);
-        }
-        if (!fromDate && toDate) {
-          return consultationDate <= endOfDay(toDate);
-        }
-        if (fromDate && toDate) {
-          return consultationDate >= startOfDay(fromDate) && consultationDate <= endOfDay(toDate);
-        }
+        if (from && !to) return consultationDate >= startOfDay(from);
+        if (!from && to) return consultationDate <= endOfDay(to);
+        if (from && to) return consultationDate >= startOfDay(from) && consultationDate <= endOfDay(to);
         return true;
       });
     }
 
-    // Filter by audiologist
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (c) =>
+          c.patient?.name?.toLowerCase().includes(q) ||
+          c.patient?.contactNumber?.includes(q)
+      );
+    }
+
     if (selectedAudiologistId) {
       filtered = filtered.filter((c) => c.audiologist?.userId === selectedAudiologistId);
     }
 
-    // Filter by missed calls (consultations without audiologist assigned)
     if (showMissedCallsOnly) {
       filtered = filtered.filter((c) => !c.audiologist?.user?.name);
     }
 
-    // Sort by date (newest first)
     return filtered.sort((a, b) => {
       const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return bDate - aDate;
     });
-  }, [centreConsultations, fromDate, toDate, selectedAudiologistId, showMissedCallsOnly]);
+  }, [centreConsultations, activeDateFilter, fromDate, toDate, searchQuery, selectedAudiologistId, showMissedCallsOnly]);
 
-  // Calculate stats
+  // Pagination
+  const totalPages = Math.ceil(filteredConsultations.length / PAGE_SIZE) || 1;
+  const paginatedConsultations = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredConsultations.slice(start, start + PAGE_SIZE);
+  }, [filteredConsultations, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeDateFilter, selectedAudiologistId, showMissedCallsOnly]);
+
   const stats = useMemo(() => {
     const total = filteredConsultations.length;
-    const completed = filteredConsultations.filter(
-      (c) => c.status === SessionStatus.COMPLETED
-    ).length;
-    const inProgress = filteredConsultations.filter(
-      (c) => c.status === SessionStatus.IN_PROGRESS
-    ).length;
-    const pending = filteredConsultations.filter(
-      (c) => c.status === SessionStatus.PENDING
-    ).length;
-    const cancelled = filteredConsultations.filter(
-      (c) => c.status === SessionStatus.CANCELLED
-    ).length;
-    const missedCalls = filteredConsultations.filter(
-      (c) => !c.audiologist?.user?.name
-    ).length;
+    const completed = filteredConsultations.filter((c) => c.status === SessionStatus.COMPLETED).length;
+    const inProgress = filteredConsultations.filter((c) => c.status === SessionStatus.IN_PROGRESS).length;
+    const pending = filteredConsultations.filter((c) => c.status === SessionStatus.PENDING).length;
+    const cancelled = filteredConsultations.filter((c) => c.status === SessionStatus.CANCELLED).length;
+    const missedCalls = filteredConsultations.filter((c) => !c.audiologist?.user?.name).length;
 
-    // Test counts - consultations that have each test done (completed or in progress)
     const hasTestDone = (t: unknown) => {
       const s = (t as { status?: string })?.status;
       return s === TestStatus.COMPLETED || s === TestStatus.IN_PROGRESS;
@@ -198,91 +197,85 @@ export default function CentreDetailPage() {
     const toneDecayCount = filteredConsultations.filter((c) => c.toneDecay && hasTestDone(c.toneDecay)).length;
     const reflexometryCount = filteredConsultations.filter((c) => c.reflexometry != null).length;
 
-    return {
-      total,
-      completed,
-      inProgress,
-      pending,
-      cancelled,
-      missedCalls,
-      ptaCount,
-      tympanometryCount,
-      oaeCount,
-      otoscopyCount,
-      etfCount,
-      toneDecayCount,
-      reflexometryCount,
-    };
+    return { total, completed, inProgress, pending, cancelled, missedCalls, ptaCount, tympanometryCount, oaeCount, otoscopyCount, etfCount, toneDecayCount, reflexometryCount };
   }, [filteredConsultations]);
 
-  // Clear all filters
   const clearAllFilters = () => {
     setFromDate(null);
     setToDate(null);
+    setActiveDateFilter("all");
+    setSearchQuery("");
     setSelectedAudiologistId("");
     setShowMissedCallsOnly(false);
+    setCurrentPage(1);
   };
 
-  // Get status badge
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      "bg-blue-100 text-blue-700",
+      "bg-green-100 text-green-700",
+      "bg-purple-100 text-purple-700",
+      "bg-amber-100 text-amber-700",
+      "bg-rose-100 text-rose-700",
+      "bg-cyan-100 text-cyan-700",
+    ];
+    const index = name.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
+
   const getStatusBadge = (status: SessionStatus) => {
     switch (status) {
       case SessionStatus.COMPLETED:
         return (
-          <Badge className="bg-green-100 text-green-700 border-green-300">
-            <CheckCircle2 className="w-3 h-3 mr-1" />
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+            style={{ background: "#2BAB6F1A", color: "#2BAB6F" }}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
             Completed
-          </Badge>
+          </span>
         );
       case SessionStatus.IN_PROGRESS:
         return (
-          <Badge className="bg-blue-100 text-blue-700 border-blue-300">
-            <PlayCircle className="w-3 h-3 mr-1" />
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600">
+            <PlayCircle className="w-3.5 h-3.5" />
             In Progress
-          </Badge>
+          </span>
         );
       case SessionStatus.PENDING:
         return (
-          <Badge className="bg-amber-100 text-amber-700 border-amber-300">
-            <Clock className="w-3 h-3 mr-1" />
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600">
+            <Clock className="w-3.5 h-3.5" />
             Pending
-          </Badge>
+          </span>
         );
       case SessionStatus.CANCELLED:
         return (
-          <Badge className="bg-red-100 text-red-700 border-red-300">
-            <AlertCircle className="w-3 h-3 mr-1" />
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-500">
+            <AlertCircle className="w-3.5 h-3.5" />
             Cancelled
-          </Badge>
+          </span>
         );
       default:
         return null;
     }
   };
 
-  // Format the date range for display
-  const getDateDisplayText = () => {
-    if (!fromDate && !toDate) return "All Time";
-    if (fromDate && !toDate) return `From ${format(fromDate, "dd MMM yyyy")}`;
-    if (!fromDate && toDate) return `Until ${format(toDate, "dd MMM yyyy")}`;
-    if (fromDate && toDate) {
-      if (isSameDay(fromDate, toDate)) {
-        return format(fromDate, "dd MMM yyyy");
-      }
-      return `${format(fromDate, "dd MMM yyyy")} - ${format(toDate, "dd MMM yyyy")}`;
-    }
-    return "All Time";
-  };
-
-  // Build export data for a given date range (for this centre only)
-  // When useFilteredConsultations is true, uses filteredConsultations (respects all filters)
   const buildExportData = (
     exportFrom: Date | null,
     exportTo: Date | null,
     useFilteredConsultations = false
   ) => {
-    let consults = useFilteredConsultations
-      ? [...filteredConsultations]
-      : [...centreConsultations];
+    let consults = useFilteredConsultations ? [...filteredConsultations] : [...centreConsultations];
     if (!useFilteredConsultations && (exportFrom || exportTo)) {
       consults = consults.filter((c) => {
         if (!c.createdAt) return false;
@@ -350,547 +343,416 @@ export default function CentreDetailPage() {
     label: string,
     useFilteredConsultations = false
   ) => {
-    const data = buildExportData(
-      exportFrom,
-      exportTo,
-      useFilteredConsultations
-    );
+    const data = buildExportData(exportFrom, exportTo, useFilteredConsultations);
     const centreName = centreData?.user?.name || centreId;
     exportCentreDetailToExcel(data, centreName, label);
   };
 
+  const { from: activeFrom, to: activeTo } = getDateRangeForFilter(activeDateFilter);
+
   if (consultationsLoading || centreLoading) {
     return (
-      <DashboardBodyWrapper>
-        <div className="flex items-center justify-center h-screen">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <DashboardBodyWrapper className="!bg-[#EEF4F9] !gap-0 !p-0 !border-0 !rounded-none">
+        <div className="flex items-center justify-center h-screen w-full bg-[#EEF4F9]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#40A3DB]"></div>
         </div>
       </DashboardBodyWrapper>
     );
   }
 
   return (
-    <DashboardBodyWrapper>
-      <div className="p-6">
-        {/* Header */}
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/dashboard/centre-analytics")}
-            className="mb-4 text-primary-700 hover:text-primary-800"
+    <DashboardBodyWrapper className="!bg-[#EEF4F9] !gap-0 !p-0 !border-0 !rounded-none">
+      <div className="min-h-screen w-full h-full bg-[#EEF4F9] p-6">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm text-gray-500 mb-5">
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="hover:text-gray-700 transition-colors"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Centre Analytics
-          </Button>
+            Dashboard
+          </button>
+          <ChevronRight className="w-4 h-4" />
+          <button
+            onClick={() => router.push("/dashboard/centre-analytics")}
+            className="hover:text-gray-700 transition-colors"
+          >
+            Centres
+          </button>
+        </div>
 
-          <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-lg shadow-lg p-6 text-white">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-4 flex-1">
-                <div className="p-3 bg-white/20 rounded-lg">
-                  <Building2 className="w-8 h-8" />
-                </div>
-                <div className="flex-1">
-                  <h1 className="text-3xl font-bold mb-2">
-                    {centreData?.user?.name || centreData?.entName || "Unknown Centre"}
-                  </h1>
-                  <div className="flex flex-wrap gap-4 text-primary-100">
-                    {centreData?.city?.name && (
-                      <span className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4" />
-                        {centreData.city.name}
-                      </span>
-                    )}
-                    {centreData?.contactNumber && (
-                      <span className="flex items-center gap-2">
-                        <Phone className="w-4 h-4" />
-                        {centreData.contactNumber}
-                      </span>
-                    )}
-                    {centreData?.assistantName && (
-                      <span className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
-                        {centreData.assistantName}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 text-white border-0">
-                    <Download className="w-4 h-4 mr-2" />
-                    Export Excel
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleExportExcel(fromDate, toDate, "current-filters", true)}>
-                    Current filters
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExportExcel(today, today, "today")}>
-                    Today
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExportExcel(yesterday, yesterday, "yesterday")}>
-                    Yesterday
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExportExcel(subDays(today, 7), today, "last-7-days")}>
-                    Last 7 Days
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExportExcel(subDays(today, 30), today, "last-30-days")}>
-                    Last 30 Days
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExportExcel(null, null, "all-time")}>
-                    All Time
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+        {/* Back link */}
+        <button
+          onClick={() => router.push("/dashboard/centre-analytics")}
+          className="flex items-center gap-1.5 text-sm text-[#40A3DB] hover:text-[#3592c7] mb-5 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Centres
+        </button>
+
+        {/* Header Card */}
+        <div className="bg-white rounded-2xl border border-[#E1E6EA] p-5 mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-xl bg-[#EBF6FD] flex items-center justify-center flex-shrink-0">
+              <Building2 className="w-7 h-7 text-[#40A3DB]" />
             </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">
+                {centreData?.user?.name || centreData?.entName || "Unknown Centre"}
+              </h1>
+              <div className="flex items-center gap-4 mt-1">
+                {centreData?.city?.name && (
+                  <span className="flex items-center gap-1 text-sm text-gray-500">
+                    <MapPin className="w-3.5 h-3.5" />
+                    {centreData.city.name}
+                  </span>
+                )}
+                {centreData?.contactNumber && (
+                  <span className="flex items-center gap-1 text-sm text-gray-500">
+                    <Phone className="w-3.5 h-3.5" />
+                    {centreData.contactNumber}
+                  </span>
+                )}
+                {centreData?.assistantName && (
+                  <span className="flex items-center gap-1 text-sm text-gray-500">
+                    <User className="w-3.5 h-3.5" />
+                    {centreData.assistantName}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 px-4 py-2 bg-[#40A3DB] hover:bg-[#3592c7] text-white text-sm font-medium rounded-xl transition-colors">
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => handleExportExcel(activeFrom, activeTo, "current-filters", true)}>
+                Current filters
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportExcel(today, today, "today")}>
+                Today
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportExcel(yesterday, yesterday, "yesterday")}>
+                Yesterday
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportExcel(subDays(today, 7), today, "last-7-days")}>
+                Last 7 Days
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportExcel(subDays(today, 30), today, "last-30-days")}>
+                Last 30 Days
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportExcel(null, null, "all-time")}>
+                All Time
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Stats Row */}
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          {[
+            { icon: <PlayCircle className="w-4 h-4 text-gray-400" />, count: stats.total, label: "TOTAL" },
+            { icon: <CheckCircle2 className="w-4 h-4 text-green-500" />, count: stats.completed, label: "COMPLETED" },
+            { icon: <PlayCircle className="w-4 h-4 text-blue-400" />, count: stats.inProgress, label: "IN PROGRESS" },
+            { icon: <Clock className="w-4 h-4 text-amber-400" />, count: stats.pending, label: "PENDING" },
+            { icon: <AlertCircle className="w-4 h-4 text-red-400" />, count: stats.cancelled, label: "CANCELLED" },
+            { icon: <PhoneOff className="w-4 h-4 text-orange-400" />, count: stats.missedCalls, label: "MISSED" },
+          ].map((stat) => (
+            <div key={stat.label} className="flex items-center gap-2 bg-white rounded-xl border border-[#E1E6EA] px-4 py-3">
+              {stat.icon}
+              <span className="text-xl font-bold text-gray-900">{stat.count}</span>
+              <span className="text-xs text-gray-500 uppercase tracking-wide">{stat.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Tests Performed */}
+        <div className="bg-white rounded-2xl border border-[#E1E6EA] px-5 py-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Stethoscope className="w-4 h-4 text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700">Tests Performed</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {[
+              { label: "PTA", count: stats.ptaCount, color: "bg-[#EBF6FD] text-[#40A3DB]" },
+              { label: "Tympanometry", count: stats.tympanometryCount, color: "bg-emerald-50 text-emerald-600" },
+              { label: "OAE", count: stats.oaeCount, color: "bg-violet-50 text-violet-600" },
+              { label: "Otoscopy", count: stats.otoscopyCount, color: "bg-amber-50 text-amber-600" },
+              { label: "ETF", count: stats.etfCount, color: "bg-cyan-50 text-cyan-600" },
+              { label: "Tone Decay", count: stats.toneDecayCount, color: "bg-rose-50 text-rose-600" },
+              { label: "Reflexometry", count: stats.reflexometryCount, color: "bg-teal-50 text-teal-600" },
+            ].map((test) => (
+              <div
+                key={test.label}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${test.color}`}
+              >
+                <span className="font-bold">{test.count}</span>
+                <span>{test.label}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Filters Card */}
-        <Card className="mb-6 border-2 border-primary-200 shadow-md">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Filter className="w-5 h-5 text-primary-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-              {(fromDate || toDate || selectedAudiologistId || showMissedCallsOnly) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAllFilters}
-                  className="ml-auto text-red-600 hover:text-red-700"
-                >
-                  <XCircle className="w-4 h-4 mr-1" />
-                  Clear All
-                </Button>
-              )}
+        {/* Consultations Card */}
+        <div className="bg-white rounded-2xl border border-[#E1E6EA] overflow-hidden">
+          <div className="px-5 py-4 border-b border-[#E1E6EA]">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-base font-semibold text-gray-900">Consultations</span>
+              <span className="text-sm text-gray-500">{filteredConsultations.length} records</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Date Range - From */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  From Date
-                </label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <CalendarIcon className="w-4 h-4 mr-2" />
-                      {fromDate ? format(fromDate, "dd MMM yyyy") : "Select start date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={fromDate || undefined}
-                      onSelect={(date) => {
-                        setFromDate(date || null);
-                        if (date && toDate && date > toDate) {
-                          setToDate(date);
-                        }
-                      }}
-                      initialFocus
-                      disabled={(date) => toDate ? date > toDate : false}
-                    />
-                  </PopoverContent>
-                </Popover>
+            {/* Search + Date Filters Row */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search patients..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-[#E1E6EA] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#40A3DB]/20 focus:border-[#40A3DB] transition-all"
+                />
               </div>
 
-              {/* Date Range - To */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  To Date
-                </label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <CalendarIcon className="w-4 h-4 mr-2" />
-                      {toDate ? format(toDate, "dd MMM yyyy") : "Select end date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={toDate || undefined}
-                      onSelect={(date) => {
-                        setToDate(date || null);
-                        if (date && fromDate && date < fromDate) {
-                          setFromDate(date);
-                        }
-                      }}
-                      initialFocus
-                      disabled={(date) => fromDate ? date < fromDate : false}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {/* Quick Date Buttons */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Quick Select
-                </label>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setFromDate(today);
-                      setToDate(today);
-                    }}
-                    className={`${
-                      fromDate && toDate && isSameDay(fromDate, today) && isSameDay(toDate, today)
-                        ? "bg-primary-600 text-white"
-                        : ""
+              {/* Date filter tabs */}
+              <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-[#E1E6EA]">
+                {(["all", "today", "7days", "30days"] as DateFilter[]).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setActiveDateFilter(filter)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all ${
+                      activeDateFilter === filter
+                        ? "bg-[#40A3DB] text-white shadow-sm"
+                        : "text-gray-600 hover:text-gray-900"
                     }`}
                   >
-                    Today
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const weekAgo = subDays(today, 7);
-                      setFromDate(weekAgo);
-                      setToDate(today);
-                    }}
-                  >
-                    7 Days
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const monthAgo = subDays(today, 30);
-                      setFromDate(monthAgo);
-                      setToDate(today);
-                    }}
-                  >
-                    30 Days
-                  </Button>
-                </div>
+                    {filter === "all" ? "All" : filter === "today" ? "Today" : filter === "7days" ? "7 Days" : "30 Days"}
+                  </button>
+                ))}
+
+                {/* Custom Range */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      onClick={() => setActiveDateFilter("custom")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all ${
+                        activeDateFilter === "custom"
+                          ? "bg-[#40A3DB] text-white shadow-sm"
+                          : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      <CalendarIcon className="w-3.5 h-3.5" />
+                      Custom Range
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-4" align="end">
+                    <div className="flex gap-4">
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 mb-2">From</p>
+                        <Calendar
+                          mode="single"
+                          selected={fromDate || undefined}
+                          onSelect={(date) => {
+                            setFromDate(date || null);
+                            if (date && toDate && date > toDate) setToDate(date);
+                          }}
+                          initialFocus
+                          disabled={(date) => (toDate ? date > toDate : false)}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 mb-2">To</p>
+                        <Calendar
+                          mode="single"
+                          selected={toDate || undefined}
+                          onSelect={(date) => {
+                            setToDate(date || null);
+                            if (date && fromDate && date < fromDate) setFromDate(date);
+                          }}
+                          initialFocus
+                          disabled={(date) => (fromDate ? date < fromDate : false)}
+                        />
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Audiologist Filter */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Filter by Audiologist
-                </label>
-                <div className="flex gap-2">
-                  <Select
-                    value={selectedAudiologistId || undefined}
-                    onValueChange={(value) => setSelectedAudiologistId(value || "")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Audiologists" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableAudiologists.map((audiologist) => (
-                        <SelectItem key={audiologist.id} value={audiologist.id}>
-                          {audiologist.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedAudiologistId && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedAudiologistId("")}
-                      className="px-3"
-                    >
-                      <XCircle className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
+              <Select
+                value={selectedAudiologistId || "all"}
+                onValueChange={(v) => setSelectedAudiologistId(v === "all" ? "" : v)}
+              >
+                <SelectTrigger className="w-[180px] border-[#E1E6EA] rounded-xl">
+                  <SelectValue placeholder="All Audiologists" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Audiologists</SelectItem>
+                  {availableAudiologists.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {/* Missed Calls Filter */}
-            <div className="mt-4 pt-4 border-t">
-              <label className="flex items-center gap-2 cursor-pointer">
+              {/* Missed Calls Toggle */}
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
                 <input
                   type="checkbox"
                   checked={showMissedCallsOnly}
                   onChange={(e) => setShowMissedCallsOnly(e.target.checked)}
-                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="w-4 h-4 rounded border-[#E1E6EA] text-[#40A3DB] focus:ring-[#40A3DB]"
                 />
-                <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <PhoneOff className="w-4 h-4 text-red-600" />
-                  Show only missed calls (no audiologist assigned)
-                </span>
+                <span>Missed calls only</span>
               </label>
+
+              {/* Clear filters */}
+              {(searchQuery || activeDateFilter !== "all" || selectedAudiologistId || showMissedCallsOnly) && (
+                <button
+                  onClick={clearAllFilters}
+                  className="text-sm text-red-600 hover:text-red-700 font-medium"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
+          </div>
 
-            {/* Active Filters Display */}
-            {(fromDate || toDate || selectedAudiologistId || showMissedCallsOnly) && (
-              <div className="mt-4 p-3 bg-primary-50 border border-primary-200 rounded-lg">
-                <p className="text-sm text-primary-900">
-                  <span className="font-semibold">Active filters:</span>{" "}
-                  {getDateDisplayText()}
-                  {selectedAudiologistId && ` • Audiologist: ${availableAudiologists.find(a => a.id === selectedAudiologistId)?.name || "Selected"}`}
-                  {showMissedCallsOnly && " • Missed Calls Only"}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-          <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <PlayCircle className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total</p>
-                  <p className="text-2xl font-bold text-blue-700">{stats.total}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-green-200 bg-gradient-to-br from-green-50 to-white">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-green-100 rounded-lg">
-                  <CheckCircle2 className="w-6 h-6 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Completed</p>
-                  <p className="text-2xl font-bold text-green-700">{stats.completed}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-white">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <PlayCircle className="w-6 h-6 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">In Progress</p>
-                  <p className="text-2xl font-bold text-purple-700">{stats.inProgress}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-white">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-amber-100 rounded-lg">
-                  <Clock className="w-6 h-6 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Pending</p>
-                  <p className="text-2xl font-bold text-amber-700">{stats.pending}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-red-200 bg-gradient-to-br from-red-50 to-white">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-red-100 rounded-lg">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Cancelled</p>
-                  <p className="text-2xl font-bold text-red-700">{stats.cancelled}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-white">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-orange-100 rounded-lg">
-                  <PhoneOff className="w-6 h-6 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Missed Calls</p>
-                  <p className="text-2xl font-bold text-orange-700">{stats.missedCalls}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Tests Done */}
-        <Card className="mb-6 border-2 border-primary-200 shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-primary-700">
-              <Stethoscope className="w-5 h-5" />
-              Tests Done
-            </CardTitle>
-            <p className="text-sm text-gray-500 font-normal mt-1">
-              Number of consultations for this centre that have each test type
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
-              <div className="p-5 rounded-lg bg-blue-50 border border-blue-200">
-                <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">PTA</p>
-                <p className="text-2xl font-bold text-blue-700 mt-1">{stats.ptaCount}</p>
-                <p className="text-xs text-gray-500 mt-0.5">Pure Tone Audiometry</p>
-              </div>
-              <div className="p-5 rounded-lg bg-emerald-50 border border-emerald-200">
-                <p className="text-xs font-medium text-emerald-600 uppercase tracking-wide">Tympanometry</p>
-                <p className="text-2xl font-bold text-emerald-700 mt-1">{stats.tympanometryCount}</p>
-              </div>
-              <div className="p-5 rounded-lg bg-violet-50 border border-violet-200">
-                <p className="text-xs font-medium text-violet-600 uppercase tracking-wide">OAE</p>
-                <p className="text-2xl font-bold text-violet-700 mt-1">{stats.oaeCount}</p>
-                <p className="text-xs text-gray-500 mt-0.5">Otoacoustic Emissions</p>
-              </div>
-              <div className="p-5 rounded-lg bg-amber-50 border border-amber-200">
-                <p className="text-xs font-medium text-amber-600 uppercase tracking-wide">Otoscopy</p>
-                <p className="text-2xl font-bold text-amber-700 mt-1">{stats.otoscopyCount}</p>
-              </div>
-              <div className="p-5 rounded-lg bg-cyan-50 border border-cyan-200">
-                <p className="text-xs font-medium text-cyan-600 uppercase tracking-wide">ETF</p>
-                <p className="text-2xl font-bold text-cyan-700 mt-1">{stats.etfCount}</p>
-                <p className="text-xs text-gray-500 mt-0.5">ETF Intact</p>
-              </div>
-              <div className="p-5 rounded-lg bg-rose-50 border border-rose-200">
-                <p className="text-xs font-medium text-rose-600 uppercase tracking-wide">Tone Decay</p>
-                <p className="text-2xl font-bold text-rose-700 mt-1">{stats.toneDecayCount}</p>
-              </div>
-              <div className="p-5 rounded-lg bg-teal-50 border border-teal-200">
-                <p className="text-xs font-medium text-teal-600 uppercase tracking-wide">Reflexometry</p>
-                <p className="text-2xl font-bold text-teal-700 mt-1">{stats.reflexometryCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Consultations Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Consultations - {getDateDisplayText()}</span>
-              <span className="text-sm font-normal text-gray-600">
-                {filteredConsultations.length} consultation(s)
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          {/* Consultation List */}
+          <div>
             {filteredConsultations.length === 0 ? (
-              <div className="text-center py-12">
-                <Clock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 text-lg">No consultations found</p>
-                <p className="text-gray-500 text-sm mt-2">
-                  {(fromDate || toDate || selectedAudiologistId || showMissedCallsOnly)
+              <div className="text-center py-16">
+                <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium">No consultations found</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {searchQuery || activeDateFilter !== "all" || selectedAudiologistId || showMissedCallsOnly
                     ? "Try adjusting your filters"
                     : "Consultations will appear here once they are created"}
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="font-bold">Patient</TableHead>
-                      <TableHead className="font-bold">Contact</TableHead>
-                      <TableHead className="font-bold">Audiologist</TableHead>
-                      <TableHead className="font-bold">Status</TableHead>
-                      <TableHead className="font-bold">Date & Time</TableHead>
-                      <TableHead className="font-bold">Tests</TableHead>
-                      <TableHead className="font-bold">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredConsultations.map((consultation) => (
-                      <TableRow
-                        key={consultation.id}
-                        className="hover:bg-gray-50 cursor-pointer"
-                        onClick={() => router.push(`/dashboard/consultation-details/${consultation.id}`)}
+              <>
+                {paginatedConsultations.map((consultation, index) => {
+                  const patientName = consultation.patient?.name || "Unknown Patient";
+                  const initials = getInitials(patientName);
+                  const avatarColor = getAvatarColor(patientName);
+                  const hasAudiologist = !!consultation.audiologist?.user?.name;
+
+                  const hasTestDone = (t: unknown) => {
+                    const s = (t as { status?: string })?.status;
+                    return s === TestStatus.COMPLETED || s === TestStatus.IN_PROGRESS;
+                  };
+                  const tests: string[] = [];
+                  if (consultation.audiometry && hasTestDone(consultation.audiometry)) tests.push("PTA");
+                  if (consultation.tympanometry && hasTestDone(consultation.tympanometry)) tests.push("Tympano");
+                  if (consultation.oae && hasTestDone(consultation.oae)) tests.push("OAE");
+                  if (consultation.etfIntact != null) tests.push("ETF");
+                  if (consultation.otoscopy && hasTestDone(consultation.otoscopy)) tests.push("Otoscopy");
+
+                  return (
+                    <div
+                      key={consultation.id}
+                      className={`flex items-center gap-4 px-5 py-4 hover:bg-gray-50/70 cursor-pointer transition-colors ${
+                        index < paginatedConsultations.length - 1 ? "border-b border-[#E1E6EA]" : ""
+                      }`}
+                      onClick={() => router.push(`/dashboard/consultation-details/${consultation.id}`)}
+                    >
+                      {/* Avatar */}
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${avatarColor}`}
                       >
-                        <TableCell className="font-semibold">
-                          {consultation.patient?.name || "Unknown Patient"}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-600">
-                          {consultation.patient?.contactNumber || "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          {consultation.audiologist?.user?.name ? (
-                            <span className="text-sm text-gray-700">
-                              {consultation.audiologist.user.name}
-                            </span>
-                          ) : (
-                            <Badge className="bg-red-100 text-red-700 border-red-300">
-                              <PhoneOff className="w-3 h-3 mr-1" />
-                              Not Assigned
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
+                        {initials}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-sm font-semibold text-gray-900">{patientName}</span>
                           {getStatusBadge(consultation.status as SessionStatus)}
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-600">
-                          {consultation.createdAt
-                            ? format(new Date(consultation.createdAt), "dd MMM yyyy, HH:mm")
-                            : "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {consultation.audiometry && (
-                              <Badge variant="outline" className="text-xs">PTA</Badge>
-                            )}
-                            {consultation.tympanometry && (
-                              <Badge variant="outline" className="text-xs">Tympano</Badge>
-                            )}
-                            {consultation.oae && (
-                              <Badge variant="outline" className="text-xs">OAE</Badge>
-                            )}
-                            {consultation.etfIntact && (
-                              <Badge variant="outline" className="text-xs">ETF</Badge>
-                            )}
-                            {consultation.otoscopy && (
-                              <Badge variant="outline" className="text-xs">Otoscopy</Badge>
-                            )}
-                            {!consultation.audiometry && !consultation.tympanometry && 
-                             !consultation.oae && !consultation.etfIntact && !consultation.otoscopy && (
-                              <span className="text-xs text-gray-400">No tests</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/dashboard/consultation-details/${consultation.id}`);
-                            }}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span>{consultation.patient?.contactNumber || "N/A"}</span>
+                          {consultation.createdAt && (
+                            <>
+                              <span>·</span>
+                              <span>{format(new Date(consultation.createdAt), "dd MMM yyyy, HH:mm")}</span>
+                            </>
+                          )}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {hasAudiologist ? (
+                            <span>Audiologist: {consultation.audiologist!.user!.name}</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
+                              <PhoneOff className="w-3 h-3" />
+                              Not Assigned
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Test Badges */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {tests.length > 0 ? (
+                          tests.map((test) => (
+                            <span
+                              key={test}
+                              className="px-2.5 py-1 text-xs font-medium bg-[#EBF6FD] text-[#40A3DB] rounded-lg border border-[#D0EAF8]"
+                            >
+                              {test}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-gray-400">No tests</span>
+                        )}
+                      </div>
+
+                      {/* Arrow */}
+                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    </div>
+                  );
+                })}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-5 py-4 border-t border-[#E1E6EA] bg-gray-50/50">
+                    <p className="text-sm text-gray-600">
+                      Showing {(currentPage - 1) * PAGE_SIZE + 1} to{" "}
+                      {Math.min(currentPage * PAGE_SIZE, filteredConsultations.length)} of{" "}
+                      {filteredConsultations.length} consultations
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg border border-[#E1E6EA] bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </button>
+                      <span className="text-sm text-gray-600 px-2">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg border border-[#E1E6EA] bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </DashboardBodyWrapper>
   );
 }
-

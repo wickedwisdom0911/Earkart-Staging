@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { exportElementToPdfBlob } from "@/lib/pdf";
 import initiateReportUpload from "@/actions/consultations/initiate-report-upload";
@@ -23,6 +23,18 @@ export function useShareReportWhatsApp({
   const [isSharing, setIsSharing] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [sharePhone, setSharePhone] = useState("");
+
+  // Prevent refresh/close while report is being sent
+  useEffect(() => {
+    if (!isSharing) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Report is being sent. Leave anyway?";
+      return "Report is being sent. Leave anyway?";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isSharing]);
 
   // Format phone number for WhatsApp (91XXXXXXXXXX)
   const formatPhoneForWhatsApp = useCallback((phone: string): string => {

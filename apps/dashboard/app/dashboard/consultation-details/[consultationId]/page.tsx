@@ -19,6 +19,7 @@ import {
   ExternalLink,
   ArrowLeft,
   MapPin,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -91,9 +92,9 @@ export default function ConsultationDetailsPage() {
   if (loading) {
     return (
       <DashboardBodyWrapper>
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="min-h-screen bg-[#EEF4F9] flex items-center justify-center w-full">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto" />
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#40A3DB] mx-auto" />
             <p className="mt-4 text-gray-600">Loading consultation details...</p>
           </div>
         </div>
@@ -106,15 +107,13 @@ export default function ConsultationDetailsPage() {
   if (isError || !consultation) {
     return (
       <DashboardBodyWrapper>
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="min-h-screen bg-[#EEF4F9] flex items-center justify-center w-full">
           <div className="text-center">
             <p className="text-xl text-red-600 mb-2">
               {errorMessage || "Consultation not found"}
             </p>
             <Button
-              onClick={() =>
-                router.push("/dashboard/all-consultations")
-              }
+              onClick={() => router.push("/dashboard/all-consultations")}
               className="mt-4"
             >
               Back to All Consultations
@@ -193,51 +192,59 @@ export default function ConsultationDetailsPage() {
 
   // ─── render ───────────────────────────────────────────────────────────────
   return (
-    <DashboardBodyWrapper>
-      <div className="p-6 max-w-7xl mx-auto">
-        {/* Back link */}
-        <button
-          onClick={() =>
-            router.push(
-              `/dashboard/all-consultations?scrollTo=${consultationId}`
-            )
-          }
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
-        </button>
+    <DashboardBodyWrapper className="!bg-[#EEF4F9] !gap-0 !p-0 !border-0 !rounded-none">
+      <div className="w-full h-full p-4 sm:p-6 bg-[#EEF4F9]">
+
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+          <button onClick={() => router.push("/dashboard")} className="hover:text-gray-700 transition-colors">Dashboard</button>
+          <ChevronRight className="w-4 h-4" />
+          <button onClick={() => router.push("/dashboard/all-consultations")} className="hover:text-gray-700 transition-colors">Consultations</button>
+        </div>
+
+        {/* Top bar */}
+        <div className="flex items-center justify-between mb-5">
+          <button
+            onClick={() => router.push(`/dashboard/all-consultations?scrollTo=${consultationId}`)}
+            className="flex items-center gap-1.5 text-sm text-[#40A3DB] hover:text-[#3592c7] transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </button>
+          <Button
+            onClick={() => router.push(`/consultation/${consultationId}`)}
+            className="bg-[#40A3DB] hover:bg-[#3592c7] text-white rounded-xl"
+          >
+            <User className="w-4 h-4 mr-2" />
+            Open Consultation
+          </Button>
+        </div>
 
         {/* Page title */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Consultation Details
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            View comprehensive information about this consultation
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Consultation Details</h1>
+          <p className="text-sm text-gray-500 mt-0.5">View comprehensive information about this consultation</p>
         </div>
 
-        {/* ── Main two-column grid (matches Figma) ── */}
+        {/* ── Main two-column grid ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* ── LEFT COLUMN ─────────────────────────────────────────── */}
+
+          {/* ── LEFT COLUMN ── */}
           <div className="flex flex-col gap-5">
+
             {/* Patient Information */}
-            <div className="bg-white rounded-2xl border border-[#40A3DB] p-6">
+            <div className="bg-white rounded-2xl border border-[#E1E6EA] p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-5">
-                {/* Icon bubble */}
-                <div className="w-8 h-8 rounded-full bg-[#40A3DB]/10 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-[#EBF6FD] flex items-center justify-center">
                   <User className="w-4 h-4 text-[#40A3DB]" />
                 </div>
-                <h2 className="font-semibold text-gray-900">
-                  Patient Information
-                </h2>
+                <h2 className="font-semibold text-gray-900">Patient Information</h2>
               </div>
 
               {/* Avatar + name row */}
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-full bg-[#40A3DB] flex items-center justify-center text-white font-semibold text-sm">
-                  {consultation.patient?.name?.charAt(0) || "P"}
+              <div className="flex items-center gap-3 mb-5 p-3 bg-[#EEF4F9] rounded-xl">
+                <div className="w-10 h-10 rounded-full bg-[#40A3DB] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                  {consultation.patient?.name?.charAt(0)?.toUpperCase() || "P"}
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900 text-sm">
@@ -266,38 +273,21 @@ export default function ConsultationDetailsPage() {
                   {safeFormatDate(consultation.createdAt)}
                 </InfoRow>
 
-                {/* Tests Selected */}
                 {(consultation as any).consultationPricing?.length > 0 && (
-                  <InfoRow
-                    icon={<Stethoscope className="w-4 h-4" />}
-                    label="Tests Selected"
-                  >
+                  <InfoRow icon={<Stethoscope className="w-4 h-4" />} label="Tests Selected">
                     {(consultation as any).consultationPricing
-                      .map(
-                        (cp: any) =>
-                          cp?.pricing?.name ||
-                          cp?.pricing?.description ||
-                          "—"
-                      )
+                      .map((cp: any) => cp?.pricing?.name || cp?.pricing?.description || "—")
                       .filter(Boolean)
                       .join(", ") || "—"}
                   </InfoRow>
                 )}
 
-                {/* Payment */}
                 {(() => {
-                  const payments =
-                    (consultation as any).Payment ??
-                    (consultation as any).payment;
-                  const payment = Array.isArray(payments)
-                    ? payments[0]
-                    : null;
+                  const payments = (consultation as any).Payment ?? (consultation as any).payment;
+                  const payment = Array.isArray(payments) ? payments[0] : null;
                   if (!payment) return null;
                   return (
-                    <InfoRow
-                      icon={<CreditCard className="w-4 h-4" />}
-                      label="Payment"
-                    >
+                    <InfoRow icon={<CreditCard className="w-4 h-4" />} label="Payment">
                       ₹{payment.amount ?? "—"}
                       {payment.paymentType && (
                         <span className="text-gray-400 ml-1">
@@ -311,43 +301,41 @@ export default function ConsultationDetailsPage() {
             </div>
 
             {/* Tests & Reports */}
-            <div className="bg-white rounded-2xl border border-dashed border-[#E2E2E2] p-6">
+            <div className="bg-white rounded-2xl border border-[#E1E6EA] p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center">
                   <FileText className="w-4 h-4 text-orange-500" />
                 </div>
                 <h2 className="font-semibold text-gray-900">Tests & Reports</h2>
               </div>
 
               {tests.length === 0 ? (
-                <p className="text-center py-6 text-sm text-gray-400">
-                  No tests performed
-                </p>
+                <div className="text-center py-8 bg-[#EEF4F9] rounded-xl">
+                  <p className="text-sm text-gray-400">No tests performed</p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {tests.map((test) => (
                     <div
                       key={test.name}
-                      className="flex items-center justify-between px-4 py-3 bg-[#40A3DB]/[0.06] rounded-xl border border-[#40A3DB]"
+                      className="flex items-center justify-between px-4 py-3 bg-[#EBF6FD] rounded-xl border border-[#D0EAF8]"
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-lg">{test.icon}</span>
-                        <span className="text-sm font-medium text-gray-800">
-                          {test.name}
-                        </span>
+                        <span className="text-sm font-medium text-gray-800">{test.name}</span>
                       </div>
                       {test.report ? (
                         <a
                           href={test.report}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-xs font-medium text-green-500 hover:text-green-600 transition-colors"
+                          className="flex items-center gap-1.5 text-xs font-medium text-green-600 hover:text-green-700 transition-colors bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg"
                         >
                           <Download className="w-3.5 h-3.5" />
                           Download
                         </a>
                       ) : (
-                        <span className="text-xs text-gray-400">No Report</span>
+                        <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg">No Report</span>
                       )}
                     </div>
                   ))}
@@ -356,55 +344,45 @@ export default function ConsultationDetailsPage() {
             </div>
 
             {/* Recordings */}
-            <div className="bg-[#40A3DB]/[0.06] rounded-2xl border border-dashed border-[#E2E2E2] p-6">
+            <div className="bg-white rounded-2xl border border-[#E1E6EA] p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Video className="w-4 h-4 text-purple-500" />
+                <div className="w-8 h-8 rounded-full bg-violet-50 flex items-center justify-center">
+                  <Video className="w-4 h-4 text-violet-500" />
                 </div>
                 <h2 className="font-semibold text-gray-900">Recordings</h2>
               </div>
 
               {playable.length === 0 ? (
-                <p className="text-center py-6 text-sm text-gray-400">
-                  No recordings available
-                </p>
+                <div className="text-center py-8 bg-[#EEF4F9] rounded-xl">
+                  <p className="text-sm text-gray-400">No recordings available</p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {playable.map((rec, idx) => {
-                    const fileName =
-                      (rec as any).fileName || `Recording ${idx + 1}`;
+                    const fileName = (rec as any).fileName || `Recording ${idx + 1}`;
                     const isScreen =
                       fileName.includes(".webm") ||
                       fileName.includes("consultation-") ||
                       fileName.includes("session-");
                     const type = isScreen ? "Screen" : "Video";
-                    const recordingUrl =
-                      normalizePlaybackUrl(rec.recordingUrl) ||
-                      rec.recordingUrl;
+                    const recordingUrl = normalizePlaybackUrl(rec.recordingUrl) || rec.recordingUrl;
 
                     return (
                       <div
                         key={rec.id || idx}
-                        className="flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-[#40A3DB]"
+                        className="flex items-center justify-between px-4 py-3 bg-[#EEF4F9] rounded-xl border border-[#E1E6EA]"
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
                             <PlayCircle className="w-4 h-4 text-violet-500" />
                           </div>
-                          <span className="text-sm font-medium text-gray-800">
-                            {type} Recordings
-                          </span>
+                          <span className="text-sm font-medium text-gray-800">{type} Recordings</span>
                         </div>
 
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() =>
-                              setSelectedRecording({
-                                url: recordingUrl,
-                                title: `${type} Recording ${idx + 1}`,
-                              })
-                            }
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-violet-300 text-violet-600 text-xs font-medium hover:bg-violet-50 transition-colors"
+                            onClick={() => setSelectedRecording({ url: recordingUrl, title: `${type} Recording ${idx + 1}` })}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-violet-300 text-violet-600 text-xs font-medium hover:bg-violet-50 transition-colors"
                           >
                             <PlayCircle className="w-3.5 h-3.5" />
                             Play
@@ -414,7 +392,7 @@ export default function ConsultationDetailsPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 text-xs font-medium hover:bg-gray-100 transition-colors"
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-xs font-medium hover:bg-gray-100 transition-colors"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                             Open
@@ -431,13 +409,14 @@ export default function ConsultationDetailsPage() {
             <VideoAnalysisSection consultationId={consultationId} />
           </div>
 
-          {/* ── RIGHT COLUMN ─────────────────────────────────────────── */}
+          {/* ── RIGHT COLUMN ── */}
           <div className="flex flex-col gap-5">
-            {/* Questionnaire Responses — bg: #40A3DB 10%, border: 1px #E2E2E2, radius: 20px, padding: 24px, gap: 24px */}
-            <div className="bg-white rounded-[20px] border border-[#E2E2E2] p-6 flex flex-col gap-6">
+
+            {/* Questionnaire Responses */}
+            <div className="bg-white rounded-2xl border border-[#E1E6EA] p-6 shadow-sm flex flex-col gap-5">
               {/* Header */}
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#40A3DB]/10 flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-full bg-[#EBF6FD] flex items-center justify-center shrink-0">
                   <ClipboardList className="w-4 h-4 text-[#40A3DB]" />
                 </div>
                 <div>
@@ -454,24 +433,18 @@ export default function ConsultationDetailsPage() {
 
               {/* Body */}
               {!consultation.questionnaire || answers.length === 0 ? (
-                <p className="text-center py-8 text-sm text-gray-400">
-                  No questionnaire responses
-                </p>
+                <div className="text-center py-10 bg-[#EEF4F9] rounded-xl">
+                  <p className="text-sm text-gray-400">No questionnaire responses</p>
+                </div>
               ) : (
                 <div className="flex flex-col gap-3">
                   {answers.map((answer: any, idx: number) => {
-                    const questionText =
-                      answer.question?.text || `Question ${idx + 1}`;
+                    const questionText = answer.question?.text || `Question ${idx + 1}`;
                     const questionType = answer.question?.type;
                     const answerValue =
                       answer.value ||
                       (answer.selectedOptions || [])
-                        .map(
-                          (opt: any) =>
-                            opt.option?.value ||
-                            opt.option?.label ||
-                            opt.value
-                        )
+                        .map((opt: any) => opt.option?.value || opt.option?.label || opt.value)
                         .filter(Boolean)
                         .join(", ") ||
                       "";
@@ -490,13 +463,11 @@ export default function ConsultationDetailsPage() {
                     return (
                       <div
                         key={answer.id || idx}
-                        className="p-4 rounded-xl border border-[#E2E2E2] bg-[#40A3DB]/5"
+                        className="p-4 rounded-xl border border-[#E1E6EA] bg-[#EEF4F9]"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <p className="text-sm text-gray-700 flex-1 leading-snug">
-                            <span className="font-semibold text-gray-900 mr-1.5">
-                              {idx + 1}
-                            </span>
+                            <span className="font-bold text-gray-900 mr-1.5">{idx + 1}</span>
                             {questionText}
                           </p>
                           {typeLabel && (
@@ -504,18 +475,14 @@ export default function ConsultationDetailsPage() {
                               className={`shrink-0 text-xs font-medium px-2.5 py-0.5 rounded-full border ${
                                 isShortTest
                                   ? "border-orange-300 text-orange-500 bg-orange-50"
-                                  : "border-[#40A3DB]/40 text-[#40A3DB] bg-[#40A3DB]/10"
+                                  : "border-[#D0EAF8] text-[#40A3DB] bg-[#EBF6FD]"
                               }`}
                             >
                               {typeLabel}
                             </span>
                           )}
                         </div>
-                        <p
-                          className={`mt-2 text-sm ${
-                            hasAnswer ? "text-gray-700" : "text-gray-400"
-                          }`}
-                        >
+                        <p className={`mt-2 text-sm ${hasAnswer ? "text-gray-700" : "text-gray-400"}`}>
                           {hasAnswer ? answerValue : "None"}
                         </p>
                       </div>
@@ -523,17 +490,11 @@ export default function ConsultationDetailsPage() {
                   })}
 
                   {/* Summary footer */}
-                  <div className="pt-3 border-t border-[#E2E2E2] flex items-center justify-between text-xs text-gray-500">
+                  <div className="pt-3 border-t border-[#E1E6EA] flex items-center justify-between text-xs text-gray-500">
                     <span>Total Questions: {answers.length}</span>
                     <span className="text-green-600 font-medium">
                       Answered:{" "}
-                      {
-                        answers.filter(
-                          (a: any) =>
-                            a.value ||
-                            (a.selectedOptions && a.selectedOptions.length > 0)
-                        ).length
-                      }
+                      {answers.filter((a: any) => a.value || (a.selectedOptions && a.selectedOptions.length > 0)).length}
                     </span>
                   </div>
                 </div>
@@ -544,10 +505,7 @@ export default function ConsultationDetailsPage() {
       </div>
 
       {/* ── Video Player Dialog ── */}
-      <Dialog
-        open={!!selectedRecording}
-        onOpenChange={() => setSelectedRecording(null)}
-      >
+      <Dialog open={!!selectedRecording} onOpenChange={() => setSelectedRecording(null)}>
         <DialogContent className="max-w-[90vw] w-full max-h-[90vh] p-0 overflow-hidden bg-gray-900">
           <div className="flex flex-col h-full">
             <DialogHeader className="px-6 py-4 bg-gray-800 border-b border-gray-700">
@@ -578,10 +536,10 @@ function InfoRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 text-gray-400">{icon}</span>
+    <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-[#EEF4F9] transition-colors">
+      <span className="mt-0.5 text-[#40A3DB]">{icon}</span>
       <div>
-        <p className="text-xs text-gray-400">{label}</p>
+        <p className="text-xs text-gray-400 mb-0.5">{label}</p>
         <p className="text-sm font-medium text-gray-800">{children}</p>
       </div>
     </div>

@@ -14,8 +14,8 @@ function isUID(segment: string) {
   );
 }
 
-export function Breadcrumb({ pathname }: { pathname: string }) {
-  const segments = pathname.split("/").filter(Boolean);
+export function Breadcrumb({ pathname }: { pathname: string | null }) {
+  const segments = (pathname ?? "").split("/").filter(Boolean);
 
   // Only show non-UIDs, and path includes all segments up to and including that non-UID
   const breadcrumbSegments: { label: string; path: string }[] = [];
@@ -39,7 +39,7 @@ export function Breadcrumb({ pathname }: { pathname: string }) {
             <span className="text-primary-700 font-semibold">{item.label}</span>
           ) : (
             <Link
-              href={item.path}
+              href={item.path || "/"}
               className="hover:underline font-medium text-gray-400"
             >
               {item.label}

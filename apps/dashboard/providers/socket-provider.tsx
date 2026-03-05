@@ -25,9 +25,10 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user?.token || socketUrlLoading || !socketUrl) return;
 
     const initializeSocket = async () => {
-      // If socket exists but is disconnected, and we're on dashboard, force reconnect
-      if (socketRef.current && !socketRef.current.connected && pathname === '/dashboard') {
-        console.log("🔄 Forcing socket reconnection on dashboard");
+      // If socket exists but is disconnected, and we're on dashboard or consultation, force reconnect
+      const isDashboardOrConsultation = pathname?.startsWith('/dashboard') || pathname?.startsWith('/consultation');
+      if (socketRef.current && !socketRef.current.connected && isDashboardOrConsultation) {
+        console.log("🔄 Forcing socket reconnection on dashboard/consultation");
         socketRef.current.connect();
         return;
       }
@@ -46,6 +47,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
         socketRef.current.on("connect", () => {
           console.log("✅ Connected to socket -", socketRef.current?.id);
+          setSocket(socketRef.current);
         });
 
 
@@ -68,13 +70,13 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
           }, 5000);
         });
 
-        // Keep connection alive - reconnect on disconnect if on dashboard
+        // Keep connection alive - reconnect on disconnect if on dashboard or consultation
         socketRef.current.on("disconnect", (reason) => {
           console.log("❌ Socket disconnected:", reason);
           
-          // If on dashboard and socket disconnects, try to reconnect
-          if (pathname === '/dashboard' && reason !== 'io client disconnect') {
-            console.log("🔄 Dashboard detected, will attempt reconnection");
+          const isDashboardOrConsultation = pathname?.startsWith('/dashboard') || pathname?.startsWith('/consultation');
+          if (isDashboardOrConsultation && reason !== 'io client disconnect') {
+            console.log("🔄 Dashboard/consultation detected, will attempt reconnection");
             // Auto-reconnect is handled by socket.io, but we can force it
             setTimeout(() => {
               if (socketRef.current && !socketRef.current.connected) {
@@ -92,12 +94,8 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     initializeSocket();
 
     return () => {
-      // Only disconnect if not on dashboard
-      if (pathname !== '/dashboard') {
-        socketRef.current?.disconnect();
-        socketRef.current = null;
-        setSocket(null);
-      }
+      // Keep socket connected across all in-app navigation (dashboard + consultation)
+      // Only disconnect on unmount (e.g. full page navigation away from app)
     };
   }, [user, socketUrl, socketUrlLoading, pathname]);
 

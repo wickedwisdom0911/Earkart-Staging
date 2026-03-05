@@ -33,6 +33,7 @@ export default function OtoacousticReportPage() {
   const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
   const reportRef = useRef<HTMLDivElement>(null);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isSendingReport, setIsSendingReport] = useState(false);
   
   // Check if this is Shriram Hospital
   const isShriramHospital = consultationData?.centre?.user?.email?.toLowerCase() === "bills.shriramhospital@gmail.com" || 
@@ -69,6 +70,18 @@ export default function OtoacousticReportPage() {
       setComments(consultationData.oae.notes);
     }
   }, [consultationData]);
+
+  // Prevent refresh/close while report is being sent
+  useEffect(() => {
+    if (!isSendingReport) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Report is being sent. Leave anyway?";
+      return "Report is being sent. Leave anyway?";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isSendingReport]);
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setReportDate(e.target.value);
@@ -241,6 +254,7 @@ export default function OtoacousticReportPage() {
   const sendReportToNumbers = async (toNumbersInput: string) => {
     if (!reportRef.current || !consultationData) return;
     
+    setIsSendingReport(true);
     try {
       toast.info("Preparing report for sharing...");
       
@@ -364,6 +378,8 @@ export default function OtoacousticReportPage() {
     } catch (err) {
       console.error("Error sharing report:", err);
       toast.error(`Failed to share report: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setIsSendingReport(false);
     }
   };
 
@@ -799,6 +815,7 @@ export default function OtoacousticReportPage() {
         isScreenConnecting={isScreenConnecting}
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}
+        isSendingReport={isSendingReport}
         onToggleShowReport={handleShowReport}
         onShare={handleShareReport}
         onDoAnotherTest={() => {

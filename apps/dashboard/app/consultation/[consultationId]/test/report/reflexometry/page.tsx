@@ -679,6 +679,7 @@ export default function ReflexometryReportPage() {
         isScreenConnecting={isScreenConnecting}
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}
+        isSendingReport={isWhatsAppSharing}
         onToggleShowReport={handleShowReport}
         onShare={handleShareClick}
         onDoAnotherTest={() => {

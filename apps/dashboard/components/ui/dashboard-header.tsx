@@ -29,16 +29,15 @@ export const DashboardHeader: React.FC = () => {
     <div className="flex h-14 gap-2 w-full">
       <Button
         onClick={toggleSidebar}
-        className={`h-14 rounded-lg shadow flex items-center justify-center gap-2 bg-neutral-100 ${open ? "w-62" : "w-14"}`}
+        className={`h-14 rounded-lg shadow flex items-center justify-center gap-2 bg-white ${open ? "w-62" : "w-14"}`}
       >
         <ChevronLeft size={20} className={`${open ? "" : "rotate-180"} transition-transform duration-300"`} />
         {open && <motion.span>Collapse Sidebar</motion.span>}
       </Button>
-      <div className="flex-1 flex items-center justify-between p-4 bg-neutral-100 rounded-lg gap-4">
+      <div className="flex-1 flex items-center justify-between p-4 bg-white rounded-lg gap-4">
           <div className="flex items-center gap-4">
-            <Image src="/logo.webp" alt="logo" width={120} height={120} />
             <div className="h-full w-px bg-neutral-800" />
-            <Breadcrumb pathname={pathname} />
+            <Breadcrumb pathname={pathname ?? ""} />
           </div>
         <div className="flex items-center gap-3">
           {/* Patient Alert Indicator - Always visible for audiologists */}

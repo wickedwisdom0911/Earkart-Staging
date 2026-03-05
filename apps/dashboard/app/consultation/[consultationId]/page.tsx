@@ -13,13 +13,11 @@ export default function ConsultationPage() {
 
   const consultationData = response ? getConsultationFromResponse(response) : null;
 
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-  if (!consultationData?.patient) return <div>No data</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-full text-gray-500 text-sm">Loading...</div>;
+  if (error) return <div className="flex items-center justify-center h-full text-red-500 text-sm">Error: {error.message}</div>;
+  if (!consultationData?.patient) return <div className="flex items-center justify-center h-full text-gray-500 text-sm">No data</div>;
 
   return (
-    <>
-      <PatientDetails patient={consultationData.patient} consultation={consultationData} />
-    </>
+    <PatientDetails patient={consultationData.patient} consultation={consultationData} />
   );
 }

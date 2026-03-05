@@ -8,6 +8,7 @@ import { verifySession } from "@/lib/session";
  * Pagination - matches backend API:
  * GET /consultation/get-all?limit=&offset=&startDate=&endDate=&audiologistId=
  * Response: { data: { data: consultations[], total, hasNext, totalPages } }
+ * Backend may expect YYYY-MM-DD or ISO 8601 format.
  */
 export interface GetConsultationsPageParams {
   page?: number;
@@ -65,7 +66,11 @@ export default async function getConsultationsPage(
     ? data.data
     : [];
   const total = typeof data?.total === "number" ? data.total : consultations.length;
-  const hasNext = typeof data?.hasNext === "boolean" ? data.hasNext : consultations.length >= limit;
+  // If we got a partial page (fewer than limit) or empty, there is no next page - prevents infinite "Loading more..."
+  const receivedFullPage = consultations.length >= limit;
+  const hasNext =
+    receivedFullPage &&
+    (typeof data?.hasNext === "boolean" ? data.hasNext : true);
   const totalPages = typeof data?.totalPages === "number" ? data.totalPages : Math.max(1, Math.ceil(total / limit));
 
   return {

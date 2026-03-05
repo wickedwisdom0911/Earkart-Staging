@@ -507,6 +507,7 @@ export default function ToneDecayReportPage() {
         isScreenConnecting={isScreenConnecting}
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}
+        isSendingReport={isSharing}
         onToggleShowReport={handleShowReport}
         onShare={handleShareClick}
         onDoAnotherTest={() => {

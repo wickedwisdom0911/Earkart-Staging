@@ -55,10 +55,14 @@ export function useGetConsultationsInfinite(
     query.data?.pages?.[query.data.pages.length - 1]?.total ??
     0;
 
+  // Override: if we've loaded all items, there is no next page (prevents stuck "Loading more...")
+  const hasLoadedAll = total > 0 && consultations.length >= total;
+  const hasNextPage = hasLoadedAll ? false : (query.hasNextPage ?? false);
+
   return {
     ...query,
     consultations,
     total,
-    hasNextPage: query.hasNextPage ?? false,
+    hasNextPage,
   };
 }

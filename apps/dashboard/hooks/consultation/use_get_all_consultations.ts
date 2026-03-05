@@ -8,15 +8,23 @@ export const useGetAllConsultations = (options?: {
   refetchInterval?: number | false;
   /** Limit fetch to N records for faster initial load (e.g. dashboard uses 100) */
   maxRecords?: number;
+  /** Cache duration in ms - reduces refetch on revisit (default 0) */
+  staleTime?: number;
+  /** Date range filter - YYYY-MM-DD format */
+  startDate?: string;
+  endDate?: string;
 }) => {
   return useQuery({
-    queryKey: ["consultations", options?.maxRecords],
+    queryKey: ["consultations", options?.maxRecords, options?.startDate, options?.endDate],
     enabled: options?.enabled !== false, // Default to true, but can be disabled
     refetchInterval: options?.refetchInterval || false, // Optional auto-refetch interval
+    staleTime: options?.staleTime ?? 0,
     queryFn: async () => {
       try {
         const result = await getAllConsultations({
           maxRecords: options?.maxRecords,
+          startDate: options?.startDate,
+          endDate: options?.endDate,
         });
         return result;
       } catch (error) {
@@ -39,7 +47,6 @@ export const useGetAllConsultations = (options?: {
     },
     refetchOnMount: true, // Always refetch when component mounts
     refetchOnWindowFocus: true, // Refetch when window gains focus
-    staleTime: 0, // Always consider data stale to ensure fresh data
   });
 };
 

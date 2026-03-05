@@ -2240,6 +2240,7 @@ export default function ReportPage() {
         isScreenConnecting={isScreenConnecting}
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}
+        isSendingReport={isWhatsAppSharing}
         onToggleShowReport={handleShowReport}
         onShare={handleShareClick}
         onDoAnotherTest={handleDoAnotherTest}

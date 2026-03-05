@@ -15,6 +15,9 @@ export interface GetAllConsultationsParams {
   offset?: number;
   /** Optional max records to fetch - stops pagination once reached. Use for faster dashboard load. */
   maxRecords?: number;
+  /** Date range filter - passed to backend. If backend doesn't filter, caller should filter client-side. */
+  startDate?: string;
+  endDate?: string;
 }
 
 export default async function getAllConsultations(
@@ -32,9 +35,18 @@ export default async function getAllConsultations(
     let hasMore = true;
     const allConsultations: ConsultationModelData[] = [];
 
+    // Build base URL with optional date filters
+    const urlParams = new URLSearchParams({
+      limit: String(limit),
+      offset: "0", // will override per iteration
+    });
+    if (params?.startDate) urlParams.set("startDate", params.startDate);
+    if (params?.endDate) urlParams.set("endDate", params.endDate);
+
     // Fetch pages (stop early if maxRecords reached)
     while (hasMore && (!maxRecords || allConsultations.length < maxRecords)) {
-      const url = `${baseUrl}consultation/get-all?limit=${limit}&offset=${offset}`;
+      urlParams.set("offset", String(offset));
+      const url = `${baseUrl}consultation/get-all?${urlParams.toString()}`;
 
       try {
         const response = await apiRequest<ConsultationModel>(

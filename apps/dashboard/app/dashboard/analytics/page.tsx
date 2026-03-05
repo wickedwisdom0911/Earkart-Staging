@@ -109,8 +109,8 @@ export default function AnalyticsPage() {
   ];
 
   return (
-    <DashboardBodyWrapper>
-      <div className="min-h-screen bg-gray-50/50 p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
+    <DashboardBodyWrapper className="!bg-[#EEF4F9] !gap-0 !p-0 !border-0 !rounded-none">
+      <div className="min-h-screen w-full h-full bg-[#EEF4F9] p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
 
         {/* ── Page Header ── */}
         <div className="flex items-center justify-between gap-3">

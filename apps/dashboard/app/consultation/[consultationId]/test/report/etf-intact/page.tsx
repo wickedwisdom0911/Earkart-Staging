@@ -773,6 +773,7 @@ export default function ETFIntactReportPage() {
         isScreenConnecting={isScreenConnecting}
         isScreenSharing={isScreenSharing}
         isShowingReport={isShowingReport}
+        isSendingReport={isWhatsAppSharing}
         onToggleShowReport={handleShowReport}
         onShare={handleShareClick}
         onDoAnotherTest={() => {

@@ -19,7 +19,6 @@ import CountrySelector from "@/components/ui/selector/country-selector";
 import StateSelector from "@/components/ui/selector/state-selector";
 import CitySelector from "@/components/ui/selector/city-selector";
 import DistrictSelector from "@/components/ui/selector/district-selector";
-import GenderSelect from "@/components/ui/selector/gender-select";
 import MultiLanguageSelector from "@/components/ui/selector/language-selector";
 import { Gender } from "@/models/enums";
 import { useState, useEffect } from "react";
@@ -27,7 +26,6 @@ import { useParams, useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/routes";
 import { useUpdatePatient } from "@/hooks/consultation/use-update-patient";
 import { toast } from "sonner";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Stethoscope, CreditCard } from "lucide-react";
 import type { ConsultationModelData } from "@/models/consultation.model";
 
@@ -41,7 +39,6 @@ export default function PatientDetails({
   const router = useRouter();
   const { consultationId } = useParams();
   
-  // Check if user is AIIMS employee
   const [isAiims, setIsAiims] = useState(false);
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -71,7 +68,7 @@ export default function PatientDetails({
     },
   });
   const { mutate: updatePatient, isPending } = useUpdatePatient();
-  // Reset state/city/district when parent changes
+
   useEffect(() => {
     if (!countryId) {
       setStateId("");
@@ -94,7 +91,6 @@ export default function PatientDetails({
   }, [districtId, form]);
 
   function handleSubmit(data: PatientModelData) {
-    // Clean up location fields if not filled (set to null instead of empty string)
     const cleanedData = {
       ...data,
       cityId: data.cityId || null,
@@ -109,44 +105,23 @@ export default function PatientDetails({
       pincode: data.pincode || null,
     };
 
-    // Check if any field has changed from the original patient data
-    const changes: Record<
-      string,
-      {
-        old: PatientModelData[keyof PatientModelData];
-        new: PatientModelData[keyof PatientModelData];
-      }
-    > = {};
+    const changes: Record<string, { old: PatientModelData[keyof PatientModelData]; new: PatientModelData[keyof PatientModelData] }> = {};
 
     const hasChanges = Object.keys(cleanedData).some((key) => {
       const typedKey = key as keyof PatientModelData;
       const oldValue = patient[typedKey];
       const newValue = cleanedData[typedKey];
-
-      // Skip comparing undefined/null values and empty strings
       if (oldValue === undefined || newValue === undefined) return false;
       if (oldValue === "" && newValue === "") return false;
-
-      // Handle date comparison
       if (typedKey === "dob") {
-        const oldDate = oldValue
-          ? new Date(oldValue as string).toISOString()
-          : "";
-        const newDate = newValue
-          ? new Date(newValue as string).toISOString()
-          : "";
+        const oldDate = oldValue ? new Date(oldValue as string).toISOString() : "";
+        const newDate = newValue ? new Date(newValue as string).toISOString() : "";
         const isChanged = oldDate !== newDate;
-        if (isChanged) {
-          changes[key] = { old: oldValue, new: newValue };
-        }
+        if (isChanged) changes[key] = { old: oldValue, new: newValue };
         return isChanged;
       }
-
-      // Handle string comparison
       const isChanged = String(oldValue) !== String(newValue);
-      if (isChanged) {
-        changes[key] = { old: oldValue, new: newValue };
-      }
+      if (isChanged) changes[key] = { old: oldValue, new: newValue };
       return isChanged;
     });
 
@@ -157,9 +132,7 @@ export default function PatientDetails({
           onSuccess: (result) => {
             if (result.success) {
               toast.success("Patient updated successfully");
-              router.push(
-                ROUTES.ANSWER_QUESTIONNAIRE(consultationId as string)
-              );
+              router.push(ROUTES.ANSWER_QUESTIONNAIRE(consultationId as string));
             } else {
               toast.error(result.message || "Failed to update patient");
             }
@@ -177,289 +150,320 @@ export default function PatientDetails({
   }
 
   return (
-    <div className="p-4 flex justify-center">
-      <Card className="w-full max-w-3xl">
-        <CardHeader>
-          <CardTitle>Patient Details</CardTitle>
-          <CardDescription>
-            Verify or update patient information before proceeding.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Tests Selected & Payment - shown when entering consultation */}
+    <div className="h-full overflow-y-auto bg-white flex justify-center">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="px-5 py-4 w-full max-w-2xl mx-auto">
+          {/* Tests & Payment info */}
           {consultation && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+            <div className="flex gap-4 mb-4">
               {consultation.consultationPricing?.length > 0 && (
-                <div className="flex items-center gap-3">
-                  <Stethoscope className="w-5 h-5 text-primary-600 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Tests Selected</p>
-                    <p className="font-medium text-sm">
-                      {consultation.consultationPricing
-                        .map((cp: any) => cp?.pricing?.name || cp?.pricing?.description || "—")
-                        .filter(Boolean)
-                        .join(", ") || "—"}
-                    </p>
-                  </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Stethoscope className="w-4 h-4 text-primary-600 flex-shrink-0" />
+                  <span>
+                    {consultation.consultationPricing
+                      .map((cp: any) => cp?.pricing?.name || cp?.pricing?.description || "—")
+                      .filter(Boolean)
+                      .join(", ")}
+                  </span>
                 </div>
               )}
               {(() => {
                 const payments = (consultation as Record<string, unknown>).Payment ?? (consultation as Record<string, unknown>).payment;
                 const payment = Array.isArray(payments) ? payments[0] : null;
                 if (!payment) return null;
-                const amount = payment.amount;
-                const paymentType = payment.paymentType;
                 return (
-                  <div className="flex items-center gap-3">
-                    <CreditCard className="w-5 h-5 text-primary-600 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-500">Payment</p>
-                      <p className="font-medium text-sm">
-                        ₹{amount ?? "—"}
-                        {paymentType && (
-                          <span className="text-gray-500 ml-1">
-                            ({paymentType.replace(/_/g, " ")})
-                          </span>
-                        )}
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <CreditCard className="w-4 h-4 text-primary-600 flex-shrink-0" />
+                    <span>₹{payment.amount ?? "—"} {payment.paymentType && `(${payment.paymentType.replace(/_/g, " ")})`}</span>
                   </div>
                 );
               })()}
             </div>
           )}
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                {isAiims ? (
-                  <FormField
-                    control={form.control}
-                    name="code"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Patient ID</FormLabel>
-                        <FormControl>
-                          <Input {...field} value={patient.code || ""} disabled placeholder="Patient ID" />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                ) : (
+
+          <div className="space-y-4">
+            {/* Patients Details heading */}
+            <div className="mb-2">
+              <h2 className="text-base font-semibold text-gray-800">Patients Details</h2>
+              <p className="text-xs text-gray-500">Verify or update patients information before proceeding.</p>
+            </div>
+
+            {/* First Name + Last Name */}
+            <div className="grid grid-cols-2 gap-3">
+              {isAiims ? (
+                <FormField
+                  control={form.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-gray-500 font-normal">Patient ID</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={patient.code || ""} disabled className="h-9 text-sm border-gray-200 rounded-md" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <>
                   <FormField
                     control={form.control}
                     name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Full Name</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="Enter full name" />
-                        </FormControl>
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const parts = (field.value || "").split(" ");
+                      const firstName = parts[0] || "";
+                      const lastName = parts.slice(1).join(" ");
+                      return (
+                        <FormItem>
+                          <FormLabel className="text-xs text-gray-500 font-normal">First Name</FormLabel>
+                          <FormControl>
+                            <Input
+                              value={firstName}
+                              onChange={(e) => {
+                                const newFirst = e.target.value;
+                                field.onChange(lastName ? `${newFirst} ${lastName}` : newFirst);
+                              }}
+                              className="h-9 text-sm border-gray-200 rounded-md"
+                            />
+                          </FormControl>
+                        </FormItem>
+                      );
+                    }}
                   />
-                )}
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input 
-                          {...field} 
-                          value={field.value || ""}
-                          type="email" 
-                          placeholder="Enter email" 
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="contactNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contact Number</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Enter contact number" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="gender"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Gender</FormLabel>
-                      <FormControl>
-                        <GenderSelect
-                          value={field.value as Gender}
-                          onChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="dob"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date of Birth</FormLabel>
-                        <FormControl>
-                          <DatetimePicker
-                            value={field.value ? new Date(field.value) : undefined}
-                            onChange={(date: Date | undefined) =>
-                              field.onChange(date ? date.toISOString() : "")
-                            }
-                            format={[["days", "months", "years"], []]}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="age"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Age (years)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            max={150}
-                            step={1}
-                            value={field.value ?? ""}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === "") {
-                                field.onChange(null);
-                              } else {
-                                const n = Number(v);
-                                field.onChange(Number.isNaN(n) ? null : n);
-                              }
-                            }}
-                            placeholder="Enter age"
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-
-
-                
-
-                <FormField
-                  control={form.control}
-                  name="languageId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Preferred Language</FormLabel>
-                      <FormControl>
-                        <MultiLanguageSelector
-                          value={field.value ? [field.value] : []}
-                          onChange={(ids) => field.onChange(ids[0] || "")}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <div className="col-span-2">
-                  <FormField
-                    control={form.control}
-                    name="cityId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Location</FormLabel>
-                        <div className="grid grid-cols-2 gap-4">
-                          <CountrySelector
-                            value={countryId}
-                            onChange={setCountryId}
-                            initialValue={countryId}
-                          />
-                          {countryId && (
-                            <StateSelector
-                              value={stateId}
-                              onChange={setStateId}
-                              countryId={countryId}
-                              initialValue={stateId}
+                    name="name"
+                    render={({ field }) => {
+                      const parts = (field.value || "").split(" ");
+                      const firstName = parts[0] || "";
+                      const lastName = parts.slice(1).join(" ");
+                      return (
+                        <FormItem>
+                          <FormLabel className="text-xs text-gray-500 font-normal">Last Name</FormLabel>
+                          <FormControl>
+                            <Input
+                              value={lastName}
+                              onChange={(e) => {
+                                const newLast = e.target.value;
+                                field.onChange(firstName ? `${firstName} ${newLast}` : newLast);
+                              }}
+                              className="h-9 text-sm border-gray-200 rounded-md"
                             />
-                          )}
-                          {stateId && (
-                            <DistrictSelector
-                              value={districtId}
-                              onChange={setDistrictId}
-                              stateId={stateId}
-                              initialValue={districtId}
-                            />
-                          )}
-                          {districtId && (
-                            <CitySelector
-                              value={field.value}
-                              onChange={field.onChange}
-                              districtId={districtId}
-                              initialValue={field.value}
-                            />
-                          )}
-                        </div>
-                      </FormItem>
-                    )}
+                          </FormControl>
+                        </FormItem>
+                      );
+                    }}
                   />
-                </div>
+                </>
+              )}
+            </div>
 
-                <FormField
-                  control={form.control}
-                  name="pincode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Pincode</FormLabel>
-                      <FormControl>
-                        <Input {...field} value={field.value || ""} placeholder="Enter pincode" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
+            {/* DOB + Age */}
+            <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
-                name="address"
+                name="dob"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Address</FormLabel>
+                    <FormLabel className="text-xs text-gray-500 font-normal">Date of Birth</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value || ""} placeholder="Enter address" />
+                      <DatetimePicker
+                        value={field.value ? new Date(field.value) : undefined}
+                        onChange={(date: Date | undefined) => field.onChange(date ? date.toISOString() : "")}
+                        format={[["days", "months", "years"], []]}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="age"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-gray-500 font-normal">Age</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={150}
+                        step={1}
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          field.onChange(v === "" ? null : Number(v));
+                        }}
+                        placeholder="Age"
+                        className="h-9 text-sm border-gray-200 rounded-md"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
 
-              <div className="flex justify-end">
-                <Button
-                  type="submit"
-                  className="w-fit cursor-pointer bg-primary-500 text-white"
-                  disabled={isPending}
-                >
-                  {isPending ? "Saving..." : "Next"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+            {/* Gender */}
+            <FormField
+              control={form.control}
+              name="gender"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-gray-500 font-normal">Gender</FormLabel>
+                  <FormControl>
+                    <div className="flex gap-2">
+                      {(["MALE", "FEMALE", "OTHER"] as Gender[]).map((g) => (
+                        <button
+                          key={g}
+                          type="button"
+                          onClick={() => field.onChange(g)}
+                          className={`flex-1 h-9 text-sm rounded-md border transition-colors ${
+                            field.value === g
+                              ? "bg-blue-50 border-blue-300 text-blue-700 font-medium"
+                              : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          {g.charAt(0) + g.slice(1).toLowerCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {/* Phone + Email */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="contactNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-gray-500 font-normal">Phone</FormLabel>
+                    <FormControl>
+                      <Input {...field} className="h-9 text-sm border-gray-200 rounded-md" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-gray-500 font-normal">Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value || ""} type="email" className="h-9 text-sm border-gray-200 rounded-md" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Chief Complaint */}
+            <FormField
+              control={form.control}
+              name="chiefComplaint"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-gray-500 font-normal">Chief Complaint</FormLabel>
+                  <FormControl>
+                    <textarea
+                      {...field}
+                      value={field.value || ""}
+                      rows={3}
+                      className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-300"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {/* Referred By */}
+            <FormField
+              control={form.control}
+              name="referredBy"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-gray-500 font-normal">Referred By</FormLabel>
+                  <FormControl>
+                    <Input {...field} value={field.value || ""} className="h-9 text-sm border-gray-200 rounded-md" />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {/* Language */}
+            <FormField
+              control={form.control}
+              name="languageId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-gray-500 font-normal">Preferred Language</FormLabel>
+                  <FormControl>
+                    <MultiLanguageSelector
+                      value={field.value ? [field.value] : []}
+                      onChange={(ids) => field.onChange(ids[0] || "")}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {/* Location */}
+            <FormField
+              control={form.control}
+              name="cityId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-gray-500 font-normal">Location</FormLabel>
+                  <div className="grid grid-cols-2 gap-3">
+                    <CountrySelector value={countryId} onChange={setCountryId} initialValue={countryId} />
+                    {countryId && <StateSelector value={stateId} onChange={setStateId} countryId={countryId} initialValue={stateId} />}
+                    {stateId && <DistrictSelector value={districtId} onChange={setDistrictId} stateId={stateId} initialValue={districtId} />}
+                    {districtId && <CitySelector value={field.value} onChange={field.onChange} districtId={districtId} initialValue={field.value} />}
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="pincode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-gray-500 font-normal">Pincode</FormLabel>
+                  <FormControl>
+                    <Input {...field} value={field.value || ""} className="h-9 text-sm border-gray-200 rounded-md" />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-gray-500 font-normal">Address</FormLabel>
+                  <FormControl>
+                    <Input {...field} value={field.value || ""} className="h-9 text-sm border-gray-200 rounded-md" />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="flex justify-end pt-4 pb-2">
+            <Button
+              type="submit"
+              className="px-8 h-9 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded-md cursor-pointer"
+              disabled={isPending}
+            >
+              {isPending ? "Saving..." : "Next"}
+            </Button>
+          </div>
+        </form>
+      </Form>
     </div>
   );
 }

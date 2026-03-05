@@ -9,7 +9,7 @@ import { OtoscopyProvider } from "@/providers/otoscopy-provider";
 import { AgoraOtoscopyProvider } from "@/providers/agora-otoscopy-provider";
 import { ConsultationContent } from "./_components/consultation-content";
 import AgoraRTC, { AgoraRTCProvider } from "agora-rtc-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording-adapter";
 import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
 import { chunkStorage } from "@/lib/indexeddb-chunks";
@@ -21,10 +21,38 @@ import { toast } from "sonner";
 import { EndConsultationProvider } from "@/providers/end-consultation-provider";
 import { updateConsultation } from "@/actions/consultations/update-consultation";
 import { useQueryClient } from "@tanstack/react-query";
+import { User } from "lucide-react";
 
 // Import debug utilities in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   import("@/utils/recording-debug");
+}
+
+// Status badge component - pill style matching design
+function StatusBadge({
+  label,
+  isConnected,
+  isActive,
+  colorClass,
+  children,
+}: {
+  label: string;
+  isConnected?: boolean;
+  isActive?: boolean;
+  colorClass?: string;
+  children?: React.ReactNode;
+}) {
+  const dotColor =
+    colorClass ||
+    (isConnected || isActive ? "bg-green-500" : "bg-red-500");
+
+  return (
+    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-gray-200 shadow-sm text-xs font-medium text-gray-700">
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+      <span>{label}</span>
+      {children}
+    </div>
+  );
 }
 
 export default function ConsultationLayout({
@@ -34,6 +62,7 @@ export default function ConsultationLayout({
 }) {
   const { consultationId } = useParams() as { consultationId: string };
   const router = useRouter();
+  const pathname = usePathname();
   const socket = useSocket();
   const queryClient = useQueryClient();
 
@@ -875,77 +904,61 @@ export default function ConsultationLayout({
             pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
             className="border-none "
             button={
-              <div className="flex items-center justify-center gap-6 mr-2">
-                {/* Audiometer Device Status */}
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      r15c.isConnected ? "bg-green-500" : "bg-red-500"
-                    }`}
-                  />
-                  <span className="text-sm font-medium">
-                    Audiometer:{" "}
-                    {r15c.connectionStatus.charAt(0).toUpperCase() +
-                      r15c.connectionStatus.slice(1)}
-                    {typeof r15c.batteryLevel === 'number' && (
-                      <span className="ml-2 text-xs text-gray-600">🔋 {r15c.batteryLevel}%</span>
-                    )}
-                    {typeof r15c.isCharging === 'boolean' && (
-                      <span className="ml-1 text-xs text-gray-600">{r15c.isCharging ? "(Charging)" : "(On Battery)"}</span>
-                    )}
-                  </span>
-                </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Audiometer */}
+                <StatusBadge label="Audiometer" isConnected={r15c.isConnected}>
+                  {typeof r15c.batteryLevel === 'number' && (
+                    <span className="text-gray-400 text-[10px]">{r15c.batteryLevel}%</span>
+                  )}
+                </StatusBadge>
 
-                {/* Otoscope Device Status */}
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      revo2.isConnected ? "bg-green-500" : "bg-red-500"
-                    }`}
-                  />
-                  <span className="text-sm font-medium">
-                    Otoscope:{" "}
-                    {revo2.connectionStatus.charAt(0).toUpperCase() +
-                      revo2.connectionStatus.slice(1)}
-                  </span>
-                </div>
+                {/* Otoscope */}
+                <StatusBadge label="Otoscope" isConnected={revo2.isConnected} />
 
-                {/* Tablet State */}
+                {/* Tablet */}
                 {tablet && (
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${tablet.isCharging ? 'bg-green-500' : 'bg-gray-400'}`} />
-                    <span className="text-sm font-medium">
-                      Tablet: {typeof tablet.batteryLevel === 'number' ? `${tablet.batteryLevel}%` : '—'} {" "}
-                      {typeof tablet.isCharging === 'boolean' ? (tablet.isCharging ? '(Charging)' : '(On Battery)') : ''}
-                    </span>
-                  </div>
+                  <StatusBadge
+                    label="Tablet"
+                    colorClass={tablet.isCharging ? "bg-green-500" : "bg-yellow-400"}
+                  >
+                    {typeof tablet.batteryLevel === 'number' && (
+                      <span className="text-gray-400 text-[10px]">{tablet.batteryLevel}%</span>
+                    )}
+                  </StatusBadge>
                 )}
 
-                {/* Network Status */}
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      networkIssues ? "bg-orange-500" : "bg-green-500"
-                    }`}
-                  />
-                  <span className="text-sm font-medium">
-                    Network: {networkIssues ? "Issues Detected" : "Stable"}
-                  </span>
-                </div>
+                {/* Network */}
+                <StatusBadge
+                  label="Network"
+                  colorClass={networkIssues ? "bg-orange-400" : "bg-green-500"}
+                />
 
-                 {/* Recording Status Indicator */}
-                 {(recordingState.isRecording || recordingState.isUploading) && (
-                   <div className="flex items-center gap-2">
-                     <div className={`w-3 h-3 rounded-full ${recordingState.isRecording ? "bg-red-500 animate-pulse" : "bg-blue-500"}`} />
-                     <span className="text-sm font-medium">
-                       {recordingState.isRecording ? (
-                         <>Recording... ({recordingState.uploadedParts} chunks)</>
-                       ) : recordingState.isUploading ? (
-                         <>Finalizing... ({recordingState.uploadedParts} parts)</>
-                       ) : null}
-                     </span>
-                   </div>
-                 )}
+                {/* Recording */}
+                <StatusBadge
+                  label="Recording"
+                  colorClass={
+                    recordingState.isRecording
+                      ? "bg-red-500"
+                      : recordingState.isUploading
+                      ? "bg-blue-500"
+                      : "bg-gray-300"
+                  }
+                >
+                  {recordingState.isRecording && (
+                    <span className="text-gray-400 text-[10px]">{recordingState.uploadedParts} chunks</span>
+                  )}
+                </StatusBadge>
+
+                {/* Patient details nav button */}
+                {pathname !== `/consultation/${consultationId}` && (
+                  <button
+                    onClick={() => router.push(`/consultation/${consultationId}`)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-600 hover:bg-primary-700 text-white text-xs font-medium"
+                  >
+                    <User className="w-3 h-3" />
+                    Patient Details
+                  </button>
+                )}
 
                 {/* View recordings: during active session show latest only; when completed show all */}
                 {isCompleted ? (
