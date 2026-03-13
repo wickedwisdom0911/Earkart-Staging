@@ -8,7 +8,10 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
   
-      <SidebarProvider className="flex flex-col gap-2 p-2 w-full h-full max-h-screen">
+      <SidebarProvider
+        className="flex flex-col gap-2 p-2 w-full h-full max-h-screen"
+        style={{ "--sidebar-width": "280px", "--sidebar-width-icon": "3.5rem" } as React.CSSProperties}
+      >
          <ActivityProvider>
         <DashboardHeader />
           </ActivityProvider>

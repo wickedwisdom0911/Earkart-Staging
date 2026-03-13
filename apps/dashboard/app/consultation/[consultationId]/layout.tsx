@@ -12,7 +12,7 @@ import AgoraRTC, { AgoraRTCProvider } from "agora-rtc-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording-adapter";
 import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
-import { chunkStorage } from "@/lib/indexeddb-chunks";
+import { recordingStorage } from "@/utils/recording-storage";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { SessionStatus } from "@/models/enums";
 import { RedirectLoadingModal } from "@/components/ui/redirect-loading-modal";
@@ -264,7 +264,7 @@ export default function ConsultationLayout({
           console.log("🏁 [FINAL] Recording stopped, completing any remaining video...");
           
           // Get any remaining chunks
-          const storedChunks = await chunkStorage.getAllChunksForSession(recordingState.sessionId || '');
+          const storedChunks = await recordingStorage.getPendingChunks(recordingState.sessionId || '');
           const chunks = storedChunks.map(chunk => chunk.blob);
           
           if (chunks && chunks.length > 0) {
@@ -522,7 +522,10 @@ export default function ConsultationLayout({
         
         try {
           // In new storage, we use consultationId as the session key
-          const storedChunksEnd = await chunkStorage.getAllChunksForSession(consultationId);
+          const activeSession = await recordingStorage.getActiveSession(consultationId);
+          const storedChunksEnd = activeSession
+            ? await recordingStorage.getPendingChunks(activeSession.sessionId)
+            : [];
           if (storedChunksEnd && storedChunksEnd.length > 0) {
             console.log(`🎯 [END] Found ${storedChunksEnd.length} chunks for consultation ${consultationId}`);
             const allChunks = storedChunksEnd.map((c) => c.blob);
@@ -820,10 +823,11 @@ export default function ConsultationLayout({
           
           // Check IndexedDB sessions
           try {
-            const activeSessions = await chunkStorage.getActiveSessions();
-            console.log(`🗄️ Active IndexedDB sessions (${activeSessions.length}):`, activeSessions);
-            const chunks = await chunkStorage.getAllChunksForSession(consultationId);
-            console.log(`📦 Consultation ${consultationId} has ${chunks.length} chunks:`, chunks.map(c => ({ id: c.id, size: c.blob.size })));
+            const activeSessions = await recordingStorage.getAllSessions();
+            console.log(`🗄️ IndexedDB sessions (${activeSessions.length}):`, activeSessions);
+            const activeS = await recordingStorage.getActiveSession(consultationId);
+            const chunks = activeS ? await recordingStorage.getPendingChunks(activeS.sessionId) : [];
+            console.log(`📦 Consultation ${consultationId} has ${chunks.length} pending chunks:`, chunks.map(c => ({ id: c.id, size: c.blob.size })));
           } catch (error) {
             console.error('❌ Error checking IndexedDB:', error);
           }

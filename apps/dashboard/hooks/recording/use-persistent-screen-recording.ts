@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { 
@@ -6,7 +6,8 @@ import {
   generateChunkId, 
   generateSessionId,
   type StoredRecordingSession,
-  type StoredChunk 
+  type StoredChunk,
+  type StoredRawChunk,
 } from "@/utils/recording-storage";
 
 import initiateRecordingUpload from "@/actions/recordings/initiate";
@@ -101,9 +102,14 @@ export function usePersistentScreenRecording(consultationId: string) {
 	const queueRef = useRef<Array<() => Promise<void>>>([]);
 	const uploadedPartsRef = useRef<UploadedPart[]>([]);
 
-	// Buffer to aggregate 5s chunks into exact partSize parts
+	// Buffer to aggregate 3s chunks into exact partSize parts
 	const pendingBlobsRef = useRef<Blob[]>([]);
 	const pendingSizeRef = useRef<number>(0);
+
+	// Track raw chunk index for immediate IndexedDB persistence
+	const rawChunkIndexRef = useRef<number>(0);
+	// Track raw chunk IDs consumed per flush so we can mark them uploaded after S3 succeeds
+	const rawChunkIdsInCurrentFlushRef = useRef<string[]>([]);
 
 	// Storage-related refs
 	const isRestoringRef = useRef<boolean>(false);
@@ -278,7 +284,6 @@ export function usePersistentScreenRecording(consultationId: string) {
 	}, []);
 
 	const tryFlushFullParts = useCallback(async () => {
-		// Don't try to flush if there's no active session
 		if (!sessionIdRef.current || !uploadIdRef.current) {
 			console.warn("⚠️ [FLUSH] No active session, skipping chunk flush");
 			return;
@@ -286,29 +291,60 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 		const partSize = partSizeRef.current;
 		while (pendingSizeRef.current >= partSize) {
+			// Snapshot the raw chunk IDs consumed by this part so we can mark them after upload
+			const consumedRawIds = [...rawChunkIdsInCurrentFlushRef.current];
+			rawChunkIdsInCurrentFlushRef.current = [];
+
 			const partBlob = takeExactBytesFromBuffer(partSize);
 			try {
 				const chunkId = await saveChunkToStorage(partBlob);
 				const pn = nextPartNumberRef.current;
-				enqueueUpload(() => uploadBlobPart(partBlob, pn, chunkId));
+				const idsToMark = consumedRawIds;
+				enqueueUpload(async () => {
+					await uploadBlobPart(partBlob, pn, chunkId);
+					// After successful S3 upload, mark the raw chunks that made up this part
+					try {
+						await recordingStorage.markRawChunksAsUploaded(idsToMark);
+					} catch (e) {
+						console.warn("⚠️ [FLUSH] Failed to mark raw chunks as uploaded:", e);
+					}
+				});
 				nextPartNumberRef.current = pn + 1;
 			} catch (error) {
 				console.error("❌ [FLUSH] Failed to save chunk to storage:", error);
-				// If we can't save to storage, we can't continue
 				break;
 			}
 		}
 	}, [enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
 
 	const handleChunk = useCallback(async (chunk: Blob) => {
-		// Don't process chunks if there's no active session
 		if (!sessionIdRef.current || !uploadIdRef.current) {
 			console.warn("⚠️ [HANDLE_CHUNK] No active session, discarding chunk");
 			return;
 		}
 
+		// Immediately persist to IndexedDB so data survives a refresh
+		const rawId = `raw-${sessionIdRef.current}-${rawChunkIndexRef.current}`;
+		const rawChunk: StoredRawChunk = {
+			id: rawId,
+			sessionId: sessionIdRef.current,
+			chunkIndex: rawChunkIndexRef.current,
+			blob: chunk,
+			timestamp: Date.now(),
+			isUploaded: false,
+		};
+		rawChunkIndexRef.current += 1;
+
+		try {
+			await recordingStorage.saveRawChunk(rawChunk);
+		} catch (err) {
+			console.error("❌ [HANDLE_CHUNK] Failed to persist raw chunk to IndexedDB:", err);
+		}
+
+		// Also accumulate in memory for the normal flush pipeline
 		pendingBlobsRef.current.push(chunk);
 		pendingSizeRef.current += chunk.size;
+		rawChunkIdsInCurrentFlushRef.current.push(rawId);
 		await tryFlushFullParts();
 	}, [tryFlushFullParts]);
 
@@ -415,8 +451,6 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 			// Check if we can safely recover by testing the upload
 			try {
-				// Try to test the upload session by attempting to presign a part
-				// This is a lighter test than finalizing the entire upload
 				console.log("🧪 [RECOVERY] Testing upload session validity...");
 				await presignPart(activeSession.uploadId, 1);
 				console.log("✅ [RECOVERY] Upload session is valid, proceeding with recovery");
@@ -439,14 +473,59 @@ export function usePersistentScreenRecording(consultationId: string) {
 					error: null,
 				}));
 
-				// Resume uploading pending chunks
+				// Resume uploading any aggregated pending chunks (old path)
 				const pendingChunks = await recordingStorage.getPendingChunks(activeSession.sessionId);
 				if (pendingChunks.length > 0) {
-					console.log(`📤 [RECOVERY] Resuming upload of ${pendingChunks.length} pending chunks`);
+					console.log(`📤 [RECOVERY] Resuming upload of ${pendingChunks.length} aggregated pending chunks`);
 					setState((s) => ({ ...s, isUploading: true }));
-
 					for (const chunk of pendingChunks) {
 						enqueueUpload(() => uploadBlobPart(chunk.blob, chunk.partNumber, chunk.id));
+					}
+				}
+
+				// Recover raw chunks that were persisted but never uploaded (the key fix)
+				const unuploadedRaw = await recordingStorage.getUnuploadedRawChunks(activeSession.sessionId);
+				if (unuploadedRaw.length > 0) {
+					console.log(`📤 [RECOVERY] Found ${unuploadedRaw.length} unuploaded raw chunks — aggregating into parts`);
+					setState((s) => ({ ...s, isUploading: true }));
+
+					const partSize = partSizeRef.current;
+					let buffer: Blob[] = [];
+					let bufferSize = 0;
+					let rawIdsInBuffer: string[] = [];
+
+					for (const raw of unuploadedRaw) {
+						buffer.push(raw.blob);
+						bufferSize += raw.blob.size;
+						rawIdsInBuffer.push(raw.id);
+
+						if (bufferSize >= partSize) {
+							const partBlob = new Blob(buffer, { type: "application/octet-stream" });
+							const chunkId = await saveChunkToStorage(partBlob);
+							const pn = nextPartNumberRef.current;
+							const idsToMark = [...rawIdsInBuffer];
+							enqueueUpload(async () => {
+								await uploadBlobPart(partBlob, pn, chunkId);
+								try { await recordingStorage.markRawChunksAsUploaded(idsToMark); } catch {}
+							});
+							nextPartNumberRef.current = pn + 1;
+							buffer = [];
+							bufferSize = 0;
+							rawIdsInBuffer = [];
+						}
+					}
+
+					// Flush remaining raw buffer (smaller than partSize) as final part
+					if (bufferSize > 0) {
+						const partBlob = new Blob(buffer, { type: "application/octet-stream" });
+						const chunkId = await saveChunkToStorage(partBlob);
+						const pn = nextPartNumberRef.current;
+						const idsToMark = [...rawIdsInBuffer];
+						enqueueUpload(async () => {
+							await uploadBlobPart(partBlob, pn, chunkId);
+							try { await recordingStorage.markRawChunksAsUploaded(idsToMark); } catch {}
+						});
+						nextPartNumberRef.current = pn + 1;
 					}
 				}
 
@@ -653,6 +732,8 @@ export function usePersistentScreenRecording(consultationId: string) {
 			nextPartNumberRef.current = 1;
 			pendingBlobsRef.current = [];
 			pendingSizeRef.current = 0;
+			rawChunkIndexRef.current = 0;
+			rawChunkIdsInCurrentFlushRef.current = [];
 
 			const filename = opts?.filename || `consultation-${consultationId}-${Date.now()}.webm`;
 			const mimeTypeCandidates = [
@@ -747,6 +828,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 						if (sessionIdRef.current) {
 							await recordingStorage.deleteSession(sessionIdRef.current);
 							await recordingStorage.deleteSessionChunks(sessionIdRef.current);
+							await recordingStorage.deleteRawChunksForSession(sessionIdRef.current);
 						}
 					} catch {}
 					
@@ -985,6 +1067,8 @@ export function usePersistentScreenRecording(consultationId: string) {
 			nextPartNumberRef.current = 1;
 			pendingBlobsRef.current = [];
 			pendingSizeRef.current = 0;
+			rawChunkIndexRef.current = 0;
+			rawChunkIdsInCurrentFlushRef.current = [];
 			setState((s) => ({ ...s, hasActiveSession: false }));
 		}
 	}, [consultationId, handleChunk, initiateMultipart, state.isRecording, state.isInitializing, state.pendingParts]);
@@ -996,8 +1080,14 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 		try {
 			try {
-				if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-					mediaRecorderRef.current.stop();
+				const recorder = mediaRecorderRef.current;
+				if (recorder && recorder.state !== "inactive") {
+					// Request any buffered data before stopping so we don't lose the tail
+					if (recorder.state === "recording") {
+						recorder.requestData();
+						await new Promise((r) => setTimeout(r, 500));
+					}
+					recorder.stop();
 				}
 			} catch {}
 			mediaRecorderRef.current = null;
@@ -1028,7 +1118,12 @@ export function usePersistentScreenRecording(consultationId: string) {
 				const finalBlob = takeExactBytesFromBuffer(pendingSizeRef.current);
 				const chunkId = await saveChunkToStorage(finalBlob);
 				const pn = nextPartNumberRef.current;
-				enqueueUpload(() => uploadBlobPart(finalBlob, pn, chunkId));
+				const remainingRawIds = [...rawChunkIdsInCurrentFlushRef.current];
+				rawChunkIdsInCurrentFlushRef.current = [];
+				enqueueUpload(async () => {
+					await uploadBlobPart(finalBlob, pn, chunkId);
+					try { await recordingStorage.markRawChunksAsUploaded(remainingRawIds); } catch {}
+				});
 				nextPartNumberRef.current = pn + 1;
 			}
 
@@ -1049,10 +1144,11 @@ export function usePersistentScreenRecording(consultationId: string) {
 					setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null }));
 				}
 
-				// Mark session as completed and clean up storage
+				// Mark session as completed and clean up all storage
 				if (sessionIdRef.current) {
 					await recordingStorage.deactivateSession(sessionIdRef.current);
 					await recordingStorage.deleteSessionChunks(sessionIdRef.current);
+					await recordingStorage.deleteRawChunksForSession(sessionIdRef.current);
 				}
 			}
 		} catch (err) {
@@ -1067,6 +1163,8 @@ export function usePersistentScreenRecording(consultationId: string) {
 			nextPartNumberRef.current = 1;
 			pendingBlobsRef.current = [];
 			pendingSizeRef.current = 0;
+			rawChunkIndexRef.current = 0;
+			rawChunkIdsInCurrentFlushRef.current = [];
 			isStoppingRef.current = false;
 			setState((s) => ({ ...s, isUploading: false, hasActiveSession: false }));
 		}
@@ -1076,12 +1174,17 @@ export function usePersistentScreenRecording(consultationId: string) {
 		const uploadId = uploadIdRef.current;
 		if (!uploadId) return;
 
-		// If there is pending buffered data that hasn't reached partSize, flush it as the final part
+		// Flush remaining buffered data as the final part
 		if (pendingSizeRef.current > 0) {
 			const finalBlob = takeExactBytesFromBuffer(pendingSizeRef.current);
 			const chunkId = await saveChunkToStorage(finalBlob);
 			const pn = nextPartNumberRef.current;
-			enqueueUpload(() => uploadBlobPart(finalBlob, pn, chunkId));
+			const remainingRawIds = [...rawChunkIdsInCurrentFlushRef.current];
+			rawChunkIdsInCurrentFlushRef.current = [];
+			enqueueUpload(async () => {
+				await uploadBlobPart(finalBlob, pn, chunkId);
+				try { await recordingStorage.markRawChunksAsUploaded(remainingRawIds); } catch {}
+			});
 			nextPartNumberRef.current = pn + 1;
 		}
 
@@ -1132,6 +1235,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 		if (sessionIdRef.current) {
 			await recordingStorage.deactivateSession(sessionIdRef.current);
 			await recordingStorage.deleteSessionChunks(sessionIdRef.current);
+			await recordingStorage.deleteRawChunksForSession(sessionIdRef.current);
 		}
 
 		setState((s) => ({ ...s, hasActiveSession: false }));
@@ -1144,10 +1248,10 @@ export function usePersistentScreenRecording(consultationId: string) {
 		try {
 			await abortRecordingUpload({ uploadId });
 			
-			// Clean up storage
 			if (sessionIdRef.current) {
 				await recordingStorage.deleteSession(sessionIdRef.current);
 				await recordingStorage.deleteSessionChunks(sessionIdRef.current);
+				await recordingStorage.deleteRawChunksForSession(sessionIdRef.current);
 			}
 		} finally {
 			uploadIdRef.current = null;
@@ -1158,6 +1262,8 @@ export function usePersistentScreenRecording(consultationId: string) {
 			nextPartNumberRef.current = 1;
 			pendingBlobsRef.current = [];
 			pendingSizeRef.current = 0;
+			rawChunkIndexRef.current = 0;
+			rawChunkIdsInCurrentFlushRef.current = [];
 			setState((s) => ({ ...s, isRecording: false, isUploading: false, uploadId: null, hasActiveSession: false }));
 		}
 	}, []);

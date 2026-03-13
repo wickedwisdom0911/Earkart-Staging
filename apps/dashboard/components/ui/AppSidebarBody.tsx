@@ -11,57 +11,104 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "./sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 export default function AppSidebarBody({ item }: { item: SidebarItem }) {
   const pathname = usePathname();
-  // For /dashboard (Active Consultations), only match exactly - otherwise it would match all dashboard sub-routes
+  const { open } = useSidebar();
+
   const isActive = item.url
     ? pathname === item.url ||
       (item.url !== "/dashboard" && pathname.startsWith(item.url + "/"))
     : false;
+
   const hasSubItems = item.subItems && item.subItems.length > 0;
-  const [open, setOpen] = useState(
+  const [accordionOpen, setAccordionOpen] = useState(
     hasSubItems ? item.subItems!.some((sub) => sub.url && pathname.startsWith(sub.url)) : false
   );
 
+  // ── Collapsed: icon-only with tooltip ──
+  if (!open) {
+    return (
+      <SidebarMenuItem>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              href={item.url || "#"}
+              className={cn(
+                "flex items-center justify-center w-9 h-9 mx-auto rounded-xl transition-all duration-150",
+                isActive
+                  ? "bg-[#EBF6FD] text-[#40A3DB]"
+                  : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+              )}
+            >
+              <span className="w-[18px] h-[18px] flex items-center justify-center flex-shrink-0">
+                {item.icon}
+              </span>
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="font-medium">
+            {item.name}
+          </TooltipContent>
+        </Tooltip>
+      </SidebarMenuItem>
+    );
+  }
+
+  // ── Expanded: item with sub-items (accordion) ──
   if (hasSubItems) {
     return (
       <SidebarMenuItem>
-        <Collapsible open={open} onOpenChange={setOpen}>
-          <CollapsibleTrigger asChild>
-            <SidebarMenuButton
-              className={cn(
-                "flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group",
-                isActive
-                  ? "bg-[#EBF6FD] text-[#40A3DB]"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              )}
-            >
-              {/* Icon */}
-              <span
+        <Collapsible open={accordionOpen} onOpenChange={setAccordionOpen}>
+          <div
+            className={cn(
+              "flex items-center gap-0 w-full rounded-xl transition-all duration-150 group",
+              isActive ? "bg-[#EBF6FD]" : "hover:bg-gray-50"
+            )}
+          >
+            {item.url ? (
+              <Link
+                href={item.url}
                 className={cn(
-                  "flex-shrink-0 w-5 h-5 flex items-center justify-center transition-colors",
-                  isActive ? "text-[#40A3DB]" : "text-gray-500 group-hover:text-gray-700"
+                  "flex items-center gap-3 flex-1 px-3 py-2.5 lg:py-3 text-sm font-medium truncate",
+                  isActive ? "text-[#40A3DB]" : "text-gray-600 group-hover:text-gray-900"
                 )}
               >
-                {item.icon}
+                <span className={cn("flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center", isActive ? "text-[#40A3DB]" : "text-gray-500 group-hover:text-gray-700")}>
+                  {item.icon}
+                </span>
+                <span className="truncate">{item.name}</span>
+              </Link>
+            ) : (
+              <span className={cn("flex items-center gap-3 flex-1 px-3 py-2.5 lg:py-3 text-sm font-medium truncate", isActive ? "text-[#40A3DB]" : "text-gray-600")}>
+                <span className={cn("flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center", isActive ? "text-[#40A3DB]" : "text-gray-500")}>
+                  {item.icon}
+                </span>
+                <span className="truncate">{item.name}</span>
               </span>
-              <span className="flex-1 text-left truncate">{item.name}</span>
-              <ChevronDown
-                className={cn(
-                  "w-4 h-4 flex-shrink-0 transition-transform duration-200 text-gray-400",
-                  open && "rotate-180"
-                )}
-              />
-            </SidebarMenuButton>
-          </CollapsibleTrigger>
+            )}
+            <CollapsibleTrigger asChild>
+              <button
+                className="flex-shrink-0 px-2 py-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ChevronDown
+                  className={cn(
+                    "w-4 h-4 transition-transform duration-200",
+                    accordionOpen && "rotate-180"
+                  )}
+                />
+              </button>
+            </CollapsibleTrigger>
+          </div>
 
           <AnimatePresence initial={false}>
-            {open && (
+            {accordionOpen && (
               <CollapsibleContent forceMount asChild>
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
@@ -106,13 +153,14 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
     );
   }
 
+  // ── Expanded: simple item ──
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild>
         <Link
           href={item.url || "#"}
           className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group",
+            "flex items-center gap-3 px-3 py-2.5 lg:py-3 rounded-xl text-sm font-medium transition-all duration-150 group",
             isActive
               ? "bg-[#EBF6FD] text-[#40A3DB]"
               : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -120,7 +168,7 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
         >
           <span
             className={cn(
-              "flex-shrink-0 w-5 h-5 flex items-center justify-center transition-colors",
+              "flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center transition-colors",
               isActive ? "text-[#40A3DB]" : "text-gray-500 group-hover:text-gray-700"
             )}
           >

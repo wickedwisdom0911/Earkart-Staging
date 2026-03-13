@@ -63,7 +63,12 @@ export function VideoAnalysisSection({ consultationId }: VideoAnalysisSectionPro
             <p className="text-center py-6 text-gray-500">Loading analysis...</p>
           )}
           {isInView && analysisError && (
-            <p className="text-center py-6 text-amber-600">Failed to load analysis</p>
+            <div className="text-center py-6 space-y-1">
+              <p className="text-amber-600 font-medium">Failed to load analysis</p>
+              <p className="text-xs text-gray-400">
+                {(analysisError as Error)?.message || "Unknown error"}
+              </p>
+            </div>
           )}
           {isInView && !analysisLoading && !videoAnalysis && !analysisError && (
             <p className="text-center py-6 text-gray-500">No analysis available</p>

@@ -1,12 +1,9 @@
 "use client";
 
-import { useSidebar } from "./sidebar";
 import { Button } from "./button";
-import { ChevronLeft, Activity, StopCircle } from "lucide-react";
-import { motion } from "framer-motion";
+import { Activity, StopCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Breadcrumb } from "./breadcrumbs";
-import Image from "next/image";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,19 +18,11 @@ import { PatientAlertIndicator } from "./patient-alert-indicator";
 import { formatActivityLabel } from "@/utils";
 
 export const DashboardHeader: React.FC = () => {
-  const { open, toggleSidebar } = useSidebar();
   const pathname = usePathname();
   const { canTrack, selectedLabel, elapsed, currentActivity, startActivity, stopActivity } = useActivity();
 
   return (
     <div className="flex h-14 gap-2 w-full">
-      <Button
-        onClick={toggleSidebar}
-        className={`h-14 rounded-lg shadow flex items-center justify-center gap-2 bg-white ${open ? "w-62" : "w-14"}`}
-      >
-        <ChevronLeft size={20} className={`${open ? "" : "rotate-180"} transition-transform duration-300"`} />
-        {open && <motion.span>Collapse Sidebar</motion.span>}
-      </Button>
       <div className="flex-1 flex items-center justify-between p-4 bg-white rounded-lg gap-4">
           <div className="flex items-center gap-4">
             <div className="h-full w-px bg-neutral-800" />
@@ -78,3 +67,4 @@ export const DashboardHeader: React.FC = () => {
     </div>
   );
 };
+

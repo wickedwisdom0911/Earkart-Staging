@@ -5,19 +5,18 @@ import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
 import { format, isSameDay, subDays, startOfDay, endOfDay } from "date-fns";
 import { SessionStatus, Role } from "@/models/enums";
-import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import { extractConsultations } from "@/models/consultation.model";
 import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import { useAudiologistStatus } from "@/hooks/audiologist/use-audiologist-status";
+import HandleAudiologistDialog from "@/app/dashboard/audiologists/_components/handle-audiologist-dialog";
 import {
   AlertCircle, Stethoscope, Plus, Search,
   Calendar, Users, PhoneCall, BarChart3, Activity, X,
 } from "lucide-react";
 
 export default function AnalyticsPage() {
-  const router = useRouter();
   const { data: user } = useGetUser();
   const { data: consultations, isLoading, isError, error } = useGetAllConsultations();
   const { data: audiologists } = useGetAllAudiologists();
@@ -122,14 +121,15 @@ export default function AnalyticsPage() {
               {format(new Date(), "EEEE, MMMM dd, yyyy")}
             </p>
           </div>
-          <button
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm whitespace-nowrap flex-shrink-0"
-            onClick={() => router.push("/audiologists/add")}
-          >
-            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">Add Audiologist</span>
-            <span className="sm:hidden">Add</span>
-          </button>
+          <HandleAudiologistDialog
+            trigger={
+              <button className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm whitespace-nowrap flex-shrink-0">
+                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Add Audiologist</span>
+                <span className="sm:hidden">Add</span>
+              </button>
+            }
+          />
         </div>
 
         {/* ── Summary Stat Cards ──

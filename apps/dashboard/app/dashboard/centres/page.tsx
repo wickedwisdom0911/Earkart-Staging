@@ -176,7 +176,7 @@ export default function CentresPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-blue-100 dark:border-neutral-800 bg-blue-50 dark:bg-neutral-800/50">
-                  {["ID", "Name", "Doctor", "Email & Phone", "Location", "Gender", "DOB", "Status", ""].map(
+                  {["ID", "Name", "Assistant", "Email & Phone", "Location", "Gender", "DOB", "Status", ""].map(
                     (col) => (
                       <th
                         key={col}

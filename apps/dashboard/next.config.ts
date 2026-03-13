@@ -18,8 +18,7 @@ const nextConfig: NextConfig = {
     JWT_SECRET: process.env.JWT_SECRET || "default-jwt-secret",
     JWT_EXPIRE: process.env.JWT_EXPIRE || "7d",
     COOKIE_EXPIRE: process.env.COOKIE_EXPIRE || "7",
-    BASE_SOCKET_URL_PROD: process.env.BASE_SOCKET_URL_PROD || "http://65.2.163.137:3000/",
-    BASE_SOCKET_URL_DEV: process.env.BASE_SOCKET_URL_DEV || "http://192.168.1.172:3000/",
+    // BASE_SOCKET_URL_PROD / BASE_SOCKET_URL_DEV: not in env block — getSocketUrl reads process.env at runtime (ECS task def / .env)
   },
   typescript: {
     // Disable type checking during build for faster deployments

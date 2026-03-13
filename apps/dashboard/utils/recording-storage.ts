@@ -32,10 +32,20 @@ export interface StoredChunk {
   isUploaded: boolean;
 }
 
+export interface StoredRawChunk {
+  id: string;
+  sessionId: string;
+  chunkIndex: number;
+  blob: Blob;
+  timestamp: number;
+  isUploaded: boolean;
+}
+
 const DB_NAME = 'omni-recording-storage';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const SESSIONS_STORE = 'recording-sessions';
 const CHUNKS_STORE = 'recording-chunks';
+const RAW_CHUNKS_STORE = 'recording-raw-chunks';
 
 class RecordingStorage {
   private db: IDBDatabase | null = null;
@@ -66,7 +76,7 @@ class RecordingStorage {
           sessionsStore.createIndex('isActive', 'isActive', { unique: false });
         }
 
-        // Chunks store
+        // Chunks store (aggregated 5MB+ parts)
         if (!db.objectStoreNames.contains(CHUNKS_STORE)) {
           const chunksStore = db.createObjectStore(CHUNKS_STORE, {
             keyPath: 'id'
@@ -74,6 +84,16 @@ class RecordingStorage {
           chunksStore.createIndex('sessionId', 'sessionId', { unique: false });
           chunksStore.createIndex('partNumber', 'partNumber', { unique: false });
           chunksStore.createIndex('isUploaded', 'isUploaded', { unique: false });
+        }
+
+        // Raw chunks store (every 3s chunk, persisted immediately to survive refresh)
+        if (!db.objectStoreNames.contains(RAW_CHUNKS_STORE)) {
+          const rawStore = db.createObjectStore(RAW_CHUNKS_STORE, {
+            keyPath: 'id'
+          });
+          rawStore.createIndex('sessionId', 'sessionId', { unique: false });
+          rawStore.createIndex('chunkIndex', 'chunkIndex', { unique: false });
+          rawStore.createIndex('isUploaded', 'isUploaded', { unique: false });
         }
       };
     });
@@ -203,6 +223,85 @@ class RecordingStorage {
     ));
   }
 
+  // --- Raw chunk management (persisted immediately for crash safety) ---
+
+  async saveRawChunk(chunk: StoredRawChunk): Promise<void> {
+    const store = await this.getStore(RAW_CHUNKS_STORE, 'readwrite');
+    return new Promise((resolve, reject) => {
+      const request = store.put(chunk);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getUnuploadedRawChunks(sessionId: string): Promise<StoredRawChunk[]> {
+    const store = await this.getStore(RAW_CHUNKS_STORE);
+    return new Promise((resolve, reject) => {
+      const index = store.index('sessionId');
+      const request = index.getAll(sessionId);
+      request.onsuccess = () => {
+        const all: StoredRawChunk[] = request.result || [];
+        resolve(all.filter(c => !c.isUploaded).sort((a, b) => a.chunkIndex - b.chunkIndex));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async markRawChunksAsUploaded(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const store = await this.getStore(RAW_CHUNKS_STORE, 'readwrite');
+    await Promise.all(ids.map(id =>
+      new Promise<void>((resolve, reject) => {
+        const getReq = store.get(id);
+        getReq.onsuccess = () => {
+          const chunk = getReq.result;
+          if (chunk) {
+            chunk.isUploaded = true;
+            const putReq = store.put(chunk);
+            putReq.onsuccess = () => resolve();
+            putReq.onerror = () => reject(putReq.error);
+          } else {
+            resolve();
+          }
+        };
+        getReq.onerror = () => reject(getReq.error);
+      })
+    ));
+  }
+
+  async deleteRawChunksForSession(sessionId: string): Promise<void> {
+    const store = await this.getStore(RAW_CHUNKS_STORE, 'readwrite');
+    return new Promise((resolve, reject) => {
+      const index = store.index('sessionId');
+      const request = index.getAll(sessionId);
+      request.onsuccess = () => {
+        const chunks: StoredRawChunk[] = request.result || [];
+        const deletePromises = chunks.map(chunk =>
+          new Promise<void>((res, rej) => {
+            const delReq = store.delete(chunk.id);
+            delReq.onsuccess = () => res();
+            delReq.onerror = () => rej(delReq.error);
+          })
+        );
+        Promise.all(deletePromises).then(() => resolve()).catch(reject);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getAllRawChunksForSession(sessionId: string): Promise<StoredRawChunk[]> {
+    const store = await this.getStore(RAW_CHUNKS_STORE);
+    return new Promise((resolve, reject) => {
+      const index = store.index('sessionId');
+      const request = index.getAll(sessionId);
+      request.onsuccess = () => {
+        const all: StoredRawChunk[] = request.result || [];
+        resolve(all.sort((a, b) => a.chunkIndex - b.chunkIndex));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   // Cleanup old sessions (older than 24 hours)
   async cleanupOldSessions(): Promise<void> {
     const store = await this.getStore(SESSIONS_STORE, 'readwrite');
@@ -216,9 +315,9 @@ class RecordingStorage {
           s.lastUpdated < cutoff || !s.isActive
         );
 
-        // Delete old sessions and their chunks
         for (const session of sessions) {
           await this.deleteSessionChunks(session.sessionId);
+          await this.deleteRawChunksForSession(session.sessionId);
           await this.deleteSession(session.sessionId);
         }
         resolve();

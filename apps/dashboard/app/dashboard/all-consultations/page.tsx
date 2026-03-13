@@ -93,23 +93,27 @@ function NewUIConsultationCard({
       onMouseLeave={() => setHovered(false)}
       onClick={() => !isNavigating && onViewDetails(consultation.id)}
       style={{
-        width: 353.33,
+        width: "100%",
+        minWidth: 353,
         minHeight: 236,
-        background: "#fff",
-        borderTop: "4px solid #40A3DB",
+        background: "#FFFFFF",
+        borderTop: "3px solid #40A3DB",
         borderRight: `1px solid ${hovered ? "#40A3DB" : "#e2e8f0"}`,
         borderBottom: `1px solid ${hovered ? "#40A3DB" : "#e2e8f0"}`,
         borderLeft: `1px solid ${hovered ? "#40A3DB" : "#e2e8f0"}`,
         borderRadius: 10,
-        padding: "16px",
+        padding: "24px",
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 20,
         cursor: "pointer",
         transition: "border-color 0.15s, box-shadow 0.15s",
-        boxShadow: hovered ? "0 4px 16px rgba(64,163,219,0.1)" : "0 1px 4px rgba(0,0,0,0.05)",
+        boxShadow: hovered
+          ? "0 4px 16px rgba(64,163,219,0.15)"
+          : "0 2px 8px rgba(0,0,0,0.08)",
       }}
     >
+      {/* Patient name + date/time */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div
           style={{
@@ -138,29 +142,48 @@ function NewUIConsultationCard({
         </div>
       </div>
 
-      <div style={{ height: 1, background: "#f1f5f9" }} />
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Building2 size={13} color="#40A3DB" />
-          <span style={{ fontSize: 12, color: "#374151" }}>
+      {/* Centre + Audiologist rows — #F7F9FA pill background matching Figma */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "#F7F9FA",
+            borderRadius: 4,
+            padding: "8px 24px",
+            minHeight: 36,
+          }}
+        >
+          <Building2 size={13} color="#40A3DB" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>
             {consultation.centre?.user?.name || "Centre Name"}
           </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <User size={13} color="#40A3DB" />
-          <span style={{ fontSize: 12, color: "#374151" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "#F7F9FA",
+            borderRadius: 4,
+            padding: "8px 24px",
+            minHeight: 36,
+          }}
+        >
+          <User size={13} color="#40A3DB" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>
             {consultation.audiologist?.user?.name || "No Audiologist Assigned"}
           </span>
         </div>
       </div>
 
+      {/* Status + Details */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginTop: 4,
         }}
       >
         <div
@@ -362,13 +385,14 @@ function AllConsultationsContent() {
   }, [scrollToId, consultations, router]);
 
   return (
-    <DashboardBodyWrapper className="!bg-[#f0f4f8]">
+    <DashboardBodyWrapper className="!bg-[#f0f4f8] !px-0">
       <div
         style={{
           minHeight: "100%",
           background: "#f0f4f8",
           fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-          padding: "24px 32px",
+          padding: "24px 24px",
+          width: "100%",
         }}
       >
         <div
@@ -623,9 +647,9 @@ function AllConsultationsContent() {
             ) : (
               <>
                 <div
-                  className="grid gap-4"
+                  className="grid gap-4 w-full"
                   style={{
-                    gridTemplateColumns: "repeat(auto-fill, minmax(353px, 353px))",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(353px, 1fr))",
                   }}
                 >
                   {consultations.map((consultation) => (
