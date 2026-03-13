@@ -184,6 +184,7 @@ export default function ConsultationLayout({
   }, [recordingState.isRecording, recordingState.isInitializing, recordingState.hasActiveSession, recordingState.isUploading, stopRecording, completeRecording]);
 
   // Get saved recordings from localStorage
+  // Re-read when playbackUrl or isRecovering changes so recovery additions are visible
   const savedRecordings = useMemo(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -192,7 +193,7 @@ export default function ConsultationLayout({
     } catch {
       return [];
     }
-  }, [consultationId]);
+  }, [consultationId, recordingState.playbackUrl, recordingState.isRecovering]);
 
   useEffect(() => {
     return () => {};
@@ -707,15 +708,22 @@ export default function ConsultationLayout({
                 ) : (
                   (externalPlaybackUrl || recordingState.playbackUrl || savedRecordings.length > 0) && (
                     <div className="flex gap-2">
-                      {(externalPlaybackUrl || recordingState.playbackUrl) && (
-                        <>
-                          {(externalPlaybackUrl || recordingState.playbackUrl)?.startsWith('mock://') ? (
-                            <button onClick={() => { alert('🧪 Mock Recording!'); }} className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">View mock recording</button>
-                          ) : (
-                            <a href={externalPlaybackUrl || recordingState.playbackUrl!} target="_blank" rel="noreferrer" className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700">View recording (Cloud)</a>
-                          )}
-                        </>
-                      )}
+                      {(externalPlaybackUrl || recordingState.playbackUrl) && (() => {
+                        const cloudUrl = externalPlaybackUrl || recordingState.playbackUrl;
+                        const urlInSaved = cloudUrl && savedRecordings.some(
+                          (r: any) => r.url && (r.url === cloudUrl || normalizePlaybackUrl(r.url) === normalizePlaybackUrl(cloudUrl))
+                        );
+                        if (urlInSaved) return null;
+                        return (
+                          <>
+                            {cloudUrl?.startsWith('mock://') ? (
+                              <button onClick={() => { alert('🧪 Mock Recording!'); }} className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">View mock recording</button>
+                            ) : (
+                              <a href={cloudUrl!} target="_blank" rel="noreferrer" className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700">View recording (Cloud)</a>
+                            )}
+                          </>
+                        );
+                      })()}
                       {savedRecordings.length > 0 && (
                         <>
                           <span className="text-sm text-gray-600 self-center">Local recordings ({savedRecordings.length}):</span>

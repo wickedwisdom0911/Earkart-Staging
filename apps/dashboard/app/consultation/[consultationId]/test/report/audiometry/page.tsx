@@ -468,10 +468,7 @@ export default function ReportPage() {
   const [reportDate, setReportDate] = useState("");
   const [isSavingDate, setIsSavingDate] = useState(false);
 
-  const [isEditingReferredBy, setIsEditingReferredBy] = useState(false);
-  const [referredBy, setReferredBy] = useState("");
-  const [isSavingReferredBy, setIsSavingReferredBy] = useState(false);
-  const [isAiims, setIsAiims] = useState(false); // Moved this line to keep it.
+  const [isAiims, setIsAiims] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -484,9 +481,6 @@ export default function ReportPage() {
     if (consultationData?.createdAt) {
       const dateStr = format(new Date(consultationData.createdAt), "dd/MM/yyyy");
       setReportDate(dateStr);
-    }
-    if (consultationData.centre?.entName) {
-      setReferredBy(consultationData.centre.entName);
     }
   }, [consultationData]);
 
@@ -524,40 +518,6 @@ export default function ReportPage() {
       setReportDate(dateStr);
     }
     setIsEditingDate(false);
-  };
-
-  const handleReferredByChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setReferredBy(e.target.value);
-  };
-
-  const handleReferredBySave = async () => {
-    if (!consultationId) return;
-    try {
-      setIsSavingReferredBy(true);
-      // Since referredBy is likely stored in the centre or as part of consultation data, 
-      // we update the consultation. For now, we'll use a generic update if available 
-      // or just local state if there's no specific 'referredBy' field in consultation model yet.
-      // Based on previous code, entName is in centre.
-      await updateConsultationMutation.mutateAsync({
-        id: consultationId as string,
-        // If the backend supports updating the referred observer directly:
-        // referredBy: referredBy
-      });
-      setIsEditingReferredBy(false);
-      toast.success("Referred by updated successfully");
-    } catch (error) {
-      console.error("Error updating referred by:", error);
-      toast.error("Failed to update referred by");
-    } finally {
-      setIsSavingReferredBy(false);
-    }
-  };
-
-  const handleReferredByCancel = () => {
-    if (consultationData.centre?.entName) {
-      setReferredBy(consultationData.centre.entName);
-    }
-    setIsEditingReferredBy(false);
   };
 
   // Sync patient phone to share phone input
@@ -1832,45 +1792,6 @@ export default function ReportPage() {
                   <span className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0">
                     {consultationData.patient?.contactNumber || ""}
                   </span>
-                </div>
-                <div className="col-span-6 flex items-center">
-                  <span className="font-medium mr-1 print:mr-0.5">Referred by :</span>
-                  {isEditingReferredBy ? (
-                    <div className="flex items-center gap-2 flex-1">
-                      <Input
-                        type="text"
-                        value={referredBy}
-                        onChange={handleReferredByChange}
-                        className="border-b border-dotted border-gray-400 flex-1 pb-1 h-auto px-0 text-sm"
-                      />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={handleReferredBySave}
-                        disabled={isSavingReferredBy}
-                        className="h-6 px-2 text-xs"
-                      >
-                        {isSavingReferredBy ? "Saving..." : "Save"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={handleReferredByCancel}
-                        disabled={isSavingReferredBy}
-                        className="h-6 px-2 text-xs"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  ) : (
-                    <span
-                      className="border-b border-dotted border-gray-400 flex-1 pb-0.5 print:pb-0 cursor-pointer hover:bg-gray-50"
-                      onClick={() => setIsEditingReferredBy(true)}
-                      title="Click to edit referred by"
-                    >
-                      {referredBy || consultationData.centre?.entName || ""}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>

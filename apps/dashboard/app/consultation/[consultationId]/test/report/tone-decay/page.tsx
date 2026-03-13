@@ -393,10 +393,6 @@ export default function ToneDecayReportPage() {
                 <span className="font-medium mr-2">Contact No. :</span>
                 <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.patient?.contactNumber || ""}</span>
               </div>
-              <div className="flex items-center">
-                <span className="font-medium mr-2">Referred by :</span>
-                <span className="border-b border-dotted border-gray-400 flex-1 pb-1">{consultationData.centre?.entName || "ENT Name"}</span>
-              </div>
             </div>
           </div>
 

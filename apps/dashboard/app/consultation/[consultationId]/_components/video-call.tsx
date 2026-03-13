@@ -471,8 +471,8 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         )}
       </div>
 
-      {/* Control bar – pinned to bottom */}
-      <div className="absolute bottom-4 left-0 right-0 flex justify-center z-20">
+      {/* Control bar – z-[100] so it stays above StickyReportNavigation footer (z-50) on report pages */}
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center z-[100]">
         <div className="flex items-center gap-3 bg-black/40 backdrop-blur-sm px-5 py-2.5 rounded-full border border-white/5 shadow-2xl">
 
           {/* Mic */}

@@ -95,7 +95,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     <div className="flex h-full w-full overflow-hidden relative">
 
       {/* ── Left: dark video panel ── */}
-      <div className="flex-none w-[44%] min-w-[280px] max-w-[640px] min-h-0 bg-[#232931] relative overflow-hidden rounded-[20px]">
+      <div className="flex-none w-[44%] min-w-[280px] max-w-[640px] min-h-0 bg-[#232931] relative overflow-hidden rounded-[20px] pb-28">
         <VideoCall
           channel={consultationId}
           patientName={patientName}

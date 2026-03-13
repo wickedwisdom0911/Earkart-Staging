@@ -366,6 +366,25 @@ export function usePersistentScreenRecording(consultationId: string) {
 		if (extraMs > 0) await new Promise((r) => setTimeout(r, extraMs));
 	}, []);
 
+	// Automatic backup download to user's Downloads folder on completion/recovery
+	const triggerAutomaticBackupDownload = useCallback(async (sessionId: string) => {
+		try {
+			const chunks = await recordingStorage.getSessionChunks(sessionId);
+			if (chunks.length === 0) return;
+			const sorted = [...chunks].sort((a, b) => a.partNumber - b.partNumber);
+			const blob = new Blob(sorted.map((c) => c.blob), { type: "video/webm" });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = `${consultationId}-recording-${Date.now()}.webm`;
+			a.click();
+			URL.revokeObjectURL(url);
+			console.log("💾 [BACKUP] Recording downloaded to user's Downloads folder");
+		} catch (e) {
+			console.warn("⚠️ [BACKUP] Automatic download failed:", e);
+		}
+	}, [consultationId]);
+
 	// Build longest contiguous prefix [1..N] with normalized ETags
 	const buildContiguousParts = useCallback((): Array<{ partNumber: number; etag: string }> => {
 		const normalized = uploadedPartsRef.current
@@ -538,8 +557,9 @@ export function usePersistentScreenRecording(consultationId: string) {
 						await waitUntilUploadsSettled(1500);
 						if (recoveryUploadId && uploadedPartsRef.current.length > 0) {
 							const result = await finalizeNow(recoveryUploadId);
+							const storageKey = `recordings_${consultationId}`;
+
 							if (result?.playbackUrl) {
-								const storageKey = `recordings_${consultationId}`;
 								const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
 								if (!saved.some((r: any) => r.url === result.playbackUrl)) {
 									saved.push({
@@ -553,6 +573,39 @@ export function usePersistentScreenRecording(consultationId: string) {
 									localStorage.setItem(storageKey, JSON.stringify(saved));
 								}
 								setState((s) => ({ ...s, playbackUrl: result.playbackUrl ?? null }));
+								await triggerAutomaticBackupDownload(recoverySessionId);
+							} else {
+								// Backend returned no playbackUrl – save blob from local chunks so video still shows
+								// Use getSessionChunks (not getPendingChunks) because chunks are marked uploaded after recovery
+								try {
+									const allChunksFromStorage = await recordingStorage.getSessionChunks(recoverySessionId);
+									if (allChunksFromStorage.length > 0) {
+										const sorted = [...allChunksFromStorage].sort((a, b) => a.partNumber - b.partNumber);
+										const allBlobs = sorted.map((c) => c.blob);
+										const totalSize = allBlobs.reduce((s, b) => s + b.size, 0);
+										const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+										const recordingBlob = new Blob(allBlobs, { type: "video/webm" });
+										const blobUrl = URL.createObjectURL(recordingBlob);
+										const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
+										saved.push({
+											id: `recovery-blob-${Date.now()}`,
+											name: `Recovered Recording (Local) - ${new Date().toLocaleString()}`,
+											url: blobUrl,
+											size: `${sizeInMB}MB`,
+											chunks: allChunksFromStorage.length,
+											timestamp: new Date().toISOString(),
+											status: "completed",
+											segmentType: "recovery_blob",
+											localBlob: true,
+										});
+										localStorage.setItem(storageKey, JSON.stringify(saved));
+										setState((s) => ({ ...s, playbackUrl: blobUrl }));
+										console.log(`💾 [RECOVERY] No playbackUrl from backend – saved ${sizeInMB}MB as local blob`);
+										await triggerAutomaticBackupDownload(recoverySessionId);
+									}
+								} catch (blobErr) {
+									console.warn("⚠️ [RECOVERY] Could not save blob fallback:", blobErr);
+								}
 							}
 							try {
 								await recordingStorage.deactivateSession(recoverySessionId);
@@ -627,7 +680,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 			setState((s) => ({ ...s, isRecovering: false, error: "Failed to recover recording session" }));
 			return false;
 		}
-	}, [consultationId, enqueueUpload, uploadBlobPart, finalizeNow]);
+	}, [consultationId, enqueueUpload, uploadBlobPart, finalizeNow, triggerAutomaticBackupDownload]);
 
 	// Initialize and check for existing sessions on mount
 	useEffect(() => {
@@ -1124,6 +1177,8 @@ export function usePersistentScreenRecording(consultationId: string) {
 				}
 
 				if (sessionIdRef.current) {
+					// Automatic backup download to user's Downloads folder
+					await triggerAutomaticBackupDownload(sessionIdRef.current);
 					await recordingStorage.deactivateSession(sessionIdRef.current);
 					await recordingStorage.deleteSessionChunks(sessionIdRef.current);
 					await recordingStorage.deleteRawChunksForSession(sessionIdRef.current);
@@ -1145,7 +1200,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 			isStoppingRef.current = false;
 			setState((s) => ({ ...s, isUploading: false, hasActiveSession: false }));
 		}
-	}, [finalizeNow, state.isInitializing, state.isRecording, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage, enqueueUpload]);
+	}, [finalizeNow, state.isInitializing, state.isRecording, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage, enqueueUpload, triggerAutomaticBackupDownload]);
 
 	const complete = useCallback(async () => {
 		const uploadId = uploadIdRef.current;
@@ -1200,6 +1255,8 @@ export function usePersistentScreenRecording(consultationId: string) {
 		}
 		const result = await finalizeNow(uploadId);
 		if (sessionIdRef.current) {
+			// Automatic backup download to user's Downloads folder
+			await triggerAutomaticBackupDownload(sessionIdRef.current);
 			await recordingStorage.deactivateSession(sessionIdRef.current);
 			await recordingStorage.deleteSessionChunks(sessionIdRef.current);
 			await recordingStorage.deleteRawChunksForSession(sessionIdRef.current);
@@ -1207,7 +1264,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 		setState((s) => ({ ...s, hasActiveSession: false }));
 		return result;
-	}, [finalizeNow, enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
+	}, [finalizeNow, enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage, triggerAutomaticBackupDownload]);
 
 	const abort = useCallback(async () => {
 		const uploadId = uploadIdRef.current;

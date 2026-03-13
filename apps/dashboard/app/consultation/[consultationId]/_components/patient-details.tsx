@@ -359,39 +359,6 @@ export default function PatientDetails({
               />
             </div>
 
-            {/* Chief Complaint */}
-            <FormField
-              control={form.control}
-              name="chiefComplaint"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs text-gray-500 font-normal">Chief Complaint</FormLabel>
-                  <FormControl>
-                    <textarea
-                      {...field}
-                      value={field.value || ""}
-                      rows={3}
-                      className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-300"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            {/* Referred By */}
-            <FormField
-              control={form.control}
-              name="referredBy"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs text-gray-500 font-normal">Referred By</FormLabel>
-                  <FormControl>
-                    <Input {...field} value={field.value || ""} className="h-9 text-sm border-gray-200 rounded-md" />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
             {/* Language */}
             <FormField
               control={form.control}
