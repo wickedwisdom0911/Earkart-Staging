@@ -95,7 +95,7 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
     <div className="flex h-full w-full overflow-hidden relative">
 
       {/* ── Left: dark video panel ── */}
-      <div className="flex-none w-[46%] min-w-[340px] max-w-[799px] min-h-0 bg-[#232931] relative overflow-hidden rounded-[20px]">
+      <div className="flex-none w-[44%] min-w-[280px] max-w-[640px] min-h-0 bg-[#232931] relative overflow-hidden rounded-[20px]">
         <VideoCall
           channel={consultationId}
           patientName={patientName}
@@ -149,8 +149,8 @@ export const ConsultationContent: React.FC<ConsultationContentProps> = ({
           })}
         </div>
 
-        {/* Content area — px/py handled inside each child page */}
-        <div className="flex-1 overflow-y-auto min-h-0 w-full">
+        {/* Content area — scrollable so buttons at bottom of pages are always reachable */}
+        <div className="flex-1 overflow-y-auto min-h-0 w-full overscroll-contain">
           {children}
         </div>
       </main>

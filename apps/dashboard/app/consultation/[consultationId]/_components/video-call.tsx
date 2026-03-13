@@ -458,7 +458,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                     style={{ width: "100%", height: "100%", transform: "scaleX(-1)" }}
                   >
                     
-                    <div className="absolute bottom-16 left-3 z-10 text-white text-xs bg-black/50 px-2 py-0.5 rounded" style={{ transform: "scaleX(-1)" }}>
+                    <div className="absolute bottom-20 left-3 z-10 text-white text-xs bg-black/50 px-2 py-0.5 rounded" style={{ transform: "scaleX(-1)" }}>
                       {showOtoscopyOnly ? "🔬 Otoscopy" : patientName}
                     </div>
                   </RemoteUser>
@@ -471,8 +471,8 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
         )}
       </div>
 
-      {/* Control bar – bottom center */}
-      <div className="absolute bottom-28 left-0 right-0 flex justify-center z-20">
+      {/* Control bar – pinned to bottom */}
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center z-20">
         <div className="flex items-center gap-3 bg-black/40 backdrop-blur-sm px-5 py-2.5 rounded-full border border-white/5 shadow-2xl">
 
           {/* Mic */}

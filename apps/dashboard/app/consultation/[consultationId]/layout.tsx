@@ -906,7 +906,7 @@ export default function ConsultationLayout({
           )}
           <DashboardBodyWrapper
             pageTitle={`Consultation with ${consultationData.centre?.user?.name}`}
-            className="border-none "
+            className="border-none overflow-hidden"
             button={
               <div className="flex items-center gap-2 flex-wrap">
                 {/* Audiometer */}
@@ -1095,15 +1095,17 @@ export default function ConsultationLayout({
               </div>
             }
           >
-            <EndConsultationProvider onEndConsultation={handleEndConsultation}>
-              <ConsultationContent
-                consultationId={consultationId}
-                patientName={consultationData.patient?.name || "Patient"}
-                onBeforeLeaveCall={finalizeBeforeNavigate}
-              >
-                {children}
-              </ConsultationContent>
-            </EndConsultationProvider>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <EndConsultationProvider onEndConsultation={handleEndConsultation}>
+                <ConsultationContent
+                  consultationId={consultationId}
+                  patientName={consultationData.patient?.name || "Patient"}
+                  onBeforeLeaveCall={finalizeBeforeNavigate}
+                >
+                  {children}
+                </ConsultationContent>
+              </EndConsultationProvider>
+            </div>
           </DashboardBodyWrapper>
           {/* Blocking overlay to require Start before proceeding (only while session not ended)
               Show even if a previous session is finalizing, but disable the start button while uploading */}
