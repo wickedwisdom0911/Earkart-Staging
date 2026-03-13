@@ -16,6 +16,19 @@ import { Mic, MicOff, PhoneOff, User, Loader2, Video, VideoOff, Monitor, Monitor
 import { useDialog } from "@/hooks/use-dialog";
 import { useEndConsultation } from "@/providers/end-consultation-provider";
 import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
+import { useGetUser } from "@/hooks/auth/use-get-user";
+import { Role } from "@/models/enums";
+import {
+  Dialog as UiDialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 interface VideoCallProps {
   channel: string;
@@ -123,9 +136,14 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   const { endConsultation } = useEndConsultation();
   const { Dialog, openDialog } = useDialog();
   const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare } = useSharedScreenShare();
+  const { data: user } = useGetUser();
+  const isAudiologist = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
 
   const [error, setError] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [showAudiologistEndModal, setShowAudiologistEndModal] = useState(false);
+  const [isDemoCall, setIsDemoCall] = useState(false);
+  const [failConsultation, setFailConsultation] = useState(false);
   const [micOn, setMic] = useState(true);
   const [cameraOn, setCameraOn] = useState(true);
   const [token, setToken] = useState<string | null>(null);
@@ -348,22 +366,44 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
     setShowRefreshHint(false);
   }, [isConnected, remoteUsers.length, filteredRemoteUsers.length, showOtoscopyOnly]);
 
-  const handleLeave = useCallback(async () => {
-    openDialog({
-      title: "End Consultation",
-      description: "Are you sure you want to end this consultation? The patient will be notified.",
-      onConfirm: async () => {
-        if (isLeaving) return;
-        try {
-          setIsLeaving(true); setError(null);
-          await endConsultation();
-        } catch (err) {
-          setError((err as Error).message);
-          setIsLeaving(false);
-        }
-      },
-    });
-  }, [isLeaving, openDialog, endConsultation]);
+  const handleLeave = useCallback(() => {
+    if (isAudiologist) {
+      setIsDemoCall(false);
+      setFailConsultation(false);
+      setShowAudiologistEndModal(true);
+    } else {
+      openDialog({
+        title: "End Consultation",
+        description: "Are you sure you want to end this consultation? The patient will be notified.",
+        onConfirm: async () => {
+          if (isLeaving) return;
+          try {
+            setIsLeaving(true); setError(null);
+            await endConsultation();
+          } catch (err) {
+            setError((err as Error).message);
+            setIsLeaving(false);
+          }
+        },
+      });
+    }
+  }, [isAudiologist, isLeaving, openDialog, endConsultation]);
+
+  const handleAudiologistEndConfirm = useCallback(async () => {
+    if (isLeaving) return;
+    try {
+      setIsLeaving(true);
+      setError(null);
+      setShowAudiologistEndModal(false);
+      await endConsultation({
+        isDemoCall: isDemoCall || undefined,
+        sessionStatus: failConsultation ? "FAILED" : undefined,
+      });
+    } catch (err) {
+      setError((err as Error).message);
+      setIsLeaving(false);
+    }
+  }, [isLeaving, endConsultation, isDemoCall, failConsultation]);
 
   const isLoading = isInitializing || (!isConnected && (!token || !appId));
 
@@ -371,6 +411,52 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
   return (
     <div className="flex flex-col h-full w-full relative bg-[#232931] overflow-hidden select-none">
       <Dialog />
+
+      {/* Audiologist-only: End consultation modal with isDemoCall & failConsultation options */}
+      <UiDialog open={showAudiologistEndModal} onOpenChange={setShowAudiologistEndModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>End Consultation</DialogTitle>
+            <DialogDescription>
+              Select options before ending. The patient will be notified.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isDemoCall"
+                checked={isDemoCall}
+                onCheckedChange={(checked) => setIsDemoCall(checked === true)}
+              />
+              <Label htmlFor="isDemoCall" className="text-sm font-medium cursor-pointer">
+                Demo Call
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="failConsultation"
+                checked={failConsultation}
+                onCheckedChange={(checked) => setFailConsultation(checked === true)}
+              />
+              <Label htmlFor="failConsultation" className="text-sm font-medium cursor-pointer">
+                Failed Consultation
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAudiologistEndModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isLeaving}
+              onClick={handleAudiologistEndConfirm}
+            >
+              {isLeaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "End Consultation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </UiDialog>
 
       {/* Timer – top left */}
       <div className="absolute top-3 left-3 z-10 pointer-events-none">

@@ -19,7 +19,7 @@ import { SessionStatus } from "@/models/enums";
 import { RedirectLoadingModal } from "@/components/ui/redirect-loading-modal";
 import useDemoAccount from "@/hooks/use-demo-account";
 import { toast } from "sonner";
-import { EndConsultationProvider } from "@/providers/end-consultation-provider";
+import { EndConsultationProvider, type EndConsultationOptions } from "@/providers/end-consultation-provider";
 import { updateConsultation } from "@/actions/consultations/update-consultation";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -365,7 +365,7 @@ export default function ConsultationLayout({
     };
   }, [socket, consultationId]);
 
-  const handleEndConsultation = useCallback(async () => {
+  const handleEndConsultation = useCallback(async (options?: EndConsultationOptions) => {
     if (isEndingConsultationRef.current) {
       console.log("🏁 [END] Already handling end - skipping duplicate");
       return;
@@ -375,11 +375,20 @@ export default function ConsultationLayout({
       console.log("🏁 [END] Consultation ending - saving video before navigation");
       setIsRedirecting(true);
       
-      console.log("📡 [END] Calling API to update status to COMPLETED");
+      // Status: FAILED if sessionStatus is FAILED, else COMPLETED. isDemoCall when audiologist checked it.
+      const status = options?.sessionStatus === "FAILED" ? "FAILED" : "COMPLETED";
+      const updatePayload: Record<string, unknown> = { id: consultationId, status };
+      if (options?.isDemoCall === true) {
+        updatePayload.isDemoCall = true;
+      }
+      if (options?.sessionStatus === "FAILED") {
+        updatePayload.sessionStatus = "FAILED";
+      }
+      console.log("📡 [END] Calling API to update status:", status, options?.isDemoCall ? "(isDemoCall: true)" : "");
       try {
-        const result = await updateConsultation({ id: consultationId, status: "COMPLETED" } as any);
+        const result = await updateConsultation(updatePayload as any);
         if (result.success) {
-          console.log("✅ [END] Consultation status updated to COMPLETED");
+          console.log(`✅ [END] Consultation status updated to ${status}`);
         } else {
           console.error("❌ [END] Failed to update consultation status:", result.message);
         }
