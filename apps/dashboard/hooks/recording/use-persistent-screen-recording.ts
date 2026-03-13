@@ -377,9 +377,29 @@ export function usePersistentScreenRecording(consultationId: string) {
 			const a = document.createElement("a");
 			a.href = url;
 			a.download = `${consultationId}-recording-${Date.now()}.webm`;
+			a.style.display = "none";
+			document.body.appendChild(a);
 			a.click();
-			URL.revokeObjectURL(url);
-			console.log("💾 [BACKUP] Recording downloaded to user's Downloads folder");
+			setTimeout(() => document.body.removeChild(a), 200);
+			// Also save to localStorage so UI shows the recording (e.g. before navigate)
+			// Do NOT revoke the blob URL – we keep it in localStorage for playback/download
+			const storageKey = `recordings_${consultationId}`;
+			const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
+			if (!saved.some((r: any) => r.url === url)) {
+				saved.push({
+					id: `backup-${Date.now()}`,
+					name: `Recording Backup - ${new Date().toLocaleString()}`,
+					url,
+					size: `${(blob.size / (1024 * 1024)).toFixed(2)}MB`,
+					chunks: chunks.length,
+					timestamp: new Date().toISOString(),
+					status: "completed",
+					segmentType: "backup",
+					localBlob: true,
+				});
+				localStorage.setItem(storageKey, JSON.stringify(saved));
+			}
+			console.log("💾 [BACKUP] Recording downloaded and saved for UI");
 		} catch (e) {
 			console.warn("⚠️ [BACKUP] Automatic download failed:", e);
 		}

@@ -2,7 +2,7 @@
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { useMemo, useEffect, useState, useCallback } from "react";
+import { useMemo, useEffect, useState, useCallback, useRef } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useDevice } from "@/providers/device-provider";
 import { OtoscopyProvider } from "@/providers/otoscopy-provider";
@@ -13,6 +13,7 @@ import { useParams, useRouter } from "next/navigation";
 import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording-adapter";
 import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
 import { chunkStorage } from "@/lib/indexeddb-chunks";
+import { recordingStorage } from "@/utils/recording-storage";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { SessionStatus } from "@/models/enums";
 import { RedirectLoadingModal } from "@/components/ui/redirect-loading-modal";
@@ -65,7 +66,8 @@ export default function ConsultationLayout({
   const [showRecoveryBanner, setShowRecoveryBanner] = useState(true);
   const [networkIssues, setNetworkIssues] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  
+  const isEndingConsultationRef = useRef(false);
+
   // State to prevent infinite recording loops and double prompts
   // Always init to false to avoid hydration mismatch (server has no window/sessionStorage)
   const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(false);
@@ -154,6 +156,18 @@ export default function ConsultationLayout({
   }, [consultationId]);
 
   // Function to save recording URL to backend consultation
+  // Helper to trigger download (append to DOM for blob URL compatibility)
+  const triggerDownload = useCallback((url: string, filename: string) => {
+    if (!url || url.startsWith('Processing') || url.startsWith('Recording') || url.startsWith('Accumulating')) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 200);
+  }, []);
+
   const saveRecordingToBackend = useCallback(async (playbackUrl: string, segmentType: string = 'screen') => {
     if (!playbackUrl || !consultation || !(consultation as any).data) return;
     
@@ -352,6 +366,11 @@ export default function ConsultationLayout({
   }, [socket, consultationId]);
 
   const handleEndConsultation = useCallback(async () => {
+    if (isEndingConsultationRef.current) {
+      console.log("🏁 [END] Already handling end - skipping duplicate");
+      return;
+    }
+    isEndingConsultationRef.current = true;
     try {
       console.log("🏁 [END] Consultation ending - saving video before navigation");
       setIsRedirecting(true);
@@ -401,20 +420,32 @@ export default function ConsultationLayout({
         try {
           await Promise.race([
             stopRecording(),
-            new Promise(resolve => setTimeout(resolve, 4000))
+            new Promise(resolve => setTimeout(resolve, 15000))
           ]);
           
           console.log("⏱️ [END] Recording force stopped, waiting for data to settle...");
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          await new Promise(resolve => setTimeout(resolve, 5000));
         } catch (stopError) {
           console.warn("⚠️ [END] Failed to stop recording:", stopError);
         }
         
-        console.log("🔍 [END] Searching ALL sessions for unsaved chunks...");
+        console.log("🔍 [END] Searching sessions for unsaved chunks (recordingStorage + chunkStorage)...");
         let finalCaptured = false;
         
         try {
-          const storedChunksEnd = await chunkStorage.getAllChunksForSession(consultationId);
+          let storedChunksEnd: Array<{ blob: Blob }> = [];
+          const activeSession = await recordingStorage.getActiveSession(consultationId);
+          if (activeSession) {
+            const recChunks = await recordingStorage.getSessionChunks(activeSession.sessionId);
+            storedChunksEnd = recChunks.map((c) => ({ blob: c.blob }));
+            if (storedChunksEnd.length > 0) {
+              console.log(`🎯 [END] Found ${storedChunksEnd.length} chunks in recordingStorage for session ${activeSession.sessionId}`);
+            }
+          }
+          if (storedChunksEnd.length === 0) {
+            const chunkChunks = await chunkStorage.getAllChunksForSession(consultationId);
+            storedChunksEnd = chunkChunks.map((c) => ({ blob: c.blob }));
+          }
           if (storedChunksEnd && storedChunksEnd.length > 0) {
             console.log(`🎯 [END] Found ${storedChunksEnd.length} chunks for consultation ${consultationId}`);
             const allChunks = storedChunksEnd.map((c) => c.blob);
@@ -539,9 +570,9 @@ export default function ConsultationLayout({
       }
       
       if (typeof window !== 'undefined') {
-        localStorage.removeItem(`recordings_${consultationId}`);
         sessionStorage.removeItem(`autoStartAttempted_${consultationId}`);
-        console.log("🧹 Cleaned up saved recordings and session flags for ended consultation");
+        // Do NOT remove recordings from localStorage – user needs them for download/view
+        console.log("🧹 Cleaned up session flags for ended consultation (recordings kept for access)");
       }
     }
   }, [consultation, stopRecording, recordingState.isRecording, recordingState.isUploading, consultationId]);
@@ -699,7 +730,7 @@ export default function ConsultationLayout({
                             )}
                           </a>
                           {(r.status === 'completed' || r.status === 'backup') && r.url !== 'Processing...' && r.url !== 'Recording...' && (
-                            <button onClick={() => { const a = document.createElement('a'); a.href = r.url; a.download = `segment-${index + 1}-${r.duration || '30s'}.webm`; a.click(); }} className="px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 text-xs" title={`Download segment ${index + 1}`}>⬇️</button>
+                            <button onClick={() => { const a = document.createElement('a'); a.href = r.url; a.download = `segment-${index + 1}-${r.duration || '30s'}.webm`; a.style.display = 'none'; document.body.appendChild(a); a.click(); setTimeout(() => document.body.removeChild(a), 200); }} className="px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 text-xs" title={`Download segment ${index + 1}`}>⬇️</button>
                           )}
                         </div>
                       ))}
@@ -731,7 +762,7 @@ export default function ConsultationLayout({
                             <div key={r.id || r.url} className="flex items-center gap-1">
                               <a href={r.url} target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm" title={`${r.name} (${r.localBlob ? 'Local' : 'Cloud'})`}>📹 {r.localBlob ? 'Local' : 'Cloud'}</a>
                               {r.localBlob && (
-                                <button onClick={() => { const a = document.createElement('a'); a.href = r.url; a.download = `${r.name}.webm`; a.click(); }} className="px-1 py-1 rounded bg-green-500 text-white hover:bg-green-600 text-xs" title="Download">⬇️</button>
+                                <button onClick={() => { const a = document.createElement('a'); a.href = r.url; a.download = `${r.name}.webm`; a.style.display = 'none'; document.body.appendChild(a); a.click(); setTimeout(() => document.body.removeChild(a), 200); }} className="px-1 py-1 rounded bg-green-500 text-white hover:bg-green-600 text-xs" title="Download">⬇️</button>
                               )}
                             </div>
                           ))}
