@@ -457,8 +457,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
                     user={user} playVideo playAudio playsInline
                     style={{ width: "100%", height: "100%", transform: "scaleX(-1)" }}
                   >
-                    <div className="absolute top-3 left-3 z-10 text-white text-xs font-bold bg-red-600 px-1.5 py-0.5 rounded" style={{ transform: "scaleX(-1)" }}>R</div>
-                    <div className="absolute top-3 right-3 z-10 text-white text-xs font-bold bg-blue-600 px-1.5 py-0.5 rounded" style={{ transform: "scaleX(-1)" }}>L</div>
+                    
                     <div className="absolute bottom-16 left-3 z-10 text-white text-xs bg-black/50 px-2 py-0.5 rounded" style={{ transform: "scaleX(-1)" }}>
                       {showOtoscopyOnly ? "🔬 Otoscopy" : patientName}
                     </div>

@@ -668,11 +668,11 @@ export default function ConsultationLayout({
         stopRecording();
       }
       
-      // Clean up saved recordings from localStorage when consultation ends
+      // NOTE: Do NOT clear recordings from localStorage when consultation ends.
+      // The consultation-details page reads from localStorage to show recordings
+      // when the backend doesn't have them yet (e.g. after refresh/recovery).
       if (typeof window !== 'undefined') {
-        localStorage.removeItem(`recordings_${consultationId}`);
         sessionStorage.removeItem(`autoStartAttempted_${consultationId}`);
-        console.log("🧹 Cleaned up saved recordings and session flags for ended consultation");
       }
     }
   }, [consultation, stopRecording, recordingState.isRecording, recordingState.isUploading, consultationId]);

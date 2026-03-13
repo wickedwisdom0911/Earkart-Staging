@@ -529,6 +529,45 @@ export function usePersistentScreenRecording(consultationId: string) {
 					}
 				}
 
+				// Auto-finalize when uploads drain: complete S3 multipart, get playback URL, save to localStorage
+				(async () => {
+					await waitUntilUploadsSettled(1500);
+					const uploadId = uploadIdRef.current;
+					const sessionId = sessionIdRef.current;
+					if (uploadId && uploadedPartsRef.current.length > 0) {
+						try {
+							const result = await finalizeNow(uploadId);
+							if (result?.playbackUrl) {
+								const saved = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || "[]");
+								const exists = saved.some((r: any) => r.url === result.playbackUrl);
+								if (!exists) {
+									saved.push({
+										id: `recovery-${Date.now()}`,
+										url: result.playbackUrl,
+										name: `Recovered Recording - ${new Date().toLocaleString()}`,
+										timestamp: new Date().toISOString(),
+										status: "completed",
+									});
+									localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(saved));
+									console.log("✅ [RECOVERY] Saved playback URL to localStorage after auto-finalize");
+								}
+								setState((s) => ({ ...s, playbackUrl: result.playbackUrl ?? null }));
+							}
+						} catch (e) {
+							console.warn("⚠️ [RECOVERY] Auto-finalize failed:", e);
+						} finally {
+							if (sessionId) {
+								try {
+									await recordingStorage.deactivateSession(sessionId);
+									await recordingStorage.deleteSessionChunks(sessionId);
+									await recordingStorage.deleteRawChunksForSession(sessionId);
+								} catch {}
+								setState((s) => ({ ...s, hasActiveSession: false }));
+							}
+						}
+					}
+				})();
+
 				return true;
 			} catch (error) {
 				console.log("⚠️ [RECOVERY] Cannot recover existing session, attempting final completion:", error);

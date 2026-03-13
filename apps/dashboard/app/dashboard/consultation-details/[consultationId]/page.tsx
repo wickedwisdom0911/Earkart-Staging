@@ -54,6 +54,22 @@ export default function ConsultationDetailsPage() {
     url: string;
     title: string;
   } | null>(null);
+  const [localRecordings, setLocalRecordings] = useState<{ id: string; url: string; name?: string }[]>([]);
+
+  // Load recordings from localStorage (saved during live consultation, incl. after refresh/recovery)
+  useEffect(() => {
+    if (!consultationId || typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(`recordings_${consultationId}`);
+      const list = raw ? JSON.parse(raw) : [];
+      const valid = (list as any[]).filter(
+        (r) => r?.url && typeof r.url === "string" && !["Processing...", "Recording...", "Accumulating..."].includes(r.url)
+      );
+      setLocalRecordings(valid);
+    } catch {
+      setLocalRecordings([]);
+    }
+  }, [consultationId]);
 
   useEffect(() => {
     if (!socket || !consultationId) return;
@@ -185,6 +201,15 @@ export default function ConsultationDetailsPage() {
       createdAt: consultation.updatedAt,
     });
   }
+  // Include recordings saved in localStorage during live consultation (incl. after refresh/recovery)
+  localRecordings.forEach((r) => {
+    allRecs.push({
+      id: r.id || `local-${r.url?.slice(0, 20)}`,
+      recordingUrl: r.url,
+      fileName: r.name,
+      createdAt: consultation.updatedAt,
+    });
+  });
   const playable = allRecs.filter((r) => !!r.recordingUrl);
 
   const questionnaire = consultation.questionnaire as any;
