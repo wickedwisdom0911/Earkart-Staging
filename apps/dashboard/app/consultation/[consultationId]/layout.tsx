@@ -662,18 +662,12 @@ export default function ConsultationLayout({
                   </span>
                 </div>
 
-                {(recordingState.isRecording || recordingState.isUploading || recordingState.isRecovering) && (
+                {(recordingState.isRecording || recordingState.isUploading) && (
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${
-                      recordingState.isRecording ? "bg-red-500 animate-pulse" 
-                      : recordingState.isRecovering ? "bg-yellow-500 animate-pulse"
-                      : "bg-blue-500"
-                    }`} />
+                    <div className={`w-3 h-3 rounded-full ${recordingState.isRecording ? "bg-red-500 animate-pulse" : "bg-blue-500"}`} />
                     <span className="text-sm font-medium">
                       {recordingState.isRecording ? (
-                        <>Recording... ({recordingState.uploadedParts} chunks{recordingState.pendingParts > 0 && ` +${recordingState.pendingParts} pending`})</>
-                      ) : recordingState.isRecovering ? (
-                        <>Recovering... ({recordingState.uploadedParts} parts uploaded{recordingState.pendingParts > 0 && `, ${recordingState.pendingParts} pending`})</>
+                        <>Recording... ({recordingState.uploadedParts} chunks)</>
                       ) : recordingState.isUploading ? (
                         <>Finalizing... ({recordingState.uploadedParts} parts)</>
                       ) : null}
@@ -776,10 +770,7 @@ export default function ConsultationLayout({
                 {recordingState.error?.includes("System audio") && (
                   <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">{recordingState.error}</div>
                 )}
-                {recordingState.isRecovering && (
-                  <div className="mb-4 text-sm text-yellow-800 bg-yellow-50 rounded-lg px-4 py-3 border border-yellow-200">Recovering previous recording from before refresh… Uploading {recordingState.uploadedParts} parts{recordingState.pendingParts > 0 ? `, ${recordingState.pendingParts} remaining` : ''}. Please wait.</div>
-                )}
-                {recordingState.isUploading && !recordingState.isRecovering && (
+                {recordingState.isUploading && (
                   <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">Finalizing previous recording… Upload is still running in the background, but you can safely start a new one.</div>
                 )}
                 {hasAttemptedAutoStart && (
