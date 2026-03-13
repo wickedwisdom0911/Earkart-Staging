@@ -375,14 +375,11 @@ export default function ConsultationLayout({
       console.log("🏁 [END] Consultation ending - saving video before navigation");
       setIsRedirecting(true);
       
-      // Status: FAILED if sessionStatus is FAILED, else COMPLETED. isDemoCall when audiologist checked it.
+      // status: "FAILED" when Failed Consultation checked, else "COMPLETED". isDemoCall when audiologist checked it.
       const status = options?.sessionStatus === "FAILED" ? "FAILED" : "COMPLETED";
       const updatePayload: Record<string, unknown> = { id: consultationId, status };
       if (options?.isDemoCall === true) {
         updatePayload.isDemoCall = true;
-      }
-      if (options?.sessionStatus === "FAILED") {
-        updatePayload.sessionStatus = "FAILED";
       }
       console.log("📡 [END] Calling API to update status:", status, options?.isDemoCall ? "(isDemoCall: true)" : "");
       try {
