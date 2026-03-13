@@ -949,7 +949,13 @@ export default function ConsultationLayout({
                   }
                 >
                   {recordingState.isRecording && (
-                    <span className="text-gray-400 text-[10px]">{recordingState.uploadedParts} chunks</span>
+                    <span className="text-gray-400 text-[10px]">
+                      {recordingState.uploadedParts} chunks
+                      {recordingState.pendingParts > 0 && ` (+${recordingState.pendingParts})`}
+                    </span>
+                  )}
+                  {recordingState.isRecovering && (
+                    <span className="text-gray-400 text-[10px]">recovering…</span>
                   )}
                 </StatusBadge>
 

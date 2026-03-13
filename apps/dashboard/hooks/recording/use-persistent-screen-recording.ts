@@ -1129,7 +1129,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 			rawChunkIdsInCurrentFlushRef.current = [];
 			setState((s) => ({ ...s, hasActiveSession: false }));
 		}
-	}, [consultationId, handleChunk, initiateMultipart, state.isRecording, state.isInitializing, state.pendingParts]);
+	}, [consultationId, handleChunk, initiateMultipart, state.isRecording, state.isInitializing, state.isRecovering, state.pendingParts]);
 
 	const stop = useCallback(async () => {
 		if (!state.isRecording && !state.isInitializing) return;
