@@ -63,7 +63,9 @@ export default function ConsultationDetailsPage() {
       const raw = localStorage.getItem(`recordings_${consultationId}`);
       const list = raw ? JSON.parse(raw) : [];
       const valid = (list as any[]).filter(
-        (r) => r?.url && typeof r.url === "string" && !["Processing...", "Recording...", "Accumulating..."].includes(r.url)
+        (r) => r?.url && typeof r.url === "string" &&
+          !["Processing...", "Recording...", "Accumulating..."].includes(r.url) &&
+          r.url.startsWith("http") // Exclude blob: URLs – they're invalid after page navigation
       );
       setLocalRecordings(valid);
     } catch {

@@ -453,22 +453,19 @@ export default function ConsultationLayout({
             const totalSize = combinedBlob.size;
             const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
             if (totalSize >= 1024 * 1024) {
+              // Don't save blob URLs to localStorage – they die after navigate. Trigger download instead.
               const blobUrl = URL.createObjectURL(combinedBlob);
-              const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
-              const emergencyRecording = {
-                id: `final-${Date.now()}`,
-                name: `Final Recording - ${new Date().toLocaleString()}`,
-                url: blobUrl,
-                size: `${sizeInMB}MB`,
-                chunks: allChunks.length,
-                timestamp: new Date().toISOString(),
-                status: 'final_capture',
-                reason: 'Consultation ended - captured remaining chunks',
-                segmentType: 'final_capture'
-              };
-              savedRecordings.push(emergencyRecording);
-              localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
-              console.log(`✅ [END] Final recording saved: ${sizeInMB}MB with ${allChunks.length} chunks`);
+              const a = document.createElement('a');
+              a.href = blobUrl;
+              a.download = `${consultationId}-final-recording-${Date.now()}.webm`;
+              a.style.display = 'none';
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+              }, 200);
+              console.log(`✅ [END] Final recording (${sizeInMB}MB) downloaded – blob URLs not saved (invalid after navigate)`);
               finalCaptured = true;
             } else {
               console.log(`⚠️ [END] Skipping small recording: ${sizeInMB}MB`);

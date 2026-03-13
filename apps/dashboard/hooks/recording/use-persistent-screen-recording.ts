@@ -114,6 +114,16 @@ export function usePersistentScreenRecording(consultationId: string) {
 	// Storage-related refs
 	const isRestoringRef = useRef<boolean>(false);
 
+	// Ref mirrors for values read inside async callbacks (avoids stale closures)
+	const stateRef = useRef(state);
+	const isRecordingRef = useRef(false);
+	const pendingPartsRef_read = useRef(0);
+	useEffect(() => {
+		stateRef.current = state;
+		isRecordingRef.current = state.isRecording;
+		pendingPartsRef_read.current = state.pendingParts;
+	}, [state]);
+
 	const runNextInQueue = useCallback(() => {
 		if (activeUploadsRef.current >= concurrencyRef.current) return;
 		const next = queueRef.current.shift();
@@ -126,11 +136,10 @@ export function usePersistentScreenRecording(consultationId: string) {
 				setState((s) => ({ ...s, pendingParts: Math.max(0, s.pendingParts - 1) }));
 				if (queueRef.current.length > 0) {
 					setTimeout(runNextInQueue, 0);
-				} else if (activeUploadsRef.current === 0 && state.isRecording === false && isStoppingRef.current) {
-					// Await finalize in stop()
 				}
+				// When queue drains during stop, stop()'s check() loop will resolve
 			});
-	}, [state.isRecording]);
+	}, []);
 
 	// Normalize and strictly order parts for completion
 	const buildOrderedParts = useCallback((): UploadedPart[] => {
@@ -380,26 +389,13 @@ export function usePersistentScreenRecording(consultationId: string) {
 			a.style.display = "none";
 			document.body.appendChild(a);
 			a.click();
-			setTimeout(() => document.body.removeChild(a), 200);
-			// Also save to localStorage so UI shows the recording (e.g. before navigate)
-			// Do NOT revoke the blob URL – we keep it in localStorage for playback/download
-			const storageKey = `recordings_${consultationId}`;
-			const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
-			if (!saved.some((r: any) => r.url === url)) {
-				saved.push({
-					id: `backup-${Date.now()}`,
-					name: `Recording Backup - ${new Date().toLocaleString()}`,
-					url,
-					size: `${(blob.size / (1024 * 1024)).toFixed(2)}MB`,
-					chunks: chunks.length,
-					timestamp: new Date().toISOString(),
-					status: "completed",
-					segmentType: "backup",
-					localBlob: true,
-				});
-				localStorage.setItem(storageKey, JSON.stringify(saved));
-			}
-			console.log("💾 [BACKUP] Recording downloaded and saved for UI");
+			setTimeout(() => {
+				document.body.removeChild(a);
+				URL.revokeObjectURL(url);
+			}, 200);
+			// Do NOT save blob URLs to localStorage – they become invalid after page navigation.
+			// The file is already downloaded to the user's computer.
+			console.log("💾 [BACKUP] Recording downloaded to user's computer");
 		} catch (e) {
 			console.warn("⚠️ [BACKUP] Automatic download failed:", e);
 		}
@@ -543,15 +539,9 @@ export function usePersistentScreenRecording(consultationId: string) {
 							const partBlob = new Blob(toTake, { type: "application/octet-stream" });
 							const chunkId = await saveChunkToStorage(partBlob);
 							const partNum = pn++;
-							const rawIdsToMark = unuploadedRaw
-								.filter((r) => toTake.some((b) => b === r.blob))
-								.map((r) => r.id);
-							enqueueUpload(async () => {
-								await uploadBlobPart(partBlob, partNum, chunkId);
-								if (rawIdsToMark.length > 0) {
-									await recordingStorage.markRawChunksAsUploaded(rawIdsToMark);
-								}
-							});
+							// Don't match by blob reference - after h.slice() we have new Blob refs. Mark by consumed bytes.
+							// We'll mark all raw chunks as uploaded at end of recovery loop (avoids duplicate uploads on refresh).
+							enqueueUpload(() => uploadBlobPart(partBlob, partNum, chunkId));
 							nextPartNumberRef.current = pn;
 							accSize = acc.reduce((s, b) => s + b.size, 0);
 						}
@@ -562,11 +552,9 @@ export function usePersistentScreenRecording(consultationId: string) {
 						const partNum = pn++;
 						enqueueUpload(() => uploadBlobPart(finalBlob, partNum, chunkId));
 						nextPartNumberRef.current = pn;
-						const rawIdsToMark = unuploadedRaw.filter((r) => acc.includes(r.blob)).map((r) => r.id);
-						if (rawIdsToMark.length > 0) {
-							recordingStorage.markRawChunksAsUploaded(rawIdsToMark).catch(() => {});
-						}
 					}
+					// Mark all raw chunks as uploaded (reference equality fails after .slice() so we mark all after processing)
+					await recordingStorage.markRawChunksAsUploaded(unuploadedRaw.map((r) => r.id));
 				}
 
 				// 3) Auto-finalize when uploads drain (capture from closure to avoid race)
@@ -595,33 +583,13 @@ export function usePersistentScreenRecording(consultationId: string) {
 								setState((s) => ({ ...s, playbackUrl: result.playbackUrl ?? null }));
 								await triggerAutomaticBackupDownload(recoverySessionId);
 							} else {
-								// Backend returned no playbackUrl – save blob from local chunks so video still shows
+								// Backend returned no playbackUrl – download blob only (don't save blob URL – it dies after navigate)
 								// Use getSessionChunks (not getPendingChunks) because chunks are marked uploaded after recovery
 								try {
 									const allChunksFromStorage = await recordingStorage.getSessionChunks(recoverySessionId);
 									if (allChunksFromStorage.length > 0) {
-										const sorted = [...allChunksFromStorage].sort((a, b) => a.partNumber - b.partNumber);
-										const allBlobs = sorted.map((c) => c.blob);
-										const totalSize = allBlobs.reduce((s, b) => s + b.size, 0);
-										const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
-										const recordingBlob = new Blob(allBlobs, { type: "video/webm" });
-										const blobUrl = URL.createObjectURL(recordingBlob);
-										const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
-										saved.push({
-											id: `recovery-blob-${Date.now()}`,
-											name: `Recovered Recording (Local) - ${new Date().toLocaleString()}`,
-											url: blobUrl,
-											size: `${sizeInMB}MB`,
-											chunks: allChunksFromStorage.length,
-											timestamp: new Date().toISOString(),
-											status: "completed",
-											segmentType: "recovery_blob",
-											localBlob: true,
-										});
-										localStorage.setItem(storageKey, JSON.stringify(saved));
-										setState((s) => ({ ...s, playbackUrl: blobUrl }));
-										console.log(`💾 [RECOVERY] No playbackUrl from backend – saved ${sizeInMB}MB as local blob`);
 										await triggerAutomaticBackupDownload(recoverySessionId);
+										console.log(`💾 [RECOVERY] No playbackUrl from backend – downloaded as local backup`);
 									}
 								} catch (blobErr) {
 									console.warn("⚠️ [RECOVERY] Could not save blob fallback:", blobErr);
@@ -648,31 +616,19 @@ export function usePersistentScreenRecording(consultationId: string) {
 					
 					const pendingChunks = await recordingStorage.getPendingChunks(activeSession.sessionId);
 					if (pendingChunks.length > 0) {
-						console.log(`📦 [RECOVERY] Found ${pendingChunks.length} chunks from pre-refresh session`);
-						
-						const allChunks = pendingChunks.map(chunk => chunk.blob);
-						const totalSize = allChunks.reduce((total, chunk) => total + chunk.size, 0);
-						const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
-						const recordingBlob = new Blob(allChunks, { type: 'video/webm' });
-						const blobUrl = URL.createObjectURL(recordingBlob);
-						
-						const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
-						const recoveredRecording = {
-							id: `recovered-${Date.now()}`,
-							name: `Pre-Refresh Recording - ${new Date().toLocaleString()}`,
-							url: blobUrl,
-							size: `${sizeInMB}MB`,
-							chunks: allChunks.length,
-							timestamp: new Date().toISOString(),
-							status: 'recovered',
-							reason: 'Session invalid, saved as backup',
-							segmentType: 'pre_refresh_backup'
-						};
-						
-						savedRecordings.push(recoveredRecording);
-						localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
-						
-						console.log(`💾 [RECOVERY] Saved pre-refresh recording as backup: ${sizeInMB}MB`);
+						console.log(`📦 [RECOVERY] Found ${pendingChunks.length} chunks from pre-refresh session – triggering download (blob URLs invalid after navigate)`);
+						// Combine chunks and trigger download; don't save blob URL to localStorage
+						const sorted = [...pendingChunks].sort((a, b) => a.partNumber - b.partNumber);
+						const blob = new Blob(sorted.map((c) => c.blob), { type: "video/webm" });
+						const url = URL.createObjectURL(blob);
+						const a = document.createElement("a");
+						a.href = url;
+						a.download = `${consultationId}-pre-refresh-${Date.now()}.webm`;
+						a.style.display = "none";
+						document.body.appendChild(a);
+						a.click();
+						setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+						console.log(`💾 [RECOVERY] Pre-refresh recording downloaded`);
 					} else {
 						console.log("ℹ️ [RECOVERY] No chunks found in failed session");
 					}
@@ -751,24 +707,17 @@ export function usePersistentScreenRecording(consultationId: string) {
 							const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
 							const recordingBlob = new Blob(allChunks, { type: 'video/webm' });
 							const blobUrl = URL.createObjectURL(recordingBlob);
-							
-							const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
-							const recoveredRecording = {
-								id: `abandoned-${session.sessionId}-${Date.now()}`,
-								name: `Recovered Recording - ${new Date(session.createdAt).toLocaleString()}`,
-								url: blobUrl,
-								size: `${sizeInMB}MB`,
-								chunks: allChunks.length,
-								timestamp: new Date().toISOString(),
-								status: 'recovered',
-								reason: 'Abandoned session recovered',
-								segmentType: 'abandoned_recovery'
-							};
-							
-							savedRecordings.push(recoveredRecording);
-							localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
-							
-							console.log(`💾 [ABANDONED] Recovered abandoned recording: ${sizeInMB}MB`);
+							const a = document.createElement('a');
+							a.href = blobUrl;
+							a.download = `${consultationId}-abandoned-${Date.now()}.webm`;
+							a.style.display = 'none';
+							document.body.appendChild(a);
+							a.click();
+							setTimeout(() => {
+								document.body.removeChild(a);
+								URL.revokeObjectURL(blobUrl);
+							}, 200);
+							console.log(`💾 [ABANDONED] Abandoned recording (${sizeInMB}MB) downloaded – blob URL not saved`);
 							
 							await recordingStorage.deleteSession(session.sessionId);
 							await recordingStorage.deleteSessionChunks(session.sessionId);
@@ -786,7 +735,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 		return () => clearTimeout(timeoutId);
 	}, [consultationId]);
 
-	// Add beforeunload warning
+	// Add beforeunload warning + visibilitychange emergency backup
 	useEffect(() => {
 		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
 			if (state.isRecording || state.isUploading || (state.pendingParts > 0)) {
@@ -796,9 +745,23 @@ export function usePersistentScreenRecording(consultationId: string) {
 			}
 		};
 
+		const handleVisibilityChange = () => {
+			if (
+				document.visibilityState === "hidden" &&
+				isRecordingRef.current &&
+				sessionIdRef.current
+			) {
+				triggerAutomaticBackupDownload(sessionIdRef.current).catch(() => {});
+			}
+		};
+
 		window.addEventListener("beforeunload", handleBeforeUnload);
-		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-	}, [state.isRecording, state.isUploading, state.pendingParts]);
+		document.addEventListener("visibilitychange", handleVisibilityChange);
+		return () => {
+			window.removeEventListener("beforeunload", handleBeforeUnload);
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
+		};
+	}, [state.isRecording, state.isUploading, state.pendingParts, triggerAutomaticBackupDownload]);
 
 	const start = useCallback(async (opts?: StartOptions) => {
 		if (state.isRecording || state.isInitializing || state.isRecovering) return;
@@ -1082,7 +1045,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 			recorder.ondataavailable = (ev: BlobEvent) => {
 				if (!ev.data || ev.data.size === 0) return;
 				handleChunk(ev.data);
-				const tooManyPending = state.pendingParts > 20;
+				const tooManyPending = pendingPartsRef_read.current > 20;
 				if (tooManyPending && recorder.state === "recording") {
 					recorder.pause();
 					const interval = setInterval(() => {
@@ -1137,7 +1100,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 	}, [consultationId, handleChunk, initiateMultipart, state.isRecording, state.isInitializing, state.isRecovering, state.pendingParts]);
 
 	const stop = useCallback(async () => {
-		if (!state.isRecording && !state.isInitializing) return;
+		if (!isRecordingRef.current && !stateRef.current.isInitializing) return;
 		isStoppingRef.current = true;
 		setState((s) => ({ ...s, isRecording: false, isUploading: true }));
 
