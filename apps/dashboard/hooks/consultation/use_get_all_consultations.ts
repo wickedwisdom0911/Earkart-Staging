@@ -18,7 +18,7 @@ export const useGetAllConsultations = (options?: {
     queryKey: ["consultations", options?.maxRecords, options?.startDate, options?.endDate],
     enabled: options?.enabled !== false, // Default to true, but can be disabled
     refetchInterval: options?.refetchInterval || false, // Optional auto-refetch interval
-    staleTime: options?.staleTime ?? 0,
+    staleTime: options?.staleTime ?? 60_000, // Default 60s - reduces refetch on mount/focus
     queryFn: async () => {
       try {
         const result = await getAllConsultations({
@@ -45,8 +45,8 @@ export const useGetAllConsultations = (options?: {
       // Exponential backoff: 1s, 2s, 4s...
       return Math.min(1000 * 2 ** attemptIndex, 30000);
     },
-    refetchOnMount: true, // Always refetch when component mounts
-    refetchOnWindowFocus: true, // Refetch when window gains focus
+    refetchOnMount: true,
+    refetchOnWindowFocus: false, // Reduce API hits when switching tabs
   });
 };
 

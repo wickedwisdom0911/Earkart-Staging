@@ -13,16 +13,17 @@ export interface UseGetConsultationsInfiniteParams
   /** Include in queryKey to reset when filters change */
   startDate?: string;
   endDate?: string;
+  search?: string;
 }
 
 export function useGetConsultationsInfinite(
   params: UseGetConsultationsInfiniteParams = {}
 ) {
-  const { limit = 20, enabled = true, audiologistId, startDate, endDate } =
+  const { limit = 20, enabled = true, audiologistId, startDate, endDate, search, isDemo } =
     params;
 
   const query = useInfiniteQuery({
-    queryKey: ["consultations", "infinite", limit, audiologistId, startDate, endDate],
+    queryKey: ["consultations", "infinite", limit, audiologistId, startDate, endDate, search, isDemo],
     queryFn: async ({
       pageParam,
     }): Promise<GetConsultationsPageResult> => {
@@ -32,6 +33,8 @@ export function useGetConsultationsInfinite(
         audiologistId,
         startDate,
         endDate,
+        search,
+        isDemo: isDemo === true ? true : undefined,
       });
     },
     getNextPageParam: (lastPage) => {
@@ -42,7 +45,8 @@ export function useGetConsultationsInfinite(
     },
     initialPageParam: 1,
     enabled,
-    staleTime: 30 * 1000,
+    staleTime: 60 * 1000, // 60s - reduces refetch on mount/focus
+    refetchOnWindowFocus: false,
   });
 
   const consultations: ConsultationModelData[] = useMemo(() => {

@@ -5,10 +5,11 @@ import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { Role } from "@/models/enums";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
-import { startOfDay, endOfDay, format } from "date-fns";
+import { format } from "date-fns";
 import { useGetConsultationsInfinite } from "@/hooks/consultation/use-get-consultations-infinite";
-import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
-import { extractConsultations } from "@/models/consultation.model";
+import { useGetMissedCallsInfinite } from "@/hooks/consultation/use-get-missed-calls";
+import { useGetReconnectedCallsInfinite } from "@/hooks/consultation/use-get-reconnected-calls";
+import { useGetFailedCallsInfinite } from "@/hooks/consultation/use-get-failed-calls";
 import type { ConsultationModelData } from "@/models/consultation.model";
 import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
 import {
@@ -38,8 +39,10 @@ import { ConsultationEmptyState } from "@/components/ui/consultation-empty-state
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import getConsultation from "@/actions/consultations/get_consultation";
+import { useDebounce } from "@/utils/hooks/useDebounce";
 
 const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 400;
 
 function NewUIConsultationCard({
   consultation,
@@ -59,6 +62,9 @@ function NewUIConsultationCard({
   const timeStr = consultation.createdAt
     ? format(new Date(consultation.createdAt), "hh:mma")
     : "";
+  const isCancelledByPatient =
+    consultation.status === "CANCELLED_BY_PATIENT" ||
+    (consultation as { patientStatus?: string }).patientStatus === "CANCELLED_BY_PATIENT";
   const statusLabel =
     consultation.status === "COMPLETED"
       ? "Completed"
@@ -70,7 +76,9 @@ function NewUIConsultationCard({
             ? "Cancelled"
             : consultation.status === "FAILED"
               ? "Failed"
-              : String(consultation.status ?? "N/A");
+              : isCancelledByPatient
+                ? "Cancelled by Patient"
+                : String(consultation.status ?? "N/A");
 
   const statusStyle =
     consultation.status === "COMPLETED"
@@ -79,7 +87,7 @@ function NewUIConsultationCard({
         ? { bg: "rgba(234,179,8,0.15)", color: "#ca8a04" }
         : consultation.status === "IN_PROGRESS"
           ? { bg: "rgba(59,130,246,0.1)", color: "#2563eb" }
-          : consultation.status === "CANCELLED" || consultation.status === "FAILED"
+          : consultation.status === "CANCELLED" || consultation.status === "FAILED" || isCancelledByPatient
             ? { bg: "rgba(239,68,68,0.1)", color: "#dc2626" }
             : { bg: "rgba(76,202,84,0.1)", color: "#16a34a" };
 
@@ -221,12 +229,35 @@ function AllConsultationsContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { data: user } = useGetUser();
+  const [mounted, setMounted] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+
+  // Avoid hydration mismatch: user/role-dependent UI can differ between server and client
+  useEffect(() => setMounted(true), []);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [selectedAudiologistId, setSelectedAudiologistId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 400);
+  const [showDemoCalls, setShowDemoCalls] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<"all" | "missed" | "reconnected" | "failed">("all");
   const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Sync type filter with URL (e.g. ?filter=missed-calls, ?filter=reconnected-calls, ?filter=failed-calls)
+  useEffect(() => {
+    const filter = searchParams.get("filter");
+    if (filter === "missed-calls") setTypeFilter("missed");
+    else if (filter === "reconnected-calls") setTypeFilter("reconnected");
+    else if (filter === "failed-calls") setTypeFilter("failed");
+  }, [searchParams]);
+
+  // Sync audiologistId from URL (e.g. ?audiologistId=xxx when viewing individual audiologist)
+  const urlAudiologistId = searchParams.get("audiologistId") ?? undefined;
+  useEffect(() => {
+    if (urlAudiologistId && urlAudiologistId !== selectedAudiologistId) {
+      setSelectedAudiologistId(urlAudiologistId);
+    }
+  }, [urlAudiologistId]);
 
   const isAudiologist =
     user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
@@ -237,6 +268,7 @@ function AllConsultationsContent() {
     user?.role === Role.SUPER_ADMIN;
   const isSimpleAudiologist = isAudiologist && !isHeadAudiologist;
 
+  // Only fetch audiologists list for admins/heads (dropdown). Simple audiologists get permission denied.
   const { data: audiologistsData } = useGetAllAudiologists({
     enabled: canFilterByAudiologist,
   });
@@ -246,82 +278,128 @@ function AllConsultationsContent() {
     ? selectedAudiologistId
     : undefined;
 
-  const useDateRangeMode = !!(startDate && endDate);
+  const isMissedFilter = typeFilter === "missed";
+  const isReconnectedFilter = typeFilter === "reconnected";
+  const isFailedFilter = typeFilter === "failed";
+  const isSpecialFilter = isMissedFilter || isReconnectedFilter || isFailedFilter;
 
-  // Same get-all API for everyone. Filter client-side for simple audiologist.
+  // For simple audiologists: DON'T pass audiologistId. Backend should auto-filter by logged-in user (JWT).
+  // get-all-audiologists is permission-denied for them, so we cannot resolve profile id. Calling get-all without
+  // audiologistId relies on backend returning only their consultations when they're an audiologist.
+  const apiAudiologistId =
+    urlAudiologistId ?? audiologistFilterId ?? (isSimpleAudiologist ? undefined : undefined);
+
+  // Simple audiologists: no need to wait for profile id - we call get-all without audiologistId
+  const isReadyForSimpleAudiologist = true;
+
+  const isDemoParam = showDemoCalls ? true : undefined;
+
+  // Missed calls: use dedicated /consultation/missed-calls API (CANCELLED_BY_PATIENT, excludes RECONNECTED)
+  const missedCallsQuery = useGetMissedCallsInfinite({
+    limit: PAGE_SIZE,
+    enabled: isMissedFilter && isReadyForSimpleAudiologist,
+    audiologistId: isMissedFilter ? apiAudiologistId : undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    search: debouncedSearchQuery || undefined,
+    isDemo: isDemoParam,
+  });
+
+  // Reconnected calls: use dedicated /consultation/reconnected-calls API
+  const reconnectedCallsQuery = useGetReconnectedCallsInfinite({
+    limit: PAGE_SIZE,
+    enabled: isReconnectedFilter && isReadyForSimpleAudiologist,
+    audiologistId: isReconnectedFilter ? apiAudiologistId : undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    search: debouncedSearchQuery || undefined,
+    isDemo: isDemoParam,
+  });
+
+  // Failed calls: use dedicated /consultation/failed-calls API (status FAILED - technical issues)
+  const failedCallsQuery = useGetFailedCallsInfinite({
+    limit: PAGE_SIZE,
+    enabled: isFailedFilter && isReadyForSimpleAudiologist,
+    audiologistId: isFailedFilter ? apiAudiologistId : undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    search: debouncedSearchQuery || undefined,
+    isDemo: isDemoParam,
+  });
+
+  // All consultations: paginated get-all API (works for no dates, from-only, or full date range)
   const infiniteQuery = useGetConsultationsInfinite({
     limit: PAGE_SIZE,
-    startDate: useDateRangeMode ? undefined : startDate || undefined,
-    endDate: useDateRangeMode ? undefined : endDate || undefined,
-    audiologistId: undefined,
-    enabled: !useDateRangeMode,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    search: debouncedSearchQuery || undefined,
+    audiologistId: apiAudiologistId,
+    isDemo: isDemoParam,
+    enabled: !isSpecialFilter && isReadyForSimpleAudiologist,
   });
 
-  const allConsultationsQuery = useGetAllConsultations({
-    enabled: useDateRangeMode,
-    staleTime: 60_000,
-  });
+  const allConsultationsFromApi = isMissedFilter
+    ? missedCallsQuery.consultations
+    : isReconnectedFilter
+      ? reconnectedCallsQuery.consultations
+      : isFailedFilter
+        ? failedCallsQuery.consultations
+        : infiniteQuery.consultations;
 
-  const allConsultationsRaw = useDateRangeMode
-    ? allConsultationsQuery.data?.data
-    : null;
-  const allConsultations = useDateRangeMode
-    ? Array.isArray(allConsultationsRaw)
-      ? allConsultationsRaw
-      : extractConsultations(allConsultationsRaw ?? [])
-    : infiniteQuery.consultations;
-  const totalBeforeFilter = useDateRangeMode
-    ? allConsultations.length
-    : infiniteQuery.total ?? 0;
-  const isLoading = useDateRangeMode
-    ? allConsultationsQuery.isLoading
-    : infiniteQuery.isLoading;
-  const isError = useDateRangeMode
-    ? allConsultationsQuery.isError
-    : infiniteQuery.isError;
-  const error = useDateRangeMode
-    ? allConsultationsQuery.error
-    : infiniteQuery.error;
-  const fetchNextPage = infiniteQuery.fetchNextPage;
-  const hasNextPage = infiniteQuery.hasNextPage ?? false;
-  const isFetchingNextPage = infiniteQuery.isFetchingNextPage ?? false;
+  const totalBeforeFilter = isMissedFilter
+    ? missedCallsQuery.total
+    : isReconnectedFilter
+      ? reconnectedCallsQuery.total
+      : isFailedFilter
+        ? failedCallsQuery.total
+        : infiniteQuery.total ?? 0;
 
-  const filteredConsultations = allConsultations.filter((c) => {
-    // Simple audiologist: filter to own consultations by matching ANY audiologist-related detail
-    if (isSimpleAudiologist && user?.id) {
-      const match =
-        c.audiologist?.userId === user.id ||
-        c.audiologist?.user?.id === user.id ||
-        c.audiologist?.id === user.id ||
-        (c as any).audiologistId === user.id ||
-        ((user as any)?.email && c.audiologist?.user?.email === (user as any).email);
-      if (!match) return false;
-    }
-    // Admin/head/super admin: optional audiologist dropdown filter
-    if (audiologistFilterId) {
-      const matchByUserId = c.audiologist?.userId === audiologistFilterId;
-      const matchByProfileId =
-        c.audiologistId === audiologistFilterId || c.audiologist?.id === audiologistFilterId;
-      if (!matchByUserId && !matchByProfileId) return false;
-    }
-    if (searchQuery) {
-      const patientName = (c.patient?.name ?? "").toLowerCase();
-      if (!patientName.includes(searchQuery.toLowerCase())) return false;
-    }
-    const dateStr = c.createdAt ?? (c as any).session?.createdAt ?? (c as any).date;
-    if (!dateStr) return true;
-    const consultationDate = new Date(dateStr);
-    if (isNaN(consultationDate.getTime())) return true;
-    if (startDate) {
-      const rangeStart = startOfDay(new Date(startDate + "T12:00:00"));
-      if (consultationDate < rangeStart) return false;
-    }
-    if (endDate) {
-      const rangeEnd = endOfDay(new Date(endDate + "T12:00:00"));
-      if (consultationDate > rangeEnd) return false;
-    }
-    return true;
-  });
+  const isLoading = isMissedFilter
+    ? missedCallsQuery.isLoading
+    : isReconnectedFilter
+      ? reconnectedCallsQuery.isLoading
+      : isFailedFilter
+        ? failedCallsQuery.isLoading
+        : infiniteQuery.isLoading;
+  const isError = isMissedFilter
+    ? missedCallsQuery.isError
+    : isReconnectedFilter
+      ? reconnectedCallsQuery.isError
+      : isFailedFilter
+        ? failedCallsQuery.isError
+        : infiniteQuery.isError;
+  const error = isMissedFilter
+    ? missedCallsQuery.error
+    : isReconnectedFilter
+      ? reconnectedCallsQuery.error
+      : isFailedFilter
+        ? failedCallsQuery.error
+        : infiniteQuery.error;
+
+  const fetchNextPage = isMissedFilter
+    ? missedCallsQuery.fetchNextPage
+    : isReconnectedFilter
+      ? reconnectedCallsQuery.fetchNextPage
+      : isFailedFilter
+        ? failedCallsQuery.fetchNextPage
+        : infiniteQuery.fetchNextPage;
+  const hasNextPage = isMissedFilter
+    ? missedCallsQuery.hasNextPage
+    : isReconnectedFilter
+      ? reconnectedCallsQuery.hasNextPage
+      : isFailedFilter
+        ? failedCallsQuery.hasNextPage
+        : infiniteQuery.hasNextPage ?? false;
+  const isFetchingNextPage = isMissedFilter
+    ? missedCallsQuery.isFetchingNextPage
+    : isReconnectedFilter
+      ? reconnectedCallsQuery.isFetchingNextPage
+      : isFailedFilter
+        ? failedCallsQuery.isFetchingNextPage
+        : infiniteQuery.isFetchingNextPage ?? false;
+
+  // Date, search, and audiologist filtering are all done by the API.
+  const filteredConsultations = allConsultationsFromApi;
 
   const handleViewDetails = useCallback(
     (consultationId: string) => {
@@ -347,9 +425,11 @@ function AllConsultationsContent() {
     setEndDate("");
     setSelectedAudiologistId("");
     setSearchQuery("");
+    setShowDemoCalls(false);
+    setTypeFilter("all");
   };
 
-  const loadedCount = allConsultations.length;
+  const loadedCount = allConsultationsFromApi.length;
 
   useEffect(() => {
     const el = loadMoreRef.current;
@@ -368,7 +448,7 @@ function AllConsultationsContent() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, loadedCount, totalBeforeFilter]);
 
   const consultations = filteredConsultations;
-  const total = useDateRangeMode ? consultations.length : totalBeforeFilter;
+  const total = totalBeforeFilter;
 
   const scrollToId = searchParams.get("scrollTo");
   const hasScrolledRef = useRef(false);
@@ -413,14 +493,14 @@ function AllConsultationsContent() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1 style={{ fontSize: 26, fontWeight: 700, color: "#111827", margin: 0 }}>
-              {isAudiologist ? "My Session History" : "Session History"}
+              {mounted && isAudiologist ? "My Session History" : "Session History"}
             </h1>
             <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              {isAudiologist
+              {mounted && isAudiologist
                 ? "Browse and filter your past consultation records"
                 : "Browse and filter all consultation records"}
             </p>
-            {isAudiologist && !isHeadAudiologist && (
+            {mounted && isAudiologist && !isHeadAudiologist && (
               <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 12px", background: "rgba(64,163,219,0.1)", borderRadius: 9999, fontSize: 13, color: "#40A3DB" }}>
                 <User size={14} />
                 <span>Showing only your consultations</span>
@@ -459,10 +539,100 @@ function AllConsultationsContent() {
             <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Filters</span>
           </div>
 
+          {/* All / Missed Calls / Reconnected Calls / Failed Calls filter tabs */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => setTypeFilter("all")}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                background: typeFilter === "all" ? "#40A3DB" : "#f9fafb",
+                color: typeFilter === "all" ? "#fff" : "#374151",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter("missed")}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                background: typeFilter === "missed" ? "#40A3DB" : "#f9fafb",
+                color: typeFilter === "missed" ? "#fff" : "#374151",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Missed Calls
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter("reconnected")}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                background: typeFilter === "reconnected" ? "#40A3DB" : "#f9fafb",
+                color: typeFilter === "reconnected" ? "#fff" : "#374151",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Reconnected Calls
+            </button>
+            <button
+              type="button"
+              onClick={() => setTypeFilter("failed")}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                background: typeFilter === "failed" ? "#40A3DB" : "#f9fafb",
+                color: typeFilter === "failed" ? "#fff" : "#374151",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Failed Calls
+            </button>
+          </div>
+
+          {/* Show demo calls checkbox - isDemo=true only when checked */}
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 16,
+              cursor: "pointer",
+              fontSize: 13,
+              color: "#374151",
+              fontWeight: 500,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={showDemoCalls}
+              onChange={(e) => setShowDemoCalls(e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: "#40A3DB" }}
+            />
+            Show demo calls
+          </label>
+
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: canFilterByAudiologist ? "1fr 1fr 1fr 1fr" : "1fr 1fr 1fr",
+              gridTemplateColumns: (mounted && canFilterByAudiologist) ? "1fr 1fr 1fr 1fr" : "1fr 1fr 1fr",
               gap: 12,
             }}
           >
@@ -481,7 +651,7 @@ function AllConsultationsContent() {
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search patients name...."
+                placeholder="Search"
                 style={{
                   border: "none",
                   outline: "none",
@@ -508,7 +678,12 @@ function AllConsultationsContent() {
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setStartDate(v);
+                  if (endDate && v && v > endDate) setEndDate(v);
+                }}
+                max={endDate || undefined}
                 style={{
                   border: "none",
                   outline: "none",
@@ -516,6 +691,7 @@ function AllConsultationsContent() {
                   fontSize: 13,
                   color: startDate ? "#374151" : "#9ca3af",
                   width: "100%",
+                  minWidth: 0,
                 }}
               />
             </div>
@@ -535,7 +711,17 @@ function AllConsultationsContent() {
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val && startDate && val < startDate) {
+                    // If "to" is before "from", swap them
+                    setEndDate(startDate);
+                    setStartDate(val);
+                  } else {
+                    setEndDate(val);
+                  }
+                }}
+                min={startDate || undefined}
                 style={{
                   border: "none",
                   outline: "none",
@@ -543,11 +729,12 @@ function AllConsultationsContent() {
                   fontSize: 13,
                   color: endDate ? "#374151" : "#9ca3af",
                   width: "100%",
+                  minWidth: 0,
                 }}
               />
             </div>
 
-            {canFilterByAudiologist && (
+            {mounted && canFilterByAudiologist && (
               <Select
                 value={selectedAudiologistId || "all"}
                 onValueChange={(v) => setSelectedAudiologistId(v === "all" ? "" : v)}
@@ -574,7 +761,7 @@ function AllConsultationsContent() {
             )}
           </div>
 
-          {(startDate || endDate || selectedAudiologistId || searchQuery) && (
+          {(startDate || endDate || selectedAudiologistId || searchQuery || showDemoCalls) && (
             <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
               <Button variant="outline" size="sm" onClick={clearFilters} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <X size={14} />
@@ -585,15 +772,11 @@ function AllConsultationsContent() {
         </div>
 
         <p style={{ fontSize: 13, color: "#374151", marginBottom: 16 }}>
-          {useDateRangeMode
-            ? isLoading
-              ? "Loading consultations in date range…"
-              : `Showing ${consultations.length} consultation${consultations.length !== 1 ? "s" : ""} in date range`
-            : total > 0
-              ? `Loaded ${loadedCount} of ${total} consultation${total !== 1 ? "s" : ""} — scroll for more`
-              : loadedCount > 0
-                ? `Showing ${consultations.length} consultation${consultations.length !== 1 ? "s" : ""}`
-                : "No consultations"}
+          {total > 0
+            ? `Loaded ${loadedCount} of ${total} consultation${total !== 1 ? "s" : ""} — scroll for more`
+            : loadedCount > 0
+              ? `Showing ${consultations.length} consultation${consultations.length !== 1 ? "s" : ""}`
+              : "No consultations"}
         </p>
 
         {isLoading && (
@@ -636,10 +819,10 @@ function AllConsultationsContent() {
             {consultations.length === 0 ? (
               <ConsultationEmptyState
                 type="all"
-                hasFilters={!!(startDate || endDate || selectedAudiologistId || searchQuery)}
+                hasFilters={!!(startDate || endDate || selectedAudiologistId || searchQuery || showDemoCalls)}
                 onClearFilters={clearFilters}
                 noResultsOnPage={
-                  total > 0 && !(startDate || endDate) && isAudiologist
+                  total > 0 && !(startDate || endDate) && mounted && isAudiologist
                 }
                 infiniteScroll
                 hasMoreToLoad={hasNextPage ?? false}
@@ -663,9 +846,8 @@ function AllConsultationsContent() {
                   ))}
                 </div>
 
-                {!useDateRangeMode && (
-                  <div
-                    ref={loadMoreRef}
+                <div
+                  ref={loadMoreRef}
                     style={{ minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}
                   >
                     {isFetchingNextPage && (
@@ -678,7 +860,6 @@ function AllConsultationsContent() {
                       <p style={{ fontSize: 13, color: "#6b7280" }}>You&apos;ve reached the end</p>
                     )}
                   </div>
-                )}
               </>
             )}
           </>

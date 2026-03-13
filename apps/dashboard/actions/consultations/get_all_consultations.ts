@@ -2,6 +2,7 @@
 
 import { apiRequest } from "@/lib/api";
 import { getBaseUrl } from "@/lib/environment";
+import { toApiStartDate, toApiEndDate } from "@/lib/utils";
 import { verifySession } from "@/lib/session";
 import {
   ConsultationModel,
@@ -40,8 +41,8 @@ export default async function getAllConsultations(
       limit: String(limit),
       offset: "0", // will override per iteration
     });
-    if (params?.startDate) urlParams.set("startDate", params.startDate);
-    if (params?.endDate) urlParams.set("endDate", params.endDate);
+    if (params?.startDate) urlParams.set("startDate", toApiStartDate(params.startDate));
+    if (params?.endDate) urlParams.set("endDate", toApiEndDate(params.endDate));
 
     // Fetch pages (stop early if maxRecords reached)
     while (hasMore && (!maxRecords || allConsultations.length < maxRecords)) {

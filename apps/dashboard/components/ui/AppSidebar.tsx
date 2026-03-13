@@ -22,7 +22,6 @@ import {
   CalendarCheck,
   Ticket,
   List,
-  PhoneOff,
   MessageCircle,
   ChevronLeft,
   ChevronRight,
@@ -66,14 +65,7 @@ const adminSidebarSections: SidebarSection[] = [
   {
     label: "Analytics",
     items: [
-      {
-        name: "Audiologist Monitoring",
-        icon: <BarChartIcon className="w-[18px] h-[18px]" />,
-        url: "/dashboard/analytics",
-        subItems: [
-          { name: "Missed Calls", icon: <PhoneOff className="w-[16px] h-[16px]" />, url: "/dashboard/analytics/missed-calls" },
-        ],
-      },
+      { name: "Audiologist Monitoring", icon: <BarChartIcon className="w-[18px] h-[18px]" />, url: "/dashboard/analytics" },
       { name: "Centre Analytics", icon: <Building2Icon className="w-[18px] h-[18px]" />, url: "/dashboard/centre-analytics" },
     ],
   },

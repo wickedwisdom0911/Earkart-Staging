@@ -22,59 +22,31 @@ export const useGetAllConsultationsInfinite = (
   return useInfiniteQuery({
     queryKey: ["consultations", "infinite", limit],
     queryFn: async ({ pageParam = 0 }) => {
-      console.log("🔵 [useGetAllConsultationsInfinite] Fetching page:", pageParam);
-      
       const params: GetAllConsultationsParams = {
         limit,
         offset: pageParam * limit,
         page: pageParam + 1, // API uses 1-based page numbers
       };
-
-      const result = await getAllConsultations(params);
-      console.log("🔵 [useGetAllConsultationsInfinite] Page result:", {
-        page: pageParam,
-        hasData: !!result?.data,
-      });
-
-      return result;
+      return getAllConsultations(params);
     },
     getNextPageParam: (lastPage, allPages) => {
       const paginationInfo = getPaginationInfo(lastPage.data);
-      
-      console.log("🔵 [getNextPageParam] Checking pagination:", {
-        hasPaginationInfo: !!paginationInfo,
-        hasNext: paginationInfo?.hasNext,
-        currentPage: paginationInfo?.page,
-        totalPages: paginationInfo?.totalPages,
-        total: paginationInfo?.total,
-        currentPages: allPages.length,
-      });
-      
       if (paginationInfo?.hasNext) {
-        const nextPage = allPages.length; // Return next page index (0-based)
-        console.log("✅ [getNextPageParam] Has more pages, returning:", nextPage);
-        return nextPage;
+        return allPages.length; // Return next page index (0-based)
       }
-      
-      console.log("⏹️ [getNextPageParam] No more pages");
-      return undefined; // No more pages
+      return undefined;
     },
     initialPageParam: 0,
     enabled,
+    staleTime: 60 * 1000, // 60s - reduces refetch on mount/focus
+    refetchOnWindowFocus: false,
     retry: (failureCount, error: any) => {
-      // Don't retry on rate limit errors (429)
-      if (error?.isRateLimit || error?.status === 429) {
-        console.log("⏸️ [useGetAllConsultationsInfinite] Rate limited - not retrying automatically");
-        return false;
-      }
-      // Retry other errors up to 1 time
+      if (error?.isRateLimit || error?.status === 429) return false;
       return failureCount < 1;
     },
     retryDelay: (attemptIndex) => {
-      // Exponential backoff: 1s, 2s, 4s...
       return Math.min(1000 * 2 ** attemptIndex, 30000);
     },
-    staleTime: 0, // Always consider data stale to ensure fresh data
   });
 };
 

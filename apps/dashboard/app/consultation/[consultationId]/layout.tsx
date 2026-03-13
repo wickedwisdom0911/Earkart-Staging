@@ -67,16 +67,17 @@ export default function ConsultationLayout({
   const [isRedirecting, setIsRedirecting] = useState(false);
   
   // State to prevent infinite recording loops and double prompts
-  const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const lastAttempt = sessionStorage.getItem(`lastAutoStart_${consultationId}`);
-      const now = Date.now();
-      if (lastAttempt && (now - parseInt(lastAttempt)) < 30000) {
-        return true;
-      }
+  // Always init to false to avoid hydration mismatch (server has no window/sessionStorage)
+  const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const lastAttempt = sessionStorage.getItem(`lastAutoStart_${consultationId}`);
+    const now = Date.now();
+    if (lastAttempt && (now - parseInt(lastAttempt)) < 30000) {
+      setHasAttemptedAutoStart(true);
     }
-    return false;
-  });
+  }, [consultationId]);
   
   const [isStartingRecording, setIsStartingRecording] = useState(false);
   const [externalPlaybackUrl, setExternalPlaybackUrl] = useState<string | null>(null);
@@ -770,7 +771,15 @@ export default function ConsultationLayout({
                 {recordingState.error?.includes("System audio") && (
                   <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">{recordingState.error}</div>
                 )}
-                {recordingState.isUploading && (
+                {recordingState.isRecovering && (
+                  <div className="mb-4 text-sm text-amber-800 bg-amber-50 rounded-lg px-4 py-3 border border-amber-200">
+                    Recovering recording after refresh. Uploading saved data… Please wait. Do not close or refresh.
+                  </div>
+                )}
+                {recordingState.isRecovering && (
+                  <div className="mb-4 text-sm text-amber-800 bg-amber-50 rounded-lg px-4 py-3 border border-amber-200">Recovering previous recording after refresh. Please wait — do not close or refresh.</div>
+                )}
+                {recordingState.isUploading && !recordingState.isRecovering && (
                   <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">Finalizing previous recording… Upload is still running in the background, but you can safely start a new one.</div>
                 )}
                 {hasAttemptedAutoStart && (

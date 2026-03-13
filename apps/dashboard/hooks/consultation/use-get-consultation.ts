@@ -8,7 +8,8 @@ export const useGetConsultation = (consultationId: string) => {
     queryKey: ["consultation", consultationId],
     queryFn: async () => await getConsultation(consultationId),
     enabled: !!consultationId,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 min - reduce refetch during active consultation
+    refetchOnWindowFocus: false, // Avoid refetch when switching tabs
   });
 };
 

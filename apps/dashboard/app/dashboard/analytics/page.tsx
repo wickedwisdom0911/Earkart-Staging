@@ -358,21 +358,13 @@ function AudiologistCard({ cardData }: { cardData: any }) {
 
       {/* Status Badge */}
       <div>
-        {cardData.isInCall ? (
+        {cardData.isInCall && (
           <span
             className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium px-2.5 sm:px-3 py-1 rounded-full"
             style={{ backgroundColor: "rgba(245,159,11,0.15)", color: "#D97706" }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-[#F59F0B] flex-shrink-0" />
             In Call
-          </span>
-        ) : (
-          <span
-            className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium px-2.5 sm:px-3 py-1 rounded-full"
-            style={{ backgroundColor: "rgba(76,160,84,0.10)", color: "#4CA054" }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#4CA054] flex-shrink-0" />
-            Available
           </span>
         )}
       </div>
