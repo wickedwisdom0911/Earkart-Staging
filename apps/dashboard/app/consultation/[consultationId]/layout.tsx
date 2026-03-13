@@ -1145,9 +1145,14 @@ export default function ConsultationLayout({
                     {recordingState.error}
                   </div>
                 )}
-                {recordingState.isUploading && (
+                {recordingState.isUploading && recordingState.isRecovering && (
                   <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
-                    Finalizing previous recording… Upload is still running in the background, but you can safely start a new one.
+                    Recovering previous recording… Uploading and finalizing data from before the refresh. Please wait.
+                  </div>
+                )}
+                {recordingState.isUploading && !recordingState.isRecovering && (
+                  <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
+                    Finalizing previous recording… Upload is still running in the background.
                   </div>
                 )}
                 {hasAttemptedAutoStart && (

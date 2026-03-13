@@ -462,16 +462,16 @@ export function usePersistentScreenRecording(consultationId: string) {
 				nextPartNumberRef.current = activeSession.nextPartNumber;
 				uploadedPartsRef.current = [...activeSession.uploadedParts];
 
-				setState((s) => ({
-					...s,
-					sessionId: activeSession.sessionId,
-					uploadId: activeSession.uploadId,
-					s3Key: activeSession.s3Key || null,
-					uploadedParts: activeSession.uploadedParts.length,
-					hasActiveSession: true,
-					isRecovering: false,
-					error: null,
-				}));
+			setState((s) => ({
+				...s,
+				sessionId: activeSession.sessionId,
+				uploadId: activeSession.uploadId,
+				s3Key: activeSession.s3Key || null,
+				uploadedParts: activeSession.uploadedParts.length,
+				hasActiveSession: true,
+				isRecovering: true,
+				error: null,
+			}));
 
 				// Resume uploading any aggregated pending chunks (old path)
 				const pendingChunks = await recordingStorage.getPendingChunks(activeSession.sessionId);
@@ -529,42 +529,61 @@ export function usePersistentScreenRecording(consultationId: string) {
 					}
 				}
 
+				const hasAnythingToUpload = pendingChunks.length > 0 || unuploadedRaw.length > 0 || uploadedPartsRef.current.length > 0;
+
+				if (!hasAnythingToUpload) {
+					console.log("ℹ️ [RECOVERY] Session found but nothing to upload/finalize");
+					setState((s) => ({ ...s, isRecovering: false, hasActiveSession: false }));
+					try {
+						await recordingStorage.deactivateSession(activeSession.sessionId);
+						await recordingStorage.deleteSessionChunks(activeSession.sessionId);
+						await recordingStorage.deleteRawChunksForSession(activeSession.sessionId);
+					} catch {}
+					return false;
+				}
+
 				// Auto-finalize when uploads drain: complete S3 multipart, get playback URL, save to localStorage
+				// CRITICAL: capture values from closure NOW, not from refs which start() can overwrite
+				const recoveryUploadId = activeSession.uploadId;
+				const recoverySessionId = activeSession.sessionId;
+
 				(async () => {
-					await waitUntilUploadsSettled(1500);
-					const uploadId = uploadIdRef.current;
-					const sessionId = sessionIdRef.current;
-					if (uploadId && uploadedPartsRef.current.length > 0) {
-						try {
-							const result = await finalizeNow(uploadId);
-							if (result?.playbackUrl) {
-								const saved = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || "[]");
-								const exists = saved.some((r: any) => r.url === result.playbackUrl);
-								if (!exists) {
-									saved.push({
-										id: `recovery-${Date.now()}`,
-										url: result.playbackUrl,
-										name: `Recovered Recording - ${new Date().toLocaleString()}`,
-										timestamp: new Date().toISOString(),
-										status: "completed",
-									});
-									localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(saved));
-									console.log("✅ [RECOVERY] Saved playback URL to localStorage after auto-finalize");
+					try {
+						await waitUntilUploadsSettled(1500);
+						if (recoveryUploadId && uploadedPartsRef.current.length > 0) {
+							try {
+								const result = await finalizeNow(recoveryUploadId);
+								if (result?.playbackUrl) {
+									const saved = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || "[]");
+									const exists = saved.some((r: any) => r.url === result.playbackUrl);
+									if (!exists) {
+										saved.push({
+											id: `recovery-${Date.now()}`,
+											url: result.playbackUrl,
+											name: `Recovered Recording - ${new Date().toLocaleString()}`,
+											timestamp: new Date().toISOString(),
+											status: "completed",
+										});
+										localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(saved));
+										console.log("✅ [RECOVERY] Saved playback URL to localStorage after auto-finalize");
+									}
+									setState((s) => ({ ...s, playbackUrl: result.playbackUrl ?? null }));
 								}
-								setState((s) => ({ ...s, playbackUrl: result.playbackUrl ?? null }));
-							}
-						} catch (e) {
-							console.warn("⚠️ [RECOVERY] Auto-finalize failed:", e);
-						} finally {
-							if (sessionId) {
-								try {
-									await recordingStorage.deactivateSession(sessionId);
-									await recordingStorage.deleteSessionChunks(sessionId);
-									await recordingStorage.deleteRawChunksForSession(sessionId);
-								} catch {}
-								setState((s) => ({ ...s, hasActiveSession: false }));
+							} catch (e) {
+								console.warn("⚠️ [RECOVERY] Auto-finalize failed:", e);
+							} finally {
+								if (recoverySessionId) {
+									try {
+										await recordingStorage.deactivateSession(recoverySessionId);
+										await recordingStorage.deleteSessionChunks(recoverySessionId);
+										await recordingStorage.deleteRawChunksForSession(recoverySessionId);
+									} catch {}
+								}
 							}
 						}
+					} finally {
+						setState((s) => ({ ...s, isRecovering: false, isUploading: false, hasActiveSession: false }));
+						console.log("✅ [RECOVERY] Recovery complete — Start Recording button now available");
 					}
 				})();
 
@@ -747,7 +766,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 	}, [state.isRecording, state.isUploading, state.pendingParts]);
 
 	const start = useCallback(async (opts?: StartOptions) => {
-		if (state.isRecording || state.isInitializing) return;
+		if (state.isRecording || state.isInitializing || state.isRecovering) return;
 		setState((s) => ({ ...s, isInitializing: true, error: null }));
 
 		try {
