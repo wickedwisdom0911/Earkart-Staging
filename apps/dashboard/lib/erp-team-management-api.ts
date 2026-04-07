@@ -3,4 +3,4 @@
  * Separate backend from the main Omni API — fixed host for local / LAN ERP.
  */
 export const ERP_TEAM_MANAGEMENT_API_BASE_URL =
-  "http://192.168.1.102:3000/erp/api/v1/";
+  "https://erpearkart.vercel.app/";
