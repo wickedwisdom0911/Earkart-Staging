@@ -2,6 +2,7 @@ import { z } from "zod";
 import { PaymentCycle, StatusEnum, WeekDays, Gender } from "./enums";
 import { CityModelDataSchema } from "./city.model";
 import { userModelDataSchema, CreateUserDtoSchema } from "./user.model";
+import { NrvSplitDataSchema } from "./nrv.model";
 
 export const DeviceModelDataSchema = z.object({
   id: z.string().optional(),
@@ -52,7 +53,10 @@ export const CentreModelDataSchema = z.object({
   updatedAt: z.string().optional(),
   city: CityModelDataSchema.optional(),
   device: DeviceModelDataSchema.optional().nullable(),
-  
+  nrvSplitId: z.string().optional().nullable(),
+  nrvSplit: NrvSplitDataSchema.optional().nullable(),
+  /** ERP team-management employee id (ASM designation) */
+  managerId: z.string().optional().nullable(),
 });
 
 export const CreateCentreModelSchema = z.object({

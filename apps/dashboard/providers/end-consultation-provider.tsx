@@ -4,7 +4,7 @@ import React, { createContext, useContext } from "react";
 
 export type EndConsultationOptions = {
   isDemoCall?: boolean;
-  sessionStatus?: "FAILED"; // Only set when fail consultation is checked, otherwise omit
+  status?: "FAILED"; // Only set when fail consultation is checked, otherwise omit
 };
 
 interface EndConsultationContextType {

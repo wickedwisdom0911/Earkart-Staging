@@ -25,6 +25,7 @@ import {
   MessageCircle,
   ChevronLeft,
   ChevronRight,
+  Percent,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -82,6 +83,7 @@ const adminSidebarSections: SidebarSection[] = [
       { name: "Users", icon: <UsersIcon className="w-[18px] h-[18px]" />, url: "/dashboard/users" },
       { name: "Patients", icon: <UserPlusIcon className="w-[18px] h-[18px]" />, url: "/dashboard/patients" },
       { name: "Coupons", icon: <Ticket className="w-[18px] h-[18px]" />, url: "/dashboard/coupons" },
+      { name: "NRV Splits", icon: <Percent className="w-[18px] h-[18px]" />, url: ROUTES.NRV },
     ],
   },
 ];

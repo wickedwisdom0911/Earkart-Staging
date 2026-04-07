@@ -2,7 +2,7 @@
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { useMemo, useEffect, useState, useCallback, useRef } from "react";
+import { useMemo, useEffect, useState, useCallback } from "react";
 import { useSocket } from "@/providers/socket-provider";
 import { useDevice } from "@/providers/device-provider";
 import { OtoscopyProvider } from "@/providers/otoscopy-provider";
@@ -13,15 +13,18 @@ import { useParams, useRouter } from "next/navigation";
 import { usePersistentScreenRecording } from "@/hooks/recording/use-persistent-screen-recording-adapter";
 import { RecordingRecoveryBanner } from "@/components/recording/recording-recovery-banner";
 import { chunkStorage } from "@/lib/indexeddb-chunks";
-import { recordingStorage } from "@/utils/recording-storage";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
 import { SessionStatus } from "@/models/enums";
 import { RedirectLoadingModal } from "@/components/ui/redirect-loading-modal";
 import useDemoAccount from "@/hooks/use-demo-account";
 import { toast } from "sonner";
-import { EndConsultationProvider, type EndConsultationOptions } from "@/providers/end-consultation-provider";
+import {
+  EndConsultationProvider,
+  type EndConsultationOptions,
+} from "@/providers/end-consultation-provider";
 import { updateConsultation } from "@/actions/consultations/update-consultation";
 import { useQueryClient } from "@tanstack/react-query";
+import { postPatientAlertBroadcast } from "@/lib/patient-alert-broadcast";
 
 // Import debug utilities in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -66,48 +69,55 @@ export default function ConsultationLayout({
   const [showRecoveryBanner, setShowRecoveryBanner] = useState(true);
   const [networkIssues, setNetworkIssues] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const isEndingConsultationRef = useRef(false);
-
+  
   // State to prevent infinite recording loops and double prompts
-  // Always init to false to avoid hydration mismatch (server has no window/sessionStorage)
-  const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const lastAttempt = sessionStorage.getItem(`lastAutoStart_${consultationId}`);
-    const now = Date.now();
-    if (lastAttempt && (now - parseInt(lastAttempt)) < 30000) {
-      setHasAttemptedAutoStart(true);
+  const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(() => {
+    // Check sessionStorage to prevent multiple auto-starts across refreshes
+    if (typeof window !== 'undefined') {
+      const lastAttempt = sessionStorage.getItem(`lastAutoStart_${consultationId}`);
+      const now = Date.now();
+      // If last attempt was less than 30 seconds ago, consider it already attempted
+      if (lastAttempt && (now - parseInt(lastAttempt)) < 30000) {
+        return true;
+      }
     }
-  }, [consultationId]);
+    return false;
+  });
   
   const [isStartingRecording, setIsStartingRecording] = useState(false);
   const [externalPlaybackUrl, setExternalPlaybackUrl] = useState<string | null>(null);
   const [savedUrls, setSavedUrls] = useState<Set<string>>(new Set());
   const { isDemoAccount } = useDemoAccount();
 
-  // Ensure any global notification sounds are stopped when entering a consultation
+  // Stop dashboard alert tone: same-tab event + BroadcastChannel so other tabs (e.g. /dashboard) hear it
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
         window.dispatchEvent(new CustomEvent("stopContinuousSound"));
+        postPatientAlertBroadcast({ type: "STOP_SOUND" });
+        postPatientAlertBroadcast({
+          type: "RESOLVE_CONSULTATION",
+          consultationId: consultationId as string,
+        });
       } catch (err) {
-        console.warn("Failed to dispatch stopContinuousSound event:", err);
+        console.warn("Failed to stop patient alert sound:", err);
       }
     }
-  }, []);
+  }, [consultationId]);
 
   // Wrap startRecording to prevent automatic calls
   const startRecording = useCallback(async (...args: any[]) => {
     console.log("🎯 Manual recording start initiated");
     const result = await originalStartRecording(...args);
     
+    // Recording session is automatically saved to IndexedDB by the hook
+    // Keep localStorage for UI display compatibility
     if (result !== undefined) {
       const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
       const newRecording = {
         id: `session-${Date.now()}`,
         name: `Screen Recording - ${new Date().toLocaleString()}`,
-        url: 'Processing...',
+        url: 'Processing...', // Will be updated by intervals
         timestamp: new Date().toISOString(),
         status: 'recording'
       };
@@ -124,12 +134,14 @@ export default function ConsultationLayout({
     if (!playbackUrl || typeof window === 'undefined') return;
     
     try {
+      // Normalize the URL before saving
       const normalizedUrl = normalizePlaybackUrl(playbackUrl) || playbackUrl;
       
       const storageKey = `recordings_${consultationId}`;
       const savedRecordings = localStorage.getItem(storageKey) || '[]';
       const recordings = JSON.parse(savedRecordings);
       
+      // Check if this URL already exists to prevent duplicates
       const urlExists = recordings.some((r: any) => r.url === normalizedUrl);
       if (urlExists) {
         console.log("⚠️ Recording URL already exists, skipping:", normalizedUrl);
@@ -150,30 +162,34 @@ export default function ConsultationLayout({
       
       console.log("💾 ✅ Successfully saved recording:", normalizedUrl);
       console.log("📋 Total recordings now:", recordings.length);
+      console.log("📋 All recordings:", recordings.map((r: any) => ({ name: r.name, url: r.url.substring(0, 50) + '...' })));
     } catch (error) {
       console.error("❌ Failed to save recording:", error);
     }
   }, [consultationId]);
 
   // Function to save recording URL to backend consultation
-  // Helper to trigger download (append to DOM for blob URL compatibility)
-  const triggerDownload = useCallback((url: string, filename: string) => {
-    if (!url || url.startsWith('Processing') || url.startsWith('Recording') || url.startsWith('Accumulating')) return;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => document.body.removeChild(a), 200);
-  }, []);
-
   const saveRecordingToBackend = useCallback(async (playbackUrl: string, segmentType: string = 'screen') => {
     if (!playbackUrl || !consultation || !(consultation as any).data) return;
     
     try {
       console.log("🔄 [BACKEND] Saving recording URL to consultation:", playbackUrl);
+      
+      const consultationData = (consultation as any).data;
+      const currentRecordings = consultationData.recordings || [];
+      
+      // Add new recording to the array
+      const newRecording = {
+        id: `recording-${Date.now()}`,
+        sessionId: consultationId,
+        recordingUrl: playbackUrl,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      // NOTE: Per request, do not call updateConsultation here.
+      // If saving to backend is needed later, re-enable with proper status handling.
       console.log("ℹ️ [BACKEND] Skipping backend update of consultation (no status change). Recordings kept client-side.");
+      
     } catch (error) {
       console.error("❌ [BACKEND] Failed to save recording URL to consultation:", error);
     }
@@ -185,6 +201,7 @@ export default function ConsultationLayout({
       if (recordingState.isRecording || recordingState.isInitializing) {
         console.log("🛑 [FINALIZE] Stopping active recording before navigation");
         await stopRecording();
+        // Give time for the stop effect to complete the recording
         await new Promise(resolve => setTimeout(resolve, 2000));
       } else if (recordingState.hasActiveSession && !recordingState.isUploading) {
         console.log("🏁 [FINALIZE] Completing inactive session before navigation");
@@ -197,8 +214,7 @@ export default function ConsultationLayout({
     }
   }, [recordingState.isRecording, recordingState.isInitializing, recordingState.hasActiveSession, recordingState.isUploading, stopRecording, completeRecording]);
 
-  // Get saved recordings from localStorage
-  // Re-read when playbackUrl or isRecovering changes so recovery additions are visible
+  // Get saved recordings from localStorage (from before refresh)
   const savedRecordings = useMemo(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -207,19 +223,26 @@ export default function ConsultationLayout({
     } catch {
       return [];
     }
-  }, [consultationId, recordingState.playbackUrl, recordingState.isRecovering]);
+  }, [consultationId]);
 
+  // TIME-BASED RECORDING COMPLETION - Disabled per requirement
   useEffect(() => {
-    return () => {};
+    // Intentionally disabled: do not auto-complete every 90s
+    // Completion will only happen on consultation end or recovery flows
+    return () => {
+      // no-op
+    };
   }, [recordingState.isRecording, recordingState.sessionId, completeRecording, originalStartRecording, consultationId, saveRecordingToBackend]);
 
-  // FINAL COMPLETION when recording stops
+  // FINAL COMPLETION when recording stops - capture any remaining video
   useEffect(() => {
+    // This effect runs when recording stops (isRecording changes from true to false)
     if (!recordingState.isRecording && recordingState.sessionId && recordingState.hasActiveSession) {
       const finalizeRemaining = async () => {
         try {
           console.log("🏁 [FINAL] Recording stopped, completing any remaining video...");
           
+          // Get any remaining chunks
           const storedChunks = await chunkStorage.getAllChunksForSession(recordingState.sessionId || '');
           const chunks = storedChunks.map(chunk => chunk.blob);
           
@@ -229,12 +252,14 @@ export default function ConsultationLayout({
             
             console.log(`📊 [FINAL] Final segment size: ${sizeInMB}MB (${chunks.length} chunks)`);
             
+            // Try to complete the final recording (idempotent - will skip if already completed)
             try {
               const finalResult = await completeRecording();
               
               if (finalResult?.playbackUrl) {
                 console.log("✅ [FINAL] Final segment completed:", finalResult.playbackUrl);
                 
+                // Save final segment
                 const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
                 const finalSegment = {
                   id: `final-${Date.now()}`,
@@ -252,12 +277,15 @@ export default function ConsultationLayout({
                 localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
                 
                 console.log("💾 [FINAL] Final segment saved:", finalSegment.name);
+                console.log("📊 [FINAL] Total recordings:", savedRecordings.length);
                 
+                // Also save to backend consultation
                 await saveRecordingToBackend(finalResult.playbackUrl, 'final');
               }
             } catch (finalError) {
               console.log("⚠️ [FINAL] Final S3 completion failed, saving as local backup:", finalError);
               
+              // Save as local backup if S3 fails
               const recordingBlob = new Blob(chunks, { type: 'video/webm' });
               const blobUrl = URL.createObjectURL(recordingBlob);
               
@@ -283,12 +311,15 @@ export default function ConsultationLayout({
         }
       };
       
+      // Give a small delay to ensure recording has fully stopped
       setTimeout(finalizeRemaining, 2000);
     }
   }, [recordingState.isRecording, recordingState.sessionId, recordingState.hasActiveSession, completeRecording, consultationId, saveRecordingToBackend]);
 
+  // Handle beforeunload - DISABLE for now to prevent loops and give recording time to complete
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Only warn if actively recording, don't try to save (causes loops)
       if (recordingState.isRecording || recordingState.hasActiveSession) {
         console.log("⚠️ Page unloading with active recording - will be lost");
         e.preventDefault();
@@ -301,6 +332,7 @@ export default function ConsultationLayout({
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [recordingState.isRecording, recordingState.hasActiveSession]);
 
+  // Monitor recording errors for network issues
   useEffect(() => {
     if (recordingState.error) {
       const errorMsg = recordingState.error.toLowerCase();
@@ -312,15 +344,18 @@ export default function ConsultationLayout({
       
       if (hasNetworkError) {
         setNetworkIssues(true);
+        // Clear network issue flag after 30 seconds
         setTimeout(() => setNetworkIssues(false), 30000);
       }
     }
   }, [recordingState.error]);
 
+  // Add socket connection handling
   useEffect(() => {
     if (!socket || !consultationId) return;
 
     const handleConnect = () => {
+      // Check if consultation has already ended
       if (typeof window !== 'undefined') {
         const consultationEnded = sessionStorage.getItem(`consultation_ended_${consultationId}`);
         if (consultationEnded === 'true') {
@@ -330,22 +365,34 @@ export default function ConsultationLayout({
       }
       
       console.log("Socket connected, joining consultation...");
-      socket.emit("join_consultation", { consultationId });
+      // Emit join_consultation event when socket connects
+      socket.emit("join_consultation", {
+        consultationId,
+      });
     };
 
     socket.on("connect", handleConnect);
-    if (socket.connected) handleConnect();
 
-    return () => { socket.off("connect", handleConnect); };
+    if (socket.connected) {
+      handleConnect();
+    }
+
+    // Cleanup
+    return () => {
+      socket.off("connect", handleConnect);
+    };
   }, [socket, consultationId]);
 
+  // Listen for real-time consultation updates (when another audiologist joins)
   useEffect(() => {
     if (!socket || !consultationId) return;
 
+    // Handle real-time broadcast when an audiologist joins any consultation
     const handleAudiologistJoinedConsultation = (data: { consultation: ConsultationModelData; audiologistId: string; timestamp: string }) => {
       const { consultation: updatedConsultation } = data;
       if (updatedConsultation.id === consultationId) {
         console.log("📢 Audiologist joined this consultation:", updatedConsultation);
+        // The consultation data will be updated via the useGetConsultation hook's refetch
         toast.info("Consultation has been assigned to an audiologist");
       }
     };
@@ -353,6 +400,7 @@ export default function ConsultationLayout({
     const handleConsultationUpdate = (data: ConsultationModelData) => {
       if (data.id === consultationId) {
         console.log("📢 Consultation updated in layout:", data);
+        // Consultation will be refetched by the hook
       }
     };
 
@@ -365,56 +413,73 @@ export default function ConsultationLayout({
     };
   }, [socket, consultationId]);
 
+  // Reusable function to end consultation - used by both socket event and manual red button
   const handleEndConsultation = useCallback(async (options?: EndConsultationOptions) => {
-    if (isEndingConsultationRef.current) {
-      console.log("🏁 [END] Already handling end - skipping duplicate");
-      return;
-    }
-    isEndingConsultationRef.current = true;
     try {
       console.log("🏁 [END] Consultation ending - saving video before navigation");
+      
+      // Show redirect modal immediately
       setIsRedirecting(true);
       
-      // status: "FAILED" when Failed Consultation checked, else "COMPLETED". isDemoCall when audiologist checked it.
-      const status = options?.sessionStatus === "FAILED" ? "FAILED" : "COMPLETED";
-      const updatePayload: Record<string, unknown> = { id: consultationId, status };
-      if (options?.isDemoCall === true) {
-        updatePayload.isDemoCall = true;
+      // Call API to update consultation - pass isDemoCall and status from red button modal
+      const status = options?.status ?? "COMPLETED";
+      const payload: Record<string, unknown> = {
+        id: consultationId,
+        status,
+      };
+      if (options?.isDemoCall) {
+        payload.isDemoCall = true;
       }
-      console.log("📡 [END] Calling API to update status:", status, options?.isDemoCall ? "(isDemoCall: true)" : "");
+      console.log("📡 [END] Calling API to update consultation:", payload);
       try {
-        const result = await updateConsultation(updatePayload as any);
+        const result = await updateConsultation(payload as any);
         if (result.success) {
           console.log(`✅ [END] Consultation status updated to ${status}`);
         } else {
           console.error("❌ [END] Failed to update consultation status:", result.message);
+          // Continue with cleanup even if API fails
         }
       } catch (apiError) {
         console.error("❌ [END] API error:", apiError);
       }
       
+      // STOP notification sound immediately (other tabs + this tab)
       console.log("🔕 [END] Stopping notification sounds");
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('stopContinuousSound'));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("stopContinuousSound"));
+        postPatientAlertBroadcast({ type: "STOP_SOUND" });
+        postPatientAlertBroadcast({
+          type: "RESOLVE_CONSULTATION",
+          consultationId,
+        });
       }
       
+      // Invalidate consultations cache so dashboard shows fresh data
+      console.log("🔄 [END] Invalidating consultations cache");
       queryClient.invalidateQueries({ queryKey: ["consultations"] });
       
+      // Emit end:consultation socket event to notify backend and other clients
       if (socket && socket.connected) {
         console.log("📤 [END] Emitting end:consultation socket event");
         socket.emit("end:consultation", { consultationId });
       }
       
-      if (socket) socket.disconnect();
+      // IMMEDIATE socket disconnect to prevent rejoin
+      if (socket) {
+        socket.disconnect();
+      }
       
+      // Mark consultation as ended
       if (typeof window !== 'undefined') {
         sessionStorage.setItem(`consultation_ended_${consultationId}`, 'true');
         console.log("🚫 [END] Marked consultation as ended");
       }
       
+      // FIRST: Ensure recording is captured before navigation
       console.log("🎥 [END] Saving recording data before leaving...");
       
       try {
+        // FIRST: Try to capture current recording data before stopping
         console.log("🎬 [END] Current recording state:", {
           isRecording: recordingState.isRecording,
           sessionId: recordingState.sessionId,
@@ -422,36 +487,31 @@ export default function ConsultationLayout({
           hasActiveSession: recordingState.hasActiveSession
         });
         
+        // ALWAYS try to stop recording regardless of state (in case state is wrong)
         console.log("🔴 [END] Force stopping any active recording...");
         try {
+          // Force stop recording to ensure all data is flushed
           await Promise.race([
             stopRecording(),
-            new Promise(resolve => setTimeout(resolve, 15000))
+            new Promise(resolve => setTimeout(resolve, 4000)) // Even more time
           ]);
           
           console.log("⏱️ [END] Recording force stopped, waiting for data to settle...");
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          // Give even more time for data to be processed into IndexedDB
+          await new Promise(resolve => setTimeout(resolve, 3000));
         } catch (stopError) {
           console.warn("⚠️ [END] Failed to stop recording:", stopError);
         }
         
-        console.log("🔍 [END] Searching sessions for unsaved chunks (recordingStorage + chunkStorage)...");
+        // Do not call complete here; stop-effect will handle a single completion
+        
+        // COMPREHENSIVE SEARCH: Get chunks from ALL sessions for this consultation
+        console.log("🔍 [END] Searching ALL sessions for unsaved chunks...");
         let finalCaptured = false;
         
         try {
-          let storedChunksEnd: Array<{ blob: Blob }> = [];
-          const activeSession = await recordingStorage.getActiveSession(consultationId);
-          if (activeSession) {
-            const recChunks = await recordingStorage.getSessionChunks(activeSession.sessionId);
-            storedChunksEnd = recChunks.map((c) => ({ blob: c.blob }));
-            if (storedChunksEnd.length > 0) {
-              console.log(`🎯 [END] Found ${storedChunksEnd.length} chunks in recordingStorage for session ${activeSession.sessionId}`);
-            }
-          }
-          if (storedChunksEnd.length === 0) {
-            const chunkChunks = await chunkStorage.getAllChunksForSession(consultationId);
-            storedChunksEnd = chunkChunks.map((c) => ({ blob: c.blob }));
-          }
+          // In new storage, we use consultationId as the session key
+          const storedChunksEnd = await chunkStorage.getAllChunksForSession(consultationId);
           if (storedChunksEnd && storedChunksEnd.length > 0) {
             console.log(`🎯 [END] Found ${storedChunksEnd.length} chunks for consultation ${consultationId}`);
             const allChunks = storedChunksEnd.map((c) => c.blob);
@@ -459,19 +519,22 @@ export default function ConsultationLayout({
             const totalSize = combinedBlob.size;
             const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
             if (totalSize >= 1024 * 1024) {
-              // Don't save blob URLs to localStorage – they die after navigate. Trigger download instead.
               const blobUrl = URL.createObjectURL(combinedBlob);
-              const a = document.createElement('a');
-              a.href = blobUrl;
-              a.download = `${consultationId}-final-recording-${Date.now()}.webm`;
-              a.style.display = 'none';
-              document.body.appendChild(a);
-              a.click();
-              setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(blobUrl);
-              }, 200);
-              console.log(`✅ [END] Final recording (${sizeInMB}MB) downloaded – blob URLs not saved (invalid after navigate)`);
+              const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+              const emergencyRecording = {
+                id: `final-${Date.now()}`,
+                name: `Final Recording - ${new Date().toLocaleString()}`,
+                url: blobUrl,
+                size: `${sizeInMB}MB`,
+                chunks: allChunks.length,
+                timestamp: new Date().toISOString(),
+                status: 'final_capture',
+                reason: 'Consultation ended - captured remaining chunks',
+                segmentType: 'final_capture'
+              };
+              savedRecordings.push(emergencyRecording);
+              localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+              console.log(`✅ [END] Final recording saved: ${sizeInMB}MB with ${allChunks.length} chunks`);
               finalCaptured = true;
             } else {
               console.log(`⚠️ [END] Skipping small recording: ${sizeInMB}MB`);
@@ -483,9 +546,12 @@ export default function ConsultationLayout({
           if (!finalCaptured) {
             console.log("⚠️ [END] No recording data found in any session!");
             
+            // FALLBACK: Try to capture from current recording state if available
             if (recordingState.playbackUrl) {
               console.log("🔄 [END] FALLBACK: Found playback URL in recording state, saving as final recording");
               const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+              
+              // Check if this URL is already saved
               const alreadyExists = savedRecordings.some((r: any) => r.url === recordingState.playbackUrl);
               
               if (!alreadyExists) {
@@ -506,22 +572,30 @@ export default function ConsultationLayout({
                 
                 console.log("✅ [END] FALLBACK: Saved final recording from S3 URL");
                 finalCaptured = true;
+              } else {
+                console.log("ℹ️ [END] FALLBACK: S3 URL already saved");
               }
             }
             
             if (!finalCaptured) {
               console.log("❌ [END] FINAL: No recording data could be captured at all!");
             }
+          } else {
+            console.log("✅ [END] Successfully captured final recording data");
           }
           
         } catch (searchError) {
           console.error("❌ [END] Error during comprehensive session search:", searchError);
         }
         
+        // Skip bonus completion; rely on single completion path
+        
       } catch (saveError) {
         console.error("❌ [END] Error saving video before navigation:", saveError);
+        // Continue with navigation even if save fails
       }
       
+      // Navigate after recording is handled
       console.log("🏠 [END] Recording handled, navigating to dashboard");
       if (process.env.NODE_ENV === "development") {
         window.location.href = "http://localhost:3001/dashboard";
@@ -531,6 +605,7 @@ export default function ConsultationLayout({
       
     } catch (err) {
       console.error("❌ [END] Critical error during consultation end:", err);
+      // Force navigation even on error
       if (process.env.NODE_ENV === "development") {
         window.location.href = "http://localhost:3001/dashboard";
       } else {
@@ -539,13 +614,17 @@ export default function ConsultationLayout({
     }
   }, [socket, stopRecording, recordingState.isRecording, recordingState.sessionId, recordingState.isUploading, recordingState.hasActiveSession, recordingState.playbackUrl, router, consultationId, queryClient]);
 
+  // Listen for explicit end event from socket and redirect to dashboard after finalizing recording
   useEffect(() => {
     if (!socket) return;
+
     socket.on("end:consultation", handleEndConsultation);
     return () => { socket.off("end:consultation", handleEndConsultation); };
   }, [socket, handleEndConsultation]);
 
+  // COMPLETELY DISABLE AUTO-START - No recording prompts at all
   useEffect(() => {
+    // Force disable auto-start permanently
     if (typeof window !== 'undefined') {
       localStorage.setItem('disable_auto_recording', 'true');
       sessionStorage.setItem(`autoStartAttempted_${consultationId}`, 'true');
@@ -553,9 +632,11 @@ export default function ConsultationLayout({
     }
     
     console.log("🛑 ALL AUTO-START DISABLED - No automatic recording prompts");
+    console.log("📋 Recording is MANUAL ONLY via button");
     setHasAttemptedAutoStart(true);
   }, [consultationId]);
 
+  // Auto-stop and auto-complete when consultation ends.
   useEffect(() => {
     if (!consultation || !(consultation as any).data) return;
     
@@ -568,18 +649,21 @@ export default function ConsultationLayout({
       status === SessionStatus.CANCELLED ||
       status === SessionStatus.FAILED
     ) {
+      // finalize upload if needed
       if (recordingState.isRecording || recordingState.isUploading) {
         stopRecording();
       }
       
+      // Clean up saved recordings from localStorage when consultation ends
       if (typeof window !== 'undefined') {
+        localStorage.removeItem(`recordings_${consultationId}`);
         sessionStorage.removeItem(`autoStartAttempted_${consultationId}`);
-        // Do NOT remove recordings from localStorage – user needs them for download/view
-        console.log("🧹 Cleaned up session flags for ended consultation (recordings kept for access)");
+        console.log("🧹 Cleaned up saved recordings and session flags for ended consultation");
       }
     }
   }, [consultation, stopRecording, recordingState.isRecording, recordingState.isUploading, consultationId]);
 
+  // Prefer playback from consultation's new recording fields via callback
   useEffect(() => {
     if (!consultation || !(consultation as any).data) return;
     
@@ -602,11 +686,154 @@ export default function ConsultationLayout({
     }
   }, [consultation]);
 
+  // Debug function for testing (available in browser console)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      (window as any).debugRecordings = {
+        viewSaved: () => {
+          const saved = localStorage.getItem(`recordings_${consultationId}`);
+          const recordings = saved ? JSON.parse(saved) : [];
+          console.log('📋 Saved recordings for consultation:', consultationId);
+          console.log('📋 Count:', recordings.length);
+          console.log('📋 Full data:', recordings);
+          return recordings;
+        },
+        clearSaved: () => {
+          localStorage.removeItem(`recordings_${consultationId}`);
+          sessionStorage.removeItem(`autoStartAttempted_${consultationId}`);
+          console.log('🧹 Cleared saved recordings and session flags');
+        },
+        downloadLatest: () => {
+          const saved = localStorage.getItem(`recordings_${consultationId}`);
+          const recordings = saved ? JSON.parse(saved) : [];
+          if (recordings.length === 0) {
+            console.log('❌ No recordings found');
+            return;
+          }
+          const latest = recordings[recordings.length - 1];
+          console.log('⬇️ Downloading latest recording:', latest.name);
+          const a = document.createElement('a');
+          a.href = latest.url;
+          a.download = `${latest.name}.webm`;
+          a.click();
+        },
+        playLatest: () => {
+          const saved = localStorage.getItem(`recordings_${consultationId}`);
+          const recordings = saved ? JSON.parse(saved) : [];
+          if (recordings.length === 0) {
+            console.log('❌ No recordings found');
+            return;
+          }
+          const latest = recordings[recordings.length - 1];
+          console.log('▶️ Opening latest recording:', latest.name);
+          window.open(latest.url, '_blank');
+        },
+        testSave: (url: string) => {
+          saveRecordingForLater(url, 'test');
+          console.log('✅ Test recording saved');
+        },
+        viewAllKeys: () => {
+          const keys = Object.keys(localStorage).filter(k => k.startsWith('recordings_'));
+          console.log('🔍 All recording keys in localStorage:', keys);
+          keys.forEach(key => {
+            const data = localStorage.getItem(key);
+            console.log(`📋 ${key}:`, data ? JSON.parse(data).length : 0, 'recordings');
+          });
+        },
+        currentConsultation: () => {
+          console.log('🎯 Current consultation ID:', consultationId);
+          console.log('🎯 Current recording state:', recordingState);
+        },
+        getSummary: () => {
+          const saved = localStorage.getItem(`recordings_${consultationId}`);
+          const recordings = saved ? JSON.parse(saved) : [];
+          
+          console.log('📊 RECORDING SESSION SUMMARY:');
+          console.log(`📊 Total segments: ${recordings.length}`);
+          
+          let totalDuration = 0;
+          let totalSize = 0;
+          
+          recordings.forEach((r: any, i: number) => {
+            console.log(`📊 Segment ${i + 1}: ${r.name}`);
+            console.log(`   📄 URL: ${r.url.substring(0, 50)}${r.url.length > 50 ? '...' : ''}`);
+            console.log(`   📏 Size: ${r.size || r.currentSize || 'Unknown'}`);
+            console.log(`   🕒 Duration: ${r.duration || 'Unknown'}`);
+            console.log(`   📊 Status: ${r.status}`);
+            console.log(`   🔧 Type: ${r.segmentType || 'Unknown'}`);
+            if (r.reason) console.log(`   💡 Reason: ${r.reason}`);
+            console.log(`   📅 Time: ${new Date(r.timestamp).toLocaleString()}`);
+            
+            // Try to estimate total duration (90 seconds per regular segment)
+            if (r.segmentType === 'time_based') {
+              totalDuration += 90; // 1.5 minutes per segment
+            }
+          });
+          
+          console.log(`📊 ESTIMATED TOTAL: ${Math.floor(totalDuration / 60)}m ${totalDuration % 60}s across ${recordings.length} segments`);
+          console.log(`📊 Expected for 5min video: ~4 segments (3 regular + 1 final)`);
+          
+          return { recordings, totalSegments: recordings.length, estimatedDuration: totalDuration };
+        },
+        getBackendRecordings: () => {
+          if (!consultation || !(consultation as any).data) {
+            console.log('❌ No consultation data available');
+            return [];
+          }
+          
+          const consultationData = (consultation as any).data;
+          const backendRecordings = consultationData.recordings || [];
+          
+          console.log('🗄️ BACKEND RECORDINGS:');
+          console.log(`🗄️ Total backend recordings: ${backendRecordings.length}`);
+          
+          backendRecordings.forEach((r: any, i: number) => {
+            console.log(`🗄️ Backend Recording ${i + 1}:`);
+            console.log(`   📄 URL: ${r.recordingUrl || 'No URL'}`);
+            console.log(`   🆔 ID: ${r.id || 'No ID'}`);
+            console.log(`   📅 Created: ${r.createdAt ? new Date(r.createdAt).toLocaleString() : 'Unknown'}`);
+            console.log(`   🔧 Session: ${r.sessionId || 'Unknown'}`);
+          });
+          
+          return backendRecordings;
+        },
+        debugAll: async () => {
+          console.log('🔍 COMPLETE DEBUG INFORMATION:');
+          console.log('🎯 Consultation ID:', consultationId);
+          console.log('🎬 Recording State:', recordingState);
+          
+          // Check localStorage
+          const saved = localStorage.getItem(`recordings_${consultationId}`);
+          const recordings = saved ? JSON.parse(saved) : [];
+          console.log(`💾 localStorage recordings (${recordings.length}):`, recordings);
+          
+          // Check IndexedDB sessions
+          try {
+            const activeSessions = await chunkStorage.getActiveSessions();
+            console.log(`🗄️ Active IndexedDB sessions (${activeSessions.length}):`, activeSessions);
+            const chunks = await chunkStorage.getAllChunksForSession(consultationId);
+            console.log(`📦 Consultation ${consultationId} has ${chunks.length} chunks:`, chunks.map(c => ({ id: c.id, size: c.blob.size })));
+          } catch (error) {
+            console.error('❌ Error checking IndexedDB:', error);
+          }
+          
+          // Check backend
+          if (consultation) {
+            const consultationData = (consultation as any).data;
+            console.log('🗄️ Backend consultation data:', consultationData);
+          }
+        }
+      };
+    }
+  }, [consultationId, saveRecordingForLater, recordingState, consultation]);
+
+  // Save recording URL when it becomes available (normal completion) - SIMPLIFIED
   useEffect(() => {
     if (recordingState.playbackUrl && 
         !recordingState.isRecording && 
         !recordingState.isUploading) {
       
+      // Simple check if not already saved
       const storageKey = `recordings_${consultationId}`;
       const existing = localStorage.getItem(storageKey) || '[]';
       const recordings = JSON.parse(existing);
@@ -615,11 +842,14 @@ export default function ConsultationLayout({
       if (!alreadyExists) {
         console.log("💾 Normal completion - saving recording:", recordingState.playbackUrl);
         saveRecordingForLater(recordingState.playbackUrl, 'screen');
+        
+        // Also save to backend consultation
         saveRecordingToBackend(recordingState.playbackUrl, 'normal_completion');
       }
     }
   }, [recordingState.playbackUrl, recordingState.isRecording, recordingState.isUploading, consultationId, saveRecordingForLater, saveRecordingToBackend]);
 
+  // NOW HANDLE CONDITIONAL RENDERING AFTER ALL HOOKS
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
   if (!consultation || !(consultation as any).data) return <div>No data</div>;
@@ -628,6 +858,7 @@ export default function ConsultationLayout({
   const isCompleted = consultationData.status === SessionStatus.COMPLETED;
   const callbackBase: string | undefined = (process.env.NEXT_PUBLIC_RECORDING_CALLBACK_URL as any) || undefined;
   
+  // Get regular recordings from backend
   const rawRecordingNames: string[] = [
     ...((Array.isArray((consultationData as any)?.recordingsName) ? (consultationData as any)?.recordingsName : []) as string[]),
     ...(((consultationData as any)?.recordingName ? [(consultationData as any)?.recordingName] : []) as string[]),
@@ -637,6 +868,7 @@ export default function ConsultationLayout({
   const uniqueRecordingNames = Array.from(new Set(rawRecordingNames));
   const backendRecordingLinks = (callbackBase ? uniqueRecordingNames.map((name) => ({ name, url: `${callbackBase}?name=${encodeURIComponent(name)}` })) : []) as { name: string; url: string }[];
   
+  // Combine all recordings
   const allRecordingLinks = [
     ...backendRecordingLinks,
     ...savedRecordings.map((r: any) => ({
@@ -649,6 +881,7 @@ export default function ConsultationLayout({
     <OtoscopyProvider consultationId={consultationId}>
       <AgoraOtoscopyProvider>
         <AgoraRTCProvider client={agoraClient}>
+          {/* Recovery banner for resumed sessions */}
           {showRecoveryBanner && (
             <RecordingRecoveryBanner
               state={recordingState}
@@ -661,10 +894,17 @@ export default function ConsultationLayout({
             className="border-none "
             button={
               <div className="flex items-center justify-center gap-6 mr-2">
+                {/* Audiometer Device Status */}
                 <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${r15c.isConnected ? "bg-green-500" : "bg-red-500"}`} />
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      r15c.isConnected ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
                   <span className="text-sm font-medium">
-                    Audiometer: {r15c.connectionStatus.charAt(0).toUpperCase() + r15c.connectionStatus.slice(1)}
+                    Audiometer:{" "}
+                    {r15c.connectionStatus.charAt(0).toUpperCase() +
+                      r15c.connectionStatus.slice(1)}
                     {typeof r15c.batteryLevel === 'number' && (
                       <span className="ml-2 text-xs text-gray-600">🔋 {r15c.batteryLevel}%</span>
                     )}
@@ -674,98 +914,175 @@ export default function ConsultationLayout({
                   </span>
                 </div>
 
+                {/* Otoscope Device Status */}
                 <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${revo2.isConnected ? "bg-green-500" : "bg-red-500"}`} />
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      revo2.isConnected ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
                   <span className="text-sm font-medium">
-                    Otoscope: {revo2.connectionStatus.charAt(0).toUpperCase() + revo2.connectionStatus.slice(1)}
+                    Otoscope:{" "}
+                    {revo2.connectionStatus.charAt(0).toUpperCase() +
+                      revo2.connectionStatus.slice(1)}
                   </span>
                 </div>
 
+                {/* Tablet State */}
                 {tablet && (
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${tablet.isCharging ? 'bg-green-500' : 'bg-gray-400'}`} />
                     <span className="text-sm font-medium">
-                      Tablet: {typeof tablet.batteryLevel === 'number' ? `${tablet.batteryLevel}%` : '—'}{" "}
+                      Tablet: {typeof tablet.batteryLevel === 'number' ? `${tablet.batteryLevel}%` : '—'} {" "}
                       {typeof tablet.isCharging === 'boolean' ? (tablet.isCharging ? '(Charging)' : '(On Battery)') : ''}
                     </span>
                   </div>
                 )}
 
+                {/* Network Status */}
                 <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${networkIssues ? "bg-orange-500" : "bg-green-500"}`} />
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      networkIssues ? "bg-orange-500" : "bg-green-500"
+                    }`}
+                  />
                   <span className="text-sm font-medium">
                     Network: {networkIssues ? "Issues Detected" : "Stable"}
                   </span>
                 </div>
 
-                {(recordingState.isRecording || recordingState.isUploading) && (
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${recordingState.isRecording ? "bg-red-500 animate-pulse" : "bg-blue-500"}`} />
-                    <span className="text-sm font-medium">
-                      {recordingState.isRecording ? (
-                        <>Recording... ({recordingState.uploadedParts} chunks)</>
-                      ) : recordingState.isUploading ? (
-                        <>Finalizing... ({recordingState.uploadedParts} parts)</>
-                      ) : null}
-                    </span>
-                  </div>
-                )}
+                 {/* Recording Status Indicator */}
+                 {(recordingState.isRecording || recordingState.isUploading) && (
+                   <div className="flex items-center gap-2">
+                     <div className={`w-3 h-3 rounded-full ${recordingState.isRecording ? "bg-red-500 animate-pulse" : "bg-blue-500"}`} />
+                     <span className="text-sm font-medium">
+                       {recordingState.isRecording ? (
+                         <>Recording... ({recordingState.uploadedParts} chunks)</>
+                       ) : recordingState.isUploading ? (
+                         <>Finalizing... ({recordingState.uploadedParts} parts)</>
+                       ) : null}
+                     </span>
+                   </div>
+                 )}
 
+                {/* View recordings: during active session show latest only; when completed show all */}
                 {isCompleted ? (
                   (allRecordingLinks.length > 0 || savedRecordings.length > 0) && (
                     <div className="flex flex-wrap gap-2">
+                      {/* Backend recordings */}
                       {allRecordingLinks.map((r) => (
-                        <a key={r.name} href={r.url} target="_blank" rel="noreferrer" className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700" title={r.name}>{r.name}</a>
+                        <a
+                          key={r.name}
+                          href={r.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                          title={r.name}
+                        >
+                          {r.name}
+                        </a>
                       ))}
+                      {/* 30-Second Recording Segments */}
                       {savedRecordings.map((r: any, index: number) => (
                         <div key={r.id || r.url} className="flex items-center gap-1">
                           <a
                             href={r.url !== 'Processing...' && r.url !== 'Recording...' && r.url !== 'Accumulating...' ? r.url : (r.backupUrl || '#')}
-                            target="_blank" rel="noreferrer"
-                            className={`px-3 py-1 rounded text-white hover:opacity-90 ${r.status === 'completed' ? 'bg-emerald-600' : r.status === 'recording' ? 'bg-blue-600' : r.status === 'backup' ? 'bg-orange-600' : 'bg-gray-600'}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`px-3 py-1 rounded text-white hover:opacity-90 ${
+                              r.status === 'completed' ? 'bg-emerald-600' : 
+                              r.status === 'recording' ? 'bg-blue-600' :
+                              r.status === 'backup' ? 'bg-orange-600' : 'bg-gray-600'
+                            }`}
                             title={`${r.name} (${r.size || r.currentSize || r.duration || 'Variable'} - ${r.status})`}
                             onClick={(r.url === 'Recording...' || r.url === 'Accumulating...') ? (e: any) => e.preventDefault() : undefined}
                           >
-                            {r.status === 'completed' ? '☁️' : r.status === 'recording' ? '🔴' : r.status === 'backup' ? '💾' : '⏳'}{" "}
+                            {r.status === 'completed' ? '☁️' : 
+                             r.status === 'recording' ? '🔴' :
+                             r.status === 'backup' ? '💾' : '⏳'} 
                             {r.url === 'Accumulating...' ? 'Accumulating' : `Segment ${index + 1}`}
                             {(r.size || r.currentSize || r.duration) && (
-                              <span className="ml-1 text-xs bg-white bg-opacity-20 px-1 rounded">{r.size || r.currentSize || r.duration}</span>
+                              <span className="ml-1 text-xs bg-white bg-opacity-20 px-1 rounded">
+                                {r.size || r.currentSize || r.duration}
+                              </span>
                             )}
                           </a>
+                          
+                          {/* Download segment */}
                           {(r.status === 'completed' || r.status === 'backup') && r.url !== 'Processing...' && r.url !== 'Recording...' && (
-                            <button onClick={() => { const a = document.createElement('a'); a.href = r.url; a.download = `segment-${index + 1}-${r.duration || '30s'}.webm`; a.style.display = 'none'; document.body.appendChild(a); a.click(); setTimeout(() => document.body.removeChild(a), 200); }} className="px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 text-xs" title={`Download segment ${index + 1}`}>⬇️</button>
+                            <button
+                              onClick={() => {
+                                const a = document.createElement('a');
+                                a.href = r.url;
+                                a.download = `segment-${index + 1}-${r.duration || '30s'}.webm`;
+                                a.click();
+                              }}
+                              className="px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 text-xs"
+                              title={`Download segment ${index + 1}`}
+                            >
+                              ⬇️
+                            </button>
                           )}
                         </div>
                       ))}
                     </div>
                   )
                 ) : (
+                  /* Active session: show external/backend recording OR latest local recording */
                   (externalPlaybackUrl || recordingState.playbackUrl || savedRecordings.length > 0) && (
                     <div className="flex gap-2">
-                      {(externalPlaybackUrl || recordingState.playbackUrl) && (() => {
-                        const cloudUrl = externalPlaybackUrl || recordingState.playbackUrl;
-                        const urlInSaved = cloudUrl && savedRecordings.some(
-                          (r: any) => r.url && (r.url === cloudUrl || normalizePlaybackUrl(r.url) === normalizePlaybackUrl(cloudUrl))
-                        );
-                        if (urlInSaved) return null;
-                        return (
-                          <>
-                            {cloudUrl?.startsWith('mock://') ? (
-                              <button onClick={() => { alert('🧪 Mock Recording!'); }} className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700">View mock recording</button>
-                            ) : (
-                              <a href={cloudUrl!} target="_blank" rel="noreferrer" className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700">View recording (Cloud)</a>
-                            )}
-                          </>
-                        );
-                      })()}
+                      {/* Backend recording (priority) */}
+                {(externalPlaybackUrl || recordingState.playbackUrl) && (
+                        <>
+                          {(externalPlaybackUrl || recordingState.playbackUrl)?.startsWith('mock://') ? (
+                            <button
+                              onClick={() => {
+                                alert('🧪 Mock Recording!\n\nThis is a test recording.\nIn real mode, this would be a playable video link.');
+                              }}
+                              className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                            >
+                              View mock recording
+                            </button>
+                          ) : (
+                  <a
+                    href={externalPlaybackUrl || recordingState.playbackUrl!}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                              View recording (Cloud)
+                            </a>
+                          )}
+                        </>
+                      )}
+                      {/* Local recordings (if any) */}
                       {savedRecordings.length > 0 && (
                         <>
                           <span className="text-sm text-gray-600 self-center">Local recordings ({savedRecordings.length}):</span>
                           {savedRecordings.slice(-2).map((r: any) => (
                             <div key={r.id || r.url} className="flex items-center gap-1">
-                              <a href={r.url} target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm" title={`${r.name} (${r.localBlob ? 'Local' : 'Cloud'})`}>📹 {r.localBlob ? 'Local' : 'Cloud'}</a>
+                              <a
+                                href={r.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm"
+                                title={`${r.name} (${r.localBlob ? 'Local' : 'Cloud'})`}
+                              >
+                                📹 {r.localBlob ? 'Local' : 'Cloud'}
+                              </a>
                               {r.localBlob && (
-                                <button onClick={() => { const a = document.createElement('a'); a.href = r.url; a.download = `${r.name}.webm`; a.style.display = 'none'; document.body.appendChild(a); a.click(); setTimeout(() => document.body.removeChild(a), 200); }} className="px-1 py-1 rounded bg-green-500 text-white hover:bg-green-600 text-xs" title="Download">⬇️</button>
+                                <button
+                                  onClick={() => {
+                                    const a = document.createElement('a');
+                                    a.href = r.url;
+                                    a.download = `${r.name}.webm`;
+                                    a.click();
+                                  }}
+                                  className="px-1 py-1 rounded bg-green-500 text-white hover:bg-green-600 text-xs"
+                                  title="Download"
+                                >
+                                  ⬇️
+                                </button>
                               )}
                             </div>
                           ))}
@@ -774,6 +1091,8 @@ export default function ConsultationLayout({
                     </div>
                   )
                 )}
+
+                {/* Testing complete button removed */}
               </div>
             }
           >
@@ -787,45 +1106,53 @@ export default function ConsultationLayout({
               </ConsultationContent>
             </EndConsultationProvider>
           </DashboardBodyWrapper>
+          {/* Blocking overlay to require Start before proceeding (only while session not ended)
+              Show even if a previous session is finalizing, but disable the start button while uploading */}
           {!recordingState.isRecording &&
             (consultationData.status !== SessionStatus.COMPLETED &&
               consultationData.status !== SessionStatus.CANCELLED &&
               consultationData.status !== SessionStatus.FAILED) && (
-            <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center" role="dialog" aria-modal="true">
+            <div
+              className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center"
+              role="dialog"
+              aria-modal="true"
+            >
               <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl border border-gray-200">
                 <h3 className="text-2xl font-bold mb-4 text-gray-800">Recording Required</h3>
+           
                 <div className="text-base text-gray-700 mb-6 leading-relaxed space-y-3">
                   <p>To continue this consultation, please start recording and follow these steps:</p>
                   <ol className="list-decimal list-inside space-y-2 ml-2">
                     <li>Select <b className="text-blue-600">Entire Screen</b> in the picker</li>
-                    <li>Check the <b className="text-blue-600">&quot;Share tab audio&quot;</b> or <b className="text-blue-600">&quot;Share system audio&quot;</b> checkbox</li>
+                    <li>Check the <b className="text-blue-600">"Share tab audio"</b> or <b className="text-blue-600">"Share system audio"</b> checkbox</li>
                     <li>Your microphone will be automatically included</li>
                   </ol>
                   <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mt-3">
                     <p className="text-sm text-yellow-800">
-                      <b>Important:</b> The audio checkbox ensures the patient&apos;s voice is recorded, even when wearing headphones.
+                      <b>Important:</b> The audio checkbox ensures the patient's voice is recorded, even when wearing headphones.
                     </p>
                   </div>
                 </div>
+
                 {recordingState.error?.includes("Entire Screen") && (
-                  <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">Please select &quot;Entire Screen&quot; in the picker and try again.</div>
-                )}
-                {recordingState.error?.includes("System audio") && (
-                  <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">{recordingState.error}</div>
-                )}
-                {recordingState.isRecovering && (
-                  <div className="mb-4 text-sm text-amber-800 bg-amber-50 rounded-lg px-4 py-3 border border-amber-200">
-                    Recovering recording after refresh. Uploading saved data… Please wait. Do not close or refresh.
+                  <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">
+                    Please select "Entire Screen" in the picker and try again.
                   </div>
                 )}
-                {recordingState.isRecovering && (
-                  <div className="mb-4 text-sm text-amber-800 bg-amber-50 rounded-lg px-4 py-3 border border-amber-200">Recovering previous recording after refresh. Please wait — do not close or refresh.</div>
+                {recordingState.error?.includes("System audio") && (
+                  <div className="mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg px-4 py-3 border border-yellow-200">
+                    {recordingState.error}
+                  </div>
                 )}
-                {recordingState.isUploading && !recordingState.isRecovering && (
-                  <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">Finalizing previous recording… Upload is still running in the background, but you can safely start a new one.</div>
+                {recordingState.isUploading && (
+                  <div className="mb-4 text-sm text-blue-800 bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
+                    Finalizing previous recording… Upload is still running in the background, but you can safely start a new one.
+                  </div>
                 )}
                 {hasAttemptedAutoStart && (
-                  <div className="mb-4 text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-gray-200">Auto-start attempted. If you need to start again, click the button below.</div>
+                  <div className="mb-4 text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-gray-200">
+                    Auto-start attempted. If you need to start again, click the button below.
+                  </div>
                 )}
                 <button
                   className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-60 hover:bg-blue-700 transition-colors duration-200 font-semibold text-lg shadow-lg"
@@ -833,13 +1160,15 @@ export default function ConsultationLayout({
                     startRecording({
                       maxConcurrentUploads: 3,
                       requireEntireScreen: true,
-                      captureSystemAudio: true,
-                      captureMic: true,
-                      agoraClient: agoraClient,
+                      captureSystemAudio: true, // Enable system audio to capture patient's voice
+                      captureMic: true, // Enable microphone for audiologist's voice
+                      agoraClient: agoraClient, // Pass Agora client to capture remote audio directly
                       filename: `consultation-${consultationId}-${Date.now()}.webm`,
                       timesliceMs: 5000,
                     })
                   }
+                  // Allow starting a new recording even if a previous upload is still finalizing.
+                  // Only block when we are initializing or recovering a session.
                   disabled={recordingState.isInitializing || recordingState.isRecovering}
                 >
                   {recordingState.isRecovering 

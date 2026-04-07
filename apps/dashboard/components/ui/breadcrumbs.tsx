@@ -31,7 +31,7 @@ export function Breadcrumb({ pathname }: { pathname: string | null }) {
   });
 
   return (
-    <nav className="flex items-center space-x-2 text-sm text-neutral-600">
+    <nav className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-neutral-600">
       {breadcrumbSegments.map((item, idx) => (
         <span key={item.path} className="flex items-center">
           {idx !== 0 && <span className="mx-1">/</span>}

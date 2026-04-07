@@ -16,21 +16,15 @@ export const useGetAllConsultations = (options?: {
 }) => {
   return useQuery({
     queryKey: ["consultations", options?.maxRecords, options?.startDate, options?.endDate],
-    enabled: options?.enabled !== false, // Default to true, but can be disabled
+    enabled: options?.enabled !== false,
     refetchInterval: options?.refetchInterval || false, // Optional auto-refetch interval
     staleTime: options?.staleTime ?? 60_000, // Default 60s - reduces refetch on mount/focus
     queryFn: async () => {
-      try {
-        const result = await getAllConsultations({
-          maxRecords: options?.maxRecords,
-          startDate: options?.startDate,
-          endDate: options?.endDate,
-        });
-        return result;
-      } catch (error) {
-        console.error("[useGetAllConsultations] Query error:", error);
-        throw error; // Re-throw so React Query can handle it
-      }
+      return await getAllConsultations({
+        maxRecords: options?.maxRecords,
+        startDate: options?.startDate,
+        endDate: options?.endDate,
+      });
     },
     retry: (failureCount, error: any) => {
       // Don't retry on rate limit errors (429) - wait for user to retry manually
@@ -53,7 +47,7 @@ export const useGetAllConsultations = (options?: {
 // Helper hook that returns consultations as a flat array (handles paginated responses)
 export const useGetAllConsultationsFlat = () => {
   const query = useGetAllConsultations();
-  
+
   const consultations: ConsultationModelData[] = query.data
     ? extractConsultations(query.data.data)
     : [];

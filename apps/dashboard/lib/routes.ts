@@ -13,6 +13,7 @@ export const ROUTES = {
   DEVICES: "/dashboard/settings/devices",
   DEVICE: (codeOrId: string) => `/dashboard/settings/devices/${codeOrId || "unknown"}`,
   QUESTIONNAIRE: "/dashboard/settings/questionnaire",
+  NRV: "/dashboard/settings/nrv",
   MDM: "/dashboard/mdm",
   USERS: "/dashboard/users",
   PATIENTS: "/dashboard/patients",

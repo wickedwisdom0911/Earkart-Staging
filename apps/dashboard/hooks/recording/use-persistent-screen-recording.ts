@@ -6,8 +6,7 @@ import {
   generateChunkId, 
   generateSessionId,
   type StoredRecordingSession,
-  type StoredChunk,
-  type StoredRawChunk,
+  type StoredChunk 
 } from "@/utils/recording-storage";
 
 import initiateRecordingUpload from "@/actions/recordings/initiate";
@@ -104,25 +103,10 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 	// Buffer to aggregate 5s chunks into exact partSize parts
 	const pendingBlobsRef = useRef<Blob[]>([]);
-	const pendingRawChunkIdsRef = useRef<string[]>([]); // parallel to pendingBlobsRef: blob[i] <-> rawChunkId[i]
 	const pendingSizeRef = useRef<number>(0);
-
-	// Raw chunk tracking (immediate persistence for crash/refresh recovery)
-	const rawChunkIndexRef = useRef<number>(0);
-	const rawChunkIdsInCurrentFlushRef = useRef<string[]>([]);
 
 	// Storage-related refs
 	const isRestoringRef = useRef<boolean>(false);
-
-	// Ref mirrors for values read inside async callbacks (avoids stale closures)
-	const stateRef = useRef(state);
-	const isRecordingRef = useRef(false);
-	const pendingPartsRef_read = useRef(0);
-	useEffect(() => {
-		stateRef.current = state;
-		isRecordingRef.current = state.isRecording;
-		pendingPartsRef_read.current = state.pendingParts;
-	}, [state]);
 
 	const runNextInQueue = useCallback(() => {
 		if (activeUploadsRef.current >= concurrencyRef.current) return;
@@ -136,10 +120,11 @@ export function usePersistentScreenRecording(consultationId: string) {
 				setState((s) => ({ ...s, pendingParts: Math.max(0, s.pendingParts - 1) }));
 				if (queueRef.current.length > 0) {
 					setTimeout(runNextInQueue, 0);
+				} else if (activeUploadsRef.current === 0 && state.isRecording === false && isStoppingRef.current) {
+					// Await finalize in stop()
 				}
-				// When queue drains during stop, stop()'s check() loop will resolve
 			});
-	}, []);
+	}, [state.isRecording]);
 
 	// Normalize and strictly order parts for completion
 	const buildOrderedParts = useCallback((): UploadedPart[] => {
@@ -224,44 +209,41 @@ export function usePersistentScreenRecording(consultationId: string) {
 			
 			if (isSessionInvalid) {
 				console.error("❌ [UPLOAD] Upload session appears to be invalid, marking for recovery:", errorMsg);
+				// Mark the current session as failed so recovery can start fresh
 				setState((s) => ({ 
 					...s, 
 					error: `Upload session invalid: ${errorMsg}`,
 					hasActiveSession: false 
 				}));
 				
+				// Clear the invalid session data
 				uploadIdRef.current = null;
 				sessionIdRef.current = null;
 				uploadedPartsRef.current = [];
 				
+				// Don't throw the error, let the recovery system handle it
 				return;
 			}
 			
+			// For other errors, the chunk remains in storage for retry
 			console.error("Upload failed for chunk:", chunkId, error);
 			throw error;
 		}
 	}, [presignPart]);
 
-	// Helper: take exactly size bytes from pendingBlobsRef, returning a Blob and mutating the buffer.
-	// Also populates rawChunkIdsInCurrentFlushRef with raw chunk IDs for fully-consumed blobs (for upload tracking).
+	// Helper: take exactly size bytes from pendingBlobsRef, returning a Blob and mutating the buffer
 	const takeExactBytesFromBuffer = useCallback((size: number): Blob => {
-		rawChunkIdsInCurrentFlushRef.current = [];
 		let remaining = size;
 		const out: Blob[] = [];
 		while (remaining > 0 && pendingBlobsRef.current.length > 0) {
 			const head = pendingBlobsRef.current[0];
-			const rawId = pendingRawChunkIdsRef.current[0];
 			if (head.size <= remaining) {
 				out.push(head);
 				pendingBlobsRef.current.shift();
-				if (rawId) {
-					pendingRawChunkIdsRef.current.shift();
-					rawChunkIdsInCurrentFlushRef.current.push(rawId);
-				}
 				pendingSizeRef.current -= head.size;
 				remaining -= head.size;
 			} else {
-				// Split head - don't consume raw chunk id (partial blob stays)
+				// Split head
 				const part = head.slice(0, remaining);
 				const leftover = head.slice(remaining);
 				out.push(part);
@@ -296,6 +278,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 	}, []);
 
 	const tryFlushFullParts = useCallback(async () => {
+		// Don't try to flush if there's no active session
 		if (!sessionIdRef.current || !uploadIdRef.current) {
 			console.warn("⚠️ [FLUSH] No active session, skipping chunk flush");
 			return;
@@ -303,50 +286,28 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 		const partSize = partSizeRef.current;
 		while (pendingSizeRef.current >= partSize) {
-			rawChunkIdsInCurrentFlushRef.current = [];
 			const partBlob = takeExactBytesFromBuffer(partSize);
 			try {
 				const chunkId = await saveChunkToStorage(partBlob);
 				const pn = nextPartNumberRef.current;
-				const rawIds = [...rawChunkIdsInCurrentFlushRef.current];
-				enqueueUpload(async () => {
-					await uploadBlobPart(partBlob, pn, chunkId);
-					if (rawIds.length > 0) {
-						await recordingStorage.markRawChunksAsUploaded(rawIds);
-					}
-				});
+				enqueueUpload(() => uploadBlobPart(partBlob, pn, chunkId));
 				nextPartNumberRef.current = pn + 1;
 			} catch (error) {
 				console.error("❌ [FLUSH] Failed to save chunk to storage:", error);
+				// If we can't save to storage, we can't continue
 				break;
 			}
 		}
 	}, [enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
 
 	const handleChunk = useCallback(async (chunk: Blob) => {
+		// Don't process chunks if there's no active session
 		if (!sessionIdRef.current || !uploadIdRef.current) {
 			console.warn("⚠️ [HANDLE_CHUNK] No active session, discarding chunk");
 			return;
 		}
 
-		// Persist raw chunk immediately to IndexedDB (survives refresh)
-		const rawIndex = rawChunkIndexRef.current++;
-		const rawId = `raw-${sessionIdRef.current}-${rawIndex}`;
-		try {
-			await recordingStorage.saveRawChunk({
-				id: rawId,
-				sessionId: sessionIdRef.current,
-				chunkIndex: rawIndex,
-				blob: chunk,
-				timestamp: Date.now(),
-				isUploaded: false,
-			});
-		} catch (e) {
-			console.warn("⚠️ [RAW_CHUNK] Failed to persist raw chunk:", e);
-		}
-
 		pendingBlobsRef.current.push(chunk);
-		pendingRawChunkIdsRef.current.push(rawId);
 		pendingSizeRef.current += chunk.size;
 		await tryFlushFullParts();
 	}, [tryFlushFullParts]);
@@ -375,32 +336,6 @@ export function usePersistentScreenRecording(consultationId: string) {
 		if (extraMs > 0) await new Promise((r) => setTimeout(r, extraMs));
 	}, []);
 
-	// Automatic backup download to user's Downloads folder on completion/recovery
-	const triggerAutomaticBackupDownload = useCallback(async (sessionId: string) => {
-		try {
-			const chunks = await recordingStorage.getSessionChunks(sessionId);
-			if (chunks.length === 0) return;
-			const sorted = [...chunks].sort((a, b) => a.partNumber - b.partNumber);
-			const blob = new Blob(sorted.map((c) => c.blob), { type: "video/webm" });
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = url;
-			a.download = `${consultationId}-recording-${Date.now()}.webm`;
-			a.style.display = "none";
-			document.body.appendChild(a);
-			a.click();
-			setTimeout(() => {
-				document.body.removeChild(a);
-				URL.revokeObjectURL(url);
-			}, 200);
-			// Do NOT save blob URLs to localStorage – they become invalid after page navigation.
-			// The file is already downloaded to the user's computer.
-			console.log("💾 [BACKUP] Recording downloaded to user's computer");
-		} catch (e) {
-			console.warn("⚠️ [BACKUP] Automatic download failed:", e);
-		}
-	}, [consultationId]);
-
 	// Build longest contiguous prefix [1..N] with normalized ETags
 	const buildContiguousParts = useCallback((): Array<{ partNumber: number; etag: string }> => {
 		const normalized = uploadedPartsRef.current
@@ -408,6 +343,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 			.map((p) => {
 				const pn = Number((p as any).partNumber);
 				let et = String((p as any).etag);
+				// Ensure ETag is quoted once (as S3 typically returns)
 				if (!/^".*"$/.test(et)) et = `"${et.replace(/\"/g, "")}"`;
 				return { partNumber: pn, etag: et };
 			})
@@ -430,7 +366,9 @@ export function usePersistentScreenRecording(consultationId: string) {
 	const finalizeNow = useCallback(async (uploadId: string): Promise<{ key: string; playbackUrl?: string } | undefined> => {
 		const maxAttempts = 3;
 		for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+			// Wait for uploads to drain a bit
 			await new Promise((r) => setTimeout(r, 500));
+			// Build longest contiguous prefix [1..N] with quoted ETags
 			const normalized = uploadedPartsRef.current
 				.filter((p) => p && (p as any).partNumber != null && (p as any).etag != null)
 				.map((p) => {
@@ -475,18 +413,21 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 			console.log("🔄 Found existing recording session:", activeSession.sessionId);
 
+			// Check if we can safely recover by testing the upload
 			try {
+				// Try to test the upload session by attempting to presign a part
+				// This is a lighter test than finalizing the entire upload
 				console.log("🧪 [RECOVERY] Testing upload session validity...");
 				await presignPart(activeSession.uploadId, 1);
 				console.log("✅ [RECOVERY] Upload session is valid, proceeding with recovery");
 				
+				// Restore session state
 				sessionIdRef.current = activeSession.sessionId;
 				uploadIdRef.current = activeSession.uploadId;
 				partSizeRef.current = activeSession.partSize;
 				nextPartNumberRef.current = activeSession.nextPartNumber;
 				uploadedPartsRef.current = [...activeSession.uploadedParts];
 
-				// Keep isRecovering true until ALL uploads + finalize complete
 				setState((s) => ({
 					...s,
 					sessionId: activeSession.sessionId,
@@ -494,141 +435,63 @@ export function usePersistentScreenRecording(consultationId: string) {
 					s3Key: activeSession.s3Key || null,
 					uploadedParts: activeSession.uploadedParts.length,
 					hasActiveSession: true,
-					isRecovering: true,
-					isUploading: true,
+					isRecovering: false,
 					error: null,
 				}));
 
-				// 1) Resume pending aggregate chunks
+				// Resume uploading pending chunks
 				const pendingChunks = await recordingStorage.getPendingChunks(activeSession.sessionId);
 				if (pendingChunks.length > 0) {
 					console.log(`📤 [RECOVERY] Resuming upload of ${pendingChunks.length} pending chunks`);
+					setState((s) => ({ ...s, isUploading: true }));
+
 					for (const chunk of pendingChunks) {
 						enqueueUpload(() => uploadBlobPart(chunk.blob, chunk.partNumber, chunk.id));
 					}
 				}
 
-				// 2) Process unuploaded raw chunks (3s segments persisted before refresh)
-				const unuploadedRaw = await recordingStorage.getUnuploadedRawChunks(activeSession.sessionId);
-				if (unuploadedRaw.length > 0) {
-					console.log(`📦 [RECOVERY] Found ${unuploadedRaw.length} raw chunks to aggregate and upload`);
-					const partSize = activeSession.partSize;
-					let acc: Blob[] = [];
-					let accSize = 0;
-					let pn = nextPartNumberRef.current;
-					for (const raw of unuploadedRaw) {
-						acc.push(raw.blob);
-						accSize += raw.blob.size;
-						while (accSize >= partSize) {
-							const take = Math.min(partSize, accSize);
-							const toTake: Blob[] = [];
-							let remaining = take;
-							while (remaining > 0 && acc.length > 0) {
-								const h = acc[0];
-								if (h.size <= remaining) {
-									toTake.push(acc.shift()!);
-									accSize -= h.size;
-									remaining -= h.size;
-								} else {
-									toTake.push(h.slice(0, remaining));
-									acc[0] = h.slice(remaining);
-									accSize -= remaining;
-									remaining = 0;
-								}
-							}
-							const partBlob = new Blob(toTake, { type: "application/octet-stream" });
-							const chunkId = await saveChunkToStorage(partBlob);
-							const partNum = pn++;
-							// Don't match by blob reference - after h.slice() we have new Blob refs. Mark by consumed bytes.
-							// We'll mark all raw chunks as uploaded at end of recovery loop (avoids duplicate uploads on refresh).
-							enqueueUpload(() => uploadBlobPart(partBlob, partNum, chunkId));
-							nextPartNumberRef.current = pn;
-							accSize = acc.reduce((s, b) => s + b.size, 0);
-						}
-					}
-					if (acc.length > 0 && accSize > 0) {
-						const finalBlob = new Blob(acc, { type: "application/octet-stream" });
-						const chunkId = await saveChunkToStorage(finalBlob);
-						const partNum = pn++;
-						enqueueUpload(() => uploadBlobPart(finalBlob, partNum, chunkId));
-						nextPartNumberRef.current = pn;
-					}
-					// Mark all raw chunks as uploaded (reference equality fails after .slice() so we mark all after processing)
-					await recordingStorage.markRawChunksAsUploaded(unuploadedRaw.map((r) => r.id));
-				}
-
-				// 3) Auto-finalize when uploads drain (capture from closure to avoid race)
-				const recoveryUploadId = activeSession.uploadId;
-				const recoverySessionId = activeSession.sessionId;
-				(async () => {
-					try {
-						await waitUntilUploadsSettled(1500);
-						if (recoveryUploadId && uploadedPartsRef.current.length > 0) {
-							const result = await finalizeNow(recoveryUploadId);
-							const storageKey = `recordings_${consultationId}`;
-
-							if (result?.playbackUrl) {
-								const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
-								if (!saved.some((r: any) => r.url === result.playbackUrl)) {
-									saved.push({
-										id: `recovery-${Date.now()}`,
-										name: `Recovered Recording - ${new Date().toLocaleString()}`,
-										url: result.playbackUrl,
-										timestamp: new Date().toISOString(),
-										status: "completed",
-										segmentType: "recovery",
-									});
-									localStorage.setItem(storageKey, JSON.stringify(saved));
-								}
-								setState((s) => ({ ...s, playbackUrl: result.playbackUrl ?? null }));
-								await triggerAutomaticBackupDownload(recoverySessionId);
-							} else {
-								// Backend returned no playbackUrl – download blob only (don't save blob URL – it dies after navigate)
-								// Use getSessionChunks (not getPendingChunks) because chunks are marked uploaded after recovery
-								try {
-									const allChunksFromStorage = await recordingStorage.getSessionChunks(recoverySessionId);
-									if (allChunksFromStorage.length > 0) {
-										await triggerAutomaticBackupDownload(recoverySessionId);
-										console.log(`💾 [RECOVERY] No playbackUrl from backend – downloaded as local backup`);
-									}
-								} catch (blobErr) {
-									console.warn("⚠️ [RECOVERY] Could not save blob fallback:", blobErr);
-								}
-							}
-							try {
-								await recordingStorage.deactivateSession(recoverySessionId);
-								await recordingStorage.deleteSessionChunks(recoverySessionId);
-								await recordingStorage.deleteRawChunksForSession(recoverySessionId);
-							} catch {}
-						}
-					} finally {
-						setState((s) => ({ ...s, isRecovering: false, isUploading: false, hasActiveSession: false }));
-						console.log("✅ [RECOVERY] Recovery complete — Start Recording button now available");
-					}
-				})();
-
 				return true;
 			} catch (error) {
 				console.log("⚠️ [RECOVERY] Cannot recover existing session, attempting final completion:", error);
 				
+				// Before abandoning, try to complete the session and save as backup
 				try {
 					console.log("🎯 [RECOVERY] Attempting final completion of pre-refresh session...");
 					
+					// Get any chunks from the failed session
 					const pendingChunks = await recordingStorage.getPendingChunks(activeSession.sessionId);
 					if (pendingChunks.length > 0) {
-						console.log(`📦 [RECOVERY] Found ${pendingChunks.length} chunks from pre-refresh session – triggering download (blob URLs invalid after navigate)`);
-						// Combine chunks and trigger download; don't save blob URL to localStorage
-						const sorted = [...pendingChunks].sort((a, b) => a.partNumber - b.partNumber);
-						const blob = new Blob(sorted.map((c) => c.blob), { type: "video/webm" });
-						const url = URL.createObjectURL(blob);
-						const a = document.createElement("a");
-						a.href = url;
-						a.download = `${consultationId}-pre-refresh-${Date.now()}.webm`;
-						a.style.display = "none";
-						document.body.appendChild(a);
-						a.click();
-						setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
-						console.log(`💾 [RECOVERY] Pre-refresh recording downloaded`);
+						console.log(`📦 [RECOVERY] Found ${pendingChunks.length} chunks from pre-refresh session`);
+						
+						// Create a combined blob from all chunks
+						const allChunks = pendingChunks.map(chunk => chunk.blob);
+						const totalSize = allChunks.reduce((total, chunk) => total + chunk.size, 0);
+						const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+						const recordingBlob = new Blob(allChunks, { type: 'video/webm' });
+						const blobUrl = URL.createObjectURL(recordingBlob);
+						
+						// Save as local backup in localStorage
+						const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+						const recoveredRecording = {
+							id: `recovered-${Date.now()}`,
+							name: `Pre-Refresh Recording - ${new Date().toLocaleString()}`,
+							url: blobUrl,
+							size: `${sizeInMB}MB`,
+							chunks: allChunks.length,
+							timestamp: new Date().toISOString(),
+							status: 'recovered',
+							reason: 'Session invalid, saved as backup',
+							segmentType: 'pre_refresh_backup'
+						};
+						
+						savedRecordings.push(recoveredRecording);
+						localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+						
+						console.log(`💾 [RECOVERY] Saved pre-refresh recording as backup: ${sizeInMB}MB`);
+						console.log("✅ [RECOVERY] Pre-refresh video preserved!");
+						
+						// TODO: Could also save blob URLs to backend, but they're temporary
+						// For now, only S3 URLs are saved to backend in the layout
 					} else {
 						console.log("ℹ️ [RECOVERY] No chunks found in failed session");
 					}
@@ -636,6 +499,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 					console.error("❌ [RECOVERY] Failed to save pre-refresh backup:", backupError);
 				}
 				
+				// Clean up the invalid session from storage
 				try {
 					await recordingStorage.deleteSession(activeSession.sessionId);
 					console.log("🧹 [RECOVERY] Cleaned up invalid session from storage");
@@ -644,6 +508,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 				}
 			}
 
+			// If recovery failed, clean up old session and indicate need for fresh start
 			console.log("🧹 Cleaning up broken session and starting fresh");
 			await recordingStorage.deactivateSession(activeSession.sessionId);
 			await recordingStorage.deleteSessionChunks(activeSession.sessionId);
@@ -656,15 +521,17 @@ export function usePersistentScreenRecording(consultationId: string) {
 			setState((s) => ({ ...s, isRecovering: false, error: "Failed to recover recording session" }));
 			return false;
 		}
-	}, [consultationId, enqueueUpload, uploadBlobPart, finalizeNow, triggerAutomaticBackupDownload]);
+	}, [consultationId, enqueueUpload, uploadBlobPart, finalizeNow]);
 
 	// Initialize and check for existing sessions on mount
 	useEffect(() => {
 		const initialize = async () => {
 			try {
 				console.log("🔄 Initializing recording system...");
+				// Clean up old sessions first
 				await recordingStorage.cleanupOldSessions();
 				
+				// Check for active session
 				const hasActive = await recoverSession();
 				console.log("📋 Recovery result:", { hasActive });
 				setState((s) => ({ ...s, hasActiveSession: hasActive }));
@@ -681,12 +548,13 @@ export function usePersistentScreenRecording(consultationId: string) {
 		initialize();
 	}, [consultationId, recoverSession]);
 
-	// Aggressive pre-refresh recovery
+	// Aggressive pre-refresh recovery - try to save any abandoned chunks immediately
 	useEffect(() => {
 		const saveAbandonedChunks = async () => {
 			try {
 				console.log("🔍 [ABANDONED] Checking for abandoned chunks from previous sessions...");
 				
+				// Look for any sessions that might have chunks but failed to complete
 				const allSessions = await recordingStorage.getAllSessions();
 				const abandonedSessions = allSessions.filter(session => 
 					session.consultationId === consultationId && 
@@ -702,23 +570,33 @@ export function usePersistentScreenRecording(consultationId: string) {
 						if (chunks.length > 0) {
 							console.log(`📦 [ABANDONED] Session ${session.sessionId} has ${chunks.length} unsaved chunks`);
 							
+							// Create combined blob from abandoned chunks
 							const allChunks = chunks.map(chunk => chunk.blob);
 							const totalSize = allChunks.reduce((total, chunk) => total + chunk.size, 0);
 							const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
 							const recordingBlob = new Blob(allChunks, { type: 'video/webm' });
 							const blobUrl = URL.createObjectURL(recordingBlob);
-							const a = document.createElement('a');
-							a.href = blobUrl;
-							a.download = `${consultationId}-abandoned-${Date.now()}.webm`;
-							a.style.display = 'none';
-							document.body.appendChild(a);
-							a.click();
-							setTimeout(() => {
-								document.body.removeChild(a);
-								URL.revokeObjectURL(blobUrl);
-							}, 200);
-							console.log(`💾 [ABANDONED] Abandoned recording (${sizeInMB}MB) downloaded – blob URL not saved`);
 							
+							// Save as recovered recording
+							const savedRecordings = JSON.parse(localStorage.getItem(`recordings_${consultationId}`) || '[]');
+							const recoveredRecording = {
+								id: `abandoned-${session.sessionId}-${Date.now()}`,
+								name: `Recovered Recording - ${new Date(session.createdAt).toLocaleString()}`,
+								url: blobUrl,
+								size: `${sizeInMB}MB`,
+								chunks: allChunks.length,
+								timestamp: new Date().toISOString(),
+								status: 'recovered',
+								reason: 'Abandoned session recovered',
+								segmentType: 'abandoned_recovery'
+							};
+							
+							savedRecordings.push(recoveredRecording);
+							localStorage.setItem(`recordings_${consultationId}`, JSON.stringify(savedRecordings));
+							
+							console.log(`💾 [ABANDONED] Recovered abandoned recording: ${sizeInMB}MB`);
+							
+							// Clean up the abandoned session
 							await recordingStorage.deleteSession(session.sessionId);
 							await recordingStorage.deleteSessionChunks(session.sessionId);
 						}
@@ -731,11 +609,12 @@ export function usePersistentScreenRecording(consultationId: string) {
 			}
 		};
 
+		// Run recovery check after a short delay to ensure recording system is initialized
 		const timeoutId = setTimeout(saveAbandonedChunks, 3000);
 		return () => clearTimeout(timeoutId);
 	}, [consultationId]);
 
-	// Add beforeunload warning + visibilitychange emergency backup
+	// Add beforeunload warning
 	useEffect(() => {
 		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
 			if (state.isRecording || state.isUploading || (state.pendingParts > 0)) {
@@ -745,40 +624,27 @@ export function usePersistentScreenRecording(consultationId: string) {
 			}
 		};
 
-		const handleVisibilityChange = () => {
-			if (
-				document.visibilityState === "hidden" &&
-				isRecordingRef.current &&
-				sessionIdRef.current
-			) {
-				triggerAutomaticBackupDownload(sessionIdRef.current).catch(() => {});
-			}
-		};
-
 		window.addEventListener("beforeunload", handleBeforeUnload);
-		document.addEventListener("visibilitychange", handleVisibilityChange);
-		return () => {
-			window.removeEventListener("beforeunload", handleBeforeUnload);
-			document.removeEventListener("visibilitychange", handleVisibilityChange);
-		};
-	}, [state.isRecording, state.isUploading, state.pendingParts, triggerAutomaticBackupDownload]);
+		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+	}, [state.isRecording, state.isUploading, state.pendingParts]);
 
 	const start = useCallback(async (opts?: StartOptions) => {
-		if (state.isRecording || state.isInitializing || state.isRecovering) return;
+		if (state.isRecording || state.isInitializing) return;
 		setState((s) => ({ ...s, isInitializing: true, error: null }));
 
 		try {
+			// Clean up any existing invalid session first
 			if (sessionIdRef.current) {
 				console.log("🧹 [START] Cleaning up existing session before starting new one");
 				try {
 					await recordingStorage.deactivateSession(sessionIdRef.current);
 					await recordingStorage.deleteSessionChunks(sessionIdRef.current);
-					await recordingStorage.deleteRawChunksForSession(sessionIdRef.current);
 				} catch (cleanupError) {
 					console.warn("⚠️ [START] Failed to clean up existing session:", cleanupError);
 				}
 			}
 
+			// Reset all refs to ensure clean state
 			uploadIdRef.current = null;
 			sessionIdRef.current = null;
 			uploadedPartsRef.current = [];
@@ -786,9 +652,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 			activeUploadsRef.current = 0;
 			nextPartNumberRef.current = 1;
 			pendingBlobsRef.current = [];
-			pendingRawChunkIdsRef.current = [];
 			pendingSizeRef.current = 0;
-			rawChunkIndexRef.current = 0;
 
 			const filename = opts?.filename || `consultation-${consultationId}-${Date.now()}.webm`;
 			const mimeTypeCandidates = [
@@ -800,10 +664,12 @@ export function usePersistentScreenRecording(consultationId: string) {
 			const timeslice = opts?.timesliceMs ?? DEFAULT_TIMESLICE;
 			concurrencyRef.current = opts?.maxConcurrentUploads ?? DEFAULT_MAX_CONCURRENCY;
 
+			// 1) Initiate multipart upload first
 			const { uploadId, partSize, key } = await initiateMultipart(filename, preferredMime);
 			uploadIdRef.current = uploadId;
 			partSizeRef.current = Math.max(5 * 1024 * 1024, partSize || partSizeRef.current);
 			
+			// 2) Create new session in storage
 			const sessionId = generateSessionId();
 			sessionIdRef.current = sessionId;
 			
@@ -833,13 +699,15 @@ export function usePersistentScreenRecording(consultationId: string) {
 				hasActiveSession: true 
 			}));
 
+			// 3) Capture screen (optionally with system audio if supported)
 			const includeSystemAudio = opts?.captureSystemAudio === true;
 			const screenStream = await navigator.mediaDevices.getDisplayMedia({
 				video: { frameRate: 15 },
-				audio: includeSystemAudio,
+				audio: includeSystemAudio, // some browsers support tab/system audio when true
 			});
 			mediaStreamRef.current = screenStream;
 
+			// Listen for user stopping from browser UI (track ended / stream inactive)
 			try {
 				const vTrack = screenStream.getVideoTracks()[0] || null;
 				trackedVideoRef.current = vTrack;
@@ -847,6 +715,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 				if (vTrack) {
 					const onEnded = async () => {
 						if (!uploadIdRef.current && mediaRecorderRef.current == null) return;
+						// Immediately reflect stopped state so overlay blocks UI
 						setState((s) => ({ ...s, isRecording: false, isUploading: true }));
 						await stop();
 					};
@@ -862,12 +731,14 @@ export function usePersistentScreenRecording(consultationId: string) {
 				streamInactiveHandlerRef.current = () => (screenStream as any).removeEventListener?.("inactive", onInactive);
 			} catch {}
 
+			// If Entire Screen is required, validate selection; otherwise abort and prompt user to re-try
 			if (opts?.requireEntireScreen) {
 				const track = screenStream.getVideoTracks()[0];
 				const settings = (track?.getSettings?.() as any) || {};
 				if (settings?.displaySurface !== "monitor") {
 					try { track?.stop?.(); } catch {}
 					mediaStreamRef.current = null;
+					// Abort initiated multipart upload and clean up storage
 					try {
 						const toAbort = uploadIdRef.current;
 						if (toAbort) {
@@ -879,6 +750,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 						}
 					} catch {}
 					
+					// Reset state
 					uploadIdRef.current = null;
 					sessionIdRef.current = null;
 					uploadedPartsRef.current = [];
@@ -892,9 +764,11 @@ export function usePersistentScreenRecording(consultationId: string) {
 				}
 			}
 
+			// Optionally capture microphone and remote audio, then mix them properly
 			let finalStream: MediaStream = screenStream;
-			const wantsMic = opts?.captureMic !== false;
+			const wantsMic = opts?.captureMic !== false; // default true
 			
+			// Check if we have Agora remote audio to capture
 			const agoraClient = opts?.agoraClient;
 			const hasAgoraAudio = Boolean(agoraClient);
 			
@@ -902,10 +776,12 @@ export function usePersistentScreenRecording(consultationId: string) {
 				try {
 					console.log("🎵 Setting up audio mixing...", { wantsMic, hasAgoraAudio });
 					
+					// Create Web Audio context for mixing
 					const audioContext = new AudioContext();
-					audioContextRef.current = audioContext;
+					audioContextRef.current = audioContext; // Store for cleanup
 					const audioDestination = audioContext.createMediaStreamDestination();
 					
+					// 1. Add microphone audio
 					if (wantsMic) {
 						try {
 							const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -918,6 +794,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 						}
 					}
 					
+					// Ensure audio context is running (autoplay restrictions)
 					if (audioContext.state === "suspended") {
 						try {
 							await audioContext.resume();
@@ -926,15 +803,17 @@ export function usePersistentScreenRecording(consultationId: string) {
 						}
 					}
 
+					// Helper to attach remote user audio into the mixer (runs now + whenever tracks change)
 					const attachRemoteAudio = async (remoteUser: any) => {
 						try {
 							if (!remoteUser?.uid) return;
 
 							const key = String(remoteUser.uid);
 							if (remoteAudioNodesRef.current.has(key)) {
-								return;
+								return; // Already connected
 							}
 
+							// Ensure we are subscribed so audioTrack exists
 							if (agoraClient?.subscribe) {
 								try {
 									await agoraClient.subscribe(remoteUser, "audio");
@@ -959,6 +838,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 						}
 					};
 
+					// Clean up helper for remote audio nodes
 					const detachRemoteAudio = (remoteUser: any) => {
 						const key = String(remoteUser?.uid);
 						const existing = remoteAudioNodesRef.current.get(key);
@@ -970,14 +850,17 @@ export function usePersistentScreenRecording(consultationId: string) {
 						}
 					};
 
+					// 2. Add remote audio from Agora (patient's voice)
 					if (hasAgoraAudio && agoraClient) {
 						try {
+							// Attach currently connected users
 							const remoteUsers = agoraClient.remoteUsers || [];
 							console.log("👥 Attaching existing remote users for audio mix:", remoteUsers.length);
 							for (const remoteUser of remoteUsers) {
 								attachRemoteAudio(remoteUser);
 							}
 
+							// Wire up listeners so late joins/track changes also get mixed
 							const handleUserPublished = async (user: any, mediaType: string) => {
 								if (mediaType !== "audio") return;
 								await attachRemoteAudio(user);
@@ -1008,6 +891,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 						}
 					}
 					
+					// 3. Add screen audio if present (tab audio)
 					const screenAudioTracks = screenStream.getAudioTracks();
 					if (screenAudioTracks.length > 0) {
 						try {
@@ -1021,6 +905,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 						}
 					}
 					
+					// Combine video from screen with mixed audio
 					const mixedAudioTracks = audioDestination.stream.getAudioTracks();
 					finalStream = new MediaStream([
 						...screenStream.getVideoTracks(),
@@ -1039,13 +924,14 @@ export function usePersistentScreenRecording(consultationId: string) {
 				}
 			}
 
+			// 4) Create MediaRecorder
 			const recorder = new MediaRecorder(finalStream, { mimeType: preferredMime, videoBitsPerSecond: 2_000_000 });
 			mediaRecorderRef.current = recorder;
 
 			recorder.ondataavailable = (ev: BlobEvent) => {
 				if (!ev.data || ev.data.size === 0) return;
 				handleChunk(ev.data);
-				const tooManyPending = pendingPartsRef_read.current > 20;
+				const tooManyPending = state.pendingParts > 20;
 				if (tooManyPending && recorder.state === "recording") {
 					recorder.pause();
 					const interval = setInterval(() => {
@@ -1064,15 +950,18 @@ export function usePersistentScreenRecording(consultationId: string) {
 			};
 
 			recorder.onstop = () => {
+				// If the recorder stopped externally, show overlay immediately
 				setState((s) => ({ ...s, isRecording: false }));
 			};
 
+			// 5) Start recording with timeslices
 			recorder.start(timeslice);
 			setState((s) => ({ ...s, isRecording: true, isInitializing: false }));
 		} catch (err) {
 			console.error("Failed to start screen recording:", err);
 			setState((s) => ({ ...s, isInitializing: false, error: (err as Error).message }));
 			
+			// Cleanup on error
 			try { mediaRecorderRef.current?.stop(); } catch {}
 			mediaRecorderRef.current = null;
 			try { mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
@@ -1080,6 +969,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 			mediaStreamRef.current = null;
 			micStreamRef.current = null;
 			
+			// Clean up storage
 			if (sessionIdRef.current) {
 				try {
 					await recordingStorage.deleteSession(sessionIdRef.current);
@@ -1097,18 +987,16 @@ export function usePersistentScreenRecording(consultationId: string) {
 			pendingSizeRef.current = 0;
 			setState((s) => ({ ...s, hasActiveSession: false }));
 		}
-	}, [consultationId, handleChunk, initiateMultipart, state.isRecording, state.isInitializing, state.isRecovering, state.pendingParts]);
+	}, [consultationId, handleChunk, initiateMultipart, state.isRecording, state.isInitializing, state.pendingParts]);
 
 	const stop = useCallback(async () => {
-		if (!isRecordingRef.current && !stateRef.current.isInitializing) return;
+		if (!state.isRecording && !state.isInitializing) return;
 		isStoppingRef.current = true;
 		setState((s) => ({ ...s, isRecording: false, isUploading: true }));
 
 		try {
 			try {
 				if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-					// Flush any buffered data before stop (captures last few seconds)
-					mediaRecorderRef.current.requestData();
 					mediaRecorderRef.current.stop();
 				}
 			} catch {}
@@ -1127,6 +1015,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 				agoraAudioCleanupRef.current?.();
 			} catch {}
 			agoraAudioCleanupRef.current = null;
+			// Remove listeners
 			try { trackEndHandlerRef.current?.(); } catch {}
 			trackEndHandlerRef.current = null;
 			try { streamInactiveHandlerRef.current?.(); } catch {}
@@ -1134,6 +1023,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 			trackedVideoRef.current = null;
 			trackedStreamRef.current = null;
 
+			// Flush any remaining buffered data as the final (possibly smaller) part
 			if (pendingSizeRef.current > 0) {
 				const finalBlob = takeExactBytesFromBuffer(pendingSizeRef.current);
 				const chunkId = await saveChunkToStorage(finalBlob);
@@ -1159,12 +1049,10 @@ export function usePersistentScreenRecording(consultationId: string) {
 					setState((s) => ({ ...s, s3Key: key, playbackUrl: playbackUrl ?? null }));
 				}
 
+				// Mark session as completed and clean up storage
 				if (sessionIdRef.current) {
-					// Automatic backup download to user's Downloads folder
-					await triggerAutomaticBackupDownload(sessionIdRef.current);
 					await recordingStorage.deactivateSession(sessionIdRef.current);
 					await recordingStorage.deleteSessionChunks(sessionIdRef.current);
-					await recordingStorage.deleteRawChunksForSession(sessionIdRef.current);
 				}
 			}
 		} catch (err) {
@@ -1178,17 +1066,17 @@ export function usePersistentScreenRecording(consultationId: string) {
 			activeUploadsRef.current = 0;
 			nextPartNumberRef.current = 1;
 			pendingBlobsRef.current = [];
-			pendingRawChunkIdsRef.current = [];
 			pendingSizeRef.current = 0;
 			isStoppingRef.current = false;
 			setState((s) => ({ ...s, isUploading: false, hasActiveSession: false }));
 		}
-	}, [finalizeNow, state.isInitializing, state.isRecording, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage, enqueueUpload, triggerAutomaticBackupDownload]);
+	}, [finalizeNow, state.isInitializing, state.isRecording, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
 
 	const complete = useCallback(async () => {
 		const uploadId = uploadIdRef.current;
 		if (!uploadId) return;
 
+		// If there is pending buffered data that hasn't reached partSize, flush it as the final part
 		if (pendingSizeRef.current > 0) {
 			const finalBlob = takeExactBytesFromBuffer(pendingSizeRef.current);
 			const chunkId = await saveChunkToStorage(finalBlob);
@@ -1197,6 +1085,7 @@ export function usePersistentScreenRecording(consultationId: string) {
 			nextPartNumberRef.current = pn + 1;
 		}
 
+		// wait for queue drain
 		await new Promise<void>((resolve) => {
 			const check = () => {
 				if (queueRef.current.length === 0 && activeUploadsRef.current === 0) return resolve();
@@ -1207,12 +1096,14 @@ export function usePersistentScreenRecording(consultationId: string) {
 
 		if (uploadedPartsRef.current.length === 0) {
 			await abortRecordingUpload({ uploadId });
+			// Clean up storage
 			if (sessionIdRef.current) {
 				await recordingStorage.deleteSession(sessionIdRef.current);
 				await recordingStorage.deleteSessionChunks(sessionIdRef.current);
 			}
 			return;
 		}
+		// Normalize, sort, and enforce contiguous prefix starting at 1
 		const normalized = uploadedPartsRef.current
 			.filter((p) => p && (p as any).partNumber != null && (p as any).etag != null)
 			.map((p) => {
@@ -1230,24 +1121,22 @@ export function usePersistentScreenRecording(consultationId: string) {
 				parts.push(p);
 				expected += 1;
 			} else {
-				break;
+				break; // stop at first gap
 			}
 		}
 		if (parts.length === 0 || parts[0].partNumber !== 1) {
 			throw new Error("Cannot complete: no contiguous parts starting at 1");
 		}
 		const result = await finalizeNow(uploadId);
+		// Clean up storage after successful completion
 		if (sessionIdRef.current) {
-			// Automatic backup download to user's Downloads folder
-			await triggerAutomaticBackupDownload(sessionIdRef.current);
 			await recordingStorage.deactivateSession(sessionIdRef.current);
 			await recordingStorage.deleteSessionChunks(sessionIdRef.current);
-			await recordingStorage.deleteRawChunksForSession(sessionIdRef.current);
 		}
 
 		setState((s) => ({ ...s, hasActiveSession: false }));
 		return result;
-	}, [finalizeNow, enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage, triggerAutomaticBackupDownload]);
+	}, [finalizeNow, enqueueUpload, takeExactBytesFromBuffer, uploadBlobPart, saveChunkToStorage]);
 
 	const abort = useCallback(async () => {
 		const uploadId = uploadIdRef.current;
@@ -1255,10 +1144,10 @@ export function usePersistentScreenRecording(consultationId: string) {
 		try {
 			await abortRecordingUpload({ uploadId });
 			
+			// Clean up storage
 			if (sessionIdRef.current) {
 				await recordingStorage.deleteSession(sessionIdRef.current);
 				await recordingStorage.deleteSessionChunks(sessionIdRef.current);
-				await recordingStorage.deleteRawChunksForSession(sessionIdRef.current);
 			}
 		} finally {
 			uploadIdRef.current = null;

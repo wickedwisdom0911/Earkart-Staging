@@ -26,7 +26,6 @@ import useUpdateDevice from "@/hooks/device/use-update-device";
 import { StatusEnum } from "@/models/enums";
 import StatusToggle from "@/components/ui/status-toggle";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 
 export default function HandleDevicesDialog({
   trigger,
@@ -47,8 +46,6 @@ export default function HandleDevicesDialog({
       // Only include editable fields - keep other fields from existing device
       deviceID: device?.deviceID || null,
       tabletID: device?.tabletID || null,
-      pendingUpdate: device?.pendingUpdate ?? null,
-      pendingLookup: device?.pendingLookup ?? null,
       // Keep all other fields from existing device to preserve them
       code: device?.code || null,
       codeSequence: device?.codeSequence || null,
@@ -81,14 +78,10 @@ export default function HandleDevicesDialog({
       return;
     }
     
-    // Only send editable fields: deviceID, tabletID, pendingUpdate, pendingLookup
-    // Preserve all other fields from the existing device
     const updateData: DeviceModelData = {
-      ...device, // Preserve all existing device data
+      ...device,
       deviceID: data.deviceID,
       tabletID: data.tabletID,
-      pendingUpdate: data.pendingUpdate,
-      pendingLookup: data.pendingLookup,
     };
     
     updateDevice(updateData, {
@@ -150,54 +143,6 @@ export default function HandleDevicesDialog({
                           value={field.value || ""}
                         />
                       </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="flex flex-col gap-4">
-                <FormField
-                  control={form.control}
-                  name="pendingUpdate"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value ?? false}
-                          onCheckedChange={(checked) => {
-                            field.onChange(checked === true);
-                          }}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>Pending Update</FormLabel>
-                        <p className="text-sm text-muted-foreground">
-                          Device has a pending update
-                        </p>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="pendingLookup"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value ?? false}
-                          onCheckedChange={(checked) => {
-                            field.onChange(checked === true);
-                          }}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>Pending Lookup</FormLabel>
-                        <p className="text-sm text-muted-foreground">
-                          Device has a pending lookup
-                        </p>
-                      </div>
                     </FormItem>
                   )}
                 />

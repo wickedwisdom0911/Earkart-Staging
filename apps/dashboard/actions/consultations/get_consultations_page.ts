@@ -51,7 +51,7 @@ export default async function getConsultationsPage(
   if (params.startDate) searchParams.set("startDate", toApiStartDate(params.startDate));
   if (params.endDate) searchParams.set("endDate", toApiEndDate(params.endDate));
   if (params.search) searchParams.set("search", params.search);
-  if (params.isDemo === true) searchParams.set("isDemo", "true");
+  if (params.isDemo === true) searchParams.set("isDemoCall", "true");
 
   const url = `${baseUrl}consultation/get-all?${searchParams.toString()}`;
   const res = await fetch(url, {

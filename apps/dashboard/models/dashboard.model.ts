@@ -1,28 +1,41 @@
 import { z } from "zod";
 
-// Dashboard metrics schema
-const DashboardMetricsSchema = z.object({
-  totalConsultations: z.number(),
-  activePatients: z.number(),
-  activeAudiologists: z.number(),
-  activeCentres: z.number(),
-  testsCompletedToday: z.number(),
-  revenueThisMonth: z.number(),
-  successRate: z.number(),
-  avgConsultationDuration: z.number(),
-  deviceUtilization: z.number(),
-  monthlyGrowthRate: z.number(),
-});
+// Dashboard metrics schema — passthrough keeps extra keys from analytics/summary API
+const DashboardMetricsSchema = z
+  .object({
+    totalConsultations: z.number(),
+    activePatients: z.number(),
+    activeAudiologists: z.number(),
+    activeCentres: z.number(),
+    testsCompletedToday: z.number(),
+    revenueThisMonth: z.number(),
+    successRate: z.number(),
+    avgConsultationDuration: z.number(),
+    deviceUtilization: z.number(),
+    monthlyGrowthRate: z.number(),
+    /** Optional breakdowns when API sends them */
+    completedConsultations: z.number().optional(),
+    inProgressConsultations: z.number().optional(),
+    cancelledConsultations: z.number().optional(),
+    pendingConsultations: z.number().optional(),
+    inactivePatients: z.number().optional(),
+    newPatients: z.number().optional(),
+    consultationGrowthPercent: z.number().optional(),
+    revenueWeekly: z.array(z.number()).optional(),
+  })
+  .passthrough();
 
 // Real-time data schema
-const RealTimeDataSchema = z.object({
-  activeConsultations: z.number(),
-  onlineAudiologists: z.number(),
-  testsInProgress: z.number(),
-  systemStatus: z.string(),
-  alerts: z.array(z.any()),
-  timestamp: z.string(),
-});
+const RealTimeDataSchema = z
+  .object({
+    activeConsultations: z.number(),
+    onlineAudiologists: z.number(),
+    testsInProgress: z.number(),
+    systemStatus: z.string(),
+    alerts: z.array(z.any()),
+    timestamp: z.string(),
+  })
+  .passthrough();
 
 // Dashboard summary data schema
 const DashboardSummaryDataSchema = z.object({

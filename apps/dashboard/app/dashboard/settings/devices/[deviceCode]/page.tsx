@@ -3,10 +3,11 @@ import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useParams } from "next/navigation";
 import useGetDeviceByValue from "@/hooks/device/use-get-device-by-value";
 import { Button } from "@/components/ui/button";
-import { Edit, Tablet, MapPin, Calendar, Hash, Link2 } from "lucide-react";
+import { Edit, Tablet, MapPin, Calendar, Hash, Link2, Radio } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { StatusEnum } from "@/models/enums";
 import HandleDeviceAssigningDialog from "../_components/handle-device-assigning-dialog";
 import Link from "next/link";
@@ -14,6 +15,8 @@ import { ROUTES } from "@/lib/routes";
 import UnassignDeviceDialog from "../_components/unassign-device-dialog";
 import HandleDevicesDialog from "../_components/handle-devices-dialog";
 import { DeviceModelData } from "@/models/device.model";
+import useUpdateDevice from "@/hooks/device/use-update-device";
+import { toast } from "sonner";
 
 export default function DevicePage() {
   const { deviceCode } = useParams();
@@ -22,6 +25,20 @@ export default function DevicePage() {
   );
   const device = data?.data;
   const isAssignDisabled = !device?.id || device?.centreId;
+  const { mutate: updateDevice, isPending: isUpdating } = useUpdateDevice();
+
+  function handleToggle(field: "pendingUpdate" | "pendingLookup", value: boolean) {
+    if (!device) return;
+    updateDevice(
+      { ...device, [field]: value },
+      {
+        onSuccess: (response) => {
+          if (response.success) toast.success(response.message);
+        },
+        onError: (error) => toast.error(error.message),
+      }
+    );
+  }
   return (
     <DashboardBodyWrapper
       pageTitle={`Device Information`}
@@ -170,6 +187,32 @@ export default function DevicePage() {
               </div>
             </div>
             <div className="flex flex-col gap-2">
+              <Label className="text-neutral-500">Pending Update</Label>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={device.pendingUpdate ?? false}
+                  onCheckedChange={(val) => handleToggle("pendingUpdate", val)}
+                  disabled={isUpdating}
+                />
+                <span className="text-sm text-neutral-500">
+                  {device.pendingUpdate ? "Yes" : "No"}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label className="text-neutral-500">Pending Lookup</Label>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={device.pendingLookup ?? false}
+                  onCheckedChange={(val) => handleToggle("pendingLookup", val)}
+                  disabled={isUpdating}
+                />
+                <span className="text-sm text-neutral-500">
+                  {device.pendingLookup ? "Yes" : "No"}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
               <Label className="text-neutral-500">Created At</Label>
               <div className="flex items-center gap-2 text-base text-neutral-800">
                 <Calendar className="w-4 h-4 text-neutral-300" />
@@ -191,7 +234,29 @@ export default function DevicePage() {
                 )}
               </div>
             </div>
+            <div className="flex flex-col gap-2">
+              <Label className="text-neutral-500">Last Seen At</Label>
+              <div className="flex items-center gap-2 text-base text-neutral-800">
+                <Radio className="w-4 h-4 text-neutral-300" />
+                {device.lastSeenAt ? (
+                  new Date(device.lastSeenAt).toLocaleString()
+                ) : (
+                  <span className="text-neutral-300">—</span>
+                )}
+              </div>
+            </div>
           </div>
+          {device.lastReportedState && (
+            <>
+              <Separator />
+              <div className="flex flex-col gap-2">
+                <Label className="text-neutral-500">Last Reported State</Label>
+                <pre className="bg-neutral-50 border border-neutral-100 rounded-lg p-4 text-xs text-neutral-700 overflow-x-auto whitespace-pre-wrap break-all">
+                  {JSON.stringify(device.lastReportedState, null, 2)}
+                </pre>
+              </div>
+            </>
+          )}
           <Separator />
           <div className="flex flex-col gap-2">
             <Label className="text-neutral-500">Assigned Centre</Label>

@@ -9,6 +9,8 @@ import {
 interface ConsultationEmptyStateProps {
   type?: "active" | "all";
   hasFilters?: boolean;
+  /** Missed / reconnected / failed tabs on Session History — adjusts titles and hints */
+  sessionTypeFilter?: "all" | "missed" | "reconnected" | "failed";
   onClearFilters?: () => void;
   /** When total > 0 but current page has no results (e.g. audiologist filter) */
   noResultsOnPage?: boolean;
@@ -18,15 +20,43 @@ interface ConsultationEmptyStateProps {
   hasMoreToLoad?: boolean;
 }
 
+const sessionTypeLabels: Record<
+  Exclude<NonNullable<ConsultationEmptyStateProps["sessionTypeFilter"]>, "all">,
+  { titleNoFilters: string; titleWithFilters: string; hint: string }
+> = {
+  missed: {
+    titleNoFilters: "No Missed Calls Yet",
+    titleWithFilters: "No Missed Calls Found",
+    hint: "Missed calls are sessions cancelled by the patient before connect. Try clearing filters or switching to “All”.",
+  },
+  reconnected: {
+    titleNoFilters: "No Reconnected Calls Yet",
+    titleWithFilters: "No Reconnected Calls Found",
+    hint: "Reconnected calls appear when a patient reconnects after a missed attempt. Adjust filters or use “All” to browse every session.",
+  },
+  failed: {
+    titleNoFilters: "No Failed Calls Yet",
+    titleWithFilters: "No Failed Calls Found",
+    hint: "Failed calls are sessions that failed for technical reasons. Try clearing filters or switch to “All”.",
+  },
+};
+
 export function ConsultationEmptyState({ 
   type = "all",
   hasFilters = false,
+  sessionTypeFilter = "all",
   onClearFilters,
   noResultsOnPage = false,
   infiniteScroll = false,
   hasMoreToLoad = true,
 }: ConsultationEmptyStateProps) {
   const isActive = type === "active";
+  const sessionCopy =
+    sessionTypeFilter && sessionTypeFilter !== "all"
+      ? sessionTypeLabels[sessionTypeFilter]
+      : null;
+  const sessionTitle =
+    sessionCopy && (hasFilters ? sessionCopy.titleWithFilters : sessionCopy.titleNoFilters);
 
   return (
     <Card className="p-12 bg-gradient-to-br from-primary-50/50 via-white to-primary-50/30 dark:from-primary-950/20 dark:via-gray-800 dark:to-primary-950/10 border-2 border-dashed border-primary-200 dark:border-primary-800 rounded-2xl">
@@ -50,9 +80,11 @@ export function ConsultationEmptyState({
               ? "No Active Consultations" 
               : noResultsOnPage
                 ? "No Consultations on This Page"
-                : hasFilters 
-                  ? "No Consultations Found"
-                  : "No Consultations Yet"}
+                : sessionTitle
+                  ? sessionTitle
+                  : hasFilters 
+                    ? "No Consultations Found"
+                    : "No Consultations Yet"}
           </h3>
           
           <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
@@ -74,7 +106,9 @@ export function ConsultationEmptyState({
               </>
             ) : hasFilters ? (
               <>
-                No consultations match your current filters. Try adjusting your date range or audiologist, or clear the filters to see all consultations.
+                {sessionCopy
+                  ? `${sessionCopy.hint} You can also adjust your date range, search, audiologist, or clear filters.`
+                  : "No consultations match your current filters. Try adjusting your date range or audiologist, or clear the filters to see all consultations."}
               </>
             ) : (
               <>

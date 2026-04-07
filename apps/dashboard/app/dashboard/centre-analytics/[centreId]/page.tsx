@@ -62,7 +62,11 @@ export default function CentreDetailPage() {
   const {
     data: consultations,
     isLoading: consultationsLoading,
-  } = useGetAllConsultations();
+  } = useGetAllConsultations({
+    startDate: format(subDays(new Date(), 90), "yyyy-MM-dd"),
+    endDate: format(new Date(), "yyyy-MM-dd"),
+    staleTime: 60_000,
+  });
 
   const {
     data: centre,

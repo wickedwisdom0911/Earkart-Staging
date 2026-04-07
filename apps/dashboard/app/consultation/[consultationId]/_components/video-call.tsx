@@ -397,7 +397,7 @@ const VideoCallContent: React.FC<VideoCallProps> = ({
       setShowAudiologistEndModal(false);
       await endConsultation({
         isDemoCall: isDemoCall || undefined,
-        sessionStatus: failConsultation ? "FAILED" : undefined,
+        status: failConsultation ? "FAILED" : undefined,
       });
     } catch (err) {
       setError((err as Error).message);

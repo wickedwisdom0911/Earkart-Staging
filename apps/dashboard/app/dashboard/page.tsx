@@ -14,6 +14,7 @@ import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import { extractConsultations } from "@/models/consultation.model";
 import { normalizePlaybackUrl } from "@/lib/url-utils";
+import { extractConsultationIdFromSocketPayload } from "@/lib/extract-consultation-id";
 import {
   User,
   Building2,
@@ -33,6 +34,15 @@ import { ConsultationGridSkeleton } from "@/components/ui/consultation-skeleton"
 import { ConsultationEmptyState } from "@/components/ui/consultation-empty-state";
 
 // Removed RecordingLink component – we will use consultation.recordings provided by API
+
+/** Exclude CANCELLED_BY_PATIENT — those are shown in missed calls, not active dashboard */
+function isCancelledByPatient(c: ConsultationModelData): boolean {
+  return c.status === "CANCELLED_BY_PATIENT" || (c as { patientStatus?: string }).patientStatus === "CANCELLED_BY_PATIENT";
+}
+
+function isJoinableConsultation(c: ConsultationModelData): boolean {
+  return (c.status === SessionStatus.PENDING || c.status === SessionStatus.IN_PROGRESS) && !isCancelledByPatient(c);
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -62,12 +72,10 @@ export default function DashboardPage() {
     if (consultations?.data) {
       const consultationsArray = extractConsultations(consultations.data);
       
-      // Filter to show only active consultations (exclude completed and cancelled)
-      const activeConsultations = consultationsArray.filter(
-        (c) => c.status !== SessionStatus.COMPLETED && c.status !== SessionStatus.CANCELLED
-      );
+      // Only show joinable consultations (PENDING or IN_PROGRESS). Exclude CANCELLED_BY_PATIENT — those are in missed calls.
+      const joinableConsultations = consultationsArray.filter(isJoinableConsultation);
       
-      setAllConsulations(activeConsultations);
+      setAllConsulations(joinableConsultations);
       
       // Notify PatientAlertProvider about consultations that need attention.
       // The alert provider's notifiedConsultations dedup set prevents duplicates AND
@@ -76,12 +84,10 @@ export default function DashboardPage() {
       // and causes resolved alerts to be re-created.
       if (user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST) {
         consultationsArray.forEach((consultation: ConsultationModelData) => {
-          const needsAttention = 
+          const needsAttention =
+            consultation.status === SessionStatus.PENDING &&
             (!consultation.audiologist) &&
-            (!(consultation as any).audiologistId) &&
-            consultation.status !== SessionStatus.IN_PROGRESS &&
-            consultation.status !== SessionStatus.COMPLETED &&
-            consultation.status !== SessionStatus.CANCELLED;
+            (!(consultation as any).audiologistId);
           
           if (needsAttention) {
             window.dispatchEvent(new CustomEvent('consultationNeedsAttention', {
@@ -102,7 +108,8 @@ export default function DashboardPage() {
     // });
     const onNewConsultation = (data: ConsultationModelData) => {
       setAllConsulations((prev) => {
-        // Only add if not already present
+        // Only add joinable consultations (PENDING or IN_PROGRESS). Exclude CANCELLED_BY_PATIENT — those are in missed calls.
+        if (!isJoinableConsultation(data)) return prev;
         if (prev.some((c) => c.id === data.id)) return prev;
         return [data, ...prev];
       });
@@ -110,10 +117,10 @@ export default function DashboardPage() {
       // If audiologist and consultation needs attention, toast + blink
       const isAudiologistUser = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
       if (isAudiologistUser) {
-        const needsAttention = (!data.audiologist)
-          && data.status !== SessionStatus.IN_PROGRESS
-          && data.status !== SessionStatus.COMPLETED
-          && data.status !== SessionStatus.CANCELLED;
+        const needsAttention =
+          data.status === SessionStatus.PENDING &&
+          (!data.audiologist) &&
+          (!(data as any).audiologistId);
         if (needsAttention) {
           const patientName = data.patient?.name || "New patient";
           toast.info(`New consultation: ${patientName}`);
@@ -129,55 +136,70 @@ export default function DashboardPage() {
     const onConsultationUpdate = (data: ConsultationModelData) => {
       console.log("Consultation updated:", data);
       setAllConsulations((prev) => {
-        return prev.map((consultation) => 
+        const updated = prev.map((consultation) => 
           consultation.id === data.id ? data : consultation
         );
+        // Remove consultations that are no longer joinable (exclude CANCELLED_BY_PATIENT)
+        return updated.filter(isJoinableConsultation);
       });
     };
 
     // Handle when another audiologist joins a consultation
     const handleAudiologistJoinedConsultation = (data: ConsultationModelData | { consultation: ConsultationModelData }) => {
       console.log("📢 Another audiologist joined consultation:", data);
-      
-      // Handle both event formats: direct consultation object or nested in consultation property
-      const consultation = (data as any).consultation || data as ConsultationModelData;
-      
-      if (!consultation?.id) {
+
+      const resolvedId =
+        extractConsultationIdFromSocketPayload(data) ?? (data as { consultation?: ConsultationModelData }).consultation?.id;
+
+      if (!resolvedId) {
         console.warn("Invalid consultation data in audiologist_joined_consultation event");
         return;
       }
 
-      // Update consultation in state
+      // Stop alert + sound immediately (even when payload is only { consultationId } — was missing before)
+      window.dispatchEvent(
+        new CustomEvent("resolveConsultationAlert", { detail: { consultationId: resolvedId } })
+      );
+      window.dispatchEvent(new CustomEvent("stopContinuousSound"));
+
+      const consultation =
+        (data as { consultation?: ConsultationModelData }).consultation ??
+        ((data as ConsultationModelData).id === resolvedId ? (data as ConsultationModelData) : null);
+
+      if (!consultation?.id) {
+        return;
+      }
+
+      // Update consultation in state (only keep joinable)
       setAllConsulations((prev) => {
-        const updated = prev.map((c) => 
-          c.id === consultation.id ? consultation : c
-        );
-        
-        // If consultation not in list, add it (shouldn't happen but handle edge case)
-        if (!prev.some(c => c.id === consultation.id)) {
-          return [consultation, ...updated];
+        const updated = prev.map((c) => (c.id === consultation.id ? consultation : c));
+
+        // If consultation not in list and is joinable, add it (exclude CANCELLED_BY_PATIENT)
+        if (!prev.some((c) => c.id === consultation.id)) {
+          if (isJoinableConsultation(consultation)) return [consultation, ...updated];
         }
-        
-        return updated;
+
+        // Remove any that are no longer joinable
+        return updated.filter(isJoinableConsultation);
       });
 
       // Remove from blinking IDs if it was blinking
       setBlinkingIds((prev) => prev.filter((id) => id !== consultation.id));
 
       // Show notification if this consultation was available and now taken by someone else
-      const isAudiologistUser = user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
+      const isAudiologistUser =
+        user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
       if (isAudiologistUser && consultation.audiologist?.userId !== user?.id) {
         const patientName = consultation.patient?.name || "Unknown Patient";
         const audiologistName = consultation.audiologist?.user?.name || "Another audiologist";
-        toast.info(`Consultation #${consultation.id.substring(0, 8)}... has been taken by ${audiologistName}`, {
-          description: `Patient: ${patientName}`,
-          duration: 5000,
-        });
+        toast.info(
+          `Consultation #${consultation.id.substring(0, 8)}... has been taken by ${audiologistName}`,
+          {
+            description: `Patient: ${patientName}`,
+            duration: 5000,
+          }
+        );
       }
-
-      // Resolve the alert for this consultation (stops sound if it was the last alert)
-      window.dispatchEvent(new CustomEvent('resolveConsultationAlert', { detail: { consultationId: consultation.id } }));
-      window.dispatchEvent(new CustomEvent('stopContinuousSound'));
     };
 
     // NEW: Listen for connect/disconnect

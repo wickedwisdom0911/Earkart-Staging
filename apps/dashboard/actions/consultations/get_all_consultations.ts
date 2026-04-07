@@ -29,10 +29,11 @@ export default async function getAllConsultations(
     const user = await verifySession();
     if (!user?.token) throw new Error("Unauthorized");
 
-    // Pagination parameters
-    const limit = params?.limit ?? 100; // Fetch 100 consultations per page
+    const limit = params?.limit ?? 100;
     let offset = params?.offset ?? 0;
-    const maxRecords = params?.maxRecords; // When set, stop after reaching this count
+    const maxRecords = params?.maxRecords;
+    const MAX_PAGES = 50; // Hard cap: never fetch more than 5000 records in one call
+    let pagesFetched = 0;
     let hasMore = true;
     const allConsultations: ConsultationModelData[] = [];
 
@@ -44,8 +45,8 @@ export default async function getAllConsultations(
     if (params?.startDate) urlParams.set("startDate", toApiStartDate(params.startDate));
     if (params?.endDate) urlParams.set("endDate", toApiEndDate(params.endDate));
 
-    // Fetch pages (stop early if maxRecords reached)
-    while (hasMore && (!maxRecords || allConsultations.length < maxRecords)) {
+    while (hasMore && pagesFetched < MAX_PAGES && (!maxRecords || allConsultations.length < maxRecords)) {
+      pagesFetched++;
       urlParams.set("offset", String(offset));
       const url = `${baseUrl}consultation/get-all?${urlParams.toString()}`;
 
@@ -87,17 +88,12 @@ export default async function getAllConsultations(
             if (hasMore) {
               offset += limit;
             }
-          } else {
-            console.warn("🔴 [getAllConsultations] Unexpected paginated data structure:", response.data);
-            hasMore = false;
+        } else {
+          hasMore = false;
           }
         } else if (response.data === null) {
-          // Null response
-          console.log("🔵 [getAllConsultations] No consultations found");
           hasMore = false;
         } else {
-          // Single consultation object (unlikely but handle it)
-          console.log("🔵 [getAllConsultations] Single consultation object received");
           allConsultations.push(response.data as ConsultationModelData);
           hasMore = false;
         }

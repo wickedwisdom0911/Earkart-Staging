@@ -10,6 +10,7 @@ import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
 import { extractConsultations } from "@/models/consultation.model";
 import useGetAllCentres from "@/hooks/centre/use-get-all-centres";
+import { useCentreDashboard } from "@/hooks/analytics/use-centre-dashboard";
 import {
   CheckCircle2,
   Building2,
@@ -112,12 +113,101 @@ function CentreRow({
     toneDecay: data.toneDecayCount,
   };
 
+  const metricItems = [
+    { label: "Total", value: s.total, color: "#3b82f6" },
+    { label: "Completed", value: s.completed, color: "#22c55e" },
+    { label: "Pending", value: s.pending, color: "#f97316" },
+    { label: "PTA", value: s.pta, color: "#f97316" },
+    { label: "Tympano", value: s.tympano, color: "#06b6d4" },
+    { label: "OAE", value: s.oae, color: "#ec4899" },
+    { label: "ETF", value: s.etf, color: "#6366f1" },
+    { label: "Tone Decay", value: s.toneDecay, color: "#a855f7" },
+  ];
+
   return (
     <div className="rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm">
+      {/* Tablet / phone: stacked layout, no horizontal scroll */}
       <div
-        className="grid items-center gap-2 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50"
+        className="xl:hidden px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50"
         style={{
-          gridTemplateColumns: "32px 1fr 1fr 1fr 1fr 1fr 80px 36px",
+          background: expanded ? "#fafafa" : "#fff",
+          borderBottom: expanded ? "1px solid #f3f4f6" : "none",
+        }}
+        onClick={() => onView(data.centreId)}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex gap-2 min-w-0 flex-1">
+            <button
+              type="button"
+              className="text-gray-400 hover:text-gray-600 shrink-0 p-0.5 bg-transparent border-0 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(!expanded);
+              }}
+              aria-expanded={expanded}
+            >
+              {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+            <div className="min-w-0">
+              <div className="text-[10px] text-gray-400 mb-0.5">Centre Name</div>
+              <div className="text-sm font-semibold text-gray-900 truncate">{data.name}</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="flex shrink-0 items-center justify-center p-1.5 rounded-md border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onView(data.centreId);
+            }}
+          >
+            <Eye size={14} className="text-gray-500" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3 pl-8 text-sm">
+          <div>
+            <div className="text-[10px] text-gray-400 mb-0.5">Location</div>
+            <div className="text-gray-700 truncate">{data.location}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-gray-400 mb-0.5">Contact</div>
+            <div className="text-gray-700">{data.contactNumber}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-gray-400 mb-0.5">ENT Name</div>
+            <div className="text-gray-700 truncate">{data.entName}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-gray-400 mb-0.5">Assistant</div>
+            <div className="text-gray-700 truncate">{data.assistantName}</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-gray-400 mb-0.5">Our Assistant</div>
+            <span
+              className={`inline-flex items-center rounded-md px-2.5 py-1 text-[11px] font-semibold ${
+                data.isOurAssistant === "Yes" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {data.isOurAssistant}
+            </span>
+          </div>
+        </div>
+        {expanded && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-gray-100">
+            {metricItems.map(({ label, value, color }) => (
+              <div key={label}>
+                <div className="text-[10px] text-gray-400 mb-1">{label}</div>
+                <div className="text-[15px] font-bold" style={{ color }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop (xl+): original wide table row */}
+      <div
+        className="hidden xl:grid xl:grid-cols-[32px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_80px_36px] xl:items-center xl:gap-2 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50"
+        style={{
           background: expanded ? "#fafafa" : "#fff",
           borderBottom: expanded ? "1px solid #f3f4f6" : "none",
         }}
@@ -175,21 +265,12 @@ function CentreRow({
       </div>
       {expanded && (
         <div
-          className="grid items-center gap-2 px-4 py-2.5 bg-white"
+          className="hidden xl:grid items-center gap-2 px-4 py-2.5 bg-white"
           style={{ gridTemplateColumns: "32px repeat(8, 1fr)" }}
         >
           <div />
-          {[
-            { label: "Total", value: s.total, color: "#3b82f6" },
-            { label: "Completed", value: s.completed, color: "#22c55e" },
-            { label: "Pending", value: s.pending, color: "#f97316" },
-            { label: "PTA", value: s.pta, color: "#f97316" },
-            { label: "Tympano", value: s.tympano, color: "#06b6d4" },
-            { label: "OAE", value: s.oae, color: "#ec4899" },
-            { label: "ETF", value: s.etf, color: "#6366f1" },
-            { label: "Tone Decay", value: s.toneDecay, color: "#a855f7" },
-          ].map(({ label, value, color }) => (
-            <div key={label}>
+          {metricItems.map(({ label, value, color }) => (
+            <div key={`xl-${label}`}>
               <div className="text-[10px] text-gray-400 mb-1">{label}</div>
               <div className="text-[15px] font-bold" style={{ color }}>{value}</div>
             </div>
@@ -204,37 +285,57 @@ export default function CentreAnalyticsPage() {
   const router = useRouter();
   const { data: user } = useGetUser();
 
+  // Default to last 90 days; user can narrow via the date picker
+  const [fromDate, setFromDate] = useState<Date | null>(subDays(new Date(), 90));
+  const [toDate, setToDate] = useState<Date | null>(new Date());
+
   const {
     data: consultations,
     isLoading: consultationsLoading,
     isError,
     error,
   } = useGetAllConsultations({
-    staleTime: 60_000, // Cache for 1 min - avoid refetch on every visit
+    staleTime: 60_000,
+    startDate: fromDate ? format(fromDate, "yyyy-MM-dd") : format(subDays(new Date(), 90), "yyyy-MM-dd"),
+    endDate: toDate ? format(toDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
   });
   const { data: centres, isLoading: centresLoading } = useGetAllCentres();
+
+  // Centre dashboard API - returns pre-aggregated PTA/Tympano/OAE counts per centre
+  const { data: centreDashboard } = useCentreDashboard({
+    startDate: fromDate ? format(fromDate, "yyyy-MM-dd") : undefined,
+    endDate: toDate ? format(toDate, "yyyy-MM-dd") : undefined,
+  });
 
   // Progressive loading: show UI when centres are ready, don't block on consultations
   const isLoading = centresLoading;
 
-  // Role checks - only admin and super_admin can access
+  // Role check - only admin and super_admin can access (checked after all hooks)
   const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
 
-  // Redirect if not admin
-  if (!isAdmin && user) {
-    router.push("/dashboard");
-    return null;
-  }
-
-  // Date range filter state
-  const [fromDate, setFromDate] = useState<Date | null>(null);
-  const [toDate, setToDate] = useState<Date | null>(null);
   const today = new Date();
   const yesterday = subDays(today, 1);
 
   // Preset filter label
   const [activeFilter, setActiveFilter] = useState<string>("All Time");
   const filters = ["Today", "Yesterday", "Last 7 Days", "Last 30 Days"];
+
+  const applyDatePreset = (preset: string) => {
+    setActiveFilter(preset);
+    if (preset === "Today") {
+      setFromDate(today);
+      setToDate(today);
+    } else if (preset === "Yesterday") {
+      setFromDate(yesterday);
+      setToDate(yesterday);
+    } else if (preset === "Last 7 Days") {
+      setFromDate(subDays(today, 7));
+      setToDate(today);
+    } else if (preset === "Last 30 Days") {
+      setFromDate(subDays(today, 30));
+      setToDate(today);
+    }
+  };
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -248,8 +349,8 @@ export default function CentreAnalyticsPage() {
   // Only show consultations that have a centre assigned
   const filteredConsultations = useMemo(() => {
     if (!consultations?.data) return [];
-
-    return consultations.data.filter((c) => {
+    const arr = extractConsultations(consultations.data);
+    return arr.filter((c) => {
       // Only show consultations with centre assigned
       if (!c.centre || !c.centre.id) return false;
       if (!c.createdAt) return false;
@@ -302,6 +403,23 @@ export default function CentreAnalyticsPage() {
     return map;
   }, [consultations]);
 
+  // Map of centreId -> test counts from centre-dashboard API (used when consultations lack nested test data)
+  const centreDashboardMap = useMemo(() => {
+    const dash = centreDashboard as { centres?: Array<{ centreId: string; ptaCount?: number; tympanometryCount?: number; oaeCount?: number; etfCount?: number; toneDecayCount?: number }> } | undefined;
+    if (!dash?.centres?.length) return new Map<string, { ptaCount: number; tympanometryCount: number; oaeCount: number; etfCount: number; toneDecayCount: number }>();
+    const map = new Map();
+    dash.centres.forEach((c) => {
+      map.set(c.centreId, {
+        ptaCount: c.ptaCount ?? 0,
+        tympanometryCount: c.tympanometryCount ?? 0,
+        oaeCount: c.oaeCount ?? 0,
+        etfCount: c.etfCount ?? 0,
+        toneDecayCount: c.toneDecayCount ?? 0,
+      });
+    });
+    return map;
+  }, [centreDashboard]);
+
   // Get comprehensive centre stats with test counts
   const allCentreTableData = useMemo(() => {
     if (!centres?.data?.data || !Array.isArray(centres.data.data)) return [];
@@ -334,27 +452,31 @@ export default function CentreAnalyticsPage() {
         (c) => c.status === SessionStatus.CANCELLED
       ).length;
 
-      // Count tests - check if test exists and has data (for date range filtered consultations)
-      const ptaCount = filteredConsultationsForCentre.filter(
+      // Count tests from consultations (often 0 if API doesn't include nested test data)
+      const ptaFromConsultations = filteredConsultationsForCentre.filter(
         (c) => c.audiometry && (c.audiometry.status === TestStatus.COMPLETED || c.audiometry.status === TestStatus.IN_PROGRESS)
       ).length;
-      
-      const tympanometryCount = filteredConsultationsForCentre.filter(
+      const tympanometryFromConsultations = filteredConsultationsForCentre.filter(
         (c) => c.tympanometry && (c.tympanometry.status === TestStatus.COMPLETED || c.tympanometry.status === TestStatus.IN_PROGRESS)
       ).length;
-      
-      const oaeCount = filteredConsultationsForCentre.filter(
+      const oaeFromConsultations = filteredConsultationsForCentre.filter(
         (c) => c.oae && (c.oae.status === TestStatus.COMPLETED || c.oae.status === TestStatus.IN_PROGRESS)
       ).length;
-      
-      const etfCount = filteredConsultationsForCentre.filter(
+      const etfFromConsultations = filteredConsultationsForCentre.filter(
         (c) => c.etfIntact && c.etfIntact !== null
       ).length;
-      
-      const toneDecayCount = filteredConsultationsForCentre.filter(
+      const toneDecayFromConsultations = filteredConsultationsForCentre.filter(
         (c) => c.toneDecay && (c.toneDecay.status === TestStatus.COMPLETED || c.toneDecay.status === TestStatus.IN_PROGRESS)
       ).length;
-      
+
+      // Prefer centre-dashboard API counts when available (backend aggregates correctly)
+      const dashCounts = centreDashboardMap.get(centreId);
+      const ptaCount = (dashCounts?.ptaCount ?? ptaFromConsultations);
+      const tympanometryCount = (dashCounts?.tympanometryCount ?? tympanometryFromConsultations);
+      const oaeCount = (dashCounts?.oaeCount ?? oaeFromConsultations);
+      const etfCount = (dashCounts?.etfCount ?? etfFromConsultations);
+      const toneDecayCount = (dashCounts?.toneDecayCount ?? toneDecayFromConsultations);
+
       const reflexometryCount = filteredConsultationsForCentre.filter(
         (c) => c.reflexometry !== null && c.reflexometry !== undefined
       ).length;
@@ -393,13 +515,14 @@ export default function CentreAnalyticsPage() {
         allConsultations: allCentreConsultations,
       };
     });
-  }, [centres, filteredConsultations, consultationsByCentre]);
+  }, [centres, filteredConsultations, consultationsByCentre, centreDashboardMap]);
   
   // Search filter for centres
   const searchFilteredData = useMemo(() => {
-    if (!searchQuery.trim()) return allCentreTableData;
+    const data = allCentreTableData ?? [];
+    if (!searchQuery.trim()) return data;
     const q = searchQuery.toLowerCase().trim();
-    return allCentreTableData.filter(
+    return data.filter(
       (d) =>
         d.name.toLowerCase().includes(q) ||
         d.location.toLowerCase().includes(q) ||
@@ -446,6 +569,32 @@ export default function CentreAnalyticsPage() {
       totalETF,
     };
   }, [allCentreTableData]);
+
+  // Console the displayed PTA/Tympano/OAE/ETF/ToneDecay data for debugging
+  useEffect(() => {
+    if (allCentreTableData.length === 0) return;
+    const sample = allCentreTableData.slice(0, 5).map((d) => ({
+      name: d.name,
+      centreId: d.centreId,
+      pta: d.ptaCount,
+      tympano: d.tympanometryCount,
+      oae: d.oaeCount,
+      etf: d.etfCount,
+      toneDecay: d.toneDecayCount,
+    }));
+    console.log("[CentreAnalytics] Displayed PTA/Tympano/OAE/ETF/ToneDecay per centre (sample):", sample);
+    console.log("[CentreAnalytics] Summary totals:", {
+      totalPTA: summaryStats.totalPTA,
+      totalTympanometry: summaryStats.totalTympanometry,
+      totalOAE: summaryStats.totalOAE,
+    });
+  }, [allCentreTableData, summaryStats]);
+
+  // Redirect non-admin after all hooks (Rules of Hooks: no early return before hooks)
+  if (!isAdmin && user) {
+    router.push("/dashboard");
+    return null;
+  }
 
   // Build export data for a given date range
   const buildExportData = (exportFrom: Date | null, exportTo: Date | null) => {
@@ -534,6 +683,12 @@ export default function CentreAnalyticsPage() {
     router.push(path);
   };
 
+  // Redirect non-admins (after all hooks to satisfy rules of hooks)
+  if (!isAdmin && user) {
+    router.push("/dashboard");
+    return null;
+  }
+
   if (isLoading) {
     return (
       <DashboardBodyWrapper className="!bg-[#EEF4F9] !gap-0 !p-0 !border-0 !rounded-none">
@@ -570,23 +725,6 @@ export default function CentreAnalyticsPage() {
     return "All Time";
   };
 
-  const applyDatePreset = (preset: string) => {
-    setActiveFilter(preset);
-    if (preset === "Today") {
-      setFromDate(today);
-      setToDate(today);
-    } else if (preset === "Yesterday") {
-      setFromDate(yesterday);
-      setToDate(yesterday);
-    } else if (preset === "Last 7 Days") {
-      setFromDate(subDays(today, 7));
-      setToDate(today);
-    } else if (preset === "Last 30 Days") {
-      setFromDate(subDays(today, 30));
-      setToDate(today);
-    }
-  };
-
   return (
     <DashboardBodyWrapper className="!bg-[#EEF4F9] !gap-0 !p-0 !border-0 !rounded-none">
       <div className="min-h-screen w-full h-full bg-[#EEF4F9] p-6 font-['DM_Sans',_'Segoe_UI',_sans-serif]">
@@ -600,7 +738,7 @@ export default function CentreAnalyticsPage() {
           </p>
         </div>
 
-        <div className="flex gap-2.5 mb-5 flex-wrap">
+        <div className="mb-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
           <StatCard label="Total Centres" value={summaryStats.totalCentres} icon={Building2} color="blue" />
           <StatCard label="Active" value={summaryStats.activeCentres} icon={Phone} color="green" />
           <StatCard label="Total" value={summaryStats.totalConsultations} icon={FileText} color="blue" />
@@ -628,7 +766,7 @@ export default function CentreAnalyticsPage() {
                 type="button"
                 onClick={() => applyDatePreset(f)}
                 className={`px-3 py-1.5 rounded-md border-none cursor-pointer text-xs font-medium transition-all ${
-                  activeFilter === f ? "bg-blue-600 text-white" : "bg-transparent text-gray-500 hover:text-gray-700"
+                  activeFilter === f ? "bg-blue-600 text-white" : "bg-transparent text-gray-500 hover:bg-gray-700"
                 }`}
               >
                 {f}
@@ -642,45 +780,86 @@ export default function CentreAnalyticsPage() {
                 setToDate(null);
               }}
               className={`px-3 py-1.5 rounded-md border-none cursor-pointer text-xs font-medium transition-all ${
-                activeFilter === "All Time" ? "bg-blue-600 text-white" : "bg-transparent text-gray-500 hover:text-gray-700"
+                activeFilter === "All Time" ? "bg-blue-600 text-white" : "bg-transparent text-gray-500 hover:bg-gray-700"
               }`}
             >
               All Time
             </button>
+            <div className="flex items-center gap-2" style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px", background: "#f9fafb" }}>
+              <CalendarIcon size={14} color="#9ca3af" />
+              <input
+                type="date"
+                value={fromDate ? format(fromDate, "yyyy-MM-dd") : ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                setActiveFilter("Custom");
+                setFromDate(v ? new Date(v + "T00:00:00") : null);
+                if (v && toDate && new Date(v) > toDate) setToDate(new Date(v + "T00:00:00"));
+              }}
+              max={toDate ? format(toDate, "yyyy-MM-dd") : undefined}
+              style={{ border: "none", outline: "none", background: "transparent", fontSize: 13, color: fromDate ? "#374151" : "#9ca3af", width: "100%", minWidth: 0 }}
+            />
+            <input
+              type="date"
+              value={toDate ? format(toDate, "yyyy-MM-dd") : ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                setActiveFilter("Custom");
+                if (val && fromDate) {
+                  const d = new Date(val + "T00:00:00");
+                  if (d < fromDate) {
+                    setToDate(fromDate);
+                    setFromDate(d);
+                  } else {
+                    setToDate(d);
+                  }
+                } else {
+                  setToDate(val ? new Date(val + "T00:00:00") : null);
+                }
+              }}
+              min={fromDate ? format(fromDate, "yyyy-MM-dd") : undefined}
+              style={{ border: "none", outline: "none", background: "transparent", fontSize: 13, color: toDate ? "#374151" : "#9ca3af", width: "100%", minWidth: 0 }}
+            />
+            {(fromDate || toDate) && (
+              <button type="button" onClick={() => { setFromDate(null); setToDate(null); }} className="text-xs font-medium text-gray-500 hover:text-gray-700">
+                Clear dates
+              </button>
+            )}
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2.5">
-          {centreTableData.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
-              <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 text-lg">No centres found</p>
-            </div>
-          ) : (
-            centreTableData.map((data) => (
-              <CentreRow
-                key={data.centreId}
-                data={{
-                  centreId: data.centreId,
-                  name: data.name,
-                  location: data.location,
-                  contactNumber: data.contactNumber,
-                  entName: data.entName,
-                  assistantName: data.assistantName,
-                  isOurAssistant: data.isOurAssistant,
-                  filteredConsultations: data.filteredConsultations,
-                  completed: data.completed,
-                  pending: data.pending,
-                  ptaCount: data.ptaCount,
-                  tympanometryCount: data.tympanometryCount,
-                  oaeCount: data.oaeCount,
-                  etfCount: data.etfCount,
-                  toneDecayCount: data.toneDecayCount,
-                }}
-                onView={handleViewCentre}
-              />
-            ))
-          )}
+        <div className="w-full flex flex-col gap-2.5 pb-1">
+            {centreTableData.length === 0 ? (
+              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
+                <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 text-lg">No centres found</p>
+              </div>
+            ) : (
+              centreTableData.map((data) => (
+                <CentreRow
+                  key={data.centreId}
+                  data={{
+                    centreId: data.centreId,
+                    name: data.name,
+                    location: data.location,
+                    contactNumber: data.contactNumber,
+                    entName: data.entName,
+                    assistantName: data.assistantName,
+                    isOurAssistant: data.isOurAssistant,
+                    filteredConsultations: data.filteredConsultations,
+                    completed: data.completed,
+                    pending: data.pending,
+                    ptaCount: data.ptaCount,
+                    tympanometryCount: data.tympanometryCount,
+                    oaeCount: data.oaeCount,
+                    etfCount: data.etfCount,
+                    toneDecayCount: data.toneDecayCount,
+                  }}
+                  onView={handleViewCentre}
+                />
+              ))
+            )}
         </div>
 
         {/* Pagination */}

@@ -1,6 +1,10 @@
 "use client";
 
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
+import {
+  dashboardSkySurfaceInnerClassName,
+  dashboardSkySurfaceWrapperClassName,
+} from "@/lib/dashboard-sky-surface";
 import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { Role } from "@/models/enums";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -12,6 +16,7 @@ import { useGetReconnectedCallsInfinite } from "@/hooks/consultation/use-get-rec
 import { useGetFailedCallsInfinite } from "@/hooks/consultation/use-get-failed-calls";
 import type { ConsultationModelData } from "@/models/consultation.model";
 import useGetAllAudiologists from "@/hooks/audiologist/use-get-all-audiologists";
+import useGetMyAudiologistProfileId from "@/hooks/audiologist/use-get-my-audiologist-profile-id";
 import {
   User,
   Filter,
@@ -19,7 +24,6 @@ import {
   FileSpreadsheet,
   Search,
   Calendar,
-  ChevronRight,
   Clock,
   Building2,
   CheckCircle2,
@@ -65,31 +69,36 @@ function NewUIConsultationCard({
   const isCancelledByPatient =
     consultation.status === "CANCELLED_BY_PATIENT" ||
     (consultation as { patientStatus?: string }).patientStatus === "CANCELLED_BY_PATIENT";
+  const isReconnected = !!(consultation as { reconnectedByConsultationId?: string }).reconnectedByConsultationId;
   const statusLabel =
-    consultation.status === "COMPLETED"
-      ? "Completed"
-      : consultation.status === "PENDING"
-        ? "Pending"
-        : consultation.status === "IN_PROGRESS"
-          ? "In Progress"
-          : consultation.status === "CANCELLED"
-            ? "Cancelled"
-            : consultation.status === "FAILED"
-              ? "Failed"
-              : isCancelledByPatient
-                ? "Cancelled by Patient"
-                : String(consultation.status ?? "N/A");
+    isReconnected
+      ? "Reconnected"
+      : consultation.status === "COMPLETED"
+        ? "Completed"
+        : consultation.status === "PENDING"
+          ? "Pending"
+          : consultation.status === "IN_PROGRESS"
+            ? "In Progress"
+            : consultation.status === "CANCELLED"
+              ? "Cancelled"
+              : consultation.status === "FAILED"
+                ? "Failed"
+                : isCancelledByPatient
+                  ? "Cancelled by Patient"
+                  : String(consultation.status ?? "N/A");
 
   const statusStyle =
-    consultation.status === "COMPLETED"
-      ? { bg: "rgba(76,202,84,0.1)", color: "#16a34a" }
-      : consultation.status === "PENDING"
-        ? { bg: "rgba(234,179,8,0.15)", color: "#ca8a04" }
-        : consultation.status === "IN_PROGRESS"
-          ? { bg: "rgba(59,130,246,0.1)", color: "#2563eb" }
-          : consultation.status === "CANCELLED" || consultation.status === "FAILED" || isCancelledByPatient
-            ? { bg: "rgba(239,68,68,0.1)", color: "#dc2626" }
-            : { bg: "rgba(76,202,84,0.1)", color: "#16a34a" };
+    isReconnected
+      ? { bg: "rgba(139,92,246,0.1)", color: "#7c3aed" }
+      : consultation.status === "COMPLETED"
+        ? { bg: "rgba(76,202,84,0.1)", color: "#16a34a" }
+        : consultation.status === "PENDING"
+          ? { bg: "rgba(234,179,8,0.15)", color: "#ca8a04" }
+          : consultation.status === "IN_PROGRESS"
+            ? { bg: "rgba(59,130,246,0.1)", color: "#2563eb" }
+            : consultation.status === "CANCELLED" || consultation.status === "FAILED" || isCancelledByPatient
+              ? { bg: "rgba(239,68,68,0.1)", color: "#dc2626" }
+              : { bg: "rgba(76,202,84,0.1)", color: "#16a34a" };
 
   return (
     <div
@@ -261,43 +270,47 @@ function AllConsultationsContent() {
 
   const isAudiologist =
     user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
-  const isHeadAudiologist = user?.role === Role.HEAD_AUDIOLOGIST;
-  const canFilterByAudiologist =
+
+  // Normal audiologists see only their own consultations; head/admin/super-admin see all.
+  const isNormalAudiologist = user?.role === Role.AUDIOLOGIST;
+  const canSeeAll =
     user?.role === Role.HEAD_AUDIOLOGIST ||
     user?.role === Role.ADMIN ||
     user?.role === Role.SUPER_ADMIN;
-  const isSimpleAudiologist = isAudiologist && !isHeadAudiologist;
 
-  // Only fetch audiologists list for admins/heads (dropdown). Simple audiologists get permission denied.
+  // Only fetch audiologists list for roles that have permission (head/admin/super-admin).
   const { data: audiologistsData } = useGetAllAudiologists({
-    enabled: canFilterByAudiologist,
+    enabled: canSeeAll,
   });
   const audiologists = audiologistsData?.data ?? [];
 
-  const audiologistFilterId = canFilterByAudiologist && selectedAudiologistId
-    ? selectedAudiologistId
-    : undefined;
+  // For normal audiologists: fetch their own audiologist profile ID.
+  // This uses /audiologist/get-audiologist-profile/:userId which is accessible to all roles.
+  const { data: myProfileId } = useGetMyAudiologistProfileId({
+    enabled: isNormalAudiologist,
+  });
+
+  // Admin / head audiologist: use the manually selected filter or URL param.
+  const audiologistFilterId =
+    canSeeAll && selectedAudiologistId ? selectedAudiologistId : undefined;
+
+  // Normal audiologist → pass their profile ID to the API (reduces data fetched).
+  // Everyone else → URL param → selected filter → undefined (show all).
+  const apiAudiologistId = isNormalAudiologist
+    ? (myProfileId ?? undefined)
+    : (urlAudiologistId ?? audiologistFilterId ?? undefined);
 
   const isMissedFilter = typeFilter === "missed";
   const isReconnectedFilter = typeFilter === "reconnected";
   const isFailedFilter = typeFilter === "failed";
   const isSpecialFilter = isMissedFilter || isReconnectedFilter || isFailedFilter;
 
-  // For simple audiologists: DON'T pass audiologistId. Backend should auto-filter by logged-in user (JWT).
-  // get-all-audiologists is permission-denied for them, so we cannot resolve profile id. Calling get-all without
-  // audiologistId relies on backend returning only their consultations when they're an audiologist.
-  const apiAudiologistId =
-    urlAudiologistId ?? audiologistFilterId ?? (isSimpleAudiologist ? undefined : undefined);
-
-  // Simple audiologists: no need to wait for profile id - we call get-all without audiologistId
-  const isReadyForSimpleAudiologist = true;
-
   const isDemoParam = showDemoCalls ? true : undefined;
 
   // Missed calls: use dedicated /consultation/missed-calls API (CANCELLED_BY_PATIENT, excludes RECONNECTED)
   const missedCallsQuery = useGetMissedCallsInfinite({
     limit: PAGE_SIZE,
-    enabled: isMissedFilter && isReadyForSimpleAudiologist,
+    enabled: isMissedFilter,
     audiologistId: isMissedFilter ? apiAudiologistId : undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
@@ -308,7 +321,7 @@ function AllConsultationsContent() {
   // Reconnected calls: use dedicated /consultation/reconnected-calls API
   const reconnectedCallsQuery = useGetReconnectedCallsInfinite({
     limit: PAGE_SIZE,
-    enabled: isReconnectedFilter && isReadyForSimpleAudiologist,
+    enabled: isReconnectedFilter,
     audiologistId: isReconnectedFilter ? apiAudiologistId : undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
@@ -319,7 +332,7 @@ function AllConsultationsContent() {
   // Failed calls: use dedicated /consultation/failed-calls API (status FAILED - technical issues)
   const failedCallsQuery = useGetFailedCallsInfinite({
     limit: PAGE_SIZE,
-    enabled: isFailedFilter && isReadyForSimpleAudiologist,
+    enabled: isFailedFilter,
     audiologistId: isFailedFilter ? apiAudiologistId : undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
@@ -335,7 +348,7 @@ function AllConsultationsContent() {
     search: debouncedSearchQuery || undefined,
     audiologistId: apiAudiologistId,
     isDemo: isDemoParam,
-    enabled: !isSpecialFilter && isReadyForSimpleAudiologist,
+    enabled: !isSpecialFilter,
   });
 
   const allConsultationsFromApi = isMissedFilter
@@ -355,12 +368,12 @@ function AllConsultationsContent() {
         : infiniteQuery.total ?? 0;
 
   const isLoading = isMissedFilter
-    ? missedCallsQuery.isLoading
+    ? missedCallsQuery.isPending
     : isReconnectedFilter
-      ? reconnectedCallsQuery.isLoading
+      ? reconnectedCallsQuery.isPending
       : isFailedFilter
-        ? failedCallsQuery.isLoading
-        : infiniteQuery.isLoading;
+        ? failedCallsQuery.isPending
+        : infiniteQuery.isPending;
   const isError = isMissedFilter
     ? missedCallsQuery.isError
     : isReconnectedFilter
@@ -447,7 +460,27 @@ function AllConsultationsContent() {
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, loadedCount, totalBeforeFilter]);
 
-  const consultations = filteredConsultations;
+  // Deduplicate
+  const deduped = filteredConsultations.filter(
+    (c, idx, arr) => arr.findIndex((x) => x.id === c.id) === idx
+  );
+
+  // For normal audiologists: client-side filter as a safety net.
+  // Matches by audiologistId (profile ID) — most reliable field.
+  // Falls back to audiologist.userId / audiologist.user.id (user ID) if profile ID unavailable.
+  const consultations = isNormalAudiologist
+    ? deduped.filter((c) => {
+        // Primary: consultation.audiologistId === their profile ID
+        if (myProfileId && c.audiologistId) {
+          return c.audiologistId === myProfileId;
+        }
+        // Fallback: match by user ID on the nested audiologist object
+        return (
+          (c.audiologist as any)?.userId === user?.id ||
+          c.audiologist?.user?.id === user?.id
+        );
+      })
+    : deduped;
   const total = totalBeforeFilter;
 
   const scrollToId = searchParams.get("scrollTo");
@@ -465,47 +498,27 @@ function AllConsultationsContent() {
   }, [scrollToId, consultations, router]);
 
   return (
-    <DashboardBodyWrapper className="!bg-[#f0f4f8] !px-0">
+    <DashboardBodyWrapper
+      bleedContent
+      className={dashboardSkySurfaceWrapperClassName()}
+    >
       <div
+        className={dashboardSkySurfaceInnerClassName()}
         style={{
-          minHeight: "100%",
-          background: "#f0f4f8",
           fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-          padding: "24px 24px",
-          width: "100%",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 13,
-            color: "#6b7280",
-            marginBottom: 20,
-          }}
-        >
-          <span style={{ color: "#374151" }}>Dashboard</span>
-          <ChevronRight size={14} color="#9ca3af" />
-          <span style={{ color: "#40A3DB", fontWeight: 500 }}>All Consultants</span>
-        </div>
-
+        {/* Breadcrumb lives in the global dashboard header only */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1 style={{ fontSize: 26, fontWeight: 700, color: "#111827", margin: 0 }}>
-              {mounted && isAudiologist ? "My Session History" : "Session History"}
+              {mounted && isNormalAudiologist ? "My Session History" : "Session History"}
             </h1>
             <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-              {mounted && isAudiologist
-                ? "Browse and filter your past consultation records"
+              {mounted && isNormalAudiologist
+                ? "Browse and filter your own consultation records"
                 : "Browse and filter all consultation records"}
             </p>
-            {mounted && isAudiologist && !isHeadAudiologist && (
-              <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 12px", background: "rgba(64,163,219,0.1)", borderRadius: 9999, fontSize: 13, color: "#40A3DB" }}>
-                <User size={14} />
-                <span>Showing only your consultations</span>
-              </div>
-            )}
           </div>
           {consultations.length > 0 && (
             <Button
@@ -632,7 +645,7 @@ function AllConsultationsContent() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: (mounted && canFilterByAudiologist) ? "1fr 1fr 1fr 1fr" : "1fr 1fr 1fr",
+              gridTemplateColumns: (mounted && canSeeAll) ? "1fr 1fr 1fr 1fr" : "1fr 1fr 1fr",
               gap: 12,
             }}
           >
@@ -734,7 +747,7 @@ function AllConsultationsContent() {
               />
             </div>
 
-            {mounted && canFilterByAudiologist && (
+            {mounted && canSeeAll && (
               <Select
                 value={selectedAudiologistId || "all"}
                 onValueChange={(v) => setSelectedAudiologistId(v === "all" ? "" : v)}
@@ -819,10 +832,18 @@ function AllConsultationsContent() {
             {consultations.length === 0 ? (
               <ConsultationEmptyState
                 type="all"
-                hasFilters={!!(startDate || endDate || selectedAudiologistId || searchQuery || showDemoCalls)}
+                hasFilters={!!(
+                  startDate ||
+                  endDate ||
+                  selectedAudiologistId ||
+                  searchQuery ||
+                  showDemoCalls ||
+                  typeFilter !== "all"
+                )}
+                sessionTypeFilter={typeFilter}
                 onClearFilters={clearFilters}
                 noResultsOnPage={
-                  total > 0 && !(startDate || endDate) && mounted && isAudiologist
+                  total > 0 && !(startDate || endDate) && mounted && isNormalAudiologist
                 }
                 infiniteScroll
                 hasMoreToLoad={hasNextPage ?? false}

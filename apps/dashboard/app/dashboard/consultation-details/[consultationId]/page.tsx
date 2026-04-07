@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   MapPin,
   ChevronRight,
+  Link2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,11 @@ export default function ConsultationDetailsPage() {
     error,
   } = useGetConsultation(consultationId);
   const consultation = response ? getConsultationFromResponse(response) : null;
+
+  const reconnectedByConsultationId = (consultation as { reconnectedByConsultationId?: string | null })?.reconnectedByConsultationId;
+  const reconnectedId = typeof reconnectedByConsultationId === "string" && reconnectedByConsultationId.trim() ? reconnectedByConsultationId : "";
+  const { data: reconnectedResponse } = useGetConsultation(reconnectedId);
+  const originalConsultation = reconnectedResponse ? getConsultationFromResponse(reconnectedResponse) : null;
 
   const [selectedRecording, setSelectedRecording] = useState<{
     url: string;
@@ -299,6 +305,25 @@ export default function ConsultationDetailsPage() {
                 <InfoRow icon={<Calendar className="w-4 h-4" />} label="Date">
                   {safeFormatDate(consultation.createdAt)}
                 </InfoRow>
+
+                {(consultation as any).reconnectedByConsultationId && (
+                  <InfoRow icon={<Link2 className="w-4 h-4" />} label="This call was reconnected to">
+                    <button
+                      onClick={() =>
+                        router.push(
+                          `/dashboard/consultation-details/${(consultation as any).reconnectedByConsultationId}`
+                        )
+                      }
+                      className="text-left text-[#40A3DB] hover:underline font-medium"
+                    >
+                      {originalConsultation
+                        ? `${originalConsultation.patient?.name || "Unknown"} at ${originalConsultation.centre?.user?.name || "Unknown Centre"}`
+                        : reconnectedId
+                          ? "Loading..."
+                          : (consultation as any).reconnectedByConsultationId}
+                    </button>
+                  </InfoRow>
+                )}
 
                 {(consultation as any).consultationPricing?.length > 0 && (
                   <InfoRow icon={<Stethoscope className="w-4 h-4" />} label="Tests Selected">

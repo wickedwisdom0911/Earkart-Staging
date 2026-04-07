@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { usePatientAlerts } from "@/providers/patient-alert-provider";
+import { usePatientAlertsOptional } from "@/providers/patient-alert-provider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,14 +24,17 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
 export const PatientAlertIndicator: React.FC = () => {
+  const context = usePatientAlertsOptional();
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!context) return null;
+
   const {
     alerts,
     activeAlertsCount,
     dismissAlert,
     dismissAllAlerts,
-  } = usePatientAlerts();
-  
-  const [isOpen, setIsOpen] = useState(false);
+  } = context;
 
   const activeAlerts = alerts.filter((alert) => alert.isActive);
 

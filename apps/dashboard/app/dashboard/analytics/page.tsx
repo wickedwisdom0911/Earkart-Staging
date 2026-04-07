@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { format, isSameDay, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, isSameDay, subDays, startOfDay, endOfDay, formatISO } from "date-fns";
 import { SessionStatus, Role } from "@/models/enums";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
@@ -18,16 +18,22 @@ import {
 
 export default function AnalyticsPage() {
   const { data: user } = useGetUser();
-  const { data: consultations, isLoading, isError, error } = useGetAllConsultations();
   const { data: audiologists } = useGetAllAudiologists();
   const { isInCall: checkAudiologistInCall } = useAudiologistStatus();
 
-  const [fromDate, setFromDate] = useState<Date | null>(null);
-  const [toDate, setToDate] = useState<Date | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-
   const today = new Date();
   const yesterday = subDays(today, 1);
+
+  // Default to last 90 days so we never fetch all-time records
+  const [fromDate, setFromDate] = useState<Date | null>(subDays(today, 90));
+  const [toDate, setToDate] = useState<Date | null>(today);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const { data: consultations, isLoading, isError, error } = useGetAllConsultations({
+    startDate: fromDate ? format(fromDate, "yyyy-MM-dd") : undefined,
+    endDate: toDate ? format(toDate, "yyyy-MM-dd") : undefined,
+    staleTime: 60_000,
+  });
 
   const activeQuickFilter = useMemo(() => {
     if (!fromDate && !toDate) return null;
@@ -38,17 +44,11 @@ export default function AnalyticsPage() {
     return "custom";
   }, [fromDate, toDate]);
 
+  // Backend already filters by date range; this memo handles the audiologist filter only
   const filteredConsultations = useMemo(() => {
     if (!consultations?.data || !Array.isArray(consultations.data)) return [];
-    return consultations.data.filter((c) => {
-      if (!c.audiologist?.userId || !c.createdAt) return false;
-      const d = new Date(c.createdAt);
-      if (!fromDate && !toDate) return true;
-      if (fromDate && !toDate) return d >= startOfDay(fromDate);
-      if (!fromDate && toDate) return d <= endOfDay(toDate);
-      return d >= startOfDay(fromDate!) && d <= endOfDay(toDate!);
-    });
-  }, [consultations, fromDate, toDate]);
+    return consultations.data.filter((c) => !!c.audiologist?.userId);
+  }, [consultations]);
 
   const consultationsByAudiologist = useMemo(() => {
     if (!consultations?.data) return new Map<string, ConsultationModelData[]>();

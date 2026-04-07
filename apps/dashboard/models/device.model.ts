@@ -26,6 +26,8 @@ export const DeviceModelDataSchema = z.object({
   pendingUpdate: z.boolean().optional().nullable(),
   pendingLookup: z.boolean().optional().nullable(),
   lastUpdateChecked: z.string().optional().nullable(),
+  lastSeenAt: z.string().optional().nullable(),
+  lastReportedState: z.record(z.string(), z.unknown()).optional().nullable(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   centreId: z.string().optional().nullable(),

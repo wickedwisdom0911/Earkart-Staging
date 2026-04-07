@@ -28,5 +28,8 @@ export default async function getConsultation(
     },
     ConsultationModelSchema
   );
+  if (consultationId === "04f0b1de-fa12-4a80-a565-4818288aa6b6") {
+    console.log("[DEBUG consultation]", JSON.stringify(response, null, 2));
+  }
   return response;
 }

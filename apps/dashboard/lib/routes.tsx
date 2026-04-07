@@ -4,7 +4,8 @@ export const ROUTES = {
   LOCATIONS: "/dashboard/settings/locations",
   LANGUAGES: "/dashboard/settings/languages",
   DEVICES: "/dashboard/settings/devices",
-  QUESTIONNAIRE : "/dashboard/settings/questionnaire" ,
+  QUESTIONNAIRE : "/dashboard/settings/questionnaire",
+  NRV: "/dashboard/settings/nrv",
   MDM: "/dashboard/mdm",
   STATES: (code: string) => `/dashboard/settings/locations/${code}/states`,
   DISTRICTS: (code: string, stateCode: string) =>

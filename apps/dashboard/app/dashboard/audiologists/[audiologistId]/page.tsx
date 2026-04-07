@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import useGetAudiologist from "@/hooks/audiologist/use-get-audiologist";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronRight, FileText } from "lucide-react";
-import { useGetUser } from "@/hooks/auth/use-get-user";
-import { Role } from "@/models/enums";
+import {
+  dashboardSkySurfaceInnerClassName,
+  dashboardSkySurfaceWrapperClassName,
+} from "@/lib/dashboard-sky-surface";
+import { cn } from "@/lib/utils";
 
 const ALL_DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 const DAY_LABELS: Record<string, string> = {
@@ -18,18 +19,6 @@ const DAY_LABELS: Record<string, string> = {
   SATURDAY: "S",
   SUNDAY: "S",
 };
-
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth < 640 : false
-  );
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-  return isMobile;
-}
 
 function fmt(date: Date | string | null | undefined, opts?: Intl.DateTimeFormatOptions) {
   return date ? new Date(date).toLocaleString("en-IN", opts) : "-";
@@ -74,23 +63,17 @@ function fmtDateTime(d: Date | string | null | undefined) {
   });
 }
 
-function Avatar({ name, size = 56 }: { name?: string; size?: number }) {
+/** Display payment cycle like reference: "MONTHLY" */
+function formatPaymentCycle(v: unknown) {
+  if (v == null || v === "") return "";
+  return String(v).replace(/_/g, " ").trim().toUpperCase();
+}
+
+function Avatar({ name }: { name?: string }) {
   const initials = name?.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "AU";
   return (
     <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: "linear-gradient(135deg, #4FA8D5 0%, #2D7BB5 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#fff",
-        fontWeight: 700,
-        fontSize: size * 0.35,
-        flexShrink: 0,
-      }}
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#4FA8D5] to-[#2D7BB5] text-sm font-bold text-white sm:h-[52px] sm:w-[52px] md:h-14 md:w-14 md:text-lg"
     >
       {initials}
     </div>
@@ -137,70 +120,35 @@ function Section({
 }) {
   return (
     <div
-      style={{
-        background: "#fff",
-        borderRadius: 12,
-        border: "1px solid #E5E7EB",
-        padding: "20px",
-        marginBottom: 12,
-      }}
+      className="mb-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5 md:p-6"
+      style={{ fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }}
     >
-      <div
-        style={{
-          fontWeight: 600,
-          fontSize: 15,
-          color: "#111827",
-          marginBottom: 16,
-        }}
-      >
-        {title}
-      </div>
+      <h2 className="mb-3 text-left text-[15px] font-semibold text-gray-900 sm:mb-4 md:text-base">{title}</h2>
       {children}
     </div>
   );
 }
 
-function Field({
+function AudiologistFieldGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:gap-y-5 md:grid-cols-2 md:gap-x-8 lg:gap-x-10">
+      {children}
+    </div>
+  );
+}
+
+/** Profile field row — exported as `F` so name matches common shorthand and avoids "F is not defined" from stale HMR. */
+function F({
   label,
   value,
-  half,
-  isMobile,
 }: {
   label: string;
   value?: React.ReactNode;
-  half?: boolean;
-  isMobile?: boolean;
 }) {
   return (
-    <div
-      style={{
-        width: !isMobile && half ? "50%" : "100%",
-        marginBottom: 16,
-        paddingRight: !isMobile && half ? 20 : 0,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          color: "#9CA3AF",
-          fontWeight: 500,
-          marginBottom: 3,
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 14,
-          color: "#111827",
-          fontWeight: 500,
-          wordBreak: "break-word",
-        }}
-      >
-        {value || "-"}
-      </div>
+    <div className="min-w-0">
+      <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-gray-400 md:text-xs">{label}</div>
+      <div className="break-words text-sm font-semibold text-gray-900 md:text-[15px]">{value ?? "—"}</div>
     </div>
   );
 }
@@ -208,61 +156,30 @@ function Field({
 export default function AudiologistProfile() {
   const router = useRouter();
   const { audiologistId } = useParams();
-  const isMobile = useIsMobile();
-  const { data: userData } = useGetUser();
   const { data, isLoading, error } = useGetAudiologist(audiologistId as string);
 
   const audiologist = data?.data;
   const user = audiologist?.user;
-  const canViewConsultations =
-    userData?.role === Role.ADMIN ||
-    userData?.role === Role.SUPER_ADMIN ||
-    userData?.role === Role.HEAD_AUDIOLOGIST;
   const city = audiologist?.city;
   const district = city?.district;
   const state = district?.state;
   const country = state?.country;
 
-  const F = (props: { label: string; value?: React.ReactNode; half?: boolean }) => (
-    <Field {...props} isMobile={isMobile} />
-  );
-
   return (
-    <DashboardBodyWrapper pageTitle="Audiologist Profile">
+    <DashboardBodyWrapper
+      bleedContent
+      className={dashboardSkySurfaceWrapperClassName()}
+    >
       <div
+        className={dashboardSkySurfaceInnerClassName()}
         style={{
-          minHeight: "100%",
-          background: "#F3F4F6",
           fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
         }}
       >
-        {/* Breadcrumb */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 13,
-            color: "#6B7280",
-            marginBottom: 20,
-          }}
-        >
-          <span style={{ color: "#111827" }}>Dashboard</span>
-          <ChevronRight size={14} color="#9CA3AF" />
-          <span
-            style={{ color: "#40A3DB", fontWeight: 500, cursor: "pointer" }}
-            onClick={() => router.push("/dashboard/audiologists")}
-          >
-            Audiologists
-          </span>
-          {audiologist && (
-            <>
-              <ChevronRight size={14} color="#9CA3AF" />
-              <span style={{ color: "#6B7280" }}>{user?.name}</span>
-            </>
-          )}
-        </div>
-
+        {/* Max width on large tablets / iPad Pro landscape so lines don’t over-stretch */}
+        <div className="mx-auto w-full max-w-[min(100%,72rem)]">
+        {/* Title lives in header breadcrumb (Dashboard / Audiologists); keep page name for screen readers */}
+        <h1 className="sr-only">Audiologist profile</h1>
         {isLoading && (
           <div className="flex items-center justify-center py-16">
             <div className="w-8 h-8 border-2 border-[#40A3DB] border-t-transparent rounded-full animate-spin" />
@@ -286,71 +203,33 @@ export default function AudiologistProfile() {
         {audiologist && (
           <div
             style={{
-              maxWidth: 880,
-              margin: 0,
-              padding: isMobile ? "0 12px" : "0 16px",
+              width: "100%",
             }}
           >
-            {/* Back */}
+            {/* Back — min 44px touch target for iPad */}
             <button
               type="button"
               onClick={() => router.push("/dashboard/audiologists")}
-              style={{
-                marginBottom: 14,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                cursor: "pointer",
-                color: "#40A3DB",
-                fontSize: 13,
-                fontWeight: 500,
-                background: "none",
-                border: "none",
-                padding: 0,
-              }}
+              className="mb-4 flex min-h-[44px] items-center gap-2 rounded-lg px-2 py-2 text-left text-[13px] font-medium text-[#40A3DB] hover:bg-[#40A3DB]/10 active:bg-[#40A3DB]/15 touch-manipulation"
             >
               ← Back to Audiologists
             </button>
 
             {/* Header Card */}
             <div
-              style={{
-                background: "#fff",
-                borderRadius: 12,
-                border: "1px solid #E5E7EB",
-                padding: isMobile ? 16 : "20px 24px",
-                marginBottom: 12,
-              }}
+              className="mb-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5 md:p-6"
             >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: isMobile ? "column" : "row",
-                  justifyContent: "space-between",
-                  gap: 12,
-                }}
-              >
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <Avatar name={user?.name} size={isMobile ? 44 : 56} />
-                  <div>
-                    <div
-                      style={{
-                        fontSize: isMobile ? 18 : 22,
-                        fontWeight: 700,
-                        color: "#111827",
-                        marginBottom: 4,
-                      }}
-                    >
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                <div className="flex min-w-0 gap-3 sm:gap-4 md:items-center">
+                  <Avatar name={user?.name} />
+                  <div className="min-w-0">
+                    <div className="text-lg font-bold text-gray-900 sm:text-xl md:text-[22px]">
                       {user?.name}
                     </div>
                     <div
-                      style={{
-                        fontSize: 13,
-                        color: "#6B7280",
-                        marginBottom: 6,
-                      }}
+                      className="mb-1.5 text-[13px] text-gray-500"
                     >
-                      RCI: {audiologist.rciNumber} · Grade {audiologist.grade}
+                      RCI: {audiologist.rciNumber} - Grade {audiologist.grade}
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {user?.status && (
@@ -365,34 +244,24 @@ export default function AudiologistProfile() {
                       <Badge
                         color={audiologist.isInHouse ? "blue" : "orange"}
                       >
-                        {audiologist.isInHouse ? "In House" : "External"}
+                        {audiologist.isInHouse ? "In-House" : "External"}
                       </Badge>
                     </div>
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    alignSelf: isMobile ? "flex-start" : "center",
-                  }}
-                >
-                  {[audiologist.paymentCycle, audiologist.pincode]
+                <div className="flex flex-shrink-0 flex-wrap gap-2 sm:gap-3 sm:self-center md:justify-end">
+                  {[
+                    formatPaymentCycle(audiologist.paymentCycle) || null,
+                    audiologist.pincode != null && audiologist.pincode !== ""
+                      ? String(audiologist.pincode)
+                      : null,
+                  ]
                     .filter(Boolean)
                     .map((v) => (
                       <span
-                        key={v}
-                        style={{
-                          background: "#F9FAFB",
-                          border: "1px solid #E5E7EB",
-                          borderRadius: 6,
-                          padding: "4px 12px",
-                          fontSize: 12,
-                          color: "#374151",
-                          fontWeight: 500,
-                        }}
+                        key={String(v)}
+                        className="rounded-md border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-gray-700"
                       >
                         {v}
                       </span>
@@ -418,32 +287,16 @@ export default function AudiologistProfile() {
                 >
                   Working Details
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: isMobile ? 5 : 6,
-                    flexWrap: "wrap",
-                  }}
-                >
+                <div className="flex flex-wrap gap-2 sm:gap-2.5 md:gap-3">
                   {ALL_DAYS.map((day) => {
                     const active = (audiologist.workingDays as string[] | undefined)?.includes(day);
-                    const sz = isMobile ? 30 : 34;
                     return (
                       <div
                         key={day}
-                        style={{
-                          width: sz,
-                          height: sz,
-                          borderRadius: 8,
-                          background: active ? "#40A3DB" : "#F3F4F6",
-                          color: active ? "#fff" : "#9CA3AF",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontWeight: 700,
-                          fontSize: isMobile ? 11 : 13,
-                          flexShrink: 0,
-                        }}
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold sm:h-9 sm:w-9 sm:text-xs md:h-[38px] md:w-[38px] md:text-[13px]",
+                          active ? "bg-[#40A3DB] text-white" : "bg-[#F3F4F6] text-[#9CA3AF]"
+                        )}
                       >
                         {DAY_LABELS[day] || day[0]}
                       </div>
@@ -455,81 +308,73 @@ export default function AudiologistProfile() {
 
             {/* Personal Information */}
             <Section title="Personal Information">
-              <div style={{ display: "flex", flexWrap: "wrap" }}>
-                <F label="Email" value={user?.email} half />
-                <F label="Phone" value={audiologist.contactNumber} half />
-                <F label="Gender" value={user?.gender} half />
-                <F label="Date of Birth" value={fmtDate(user?.dob)} half />
+              <AudiologistFieldGrid>
+                <F label="Email" value={user?.email} />
+                <F label="Phone" value={audiologist.contactNumber} />
+                <F label="Gender" value={user?.gender} />
+                <F label="Date of Birth" value={fmtDate(user?.dob)} />
                 <F
                   label="Qualifications"
                   value={audiologist.qualifications?.join(", ")}
-                  half
                 />
                 <F
                   label="Languages"
                   value={audiologist.languages?.map((l) => l.name).join(", ")}
-                  half
                 />
-              </div>
+              </AudiologistFieldGrid>
             </Section>
 
             {/* Work Details */}
             <Section title="Work Details">
-              <div style={{ display: "flex", flexWrap: "wrap" }}>
-                <F label="Address" value={audiologist.address} half />
+              <AudiologistFieldGrid>
+                <F label="Address" value={audiologist.address} />
                 <F
                   label="Location"
                   value={[district?.name, city?.name, state?.name, country?.name]
                     .filter(Boolean)
                     .join(", ")}
-                  half
                 />
                 <F
                   label="Working Time"
                   value={`${fmtTime(audiologist.workingTimeStart)} – ${fmtTime(audiologist.workingTimeEnd)}`}
-                  half
                 />
                 <F
                   label="Break Time"
                   value={`${fmtTime(audiologist.breakTimeStart)} – ${fmtTime(audiologist.breakTimeEnd)}`}
-                  half
                 />
                 <F
                   label="Agreement Date"
                   value={fmtDate(audiologist.agreementSignDate)}
-                  half
                 />
                 <F
                   label="Reporting Date"
                   value={fmtDate(audiologist.reportingDate)}
-                  half
                 />
-              </div>
+              </AudiologistFieldGrid>
             </Section>
 
             {/* Metadata */}
             <Section title="Metadata">
-              <div style={{ display: "flex", flexWrap: "wrap" }}>
-                <F label="Created At" value={fmtDateTime(audiologist.createdAt)} half />
-                <F label="Updated At" value={fmtDateTime(audiologist.updatedAt)} half />
+              <AudiologistFieldGrid>
+                <F label="Created At" value={fmtDateTime(audiologist.createdAt)} />
+                <F label="Updated At" value={fmtDateTime(audiologist.updatedAt)} />
                 {audiologist.createdBy && (
                   <F
                     label="Created By"
                     value={`${audiologist.creator?.name ?? "—"} (${audiologist.creator?.role ?? "—"})`}
-                    half
                   />
                 )}
                 {audiologist.updatedBy && (
                   <F
                     label="Updated By"
                     value={`${audiologist.updater?.name ?? "—"} (${audiologist.updater?.role ?? "—"})`}
-                    half
                   />
                 )}
-              </div>
+              </AudiologistFieldGrid>
             </Section>
           </div>
         )}
+        </div>
       </div>
     </DashboardBodyWrapper>
   );

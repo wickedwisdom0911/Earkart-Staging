@@ -38,11 +38,29 @@ import PaymentCycleSelector from "@/components/ui/selector/payment-cycle-selecto
 import WorkingDaysSelector from "@/components/ui/selector/working-days-selector";
 import useCreateCentre from "@/hooks/centre/use-create-centre";
 import useUpdateCentre from "@/hooks/centre/use-update-centre";
+import useGetAllNrvSplits from "@/hooks/nrv/use-get-all-nrv-splits";
+import useErpCentreManagerOptions from "@/hooks/erp/use-erp-centre-manager-options";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFieldArray } from "react-hook-form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ROUTES } from "@/lib/routes";
+import { ERP_TEAM_MANAGEMENT_API_BASE_URL } from "@/lib/erp-team-management-api";
+import Link from "next/link";
+
+/** Omit nested relations so centre/update only receives flat fields */
+function stripCentreForApi(centre: Record<string, unknown>) {
+  const { nrvSplit, city, device, creator, updater, user: _u, manager, ...rest } = centre;
+  return rest;
+}
 
 // Custom hook for location management
 const useLocationState = (isEdit: boolean, centre?: CentreModelData) => {
@@ -162,7 +180,11 @@ export default function HandleCentreDialog({
         dob: centreUser?.dob,
       },
       centre: {
-        ...centre,
+        ...(centre
+          ? stripCentreForApi({ ...(centre as unknown as Record<string, unknown>) })
+          : {}),
+        nrvSplitId: centre?.nrvSplitId ?? null,
+        managerId: centre?.managerId ?? null,
         code:
           centre?.code && centre?.code.startsWith(CENTRE_CODE_PREFIX)
             ? centre.code.slice(CENTRE_CODE_PREFIX.length)
@@ -190,6 +212,14 @@ export default function HandleCentreDialog({
     isPending: isUpdating,
     isError: isUpdateError,
   } = useUpdateCentre();
+
+  const { data: nrvSplitsRes } = useGetAllNrvSplits();
+  const nrvSplits = nrvSplitsRes?.data ?? [];
+  const {
+    data: erpManagerOptions = [],
+    isLoading: erpManagersLoading,
+    isError: erpManagersError,
+  } = useErpCentreManagerOptions();
 
   // Use useFieldArray for pricing management
   const { fields: pricingFields, append: appendPricing, remove: removePricing } = useFieldArray({
@@ -234,6 +264,8 @@ export default function HandleCentreDialog({
           workingTimeEnd: "",
           breakTimeStart: "",
           breakTimeEnd: "",
+          nrvSplitId: null,
+          managerId: null,
         },
       });
     }
@@ -428,10 +460,16 @@ export default function HandleCentreDialog({
         // If no pricing data at all, remove the field completely
         delete (data.centre as any).centrePricing;
       }
-      
+
+      const centreForApi = stripCentreForApi({
+        ...(data.centre as unknown as Record<string, unknown>),
+      }) as Record<string, unknown>;
+      if (centreForApi.nrvSplitId === "") centreForApi.nrvSplitId = null;
+      if (centreForApi.managerId === "") centreForApi.managerId = null;
+
       updateCentre(
         {
-          centre: { ...data.centre, id: centre?.id },
+          centre: { ...centreForApi, id: centre?.id } as CreateCenterProfile["centre"],
           user: { ...data.user, id: centreUser?.id },
         },
         {
@@ -461,20 +499,32 @@ export default function HandleCentreDialog({
       if (data.centre.isOurAssistant === undefined) {
         data.centre.isOurAssistant = false;
       }
-      
-      createCentre(data, {
-        onSuccess: (response) => {
-          if (response.success) {
-            toast.success("Centre created successfully");
-            setIsOpen(false);
-          } else {
-            toast.error("Failed to create centre " + response.message);
-          }
+
+      const centreCreatePayload = stripCentreForApi({
+        ...(data.centre as unknown as Record<string, unknown>),
+      }) as Record<string, unknown>;
+      if (centreCreatePayload.nrvSplitId === "") centreCreatePayload.nrvSplitId = null;
+      if (centreCreatePayload.managerId === "") centreCreatePayload.managerId = null;
+
+      createCentre(
+        {
+          user: data.user,
+          centre: centreCreatePayload as CreateCenterProfile["centre"],
         },
-        onError: (error) => {
-          toast.error("Failed to create centre: " + (error?.message || "Unknown error"));
-        },
-      });
+        {
+          onSuccess: (response) => {
+            if (response.success) {
+              toast.success("Centre created successfully");
+              setIsOpen(false);
+            } else {
+              toast.error("Failed to create centre " + response.message);
+            }
+          },
+          onError: (error) => {
+            toast.error("Failed to create centre: " + (error?.message || "Unknown error"));
+          },
+        }
+      );
     }
   };
 
@@ -750,6 +800,86 @@ export default function HandleCentreDialog({
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="centre.nrvSplitId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>NRV split</FormLabel>
+              <p className="text-xs text-muted-foreground mb-1">
+                Assign net realized value split. Manage splits in{" "}
+                <Link href={ROUTES.NRV} className="text-primary underline-offset-2 hover:underline">
+                  NRV Splits
+                </Link>
+                .
+              </p>
+              <FormControl>
+                <Select
+                  value={field.value ? String(field.value) : "__none__"}
+                  onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {nrvSplits.map((s) => (
+                      <SelectItem key={s.id} value={s.id!}>
+                        {(s.nrvSplitType?.name ?? s.nrvSplitTypeId) + ` — ${s.percentageDoctor}% / ${s.percentageEarkart}%`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="centre.managerId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>ASM</FormLabel>
+              <p className="text-xs text-muted-foreground mb-1">
+                ERP team management (designation ASM) at{" "}
+                <code className="text-xs bg-muted px-1 rounded break-all">
+                  {ERP_TEAM_MANAGEMENT_API_BASE_URL}
+                </code>
+              </p>
+              <FormControl>
+                <Select
+                  value={field.value ? String(field.value) : "__none__"}
+                  onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                  disabled={erpManagersLoading}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue
+                      placeholder={
+                        erpManagersLoading
+                          ? "Loading employees…"
+                          : erpManagersError
+                            ? "Could not load ERP employees"
+                            : "None"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {erpManagerOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}

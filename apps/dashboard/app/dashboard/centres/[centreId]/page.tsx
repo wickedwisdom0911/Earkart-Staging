@@ -2,9 +2,29 @@
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import useGetCentre from "@/hooks/centre/use-get-centre";
 import { ROUTES } from "@/lib/routes";
-import { ArrowLeft, ArrowRight, MapPin, Clock, Phone, Monitor, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  MapPin,
+  Clock,
+  Phone,
+  Monitor,
+  Pencil,
+  Percent,
+  Trash2,
+  Loader2,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import useGetAllNrvSplits from "@/hooks/nrv/use-get-all-nrv-splits";
+import useErpCentreManagerOptions from "@/hooks/erp/use-erp-centre-manager-options";
+import useUpdateCentre from "@/hooks/centre/use-update-centre";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ERP_TEAM_MANAGEMENT_API_BASE_URL } from "@/lib/erp-team-management-api";
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -38,13 +58,73 @@ function SectionCard({
 export default function CentrePage() {
   const { centreId } = useParams();
   const router = useRouter();
-  const { data, isLoading, error } = useGetCentre(centreId as string);
+  const { data, isLoading, error, refetch } = useGetCentre(centreId as string);
   const centre = data?.data;
   const user = centre?.user;
   const city = centre?.city;
   const district = city?.district;
   const state = district?.state;
   const country = state?.country;
+
+  const { data: splitsData } = useGetAllNrvSplits();
+  const splits = splitsData?.data ?? [];
+  const { mutate: updateCentreMutation, isPending: updatingCentre } = useUpdateCentre();
+  const [nrvSplitId, setNrvSplitId] = useState<string>("");
+  const [managerId, setManagerId] = useState<string>("");
+  const { data: erpManagerOptions = [], isLoading: erpManagersLoading } = useErpCentreManagerOptions();
+
+  useEffect(() => {
+    if (centre?.nrvSplitId) setNrvSplitId(centre.nrvSplitId);
+    else setNrvSplitId("");
+  }, [centre?.id, centre?.nrvSplitId]);
+
+  useEffect(() => {
+    setManagerId(centre?.managerId ?? "");
+  }, [centre?.id, centre?.managerId]);
+
+  function handleNrvSave() {
+    if (!centre) return;
+    const chosen = nrvSplitId || centre.nrvSplitId || null;
+    const { nrvSplit, city, device, creator, updater, ...centreRest } = centre;
+    updateCentreMutation(
+      {
+        user: centre.user as any,
+        centre: {
+          ...centreRest,
+          nrvSplitId: chosen,
+        },
+      },
+      {
+        onSuccess: (r) => {
+          toast.success(r.message);
+          refetch();
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    );
+  }
+
+  function handleManagerSave() {
+    if (!centre) return;
+    const chosen = managerId || null;
+    const { nrvSplit, city, device, creator, updater, ...centreRest } = centre;
+    updateCentreMutation(
+      {
+        user: centre.user as any,
+        centre: {
+          ...centreRest,
+          managerId: chosen,
+        },
+      },
+      {
+        onSuccess: (r) => {
+          toast.success(r.message);
+          refetch();
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    );
+  }
 
   const formatTime = (t?: string | null) =>
     t
@@ -258,6 +338,104 @@ export default function CentrePage() {
                   />
                 </div>
               </SectionCard>
+            </div>
+
+            {/* ASM assignee (ERP) */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-[#40A3DB]"><Users className="w-4 h-4" /></span>
+                <h3 className="text-sm font-semibold text-gray-700">ASM</h3>
+              </div>
+          
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={managerId ? managerId : "__none__"}
+                  onValueChange={(v) => setManagerId(v === "__none__" ? "" : v)}
+                  disabled={erpManagersLoading}
+                >
+                  <SelectTrigger className="w-[min(100%,28rem)]">
+                    <SelectValue placeholder={erpManagersLoading ? "Loading…" : "Select ASM"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {erpManagerOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="cursor-pointer bg-primary-500 text-white hover:bg-primary-600"
+                  onClick={handleManagerSave}
+                  disabled={updatingCentre}
+                >
+                  {updatingCentre && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                  Save
+                </Button>
+              </div>
+            </div>
+
+            {/* NRV Split section */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-[#40A3DB]"><Percent className="w-4 h-4" /></span>
+                <h3 className="text-sm font-semibold text-gray-700">NRV Split</h3>
+              </div>
+              {centre.nrvSplit ? (
+                <div className="mb-3 flex flex-wrap gap-6 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Split Type</p>
+                    <p className="font-medium text-gray-800">{centre.nrvSplit.nrvSplitType?.name ?? "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Doctor</p>
+                    <p className="font-medium text-gray-800">{centre.nrvSplit.percentageDoctor}%</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Earkart</p>
+                    <p className="font-medium text-gray-800">{centre.nrvSplit.percentageEarkart}%</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 italic mb-3">No NRV split assigned yet.</p>
+              )}
+              <p className="text-xs text-gray-500 mb-2">
+                Create split types and percentage splits in{" "}
+                <Link href={ROUTES.NRV} className="text-[#40A3DB] hover:underline">
+                  Settings → NRV Splits
+                </Link>
+                , then pick one here and save to link this centre.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={nrvSplitId || centre.nrvSplitId || undefined}
+                  onValueChange={setNrvSplitId}
+                >
+                  <SelectTrigger className="w-72">
+                    <SelectValue placeholder="Select NRV split" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {splits.map((s) => (
+                      <SelectItem key={s.id} value={s.id!}>
+                        {s.nrvSplitType?.name ?? s.nrvSplitTypeId} — {s.percentageDoctor}% / {s.percentageEarkart}%
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="cursor-pointer bg-primary-500 text-white hover:bg-primary-600"
+                  onClick={handleNrvSave}
+                  disabled={updatingCentre}
+                >
+                  {updatingCentre && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                  Save
+                </Button>
+              </div>
             </div>
 
             {/* Pricing section */}

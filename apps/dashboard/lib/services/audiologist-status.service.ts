@@ -30,9 +30,18 @@ export class AudiologistStatusService {
    * @param token JWT authentication token
    */
   connect(token: string): void {
-    // Disconnect existing connection if any
-    if (this.socket?.connected) {
-      this.disconnect();
+    // Avoid tearing down the socket when already connected with the same token.
+    // Otherwise Next.js segment navigations can orphan dashboard subscribers by
+    // calling disconnect() (which clears listeners) while another mount reconnects.
+    if (this.socket?.connected && this.token === token) {
+      console.log("✅ [AudiologistStatusService] Already connected — skipping reconnect");
+      return;
+    }
+
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
     }
 
     this.token = token;

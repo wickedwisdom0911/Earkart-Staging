@@ -5,6 +5,7 @@ import { getBaseUrl } from "@/lib/environment";
 import { toApiStartDate, toApiEndDate } from "@/lib/utils";
 import { verifySession } from "@/lib/session";
 import { extractConsultations } from "@/models/consultation.model";
+import { getConsultationListPayload } from "@/lib/parse-consultation-api-response";
 
 /**
  * GET /consultation/missed-calls
@@ -54,7 +55,7 @@ export default async function getMissedCalls(
   if (params.startDate) searchParams.set("startDate", toApiStartDate(params.startDate));
   if (params.endDate) searchParams.set("endDate", toApiEndDate(params.endDate));
   if (params.search) searchParams.set("search", params.search);
-  if (params.isDemo === true) searchParams.set("isDemo", "true");
+  if (params.isDemo === true) searchParams.set("isDemoCall", "true");
 
   const url = `${baseUrl}consultation/missed-calls?${searchParams.toString()}`;
 
@@ -70,13 +71,15 @@ export default async function getMissedCalls(
   }
 
   const json = await res.json();
-  const data = json?.data ?? json;
+  const { list, total: totalRaw, hasNext: hasNextRaw } = getConsultationListPayload(json);
 
   const consultations: ConsultationModelData[] = extractConsultations(
-    Array.isArray(data) ? data : data?.data ?? data ?? []
+    list as Parameters<typeof extractConsultations>[0]
   );
-  const total = typeof data?.total === "number" ? data.total : consultations.length;
-  const hasNext = data?.hasNext ?? consultations.length >= limit;
+  const total =
+    totalRaw > 0 ? totalRaw : consultations.length > 0 ? consultations.length : 0;
+  const hasNext =
+    typeof hasNextRaw === "boolean" ? hasNextRaw : consultations.length >= limit;
 
   return {
     consultations,

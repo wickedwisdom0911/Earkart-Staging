@@ -5,6 +5,7 @@ import { getBaseUrl } from "@/lib/environment";
 import { toApiStartDate, toApiEndDate } from "@/lib/utils";
 import { verifySession } from "@/lib/session";
 import { extractConsultations } from "@/models/consultation.model";
+import { getConsultationListPayload } from "@/lib/parse-consultation-api-response";
 
 /**
  * GET /consultation/failed-calls
@@ -54,7 +55,7 @@ export default async function getFailedCalls(
   if (params.patientId) searchParams.set("patientId", params.patientId);
   if (params.audiologistId) searchParams.set("audiologistId", params.audiologistId);
   if (params.centreId) searchParams.set("centreId", params.centreId);
-  if (params.isDemo === true) searchParams.set("isDemo", "true");
+  if (params.isDemo === true) searchParams.set("isDemoCall", "true");
 
   const url = `${baseUrl}consultation/failed-calls?${searchParams.toString()}`;
 
@@ -70,12 +71,15 @@ export default async function getFailedCalls(
   }
 
   const json = await res.json();
-  // Response: { success, message, data: [...], total, limit, offset, page, totalPages, hasNext, hasPrevious }
-  const dataArray = Array.isArray(json?.data) ? json.data : json?.data?.data ?? [];
-  const total = typeof json?.total === "number" ? json.total : dataArray.length;
-  const hasNext = json?.hasNext ?? dataArray.length >= limit;
+  const { list, total: totalRaw, hasNext: hasNextRaw } = getConsultationListPayload(json);
 
-  const consultations: ConsultationModelData[] = extractConsultations(dataArray);
+  const consultations: ConsultationModelData[] = extractConsultations(
+    list as Parameters<typeof extractConsultations>[0]
+  );
+  const total =
+    totalRaw > 0 ? totalRaw : consultations.length > 0 ? consultations.length : 0;
+  const hasNext =
+    typeof hasNextRaw === "boolean" ? hasNextRaw : consultations.length >= limit;
 
   return {
     consultations,

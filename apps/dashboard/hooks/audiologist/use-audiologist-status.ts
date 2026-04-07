@@ -36,7 +36,17 @@ export const useAudiologistStatus = () => {
         if (prev.size !== statusMap.size) return statusMap;
         for (const [id, status] of statusMap) {
           const oldStatus = prev.get(id);
-          if (!oldStatus || oldStatus.isInCall !== status.isInCall) return statusMap;
+          if (!oldStatus) return statusMap;
+          // Must react to consultationId / availability changes, not only isInCall — otherwise
+          // a second update (in call + id set after) never updates React and alerts never clear.
+          if (
+            oldStatus.isInCall !== status.isInCall ||
+            oldStatus.consultationId !== status.consultationId ||
+            oldStatus.available !== status.available ||
+            oldStatus.lastUpdated !== status.lastUpdated
+          ) {
+            return statusMap;
+          }
         }
         return prev;
       });

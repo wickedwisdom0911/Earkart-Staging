@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { format, isToday, isSameDay } from "date-fns";
+import { format, isToday, isSameDay, subDays } from "date-fns";
 import { SessionStatus } from "@/models/enums";
 import { useRouter, useParams } from "next/navigation";
 import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
@@ -56,7 +56,11 @@ export default function AudiologistDetailsPage() {
   } | null>(null);
   const today = new Date();
 
-  const { data: consultations } = useGetAllConsultations();
+  const { data: consultations } = useGetAllConsultations({
+    startDate: format(subDays(today, 90), "yyyy-MM-dd"),
+    endDate: format(today, "yyyy-MM-dd"),
+    staleTime: 60_000,
+  });
   const { data: audiologists } = useGetAllAudiologists();
 
   // Find the audiologist

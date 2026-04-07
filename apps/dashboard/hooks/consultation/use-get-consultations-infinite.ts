@@ -27,7 +27,7 @@ export function useGetConsultationsInfinite(
     queryFn: async ({
       pageParam,
     }): Promise<GetConsultationsPageResult> => {
-      return getConsultationsPage({
+      const result = await getConsultationsPage({
         page: pageParam,
         limit,
         audiologistId,
@@ -36,6 +36,8 @@ export function useGetConsultationsInfinite(
         search,
         isDemo: isDemo === true ? true : undefined,
       });
+      console.log("[getConsultationsPage] result:", result);
+      return result;
     },
     getNextPageParam: (lastPage) => {
       if (lastPage.hasNext) {

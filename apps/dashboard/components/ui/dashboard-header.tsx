@@ -4,6 +4,7 @@ import { Button } from "./button";
 import { Activity, StopCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Breadcrumb } from "./breadcrumbs";
+import { SidebarTrigger, useSidebar } from "./sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,13 +20,17 @@ import { formatActivityLabel } from "@/utils";
 
 export const DashboardHeader: React.FC = () => {
   const pathname = usePathname();
+  const { isMobile } = useSidebar();
   const { canTrack, selectedLabel, elapsed, currentActivity, startActivity, stopActivity } = useActivity();
 
   return (
-    <div className="flex h-14 gap-2 w-full">
-      <div className="flex-1 flex items-center justify-between p-4 bg-white rounded-lg gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-full w-px bg-neutral-800" />
+    <div className="flex w-full shrink-0 gap-2 py-1">
+      <div className="flex min-h-14 min-w-0 flex-1 items-center justify-between gap-4 overflow-visible rounded-lg bg-white p-4">
+          <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+            {isMobile && (
+              <SidebarTrigger className="-ml-1 shrink-0 md:-ml-0" aria-label="Open menu" />
+            )}
+            <div className="h-6 w-px shrink-0 self-center bg-neutral-800" aria-hidden />
             <Breadcrumb pathname={pathname ?? ""} />
           </div>
         <div className="flex items-center gap-3">
