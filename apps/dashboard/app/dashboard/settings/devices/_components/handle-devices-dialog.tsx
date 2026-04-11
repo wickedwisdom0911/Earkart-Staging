@@ -23,8 +23,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import useUpdateDevice from "@/hooks/device/use-update-device";
-import { StatusEnum } from "@/models/enums";
-import StatusToggle from "@/components/ui/status-toggle";
+import { DeviceStatusEnum } from "@/models/enums";
 import { Input } from "@/components/ui/input";
 
 export default function HandleDevicesDialog({
@@ -53,7 +52,7 @@ export default function HandleDevicesDialog({
       tabletAppVersion: device?.tabletAppVersion || null,
       tabletAndroidVersion: device?.tabletAndroidVersion || null,
       centreId: device?.centreId || null,
-      status: device?.status || StatusEnum.ACTIVE,
+      status: device?.status || DeviceStatusEnum.ENABLED,
       lastUpdateChecked: device?.lastUpdateChecked || null,
     },
   });

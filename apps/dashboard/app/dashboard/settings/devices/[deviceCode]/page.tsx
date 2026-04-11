@@ -3,12 +3,12 @@ import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { useParams } from "next/navigation";
 import useGetDeviceByValue from "@/hooks/device/use-get-device-by-value";
 import { Button } from "@/components/ui/button";
-import { Edit, Tablet, MapPin, Calendar, Hash, Link2, Radio } from "lucide-react";
+import { Edit, Tablet, MapPin, Calendar, Hash, Link2, Radio, Fingerprint } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { StatusEnum } from "@/models/enums";
+import { DeviceStatusEnum } from "@/models/enums";
 import HandleDeviceAssigningDialog from "../_components/handle-device-assigning-dialog";
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
@@ -18,13 +18,58 @@ import { DeviceModelData } from "@/models/device.model";
 import useUpdateDevice from "@/hooks/device/use-update-device";
 import { toast } from "sonner";
 
+function formatLastReportedState(state: unknown): string {
+  if (state == null) return "";
+  if (typeof state === "string") {
+    try {
+      return JSON.stringify(JSON.parse(state), null, 2);
+    } catch {
+      return state;
+    }
+  }
+  try {
+    return JSON.stringify(state, null, 2);
+  } catch {
+    return String(state);
+  }
+}
+
+function getDeviceStatusPresentation(status: DeviceModelData["status"]) {
+  switch (status) {
+    case DeviceStatusEnum.ENABLED:
+      return { label: "Enabled", isPositive: true };
+    case DeviceStatusEnum.ACTIVE:
+      return { label: "Active", isPositive: true };
+    case DeviceStatusEnum.DISABLED:
+      return { label: "Disabled", isPositive: false };
+    case DeviceStatusEnum.INACTIVE:
+      return { label: "Inactive", isPositive: false };
+    default:
+      return { label: String(status), isPositive: false };
+  }
+}
+
+function centreHasDisplayData(centre: DeviceModelData["centre"]): boolean {
+  if (centre == null) return false;
+  const c = centre as Record<string, unknown>;
+  return Boolean(
+    c.id ||
+    (c.user as { name?: string } | undefined)?.name ||
+    c.entName ||
+    c.code ||
+    c.address
+  );
+}
+
 export default function DevicePage() {
   const { deviceCode } = useParams();
   const { data, isLoading, isError } = useGetDeviceByValue(
     deviceCode as string
   );
   const device = data?.data;
-  const isAssignDisabled = !device?.id || device?.centreId;
+  const statusPresentation = device
+    ? getDeviceStatusPresentation(device.status)
+    : null;
   const { mutate: updateDevice, isPending: isUpdating } = useUpdateDevice();
 
   function handleToggle(field: "pendingUpdate" | "pendingLookup", value: boolean) {
@@ -106,24 +151,30 @@ export default function DevicePage() {
             </div>
             <div
               className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                device.status === StatusEnum.ACTIVE
+                statusPresentation?.isPositive
                   ? "bg-green-100 text-green-800"
                   : "bg-red-100 text-red-800"
               }`}
-              role="button"
-              tabIndex={0}
+              role="status"
             >
               <span
                 className={`${
-                  device.status === StatusEnum.ACTIVE ? "text-green-500" : "text-red-500"
+                  statusPresentation?.isPositive ? "text-green-600" : "text-red-600"
                 } font-medium`}
               >
-                {device.status === StatusEnum.ACTIVE ? "Active" : "Inactive"}
+                {statusPresentation?.label}
               </span>
             </div>
           </div>
           <Separator />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex flex-col gap-2 md:col-span-2">
+              <Label className="text-neutral-500">Device record ID</Label>
+              <div className="flex items-center gap-2 text-sm text-neutral-800 font-mono break-all">
+                <Fingerprint className="w-4 h-4 shrink-0 text-neutral-300" />
+                {device.id || <span className="text-neutral-300">—</span>}
+              </div>
+            </div>
             <div className="flex flex-col gap-2">
               <Label className="text-neutral-500">Code Sequence</Label>
               <div className="flex items-center gap-2 text-base text-neutral-800">
@@ -245,40 +296,75 @@ export default function DevicePage() {
                 )}
               </div>
             </div>
-          </div>
-          {device.lastReportedState && (
-            <>
-              <Separator />
-              <div className="flex flex-col gap-2">
-                <Label className="text-neutral-500">Last Reported State</Label>
-                <pre className="bg-neutral-50 border border-neutral-100 rounded-lg p-4 text-xs text-neutral-700 overflow-x-auto whitespace-pre-wrap break-all">
-                  {JSON.stringify(device.lastReportedState, null, 2)}
-                </pre>
+            <div className="flex flex-col gap-2">
+              <Label className="text-neutral-500">Last Update Checked</Label>
+              <div className="flex items-center gap-2 text-base text-neutral-800">
+                <Calendar className="w-4 h-4 text-neutral-300" />
+                {device.lastUpdateChecked ? (
+                  new Date(device.lastUpdateChecked).toLocaleString()
+                ) : (
+                  <span className="text-neutral-300">—</span>
+                )}
               </div>
-            </>
-          )}
+            </div>
+            {device.centreId ? (
+              <div className="flex flex-col gap-2">
+                <Label className="text-neutral-500">Centre ID</Label>
+                <div className="flex items-center gap-2 text-base text-neutral-800 font-mono text-sm break-all">
+                  <MapPin className="w-4 h-4 shrink-0 text-neutral-300" />
+                  <Link
+                    href={ROUTES.CENTRE(device.centreId)}
+                    className="text-primary-600 hover:text-primary-700 underline-offset-2 hover:underline"
+                  >
+                    {device.centreId}
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <Separator />
+          <div className="flex flex-col gap-2">
+            <Label className="text-neutral-500">Last Reported State</Label>
+            <pre className="bg-neutral-50 border border-neutral-100 rounded-lg p-4 text-xs text-neutral-700 overflow-x-auto whitespace-pre-wrap break-all min-h-[2.5rem]">
+              {device.lastReportedState != null
+                ? formatLastReportedState(device.lastReportedState) || "—"
+                : "—"}
+            </pre>
+          </div>
           <Separator />
           <div className="flex flex-col gap-2">
             <Label className="text-neutral-500">Assigned Centre</Label>
-            {device.centre ? (
+            {centreHasDisplayData(device.centre) ? (
               <div className="flex flex-col gap-1 bg-primary-50 border border-primary-100 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-lg font-semibold text-primary-700">
                   <MapPin className="w-5 h-5 text-primary-400" />
-                  {device.centre.user?.name} {device.centre.code}
+                  {device.centre!.user?.name} {device.centre!.code}
                 </div>
                 <Link
-                  href={ROUTES.CENTRE(device.centre?.id || "")}
+                  href={ROUTES.CENTRE(device.centre?.id || device.centreId || "")}
                   className="text-sm text-primary-500 hover:text-primary-600"
                 >
                   Visit Centre Page
                 </Link>
                 <div className="text-sm text-neutral-600">
-                  {device.centre.address}
+                  {device.centre!.address}
                 </div>
                 <div className="flex gap-4 text-xs text-neutral-500 mt-1">
-                  <span>Contact: {device.centre.contactNumber}</span>
-                  <span>Pincode: {device.centre.pincode}</span>
+                  <span>Contact: {device.centre!.contactNumber}</span>
+                  <span>Pincode: {device.centre!.pincode}</span>
                 </div>
+              </div>
+            ) : device.centreId ? (
+              <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                <p className="text-sm text-neutral-600">
+                  Linked to centre (details not loaded in this response).
+                </p>
+                <Link
+                  href={ROUTES.CENTRE(device.centreId)}
+                  className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                >
+                  Open centre page
+                </Link>
               </div>
             ) : (
               <div className="text-neutral-400 italic">

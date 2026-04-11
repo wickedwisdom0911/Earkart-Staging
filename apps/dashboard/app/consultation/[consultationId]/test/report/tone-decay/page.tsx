@@ -1,10 +1,14 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Ear, ToneDecayResult, ReportType } from "@/models/enums";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
-import { ConsultationModelData } from "@/models/consultation.model";
+import {
+  ConsultationModel,
+  ConsultationModelData,
+  getConsultationFromQueryResponse,
+} from "@/models/consultation.model";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +20,7 @@ import { toast } from "sonner";
 import Image from "next/image";
 import { exportElementToPdfBlob } from "@/lib/pdf";
 import ReportTopActions from "@/components/ui/ReportTopActions";
+import ReportSnhlSection from "@/components/report/ReportSnhlSection";
 import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
 import useDemoAccount from "@/hooks/use-demo-account";
 import { useSocket } from "@/providers/socket-provider";
@@ -29,8 +34,11 @@ export default function ToneDecayReportPage() {
   const consultationId = params.consultationId as string;
 
   const { data: consultationResponse, isLoading, error } = useGetConsultation(consultationId);
-  const consultation = consultationResponse?.data as ConsultationModelData | undefined;
-  const consultationData = consultation;
+  const consultationData = useMemo(
+    () => getConsultationFromQueryResponse(consultationResponse as ConsultationModel | undefined),
+    [consultationResponse]
+  );
+  const consultation = consultationData ?? undefined;
   
   // Check if this is Shriram Hospital
   const isShriramHospital = consultationData?.centre?.user?.email?.toLowerCase() === "bills.shriramhospital@gmail.com" || 
@@ -466,6 +474,14 @@ export default function ToneDecayReportPage() {
                 {comments || "No comments entered"}
               </div>
             </div>
+          </div>
+
+          <div className="px-8 mb-6 print:hidden">
+            <ReportSnhlSection
+              consultationId={consultationId as string}
+              consultation={consultationData}
+              className="w-full"
+            />
           </div>
 
           {/* Audiologist Box */}

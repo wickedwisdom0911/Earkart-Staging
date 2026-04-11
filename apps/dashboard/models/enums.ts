@@ -3,6 +3,14 @@ export enum StatusEnum {
   INACTIVE = "INACTIVE",
 }
 
+/** Device inventory status from the device API (distinct from generic ACTIVE/INACTIVE in some payloads). */
+export enum DeviceStatusEnum {
+  ENABLED = "ENABLED",
+  DISABLED = "DISABLED",
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+}
+
 export enum Gender {
   MALE = "MALE",
   FEMALE = "FEMALE",
@@ -191,5 +199,13 @@ export enum ToneDecayResult {
   ABNORMAL = "ABNORMAL",
   CANNOT_DETERMINE = "CANNOT_DETERMINE",
   NOT_COMPLETED = "NOT_COMPLETED",
+}
+
+/** Sensorineural hearing loss severity on consultation (backend enum). */
+export enum HearingLossSeverity {
+  MILD = "MILD",
+  MODERATE = "MODERATE",
+  SEVERE = "SEVERE",
+  PROFOUND = "PROFOUND",
 }
 

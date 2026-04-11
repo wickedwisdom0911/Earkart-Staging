@@ -28,6 +28,7 @@ import { useUpdatePatient } from "@/hooks/consultation/use-update-patient";
 import { toast } from "sonner";
 import { Stethoscope, CreditCard } from "lucide-react";
 import type { ConsultationModelData } from "@/models/consultation.model";
+import TrialAppointmentSection from "./trial-appointment-section";
 
 export default function PatientDetails({
   patient,
@@ -152,11 +153,11 @@ export default function PatientDetails({
   return (
     <div className="h-full overflow-y-auto bg-white flex justify-center">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="px-5 py-4 w-full max-w-2xl mx-auto">
+        <div className="px-5 py-4 w-full max-w-2xl mx-auto">
           {/* Tests & Payment info */}
           {consultation && (
             <div className="flex gap-4 mb-4">
-              {consultation.consultationPricing?.length > 0 && (
+              {consultation.consultationPricing && consultation.consultationPricing.length > 0 && (
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Stethoscope className="w-4 h-4 text-primary-600 flex-shrink-0" />
                   <span>
@@ -181,6 +182,15 @@ export default function PatientDetails({
             </div>
           )}
 
+          {consultation?.id && patient.id ? (
+            <TrialAppointmentSection
+              consultationId={consultation.id}
+              patientId={patient.id}
+              audiologistIdFromConsultation={consultation.audiologistId}
+            />
+          ) : null}
+
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           <div className="space-y-4">
             {/* Patients Details heading */}
             <div className="mb-2">
@@ -429,7 +439,8 @@ export default function PatientDetails({
               {isPending ? "Saving..." : "Next"}
             </Button>
           </div>
-        </form>
+          </form>
+        </div>
       </Form>
     </div>
   );

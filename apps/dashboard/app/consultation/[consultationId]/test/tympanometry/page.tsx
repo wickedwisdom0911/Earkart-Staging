@@ -14,14 +14,15 @@ import {
   ResponsiveContainer,
   ReferenceArea,
 } from "recharts";
-import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
+import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
+import { useQueryClient } from "@tanstack/react-query";
 import { ConsultationModelData } from "@/models/consultation.model";
 import {
   TympanometryTestModelData,
   TympanometryReadingModelData,
 } from "@/models/tympanometry.model";
-import { TestStatus, Ear, TympType } from "@/models/enums";
+import { Ear, TympType, TestStatus } from "@/models/enums";
 import { toast } from "sonner";
 import { ROUTES } from "@/lib/routes";
 import {
@@ -136,10 +137,12 @@ export default function TympanometryPage() {
   const socket = useSocket();
   const router = useRouter();
   const params = useParams();
+  const queryClient = useQueryClient();
   const updateConsultationMutation = useUpdateConsultation();
   const { data: consultation } = useGetConsultation(
     params.consultationId as string
   );
+  const [isSavingResults, setIsSavingResults] = useState(false);
 
   const [selectedEar, setSelectedEar] = useState<"L" | "R">("L");
   const [selectedProbeTone, setSelectedProbeTone] = useState(226);
@@ -155,7 +158,6 @@ export default function TympanometryPage() {
   const [nackMessage, setNackMessage] = useState("");
   // Cache for readings saved during this session to avoid losing the first ear before refetch
   const [localReadings, setLocalReadings] = useState<TympanometryReadingModelData[]>([]);
-  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
 
   // Add state for all tympanometry values
   const [peakPressure, setPeakPressure] = useState<number | null>(null);
@@ -166,9 +168,7 @@ export default function TympanometryPage() {
   const [ecv, setECV] = useState<number | null>(null);
   const [completedEars, setCompletedEars] = useState<Set<"L" | "R">>(new Set());
   
-  // State for save confirmation dialog
-  const [showSaveConfirmDialog, setShowSaveConfirmDialog] = useState(false);
-  const [pendingEarSwitch, setPendingEarSwitch] = useState<"L" | "R" | null>(null);
+  // (save-confirmation dialog removed — audiologist saves explicitly via button)
 
   // New state variables for controls
   const [pressureMin, setPressureMin] = useState(-150);
@@ -231,55 +231,39 @@ export default function TympanometryPage() {
       complianceData: complianceData,
     };
 
-    // Merge with any existing readings from consultation and our local cache,
-    // then overwrite with the current ear's reading to avoid duplicates.
+    // Merge server + in-session so both ears persist when saving one at a time (test UI still does not hydrate from API).
     const existingReadings = consultationData.tympanometry?.readings || [];
     const mergedByEar = new Map<Ear, TympanometryReadingModelData>();
-    for (const r of existingReadings) mergedByEar.set(r.ear, r);
-    for (const r of localReadings) mergedByEar.set(r.ear, r);
-    mergedByEar.set(tympanometryReading.ear, tympanometryReading);
+    for (const r of existingReadings) mergedByEar.set(r.ear as Ear, r);
+    for (const r of localReadings) mergedByEar.set(r.ear as Ear, r);
+    mergedByEar.set(tympanometryReading.ear as Ear, tympanometryReading);
     const updatedReadings: TympanometryReadingModelData[] = Array.from(mergedByEar.values());
-    // Update local cache immediately so the next save includes prior ear even if query hasn't refetched
     setLocalReadings(updatedReadings);
 
-    // Create tympanometry test data
-    const tympanometryTest: TympanometryTestModelData = {
-      sessionId: consultationData.id,
-      status: TestStatus.COMPLETED,
-      readings: updatedReadings,
-      notes: consultationData.tympanometry?.notes
-        ? `${consultationData.tympanometry.notes}\nTympanometry test completed for ${selectedEar} ear. Probe tone: ${selectedProbeTone}Hz.`
-        : `Tympanometry test completed for ${selectedEar} ear. Probe tone: ${selectedProbeTone}Hz.`,
-      createdAt:
-        consultationData.tympanometry?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    // Update consultation with tympanometry data
-    const updatedConsultation: ConsultationModelData = {
-      ...consultationData,
-      tympanometry: tympanometryTest,
-      updatedAt: new Date().toISOString(),
-    };
-
     try {
-      await updateConsultationMutation.mutateAsync(updatedConsultation);
-      console.log("Tympanometry results saved successfully");
+      setIsSavingResults(true);
 
-      // Preserve localStorage data after test submission
-      try {
-        const storageKey = `tympanometry-${params.consultationId}`;
-        const dataToStore = {
-          localReadings: updatedReadings,
-          completedEars: Array.from(completedEars),
-          timestamp: new Date().toISOString(),
-          submitted: true
-        };
-        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
-        console.log('💾 Preserved tympanometry data in localStorage after test submission');
-      } catch (error) {
-        console.error('Failed to save to localStorage:', error);
-      }
+      const tympanometryTest: TympanometryTestModelData = {
+        sessionId: consultationData.id,
+        status: TestStatus.COMPLETED,
+        readings: updatedReadings,
+        notes: consultationData.tympanometry?.notes
+          ? `${consultationData.tympanometry.notes}\nTympanometry test completed for ${selectedEar} ear. Probe tone: ${selectedProbeTone}Hz.`
+          : `Tympanometry test completed for ${selectedEar} ear. Probe tone: ${selectedProbeTone}Hz.`,
+        createdAt: consultationData.tympanometry?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const updatedConsultation: ConsultationModelData = {
+        ...consultationData,
+        tympanometry: tympanometryTest,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await updateConsultationMutation.mutateAsync(updatedConsultation);
+      await queryClient.invalidateQueries({
+        queryKey: ["consultation", params.consultationId as string],
+      });
 
       // Add current ear to completed set
       const newCompletedEars = new Set(completedEars);
@@ -296,119 +280,65 @@ export default function TympanometryPage() {
           `${selectedEar === "L" ? "Left" : "Right"} ear completed and saved! Please test the ${remainingEar} ear.`
         );
 
-        // Switch to the other ear automatically
+        // Switch to the other ear with a clean state — audiologist runs the test fresh
         const nextEar = selectedEar === "L" ? "R" : "L";
+        setRealTimeData([]);
+        setFinalData([]);
+        setIsTestCompleted(false);
+        setIsRunning(false);
+        setCurrentPressure(0);
+        setCurrentCompliance(0);
+        setPeakPressure(null);
+        setPeakCompliance(null);
+        setPeakCompensatedWithECV(null);
+        setGradient(null);
+        setGradientPressure(null);
+        setECV(null);
         setSelectedEar(nextEar);
-        
-        // Check if the next ear already has saved data
-        const nextEarReading = updatedReadings.find(r => 
-          r.ear === (nextEar === "L" ? Ear.LEFT : Ear.RIGHT)
-        );
-        
-        if (nextEarReading) {
-          // Load saved data for the next ear
-          setPeakPressure(nextEarReading.peakPressure);
-          setPeakCompliance(nextEarReading.peakCompliance ?? null);
-          setPeakCompensatedWithECV(nextEarReading.peakCompensatedWithECV ?? nextEarReading.staticCompliance ?? null);
-          setECV(nextEarReading.earCanalVolume);
-          setGradient(nextEarReading.gradient ?? null);
-          
-          // Rebuild graph data from saved reading
-          if (nextEarReading.pressureData && nextEarReading.complianceData) {
-            const savedPoints: TympanogramPoint[] = nextEarReading.pressureData.map(
-              (pressure: number, index: number) => {
-                const rawCompliance = nextEarReading.complianceData![index];
-                const ecvValue = nextEarReading.earCanalVolume;
-                const compensatedCompliance = Math.max(0, rawCompliance - ecvValue);
-                return {
-                  pressure,
-                  compliance: rawCompliance,
-                  compensatedCompliance,
-                  ear: nextEar,
-                };
-              }
-            );
-            setFinalData(savedPoints);
-            setIsTestCompleted(true);
-          } else {
-            // No graph data available - show empty graph
-            setFinalData([]);
-            setIsTestCompleted(false);
-          }
-        } else {
-          // Reset test state for the next ear (no saved data)
-          setRealTimeData([]);
-          setFinalData([]);
-          setIsTestCompleted(false);
-          setCurrentPressure(0);
-          setCurrentCompliance(0);
-          setPeakPressure(null);
-          setPeakCompliance(null);
-          setPeakCompensatedWithECV(null);
-          setGradient(null);
-          setECV(null);
-        }
       }
     } catch (error) {
       console.error("Failed to save tympanometry results:", error);
       toast.error("Failed to save tympanometry results. Please try again.");
+    } finally {
+      setIsSavingResults(false);
     }
   }, [
     consultation,
-    isTestCompleted,
-    finalData.length,
+    finalData,
+    realTimeData,
     selectedEar,
     peakPressure,
     peakCompliance,
+    peakCompensatedWithECV,
     ecv,
+    gradient,
+    gradientPressure,
     selectedProbeTone,
-    updateConsultationMutation,
-    router,
     params.consultationId,
     completedEars,
     localReadings,
+    updateConsultationMutation,
+    queryClient,
   ]);
 
-  // Handle ear switching with save confirmation
+  // Switch ear and always start fresh — audiologist saves explicitly via the Save button
   const handleEarSwitch = useCallback((newEar: "L" | "R") => {
-    // Check if current ear has unsaved results
-    if (isTestCompleted && !completedEars.has(selectedEar) && newEar !== selectedEar) {
-      // Ask user if they want to save
-      setPendingEarSwitch(newEar);
-      setShowSaveConfirmDialog(true);
-    } else {
-      // Safe to switch
-      setSelectedEar(newEar);
-    }
-  }, [isTestCompleted, completedEars, selectedEar]);
-
-  // Handle save confirmation dialog
-  const handleSaveConfirmation = useCallback(async (shouldSave: boolean) => {
-    if (shouldSave && pendingEarSwitch) {
-      // Save current ear results
-      await saveTympanometryResults();
-    } else {
-      // Reset test state if not saving
-      setRealTimeData([]);
-      setFinalData([]);
-      setIsTestCompleted(false);
-      setCurrentPressure(0);
-      setCurrentCompliance(0);
-      setPeakPressure(null);
-      setPeakCompliance(null);
-      setGradient(null);
-      setECV(null);
-    }
-    
-    // Switch to pending ear
-    if (pendingEarSwitch) {
-      setSelectedEar(pendingEarSwitch);
-    }
-    
-    // Close dialog
-    setShowSaveConfirmDialog(false);
-    setPendingEarSwitch(null);
-  }, [pendingEarSwitch, saveTympanometryResults]);
+    if (newEar === selectedEar) return;
+    // Reset test state so the audiologist can run a clean test on the new ear
+    setRealTimeData([]);
+    setFinalData([]);
+    setIsTestCompleted(false);
+    setIsRunning(false);
+    setCurrentPressure(0);
+    setCurrentCompliance(0);
+    setPeakPressure(null);
+    setPeakCompliance(null);
+    setPeakCompensatedWithECV(null);
+    setGradient(null);
+    setGradientPressure(null);
+    setECV(null);
+    setSelectedEar(newEar);
+  }, [selectedEar]);
 
   // Update real-time data when receiving impedance status
   React.useEffect(() => {
@@ -562,170 +492,43 @@ export default function TympanometryPage() {
     params.consultationId,
   ]);
 
-  // Load test results - prioritize backend if test is completed, otherwise use localStorage
-  useEffect(() => {
-    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
-    if (!params.consultationId || hasLoadedFromStorage || !consultationData) return;
-    
-    const isTestCompleted = consultationData?.tympanometry?.status === TestStatus.COMPLETED;
-    
-    // If test is completed, skip localStorage and load from backend (handled in next useEffect)
-    if (isTestCompleted) {
-      console.log('✅ Tympanometry test is completed - will load from backend API');
-      setHasLoadedFromStorage(true);
-      return;
-    }
-    
-    // If test is NOT completed, load from localStorage for work in progress
-    try {
-      const storageKey = `tympanometry-${params.consultationId}`;
-      const storedData = localStorage.getItem(storageKey);
-      
-      if (storedData) {
-        const parsed = JSON.parse(storedData);
-        if (parsed.localReadings && Array.isArray(parsed.localReadings)) {
-          setLocalReadings(parsed.localReadings);
-          
-          // Restore completed ears
-          if (parsed.completedEars && Array.isArray(parsed.completedEars)) {
-            setCompletedEars(new Set(parsed.completedEars));
-          }
-          
-          console.log('📦 Loaded tympanometry results from localStorage (test not completed):', {
-            count: parsed.localReadings.length
-          });
-        }
-      }
-      setHasLoadedFromStorage(true);
-    } catch (error) {
-      console.error('Failed to load from localStorage:', error);
-      setHasLoadedFromStorage(true);
-    }
-  }, [params.consultationId, consultation, hasLoadedFromStorage]);
-
-  // Populate test results from backend API - prioritize if test is completed
-  useEffect(() => {
-    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
-    if (!consultationData || !hasLoadedFromStorage) return;
-
-    const isTestCompleted = consultationData?.tympanometry?.status === TestStatus.COMPLETED;
-    
-    // If test is NOT completed and we already have local data, don't override
-    if (!isTestCompleted && localReadings.length > 0) {
-      return; // Keep localStorage data for work in progress
-    }
-    
-    // If test is completed OR we don't have local data, load from backend
-    if (consultationData?.tympanometry?.readings && consultationData.tympanometry.readings.length > 0) {
-      setLocalReadings(consultationData.tympanometry.readings);
-      
-      // Restore completed ears from backend
-      const backendCompletedEars = new Set<"L" | "R">();
-      consultationData.tympanometry.readings.forEach((reading) => {
-        if (reading.ear === Ear.LEFT) backendCompletedEars.add("L");
-        if (reading.ear === Ear.RIGHT) backendCompletedEars.add("R");
-      });
-      setCompletedEars(backendCompletedEars);
-      
-      console.log('📥 Loaded tympanometry results from backend API:', {
-        count: consultationData.tympanometry.readings.length,
-        isCompleted: isTestCompleted
-      });
-      
-      // Also save to localStorage for future reference
-      try {
-        const storageKey = `tympanometry-${params.consultationId}`;
-        const dataToStore = {
-          localReadings: consultationData.tympanometry.readings,
-          completedEars: Array.from(backendCompletedEars),
-          timestamp: new Date().toISOString(),
-          submitted: isTestCompleted
-        };
-        localStorage.setItem(storageKey, JSON.stringify(dataToStore));
-      } catch (error) {
-        console.error('Failed to save backend data to localStorage:', error);
-      }
-    }
-  }, [consultation, params.consultationId, hasLoadedFromStorage, localReadings.length]);
-
-  // Load saved reading data whenever the selected ear changes (but NOT when test completes)
-  // Use a ref to track the previous ear to detect actual ear switches
+  // On initial page load only: restore the last-saved reading so the audiologist
+  // can see what was previously recorded. Ear-switches always start fresh (handled
+  // in handleEarSwitch), so this effect only fires once (isInitialLoad guard).
   const prevEarRef = React.useRef<"L" | "R" | null>(null);
-  
+
   React.useEffect(() => {
     const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
-    const savedReading = localReadings.find(r => 
-      r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
-    ) || consultationData?.tympanometry?.readings?.find(r => 
+    const isInitialLoad = prevEarRef.current === null;
+    prevEarRef.current = selectedEar;
+
+    // Only restore on the very first render — never on ear-switches
+    if (!isInitialLoad) return;
+
+    const savedReading = localReadings.find(r =>
       r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
     );
 
-    // Only reload saved data when:
-    // 1. Ear actually changed (not when isRunning changes from test completion)
-    // 2. Test is not currently running
-    const earChanged = prevEarRef.current !== null && prevEarRef.current !== selectedEar;
-    const isInitialLoad = prevEarRef.current === null;
-    
-    if (savedReading && !isRunning && (earChanged || isInitialLoad)) {
-      // Load saved values for display
+    if (savedReading && !isRunning) {
       setPeakPressure(savedReading.peakPressure);
       setPeakCompliance(savedReading.peakCompliance ?? null);
       setPeakCompensatedWithECV(savedReading.peakCompensatedWithECV ?? savedReading.staticCompliance ?? null);
       setECV(savedReading.earCanalVolume);
       setGradient(savedReading.gradient ?? null);
 
-      // Rebuild graph data from saved reading - only use backend data
       if (savedReading.pressureData && savedReading.complianceData && savedReading.pressureData.length > 0) {
         const savedPoints: TympanogramPoint[] = savedReading.pressureData.map(
           (pressure: number, index: number) => {
             const rawCompliance = savedReading.complianceData![index];
-            const ecvValue = savedReading.earCanalVolume;
-            const compensatedCompliance = Math.max(0, rawCompliance - ecvValue);
-            return {
-              pressure,
-              compliance: rawCompliance,
-              compensatedCompliance,
-              ear: selectedEar,
-            };
+            const compensatedCompliance = Math.max(0, rawCompliance - savedReading.earCanalVolume);
+            return { pressure, compliance: rawCompliance, compensatedCompliance, ear: selectedEar };
           }
         );
         setFinalData(savedPoints);
-        // Mark test as completed for this ear only in UI
-        setIsTestCompleted(true);
-      } else {
-        // No graph data available - show empty
-        setFinalData([]);
-        setIsTestCompleted(false);
+        // Show previous result but do NOT mark as completed — audiologist can still re-run
       }
     }
-    
-    // Update ref to track current ear
-    prevEarRef.current = selectedEar;
   }, [selectedEar, consultation, localReadings]);
-
-  // Save test results to localStorage whenever they change (preserve even after submission)
-  useEffect(() => {
-    const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
-    if (!params.consultationId || !hasLoadedFromStorage) return;
-    
-    const isTestCompleted = consultationData?.tympanometry?.status === TestStatus.COMPLETED;
-    
-    // Always save to preserve tympanometry data, even after test completion
-    try {
-      const storageKey = `tympanometry-${params.consultationId}`;
-      const dataToStore = {
-        localReadings,
-        completedEars: Array.from(completedEars),
-        timestamp: new Date().toISOString(),
-        submitted: isTestCompleted
-      };
-      localStorage.setItem(storageKey, JSON.stringify(dataToStore));
-    } catch (error) {
-      console.error('Failed to save to localStorage:', error);
-    }
-  }, [params.consultationId, localReadings, completedEars, consultation?.tympanometry?.status, hasLoadedFromStorage]);
-
-
 
   // Start/Stop tympanometry test
   const startTest = useCallback(() => {
@@ -881,48 +684,6 @@ export default function TympanometryPage() {
         </>
       )}
       
-      {/* Save Confirmation Dialog */}
-      <Dialog open={showSaveConfirmDialog} onOpenChange={setShowSaveConfirmDialog}>
-        <DialogContent className="z-[100]">
-          <DialogHeader>
-            <DialogTitle>Unsaved Test Results</DialogTitle>
-            <DialogDescription>
-              You have unsaved test results for the {selectedEar === "L" ? "Left" : "Right"} ear.
-              Do you want to save them before switching?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-yellow-700">
-                    If you don't save, the test data for this ear will be lost.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <button
-              onClick={() => handleSaveConfirmation(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Don't Save
-            </button>
-            <button
-              onClick={() => handleSaveConfirmation(true)}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
-            >
-              Save & Continue
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Main Content */}
       <div className="p-6 lg:pr-80">
@@ -1103,11 +864,7 @@ export default function TympanometryPage() {
                   <div className="text-[9px] text-gray-500">Peak C</div>
                   <div className="font-semibold">
                     {(() => {
-                      // First check if we have a saved reading for this ear (from localReadings or consultation)
-                      const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
-                      const savedReading = localReadings.find(r => 
-                        r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
-                      ) || consultationData?.tympanometry?.readings?.find(r => 
+                      const savedReading = localReadings.find(r =>
                         r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
                       );
                       
@@ -1174,12 +931,12 @@ export default function TympanometryPage() {
             {(isTestCompleted || finalData.length > 0 || realTimeData.length > 0) && (
               <button
                 className={`w-full px-2 py-1 rounded text-[10px] ${
-                  updateConsultationMutation.isPending ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+                  isSavingResults ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
                 } text-white mb-1`}
                 onClick={saveTympanometryResults}
-                disabled={updateConsultationMutation.isPending}
+                disabled={isSavingResults}
               >
-                {updateConsultationMutation.isPending
+                {isSavingResults
                   ? "Saving..."
                   : completedEars.size === 1
                     ? "Save Results (Last Ear)"
@@ -1520,11 +1277,7 @@ export default function TympanometryPage() {
               </label>
               <p className="text-lg font-semibold">
                 {(() => {
-                  // First check if we have a saved reading for this ear (from localReadings or consultation)
-                  const consultationData = (consultation as any)?.data as ConsultationModelData | undefined;
-                  const savedReading = localReadings.find(r => 
-                    r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
-                  ) || consultationData?.tympanometry?.readings?.find(r => 
+                  const savedReading = localReadings.find(r =>
                     r.ear === (selectedEar === "L" ? Ear.LEFT : Ear.RIGHT)
                   );
                   
@@ -1584,12 +1337,12 @@ export default function TympanometryPage() {
           <div className="mt-6 flex gap-4 lg:hidden">
             <button
               className={`px-6 py-2 rounded flex items-center gap-2 ${
-                updateConsultationMutation.isPending
+                isSavingResults
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-green-500 hover:bg-green-600"
               } text-white`}
               onClick={saveTympanometryResults}
-              disabled={updateConsultationMutation.isPending}
+              disabled={isSavingResults}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1603,7 +1356,7 @@ export default function TympanometryPage() {
                   clipRule="evenodd"
                 />
               </svg>
-              {updateConsultationMutation.isPending
+              {isSavingResults
                 ? "Submitting..."
                 : completedEars.size === 1
                   ? "Save Results (Last Ear)"

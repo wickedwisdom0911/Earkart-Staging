@@ -20,7 +20,11 @@ import { useState } from "react";
 
 export default function AppSidebarBody({ item }: { item: SidebarItem }) {
   const pathname = usePathname();
-  const { open } = useSidebar();
+  const { open, isMobile, setOpenMobile } = useSidebar();
+
+  const closeMobileNav = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   const isActive = item.url
     ? pathname === item.url ||
@@ -40,6 +44,7 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
           <TooltipTrigger asChild>
             <Link
               href={item.url || "#"}
+              onClick={closeMobileNav}
               className={cn(
                 "flex items-center justify-center w-9 h-9 mx-auto rounded-xl transition-all duration-150",
                 isActive
@@ -74,6 +79,7 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
             {item.url ? (
               <Link
                 href={item.url}
+                onClick={closeMobileNav}
                 className={cn(
                   "flex items-center gap-3 flex-1 px-3 py-2.5 lg:py-3 text-sm font-medium truncate",
                   isActive ? "text-[#40A3DB]" : "text-gray-600 group-hover:text-gray-900"
@@ -125,6 +131,7 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
                           <SidebarMenuSubButton asChild>
                             <Link
                               href={sub.url || "#"}
+                              onClick={closeMobileNav}
                               className={cn(
                                 "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150",
                                 subActive
@@ -159,6 +166,7 @@ export default function AppSidebarBody({ item }: { item: SidebarItem }) {
       <SidebarMenuButton asChild>
         <Link
           href={item.url || "#"}
+          onClick={closeMobileNav}
           className={cn(
             "flex items-center gap-3 px-3 py-2.5 lg:py-3 rounded-xl text-sm font-medium transition-all duration-150 group",
             isActive

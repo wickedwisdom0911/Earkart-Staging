@@ -7,7 +7,7 @@ import {
 } from "@/lib/dashboard-sky-surface";
 import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { Role } from "@/models/enums";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
 import { format } from "date-fns";
 import { useGetConsultationsInfinite } from "@/hooks/consultation/use-get-consultations-infinite";
@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import getConsultation from "@/actions/consultations/get_consultation";
 import { useDebounce } from "@/utils/hooks/useDebounce";
+import { HearingLossSeverity } from "@/models/enums";
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 400;
@@ -233,8 +234,16 @@ function NewUIConsultationCard({
   );
 }
 
+const HEARING_LOSS_SEVERITY_VALUES = [
+  HearingLossSeverity.MILD,
+  HearingLossSeverity.MODERATE,
+  HearingLossSeverity.SEVERE,
+  HearingLossSeverity.PROFOUND,
+] as const;
+
 function AllConsultationsContent() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { data: user } = useGetUser();
@@ -250,6 +259,8 @@ function AllConsultationsContent() {
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
   const [showDemoCalls, setShowDemoCalls] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "missed" | "reconnected" | "failed">("all");
+  const [hearingLossFilter, setHearingLossFilter] = useState<"any" | "yes" | "no">("any");
+  const [hearingLossSeverityFilter, setHearingLossSeverityFilter] = useState<string>("");
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Sync type filter with URL (e.g. ?filter=missed-calls, ?filter=reconnected-calls, ?filter=failed-calls)
@@ -267,6 +278,39 @@ function AllConsultationsContent() {
       setSelectedAudiologistId(urlAudiologistId);
     }
   }, [urlAudiologistId]);
+
+  // Hearing loss patient — query params hearingLoss / hearingLossSeverity (GET consultation/get-all)
+  useEffect(() => {
+    const hl = searchParams.get("hearingLoss");
+    if (hl === "true") setHearingLossFilter("yes");
+    else if (hl === "false") setHearingLossFilter("no");
+    else setHearingLossFilter("any");
+    const sev = searchParams.get("hearingLossSeverity");
+    if (hl === "true" && sev) {
+      const u = sev.toUpperCase();
+      if (
+        HEARING_LOSS_SEVERITY_VALUES.includes(u as (typeof HEARING_LOSS_SEVERITY_VALUES)[number])
+      ) {
+        setHearingLossSeverityFilter(u);
+      }
+    } else {
+      setHearingLossSeverityFilter("");
+    }
+  }, [searchParams]);
+
+  const syncHearingLossSearchParams = useCallback(
+    (hl: "any" | "yes" | "no", sev: string) => {
+      const p = new URLSearchParams(searchParams.toString());
+      if (hl === "yes") p.set("hearingLoss", "true");
+      else if (hl === "no") p.set("hearingLoss", "false");
+      else p.delete("hearingLoss");
+      if (sev) p.set("hearingLossSeverity", sev);
+      else p.delete("hearingLossSeverity");
+      const q = p.toString();
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   const isAudiologist =
     user?.role === Role.AUDIOLOGIST || user?.role === Role.HEAD_AUDIOLOGIST;
@@ -306,6 +350,11 @@ function AllConsultationsContent() {
   const isSpecialFilter = isMissedFilter || isReconnectedFilter || isFailedFilter;
 
   const isDemoParam = showDemoCalls ? true : undefined;
+
+  const hearingLossApiParam =
+    hearingLossFilter === "yes" ? true : hearingLossFilter === "no" ? false : undefined;
+  const hearingLossSeverityApiParam =
+    hearingLossFilter === "yes" ? hearingLossSeverityFilter || undefined : undefined;
 
   // Missed calls: use dedicated /consultation/missed-calls API (CANCELLED_BY_PATIENT, excludes RECONNECTED)
   const missedCallsQuery = useGetMissedCallsInfinite({
@@ -348,6 +397,8 @@ function AllConsultationsContent() {
     search: debouncedSearchQuery || undefined,
     audiologistId: apiAudiologistId,
     isDemo: isDemoParam,
+    hearingLoss: !isSpecialFilter ? hearingLossApiParam : undefined,
+    hearingLossSeverity: !isSpecialFilter ? hearingLossSeverityApiParam : undefined,
     enabled: !isSpecialFilter,
   });
 
@@ -440,7 +491,17 @@ function AllConsultationsContent() {
     setSearchQuery("");
     setShowDemoCalls(false);
     setTypeFilter("all");
+    setHearingLossFilter("any");
+    setHearingLossSeverityFilter("");
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("hearingLoss");
+    p.delete("hearingLossSeverity");
+    const q = p.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   };
+
+  const hasHearingLossListFilters =
+    hearingLossFilter !== "any" || hearingLossSeverityFilter.length > 0;
 
   const loadedCount = allConsultationsFromApi.length;
 
@@ -774,7 +835,73 @@ function AllConsultationsContent() {
             )}
           </div>
 
-          {(startDate || endDate || selectedAudiologistId || searchQuery || showDemoCalls) && (
+          {typeFilter === "all" && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 10,
+                marginTop: 12,
+              }}
+            >
+              <Select
+                value={hearingLossFilter}
+                onValueChange={(v) => {
+                  const next = v as "any" | "yes" | "no";
+                  setHearingLossFilter(next);
+                  if (next !== "yes") {
+                    setHearingLossSeverityFilter("");
+                    syncHearingLossSearchParams(next, "");
+                  } else {
+                    syncHearingLossSearchParams(next, hearingLossSeverityFilter);
+                  }
+                }}
+              >
+                <SelectTrigger
+                  className="border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-sm h-auto w-[min(100%,240px)] shrink-0"
+                >
+                  <SelectValue placeholder="Hearing loss patient" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Hearing loss patient — any</SelectItem>
+                  <SelectItem value="yes">Hearing loss patient — yes</SelectItem>
+                  <SelectItem value="no">Hearing loss patient — no</SelectItem>
+                </SelectContent>
+              </Select>
+              {hearingLossFilter === "yes" && (
+                <Select
+                  value={hearingLossSeverityFilter || "any"}
+                  onValueChange={(v) => {
+                    const next = v === "any" ? "" : v;
+                    setHearingLossSeverityFilter(next);
+                    syncHearingLossSearchParams("yes", next);
+                  }}
+                >
+                  <SelectTrigger
+                    className="border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-sm h-auto w-[min(100%,220px)] shrink-0"
+                  >
+                    <SelectValue placeholder="Severity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Severity — any</SelectItem>
+                    {HEARING_LOSS_SEVERITY_VALUES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s.charAt(0) + s.slice(1).toLowerCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          {(startDate ||
+            endDate ||
+            selectedAudiologistId ||
+            searchQuery ||
+            showDemoCalls ||
+            hasHearingLossListFilters) && (
             <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
               <Button variant="outline" size="sm" onClick={clearFilters} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <X size={14} />
@@ -838,6 +965,7 @@ function AllConsultationsContent() {
                   selectedAudiologistId ||
                   searchQuery ||
                   showDemoCalls ||
+                  hasHearingLossListFilters ||
                   typeFilter !== "all"
                 )}
                 sessionTypeFilter={typeFilter}

@@ -19,11 +19,31 @@ export interface UseGetConsultationsInfiniteParams
 export function useGetConsultationsInfinite(
   params: UseGetConsultationsInfiniteParams = {}
 ) {
-  const { limit = 20, enabled = true, audiologistId, startDate, endDate, search, isDemo } =
-    params;
+  const {
+    limit = 20,
+    enabled = true,
+    audiologistId,
+    startDate,
+    endDate,
+    search,
+    isDemo,
+    hearingLoss,
+    hearingLossSeverity,
+  } = params;
 
   const query = useInfiniteQuery({
-    queryKey: ["consultations", "infinite", limit, audiologistId, startDate, endDate, search, isDemo],
+    queryKey: [
+      "consultations",
+      "infinite",
+      limit,
+      audiologistId,
+      startDate,
+      endDate,
+      search,
+      isDemo,
+      hearingLoss,
+      hearingLossSeverity,
+    ],
     queryFn: async ({
       pageParam,
     }): Promise<GetConsultationsPageResult> => {
@@ -35,8 +55,10 @@ export function useGetConsultationsInfinite(
         endDate,
         search,
         isDemo: isDemo === true ? true : undefined,
+        hearingLoss:
+          typeof hearingLoss === "boolean" ? hearingLoss : undefined,
+        hearingLossSeverity: hearingLossSeverity?.trim() || undefined,
       });
-      console.log("[getConsultationsPage] result:", result);
       return result;
     },
     getNextPageParam: (lastPage) => {

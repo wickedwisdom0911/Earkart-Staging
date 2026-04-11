@@ -1,8 +1,12 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
-import { ConsultationModelData } from "@/models/consultation.model";
+import {
+  ConsultationModel,
+  ConsultationModelData,
+  getConsultationFromQueryResponse,
+} from "@/models/consultation.model";
 import { useParams, useRouter } from "next/navigation";
 import { Ear, SessionStatus } from "@/models/enums";
 import { format, parseISO } from "date-fns";
@@ -13,6 +17,7 @@ import StickyReportNavigation from "@/components/ui/StickyReportNavigation";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReportTopActions from "@/components/ui/ReportTopActions";
+import ReportSnhlSection from "@/components/report/ReportSnhlSection";
 import { exportElementToPdfBlob } from "@/lib/pdf";
 import { useShareReportWhatsApp } from "@/hooks/consultation/use-share-report-whatsapp";
 import { ReportType } from "@/models/enums";
@@ -422,7 +427,10 @@ export default function ReportPage() {
   const router = useRouter();
   const socket = useSocket();
   const { data: consultation, isLoading, error } = useGetConsultation(consultationId as string);
-  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
+  const consultationData = useMemo(
+    () => getConsultationFromQueryResponse(consultation as ConsultationModel | undefined),
+    [consultation]
+  );
   const updateConsultationMutation = useUpdateConsultation();
   const reportRef = useRef<HTMLDivElement>(null);
   
@@ -564,7 +572,7 @@ export default function ReportPage() {
     {
       value: "sensorineural",
       label: "Sensorineural Hearing Loss",
-      description: "Inner ear or auditory nerve issues. No medical or surgical cure in most cases, but management focuses on rehabilitation."
+      description: "Inner ear or auditory nerve issues. Management focuses on rehabilitation."
     },
     {
       value: "mixed",
@@ -614,6 +622,20 @@ export default function ReportPage() {
     if (!newSelection) return currentText;
     if (!currentText) return newSelection;
     return currentText + '\n' + newSelection;
+  };
+
+  /** Legacy suggestive-of text for SNHL sometimes included this disclaimer; omit from reports. */
+  const stripSensorineuralSurgicalMedicationDisclaimer = (text: string) => {
+    if (!text) return text;
+    const isSensorineuralBlock =
+      /Sensorineural Hearing Loss/i.test(text) ||
+      /Minimal Sensorineural or High-Frequency Hearing Loss/i.test(text);
+    if (!isSensorineuralBlock) return text;
+    return text
+      .replace(/\s*no surgical and no medication required\.?\s*/gi, " ")
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   };
 
   // Storage key for diagnosis data
@@ -677,6 +699,8 @@ export default function ReportPage() {
           loadedRecommendationComment = parts.slice(1).join('\n\n');
         }
       }
+
+      loadedSuggestion = stripSensorineuralSurgicalMedicationDisclaimer(loadedSuggestion);
 
       setFormData(prev => ({
         ...prev,
@@ -2077,7 +2101,15 @@ export default function ReportPage() {
                   />
                 </div>
 
-                <div className="flex justify-center gap-3">
+                <div className="w-full">
+                  <ReportSnhlSection
+                    consultationId={consultationId as string}
+                    consultation={consultationData}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="flex justify-center gap-3 pt-2">
                   <Button
                     type="submit"
                     disabled={updateConsultationMutation.isPending}

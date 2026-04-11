@@ -1,12 +1,16 @@
 "use client";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
-import { ConsultationModelData } from "@/models/consultation.model";
+import {
+  ConsultationModel,
+  ConsultationModelData,
+  getConsultationFromQueryResponse,
+} from "@/models/consultation.model";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import StickyReportNavigation from "@/components/ui/StickyReportNavigation";
@@ -14,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import { exportElementToPdfBlob } from "@/lib/pdf";
 import ReportTopActions from "@/components/ui/ReportTopActions";
+import ReportSnhlSection from "@/components/report/ReportSnhlSection";
 import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
 import useDemoAccount from "@/hooks/use-demo-account";
 import { useSocket } from "@/providers/socket-provider";
@@ -42,7 +47,10 @@ export default function ETFIntactReportPage() {
     isLoading,
     error,
   } = useGetConsultation(consultationId as string);
-  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
+  const consultationData = useMemo(
+    () => getConsultationFromQueryResponse(consultation as ConsultationModel | undefined),
+    [consultation]
+  );
   const reportRef = useRef<HTMLDivElement>(null);
 
   // Debug: Log consultation data
@@ -742,6 +750,14 @@ export default function ETFIntactReportPage() {
               <div className="text-sm font-bold mb-2">Comments :</div>
               <div className="whitespace-pre-wrap text-sm leading-relaxed break-words overflow-visible">{comments || "No comments entered"}</div>
             </div>
+          </div>
+
+          <div className="px-8 mb-6 print:hidden">
+            <ReportSnhlSection
+              consultationId={consultationId as string}
+              consultation={consultationData}
+              className="w-full"
+            />
           </div>
 
           {/* Audiologist Box */}

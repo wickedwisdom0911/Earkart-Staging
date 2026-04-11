@@ -1,6 +1,10 @@
 "use client";
 import { useGetConsultation } from "@/hooks/consultation/use-get-consultation";
-import { ConsultationModelData } from "@/models/consultation.model";
+import {
+  ConsultationModel,
+  ConsultationModelData,
+  getConsultationFromQueryResponse,
+} from "@/models/consultation.model";
 import { useParams, useRouter } from "next/navigation";
 import { Ear, TympType } from "@/models/enums";
 import { TympanometryReadingModelData } from "@/models/tympanometry.model";
@@ -8,7 +12,8 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 // PDF export utility is loaded dynamically to avoid bundling issues
 import { toast } from "sonner";
@@ -17,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUpdateConsultation } from "@/hooks/consultation/use-update-consultation";
 import { exportElementToPdfBlob } from "@/lib/pdf";
 import ReportTopActions from "@/components/ui/ReportTopActions";
+import ReportSnhlSection from "@/components/report/ReportSnhlSection";
 import useSharedScreenShare from "@/hooks/agora/use-shared-screen-share";
 import { useSocket } from "@/providers/socket-provider";
 import initiateReportUpload from "@/actions/consultations/initiate-report-upload";
@@ -149,11 +155,15 @@ export default function TympanometryReportPage() {
     isLoading,
     error,
   } = useGetConsultation(consultationId as string);
-  const consultationData = ((consultation as any)?.data || null) as ConsultationModelData;
+  const consultationData = useMemo(
+    () => getConsultationFromQueryResponse(consultation as ConsultationModel | undefined),
+    [consultation]
+  );
   const reportRef = useRef<HTMLDivElement>(null);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [sharePhone, setSharePhone] = useState<string>("");
   const [isSendingReport, setIsSendingReport] = useState(false);
+  const queryClient = useQueryClient();
   const updateConsultationMutation = useUpdateConsultation();
   const [comments, setComments] = useState<string>("");
   const { isSharing: isScreenSharing, isConnecting: isScreenConnecting, toggleScreenShare, error: screenShareError } = useSharedScreenShare();
@@ -254,14 +264,14 @@ export default function TympanometryReportPage() {
   //   setComments(consultationData?.tympanometry?.notes || "");
   // }, [consultationData?.tympanometry?.notes]);
 
-  // Load tymp types from consultation data
+  // Load tymp types from consultation (saved on backend after the test)
   useEffect(() => {
-    if (consultationData?.tympanometry?.readings) {
-      const leftReading = consultationData.tympanometry.readings.find(r => r.ear === Ear.LEFT);
-      const rightReading = consultationData.tympanometry.readings.find(r => r.ear === Ear.RIGHT);
-      if (leftReading) setLeftTympType(leftReading.tympType?.toString() || "");
-      if (rightReading) setRightTympType(rightReading.tympType?.toString() || "");
-    }
+    const readings = consultationData?.tympanometry?.readings;
+    if (!readings?.length) return;
+    const leftReading = readings.find((r: TympanometryReadingModelData) => r.ear === Ear.LEFT);
+    const rightReading = readings.find((r: TympanometryReadingModelData) => r.ear === Ear.RIGHT);
+    if (leftReading) setLeftTympType(leftReading.tympType?.toString() || "");
+    if (rightReading) setRightTympType(rightReading.tympType?.toString() || "");
   }, [consultationData?.tympanometry?.readings]);
 
   // Default patient phone formatted
@@ -289,13 +299,20 @@ export default function TympanometryReportPage() {
   const handleSaveComments = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consultationData) return;
+    if (!consultationData.tympanometry) {
+      toast.error("Tympanometry is not on the server for this visit. Comments can be noted locally; complete the test flow if you need server-stored notes.");
+      return;
+    }
     try {
       await updateConsultationMutation.mutateAsync({
         ...consultationData,
         tympanometry: {
-          ...consultationData.tympanometry!,
+          ...consultationData.tympanometry,
           notes: comments,
         },
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["consultation", consultationId as string],
       });
       toast.success("Comments saved");
     } catch (err) {
@@ -307,6 +324,13 @@ export default function TympanometryReportPage() {
   const handleSaveDiagnosis = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consultationData) return;
+    if (!consultationData.tympanometry) {
+      toast.success("Recommendation saved on this device.");
+      if (typeof window !== "undefined") {
+        localStorage.setItem(diagnosisStorageKey, JSON.stringify({ recommendationComment }));
+      }
+      return;
+    }
     try {
       const notesData = JSON.stringify({
         recommendationComment,
@@ -316,11 +340,14 @@ export default function TympanometryReportPage() {
       await updateConsultationMutation.mutateAsync({
         ...consultationData,
         tympanometry: {
-          ...consultationData.tympanometry!,
+          ...consultationData.tympanometry,
           notes: notesData,
         },
       });
-      
+      await queryClient.invalidateQueries({
+        queryKey: ["consultation", consultationId as string],
+      });
+
       if (typeof window !== 'undefined') {
         localStorage.setItem(diagnosisStorageKey, JSON.stringify({
           recommendationComment,
@@ -344,10 +371,10 @@ export default function TympanometryReportPage() {
   }, [recommendationComment, consultationId, diagnosisStorageKey]);
 
   const handleSaveTympTypes = async () => {
-    if (!consultationData?.tympanometry) return;
-    
-    // Update readings only if tymp types are selected (not mandatory)
-    const updatedReadings = consultationData.tympanometry.readings?.map(reading => {
+    if (!consultationData?.tympanometry?.readings?.length) return;
+
+    const readings = consultationData.tympanometry.readings;
+    const updatedReadings = readings.map((reading: TympanometryReadingModelData) => {
       if (reading.ear === Ear.LEFT && leftTympType) {
         return { ...reading, tympType: leftTympType };
       }
@@ -355,7 +382,7 @@ export default function TympanometryReportPage() {
         return { ...reading, tympType: rightTympType };
       }
       return reading;
-    }) || [];
+    });
 
     try {
       await updateConsultationMutation.mutateAsync({
@@ -363,7 +390,12 @@ export default function TympanometryReportPage() {
         tympanometry: {
           ...consultationData.tympanometry,
           readings: updatedReadings,
+          updatedAt: new Date().toISOString(),
         },
+        updatedAt: new Date().toISOString(),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["consultation", consultationId as string],
       });
       toast.success("Tymp types saved");
     } catch (err) {
@@ -706,7 +738,7 @@ export default function TympanometryReportPage() {
   if (!consultationData)
     return <div className="p-6">No consultation data found</div>;
 
-  const tympanometryData = consultationData.tympanometry;
+  const tympanometryData = consultationData?.tympanometry ?? null;
   
   // Check if this is Shriram Hospital
   const isShriramHospital = consultationData.centre?.user?.email?.toLowerCase() === "bills.shriramhospital@gmail.com" || 
@@ -1132,8 +1164,8 @@ export default function TympanometryReportPage() {
           {/* Tympanogram Charts */}
           <div className="px-8 py-4 bg-gray-50 relative z-0 tympanogram-charts-section">
             {(() => {
-              const leftReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
-              const rightReading = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
+              const leftReading = tympanometryData?.readings?.find(r => r.ear === Ear.LEFT);
+              const rightReading = tympanometryData?.readings?.find(r => r.ear === Ear.RIGHT);
 
               const buildData = (r: TympanometryReadingModelData | undefined, ear: 'L' | 'R'): TympanogramPoint[] => {
                 if (!r) return [];
@@ -1270,8 +1302,8 @@ export default function TympanometryReportPage() {
                 <div className="text-center font-bold border border-gray-400 p-2 bg-gray-100 text-gray-800">Rt</div>
 
                 {(() => {
-                  const left = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.LEFT);
-                  const right = consultationData.tympanometry?.readings?.find(r => r.ear === Ear.RIGHT);
+                  const left = tympanometryData?.readings?.find(r => r.ear === Ear.LEFT);
+                  const right = tympanometryData?.readings?.find(r => r.ear === Ear.RIGHT);
                   const row = (label: string, units: string, l?: (typeof left), r?: (typeof right), formatter?: (v: number) => string) => {
                     // For Compliance, prefer peakCompensatedWithECV if available (matches controls), otherwise use staticCompliance
                     const getComplianceValue = (reading?: typeof right | typeof left) => {
@@ -1363,6 +1395,14 @@ export default function TympanometryReportPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="px-8 mb-4 print:hidden">
+            <ReportSnhlSection
+              consultationId={consultationId as string}
+              consultation={consultationData}
+              className="w-full"
+            />
           </div>
 
           {/* Audiologist Box */}

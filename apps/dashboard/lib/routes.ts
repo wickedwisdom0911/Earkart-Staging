@@ -1,3 +1,6 @@
+/** Stable string for `<Link href>` — avoids undefined if ROUTES is partially loaded */
+export const TRIAL_APPOINTMENTS_HREF = "/dashboard/trial-appointments";
+
 export const ROUTES = {
   LOGIN: "/login",
   DASHBOARD: "/dashboard",
@@ -18,6 +21,7 @@ export const ROUTES = {
   USERS: "/dashboard/users",
   PATIENTS: "/dashboard/patients",
   APPOINTMENTS: "/dashboard/appointments",
+  TRIAL_APPOINTMENTS: TRIAL_APPOINTMENTS_HREF,
   ALL_CONSULTATIONS: "/dashboard/all-consultations",
   ANSWER_QUESTIONNAIRE: (consultationId: string) => `/consultation/${consultationId}/answer-questionnaire`,
   CONSULTATION_TEST_SELECTION: (consultationId: string) => `/consultation/${consultationId}/test-selection`,

@@ -2,6 +2,22 @@ import { z } from "zod";
 import { userModelDataSchema } from "./user.model";
 import { LanguageModelDataSchema } from "./language.model";
 import { CityModelDataSchema } from "./city.model";
+import { HearingLossSeverity } from "./enums";
+
+/** SNHL flags from API (boolean / string / number). */
+const patientHearingLossBooleanSchema = z
+  .union([z.boolean(), z.string(), z.number()])
+  .optional()
+  .nullable()
+  .transform((v) => {
+    if (v === undefined || v === null) return v;
+    if (typeof v === "boolean") return v;
+    if (typeof v === "number") return v !== 0;
+    const s = String(v).toLowerCase().trim();
+    if (["true", "1", "yes"].includes(s)) return true;
+    if (["false", "0", "no"].includes(s)) return false;
+    return undefined;
+  });
 
 export const patientModeldataSchema = z.object({
   id: z.string().optional(),
@@ -31,7 +47,17 @@ export const patientModeldataSchema = z.object({
   updater: userModelDataSchema.optional().nullable(),
   language: LanguageModelDataSchema.optional().nullable(),
   city: CityModelDataSchema.optional().nullable(),
-});
+  /** SNHL — nested under patient on consultation (GET/PUT). */
+  hearingLoss: patientHearingLossBooleanSchema,
+  hearingLossSeverity: z
+    .union([
+      z.nativeEnum(HearingLossSeverity),
+      z.enum(["MILD", "MODERATE", "SEVERE", "PROFOUND"]),
+      z.string(),
+    ])
+    .optional()
+    .nullable(),
+}).passthrough();
 
 export const CreatePatientRequestSchema = z.object({
   name: z.string().min(1, "Name is required"),

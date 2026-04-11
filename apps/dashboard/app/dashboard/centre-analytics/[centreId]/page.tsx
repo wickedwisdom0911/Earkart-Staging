@@ -3,13 +3,13 @@
 import { useState, useMemo, useEffect } from "react";
 import DashboardBodyWrapper from "@/components/ui/dashboard-body-wrapper";
 import { ConsultationModelData } from "@/models/consultation.model";
-import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, subDays } from "date-fns";
 import { SessionStatus, Role, TestStatus } from "@/models/enums";
 import { useParams, useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
-import { useGetAllConsultations } from "@/hooks/consultation/use_get_all_consultations";
-import { extractConsultations } from "@/models/consultation.model";
+import { useGetConsultationsByCentre } from "@/hooks/consultation/use-get-consultations-by-centre";
 import useGetCentre from "@/hooks/centre/use-get-centre";
+import { useCentreDashboard } from "@/hooks/analytics/use-centre-dashboard";
 import {
   ArrowLeft,
   Building2,
@@ -29,17 +29,11 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar } from "@/components/ui/calendar";
 import {
   Select,
   SelectContent,
@@ -60,27 +54,11 @@ export default function CentreDetailPage() {
   const centreId = params.centreId as string;
 
   const {
-    data: consultations,
-    isLoading: consultationsLoading,
-  } = useGetAllConsultations({
-    startDate: format(subDays(new Date(), 90), "yyyy-MM-dd"),
-    endDate: format(new Date(), "yyyy-MM-dd"),
-    staleTime: 60_000,
-  });
-
-  const {
     data: centre,
     isLoading: centreLoading,
   } = useGetCentre(centreId);
 
-  const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
-
-  if (!isAdmin && user) {
-    router.push("/dashboard");
-    return null;
-  }
-
-  // Filter states
+  // Filter states — declared before any conditional returns (Rules of Hooks)
   const [fromDate, setFromDate] = useState<Date | null>(null);
   const [toDate, setToDate] = useState<Date | null>(null);
   const [activeDateFilter, setActiveDateFilter] = useState<DateFilter>("30days");
@@ -90,17 +68,47 @@ export default function CentreDetailPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const today = new Date();
   const yesterday = subDays(today, 1);
+  const isAdmin = user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
+
+  // Compute API date range from the active filter — passed directly to the backend
+  const apiDateRange = useMemo(() => {
+    const now = new Date();
+    switch (activeDateFilter) {
+      case "today":
+        return { startDate: format(now, "yyyy-MM-dd"), endDate: format(now, "yyyy-MM-dd") };
+      case "7days":
+        return { startDate: format(subDays(now, 7), "yyyy-MM-dd"), endDate: format(now, "yyyy-MM-dd") };
+      case "30days":
+        return { startDate: format(subDays(now, 30), "yyyy-MM-dd"), endDate: format(now, "yyyy-MM-dd") };
+      case "custom":
+        return {
+          startDate: fromDate ? format(fromDate, "yyyy-MM-dd") : undefined,
+          endDate: toDate ? format(toDate, "yyyy-MM-dd") : undefined,
+        };
+      default: // "all" — no date restriction
+        return {};
+    }
+  }, [activeDateFilter, fromDate, toDate]);
+
+  // Fetch consultations for this centre — server-side date + centreId filtering
+  const {
+    data: centreConsultationsData,
+    isLoading: consultationsLoading,
+  } = useGetConsultationsByCentre({
+    centreId,
+    ...apiDateRange,
+  });
 
   const centreData = useMemo(() => {
     if (!centre?.data) return null;
     return centre.data;
   }, [centre]);
 
-  const centreConsultations = useMemo(() => {
-    if (!consultations?.data) return [];
-    const consultationsArray = extractConsultations(consultations.data);
-    return consultationsArray.filter((c) => c.centre?.id === centreId);
-  }, [consultations, centreId]);
+  // Consultations already filtered by centreId and date range from the API
+  const centreConsultations = useMemo(
+    () => centreConsultationsData?.consultations ?? [],
+    [centreConsultationsData]
+  );
 
   const availableAudiologists = useMemo(() => {
     const audiologistMap = new Map<string, { id: string; name: string }>();
@@ -114,36 +122,9 @@ export default function CentreDetailPage() {
     return Array.from(audiologistMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [centreConsultations]);
 
-  const getDateRangeForFilter = (filter: DateFilter): { from: Date | null; to: Date | null } => {
-    switch (filter) {
-      case "today":
-        return { from: today, to: today };
-      case "7days":
-        return { from: subDays(today, 7), to: today };
-      case "30days":
-        return { from: subDays(today, 30), to: today };
-      case "custom":
-        return { from: fromDate, to: toDate };
-      default:
-        return { from: null, to: null };
-    }
-  };
-
+  // Date filtering is handled server-side; only apply local filters here
   const filteredConsultations = useMemo(() => {
     let filtered = [...centreConsultations];
-
-    const { from, to } = getDateRangeForFilter(activeDateFilter);
-
-    if (from || to) {
-      filtered = filtered.filter((c) => {
-        if (!c.createdAt) return false;
-        const consultationDate = new Date(c.createdAt);
-        if (from && !to) return consultationDate >= startOfDay(from);
-        if (!from && to) return consultationDate <= endOfDay(to);
-        if (from && to) return consultationDate >= startOfDay(from) && consultationDate <= endOfDay(to);
-        return true;
-      });
-    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -162,12 +143,9 @@ export default function CentreDetailPage() {
       filtered = filtered.filter((c) => !c.audiologist?.user?.name);
     }
 
-    return filtered.sort((a, b) => {
-      const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return bDate - aDate;
-    });
-  }, [centreConsultations, activeDateFilter, fromDate, toDate, searchQuery, selectedAudiologistId, showMissedCallsOnly]);
+    // API already returns newest-first; preserve that order unless locally filtered
+    return filtered;
+  }, [centreConsultations, searchQuery, selectedAudiologistId, showMissedCallsOnly]);
 
   // Pagination
   const totalPages = Math.ceil(filteredConsultations.length / PAGE_SIZE) || 1;
@@ -179,7 +157,18 @@ export default function CentreDetailPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, activeDateFilter, selectedAudiologistId, showMissedCallsOnly]);
+  }, [searchQuery, activeDateFilter, fromDate, toDate, selectedAudiologistId, showMissedCallsOnly]);
+
+  // Reuse apiDateRange for test counts — both APIs now share the same date range
+  const { data: centreDashboardData } = useCentreDashboard({
+    centreIds: [centreId],
+    ...apiDateRange,
+  });
+
+  const centreTestCounts = useMemo(() => {
+    if (!centreDashboardData?.centres?.length) return null;
+    return centreDashboardData.centres.find((c) => c.centreId === centreId) ?? null;
+  }, [centreDashboardData, centreId]);
 
   const stats = useMemo(() => {
     const total = filteredConsultations.length;
@@ -193,16 +182,17 @@ export default function CentreDetailPage() {
       const s = (t as { status?: string })?.status;
       return s === TestStatus.COMPLETED || s === TestStatus.IN_PROGRESS;
     };
-    const ptaCount = filteredConsultations.filter((c) => c.audiometry && hasTestDone(c.audiometry)).length;
-    const tympanometryCount = filteredConsultations.filter((c) => c.tympanometry && hasTestDone(c.tympanometry)).length;
-    const oaeCount = filteredConsultations.filter((c) => c.oae && hasTestDone(c.oae)).length;
-    const otoscopyCount = filteredConsultations.filter((c) => c.otoscopy && hasTestDone(c.otoscopy)).length;
-    const etfCount = filteredConsultations.filter((c) => c.etfIntact != null).length;
-    const toneDecayCount = filteredConsultations.filter((c) => c.toneDecay && hasTestDone(c.toneDecay)).length;
-    const reflexometryCount = filteredConsultations.filter((c) => c.reflexometry != null).length;
+    // Prefer pre-aggregated counts from analytics API; the list endpoint omits nested test data
+    const ptaCount = centreTestCounts?.ptaCount ?? filteredConsultations.filter((c) => c.audiometry && hasTestDone(c.audiometry)).length;
+    const tympanometryCount = centreTestCounts?.tympanometryCount ?? filteredConsultations.filter((c) => c.tympanometry && hasTestDone(c.tympanometry)).length;
+    const oaeCount = centreTestCounts?.oaeCount ?? filteredConsultations.filter((c) => c.oae && hasTestDone(c.oae)).length;
+    const otoscopyCount = (centreTestCounts as Record<string, number> | null)?.otoscopyCount ?? filteredConsultations.filter((c) => c.otoscopy && hasTestDone(c.otoscopy)).length;
+    const etfCount = centreTestCounts?.etfCount ?? filteredConsultations.filter((c) => c.etfIntact != null).length;
+    const toneDecayCount = centreTestCounts?.toneDecayCount ?? filteredConsultations.filter((c) => c.toneDecay && hasTestDone(c.toneDecay)).length;
+    const reflexometryCount = centreTestCounts?.reflexometryCount ?? filteredConsultations.filter((c) => c.reflexometry != null).length;
 
     return { total, completed, inProgress, pending, cancelled, missedCalls, ptaCount, tympanometryCount, oaeCount, otoscopyCount, etfCount, toneDecayCount, reflexometryCount };
-  }, [filteredConsultations]);
+  }, [filteredConsultations, centreTestCounts]);
 
   const clearAllFilters = () => {
     setFromDate(null);
@@ -284,10 +274,14 @@ export default function CentreDetailPage() {
       consults = consults.filter((c) => {
         if (!c.createdAt) return false;
         const d = new Date(c.createdAt);
-        if (!exportFrom && !exportTo) return true;
-        if (exportFrom && !exportTo) return d >= startOfDay(exportFrom);
-        if (!exportFrom && exportTo) return d <= endOfDay(exportTo);
-        return d >= startOfDay(exportFrom!) && d <= endOfDay(exportTo!);
+        if (exportFrom && exportTo) {
+          const from = new Date(exportFrom); from.setHours(0, 0, 0, 0);
+          const to = new Date(exportTo); to.setHours(23, 59, 59, 999);
+          return d >= from && d <= to;
+        }
+        if (exportFrom) { const from = new Date(exportFrom); from.setHours(0, 0, 0, 0); return d >= from; }
+        if (exportTo) { const to = new Date(exportTo); to.setHours(23, 59, 59, 999); return d <= to; }
+        return true;
       });
     }
     const hasTestDone = (t: unknown) => {
@@ -352,7 +346,15 @@ export default function CentreDetailPage() {
     exportCentreDetailToExcel(data, centreName, label);
   };
 
-  const { from: activeFrom, to: activeTo } = getDateRangeForFilter(activeDateFilter);
+  // Derive Date objects for export helpers from apiDateRange strings
+  const activeFrom = apiDateRange.startDate ? new Date(apiDateRange.startDate) : null;
+  const activeTo = apiDateRange.endDate ? new Date(apiDateRange.endDate) : null;
+
+  // All hooks have been called above — safe to do conditional returns now
+  if (!isAdmin && user) {
+    router.push("/dashboard");
+    return null;
+  }
 
   if (consultationsLoading || centreLoading) {
     return (
@@ -528,7 +530,11 @@ export default function CentreDetailPage() {
                 {(["all", "today", "7days", "30days"] as DateFilter[]).map((filter) => (
                   <button
                     key={filter}
-                    onClick={() => setActiveDateFilter(filter)}
+                    onClick={() => {
+                      setActiveDateFilter(filter);
+                      setFromDate(null);
+                      setToDate(null);
+                    }}
                     className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all ${
                       activeDateFilter === filter
                         ? "bg-[#40A3DB] text-white shadow-sm"
@@ -538,53 +544,80 @@ export default function CentreDetailPage() {
                     {filter === "all" ? "All" : filter === "today" ? "Today" : filter === "7days" ? "7 Days" : "30 Days"}
                   </button>
                 ))}
+              </div>
 
-                {/* Custom Range */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button
-                      onClick={() => setActiveDateFilter("custom")}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all ${
-                        activeDateFilter === "custom"
-                          ? "bg-[#40A3DB] text-white shadow-sm"
-                          : "text-gray-600 hover:text-gray-900"
-                      }`}
-                    >
-                      <CalendarIcon className="w-3.5 h-3.5" />
-                      Custom Range
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-4" align="end">
-                    <div className="flex gap-4">
-                      <div>
-                        <p className="text-xs font-medium text-gray-500 mb-2">From</p>
-                        <Calendar
-                          mode="single"
-                          selected={fromDate || undefined}
-                          onSelect={(date) => {
-                            setFromDate(date || null);
-                            if (date && toDate && date > toDate) setToDate(date);
-                          }}
-                          initialFocus
-                          disabled={(date) => (toDate ? date > toDate : false)}
-                        />
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-gray-500 mb-2">To</p>
-                        <Calendar
-                          mode="single"
-                          selected={toDate || undefined}
-                          onSelect={(date) => {
-                            setToDate(date || null);
-                            if (date && fromDate && date < fromDate) setFromDate(date);
-                          }}
-                          initialFocus
-                          disabled={(date) => (fromDate ? date < fromDate : false)}
-                        />
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+              {/* From date */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  background: "#f9fafb",
+                }}
+              >
+                <CalendarIcon size={14} color="#9ca3af" />
+                <input
+                  type="date"
+                  value={fromDate ? format(fromDate, "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const d = v ? new Date(v + "T00:00:00") : null;
+                    setFromDate(d);
+                    if (d && toDate && d > toDate) setToDate(null);
+                    setActiveDateFilter("custom");
+                  }}
+                  max={toDate ? format(toDate, "yyyy-MM-dd") : undefined}
+                  style={{
+                    border: "none",
+                    outline: "none",
+                    background: "transparent",
+                    fontSize: 13,
+                    color: fromDate ? "#374151" : "#9ca3af",
+                    minWidth: 0,
+                  }}
+                />
+              </div>
+
+              {/* To date */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  background: "#f9fafb",
+                }}
+              >
+                <CalendarIcon size={14} color="#9ca3af" />
+                <input
+                  type="date"
+                  value={toDate ? format(toDate, "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const d = v ? new Date(v + "T00:00:00") : null;
+                    if (d && fromDate && d < fromDate) {
+                      setToDate(fromDate);
+                      setFromDate(d);
+                    } else {
+                      setToDate(d);
+                    }
+                    setActiveDateFilter("custom");
+                  }}
+                  min={fromDate ? format(fromDate, "yyyy-MM-dd") : undefined}
+                  style={{
+                    border: "none",
+                    outline: "none",
+                    background: "transparent",
+                    fontSize: 13,
+                    color: toDate ? "#374151" : "#9ca3af",
+                    minWidth: 0,
+                  }}
+                />
               </div>
 
               {/* Audiologist Filter */}

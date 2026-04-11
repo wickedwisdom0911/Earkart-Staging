@@ -20,6 +20,10 @@ export interface GetConsultationsPageParams {
   search?: string;
   /** Only send when true - filter demo calls */
   isDemo?: boolean;
+  /** Filter by linked patient hearing loss flag */
+  hearingLoss?: boolean;
+  /** Filter by linked patient hearing loss severity (e.g. MILD, MODERATE, SEVERE, PROFOUND) */
+  hearingLossSeverity?: string;
 }
 
 export interface GetConsultationsPageResult {
@@ -52,6 +56,15 @@ export default async function getConsultationsPage(
   if (params.endDate) searchParams.set("endDate", toApiEndDate(params.endDate));
   if (params.search) searchParams.set("search", params.search);
   if (params.isDemo === true) searchParams.set("isDemoCall", "true");
+  if (typeof params.hearingLoss === "boolean") {
+    searchParams.set("hearingLoss", params.hearingLoss ? "true" : "false");
+  }
+  if (params.hearingLossSeverity?.trim()) {
+    searchParams.set(
+      "hearingLossSeverity",
+      params.hearingLossSeverity.trim().toUpperCase()
+    );
+  }
 
   const url = `${baseUrl}consultation/get-all?${searchParams.toString()}`;
   const res = await fetch(url, {

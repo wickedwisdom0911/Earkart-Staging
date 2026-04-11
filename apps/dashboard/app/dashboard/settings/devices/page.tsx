@@ -9,7 +9,7 @@ import DeleteDeviceDialog from "./_components/delete-device-dialog";
 import { ROUTES } from "@/lib/routes";
 import { useRouter } from "next/navigation";
 import { useGetUser } from "@/hooks/auth/use-get-user";
-import { Role } from "@/models/enums";
+import { DeviceStatusEnum, Role } from "@/models/enums";
 import { Input } from "@/components/ui/input";
 
 export default function DevicesPage() {
@@ -36,7 +36,10 @@ export default function DevicesPage() {
   const stats = useMemo(() => {
     const assigned = allDevices.filter((d) => d.centre !== null && d.centre !== undefined).length;
     const unassigned = allDevices.filter((d) => d.centre === null || d.centre === undefined).length;
-    const active = allDevices.filter((d) => d.status === "ACTIVE").length;
+    const active = allDevices.filter(
+      (d) =>
+        d.status === DeviceStatusEnum.ACTIVE || d.status === DeviceStatusEnum.ENABLED
+    ).length;
     return { total: allDevices.length, assigned, unassigned, active };
   }, [allDevices]);
 
@@ -170,12 +173,19 @@ export default function DevicesPage() {
                   <div>
                     <span
                       className={`inline-flex items-center rounded-full text-xs font-medium px-3 py-1 ${
-                        device.status === "ACTIVE"
+                        device.status === DeviceStatusEnum.ACTIVE ||
+                        device.status === DeviceStatusEnum.ENABLED
                           ? "text-[#4CA054] bg-[#4CA054]/10"
                           : "text-gray-500 bg-gray-100"
                       }`}
                     >
-                      {device.status === "ACTIVE" ? "Active" : "Inactive"}
+                      {device.status === DeviceStatusEnum.ENABLED
+                        ? "Enabled"
+                        : device.status === DeviceStatusEnum.ACTIVE
+                          ? "Active"
+                          : device.status === DeviceStatusEnum.DISABLED
+                            ? "Disabled"
+                            : "Inactive"}
                     </span>
                   </div>
 

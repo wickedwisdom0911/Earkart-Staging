@@ -1,6 +1,7 @@
 "use client";
 import {
   Sidebar,
+  SidebarMenu,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "./button";
@@ -210,9 +211,11 @@ export function AppSidebar() {
               {!open && i > 0 && (
                 <div className="mx-auto w-5 h-px bg-gray-200 mb-1" />
               )}
-              {section.items.map((item) => (
-                <AppSidebarBody key={item.name} item={item} />
-              ))}
+              <SidebarMenu className="gap-0.5">
+                {section.items.map((item) => (
+                  <AppSidebarBody key={item.name} item={item} />
+                ))}
+              </SidebarMenu>
             </div>
           ))}
         </div>

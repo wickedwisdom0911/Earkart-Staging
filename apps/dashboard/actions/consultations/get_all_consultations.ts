@@ -19,6 +19,8 @@ export interface GetAllConsultationsParams {
   /** Date range filter - passed to backend. If backend doesn't filter, caller should filter client-side. */
   startDate?: string;
   endDate?: string;
+  hearingLoss?: boolean;
+  hearingLossSeverity?: string;
 }
 
 export default async function getAllConsultations(
@@ -44,6 +46,15 @@ export default async function getAllConsultations(
     });
     if (params?.startDate) urlParams.set("startDate", toApiStartDate(params.startDate));
     if (params?.endDate) urlParams.set("endDate", toApiEndDate(params.endDate));
+    if (typeof params?.hearingLoss === "boolean") {
+      urlParams.set("hearingLoss", params.hearingLoss ? "true" : "false");
+    }
+    if (params?.hearingLossSeverity?.trim()) {
+      urlParams.set(
+        "hearingLossSeverity",
+        params.hearingLossSeverity.trim().toUpperCase()
+      );
+    }
 
     while (hasMore && pagesFetched < MAX_PAGES && (!maxRecords || allConsultations.length < maxRecords)) {
       pagesFetched++;

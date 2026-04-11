@@ -1,3 +1,6 @@
+/** Must match dashboard trial page; used by `<Link href>` (see routes.ts for full app ROUTES). */
+export const TRIAL_APPOINTMENTS_HREF = "/dashboard/trial-appointments";
+
 export const ROUTES = {
   HOME: "/",
   LOGIN: "/login",
@@ -34,4 +37,5 @@ export const ROUTES = {
     `/consultation/${consultationId}/test/report/reflexometry`,
   REPORT_PREVIEW_AUDIOMETRY: () =>
     `/dashboard/report-preview/audiometry`,
+  TRIAL_APPOINTMENTS: TRIAL_APPOINTMENTS_HREF,
 };

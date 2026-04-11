@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PaymentCycle, StatusEnum, WeekDays, Gender } from "./enums";
+import { PaymentCycle, StatusEnum, WeekDays, Gender, DeviceStatusEnum } from "./enums";
 import { CityModelDataSchema } from "./city.model";
 import { userModelDataSchema, CreateUserDtoSchema } from "./user.model";
 import { NrvSplitDataSchema } from "./nrv.model";
@@ -12,7 +12,7 @@ export const DeviceModelDataSchema = z.object({
   deviceID: z.string().optional().nullable(),
   otoscopeID: z.string().optional().nullable(),
   tabletAppVersion: z.string().optional().nullable(),
-  status: z.nativeEnum(StatusEnum),
+  status: z.nativeEnum(DeviceStatusEnum),
 });
 
 export const PricingSchema = z.object({

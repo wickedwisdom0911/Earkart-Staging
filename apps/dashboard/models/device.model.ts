@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CentreModelDataSchema } from "./centre.model";
-import { DeviceActivityType, StatusEnum } from "./enums";
+import { DeviceActivityType, DeviceStatusEnum } from "./enums";
 import { userModelDataSchema } from "./user.model";
 const DeviceActivityModelDataSchema = z.object({
   id: z.string().optional(),
@@ -22,12 +22,13 @@ export const DeviceModelDataSchema = z.object({
   deviceID: z.string().optional().nullable(),
   tabletAppVersion: z.string().optional().nullable(),
   tabletAndroidVersion: z.string().optional().nullable(),
-  status: z.nativeEnum(StatusEnum),
+  status: z.nativeEnum(DeviceStatusEnum),
   pendingUpdate: z.boolean().optional().nullable(),
   pendingLookup: z.boolean().optional().nullable(),
   lastUpdateChecked: z.string().optional().nullable(),
   lastSeenAt: z.string().optional().nullable(),
-  lastReportedState: z.record(z.string(), z.unknown()).optional().nullable(),
+  /** Opaque JSON from device telemetry (object, array, or stringified JSON from API). */
+  lastReportedState: z.unknown().optional().nullable(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   centreId: z.string().optional().nullable(),
